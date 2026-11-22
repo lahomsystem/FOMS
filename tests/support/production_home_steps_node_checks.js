@@ -1,142 +1,30 @@
 // '내 공정' 탭 오른쪽 판 — 서버가 그린 진짜 조각(HTML 파일 경로 = argv[2]) 위에서 세 JS 를 Node 로 돌린다.
 // tests/domains/test_production_home_step_panel.py 가 부른다(설계서 2026-11-21-production-my-steps-panel §3-5 · §6).
-// 1) foms-production-home-steps.js: 줄 누름 = 판만 바뀜(요청 0 · 주소 replaceState order=) · 공정 탭 = 그 탭 고른 줄 주소 ·
-//    [<공정> 끝] = 확인 창 → [취소] POST 0 → [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true} 한 번 → 다음 손님 주소 ·
+// 1) foms-production-home-steps.js + steppane.js: 줄 누름 = 고른 표시 즉시 · 판 하나 받기(view=panel 한 번, 받은 판은 남김 — 다시 누르면 0)
+//    · 주소 replaceState order= · 공정 탭 = 그 탭 고른 줄 주소 ·
+//    [<공정> 끝] = 바로 POST /api/orders/<id>/production/steps {key, done:true} 한 번(두 번 눌러도) → 다음 손님 주소 · 새 화면 [끝] 600ms 잠금 ·
+//    [되돌리기] = {done:false} 한 번 → 그 주문 주소 · 저장 · 되돌리기 실패 글 ·
 //    그림 = 전역 원본 뷰어(그림 원본 전부).
 // 2) foms-production-sheet-page.js: 판 [불량] → 칩 → POST …/production/defect {reason}.
 // 3) tablet-domain-sheets.js: 판 [보류] → 사유 창 → POST …/production/hold {active:true, reason}, [보류 해제] → 확인 → {active:false}.
-// 작은 가짜 DOM: 태그 · .class · #id · [attr] · [attr="v"] 묶음 + 쉼표 목록만(조합자 없음 — 세 파일이 그것만 쓴다).
+// 가짜 DOM = production_fake_dom.js(태그 · .class · #id · [attr] 묶음 + 쉼표 목록만 — 세 파일이 그것만 쓴다).
 'use strict';
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { fakeDom } = require('./production_fake_dom.js');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const html = fs.readFileSync(process.argv[2], 'utf8');
-
-// ── 아주 작은 HTML 읽기(서버 조각 전용: 따옴표 속성 · 빈 요소 · 주석 · script 본문 건너뜀) ──
-const VOID = new Set(['img', 'br', 'input', 'meta', 'link', 'hr', 'source', 'path', 'circle', 'rect', 'line', 'use', 'polyline', 'col', 'wbr']);
-function decode(s) {
-  return s.replace(/&(#\d+|#x[0-9a-f]+|amp|lt|gt|quot|apos|nbsp);/gi, (m, e) => {
-    if (e[0] === '#') return String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
-    return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }[e.toLowerCase()];
-  });
-}
-function parseSel(sel) {
-  const m = { tag: null, id: null, classes: [], attrs: [] };
-  const re = /^([a-z][a-z0-9]*)|#([\w-]+)|\.([\w-]+)|\[([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'))?\]/gi;
-  let x;
-  while ((x = re.exec(sel))) {
-    if (x[1]) m.tag = x[1].toLowerCase();
-    else if (x[2]) m.id = x[2];
-    else if (x[3]) m.classes.push(x[3]);
-    else m.attrs.push([x[4], x[5] !== undefined ? x[5] : x[6]]);
-  }
-  return m;
-}
-function matchOne(node, sel) {
-  if (!node.tag) return false;
-  const m = parseSel(sel.trim());
-  if (m.tag && node.tag !== m.tag) return false;
-  if (m.id && node.attrs.id !== m.id) return false;
-  const cls = (node.attrs.class || '').split(/\s+/);
-  if (m.classes.some((c) => !cls.includes(c))) return false;
-  return m.attrs.every(([k, v]) => k in node.attrs && (v === undefined || node.attrs[k] === v));
-}
-function matches(node, sel) { return sel.split(',').some((s) => matchOne(node, s)); }
-function walk(node, out) { node.children.forEach((c) => { out.push(c); walk(c, out); }); return out; }
-
-function makeEl(tag) {
-  const node = {
-    tag, attrs: {}, children: [], parentNode: null, listeners: {}, text: null, disabled: false,
-    get nodeType() { return 1; },
-    get tagName() { return tag.toUpperCase(); },
-    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
-    setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'disabled') this.disabled = true; },
-    hasAttribute(k) { return k in this.attrs; },
-    removeAttribute(k) { delete this.attrs[k]; },
-    get className() { return this.attrs.class || ''; },
-    set className(v) { this.attrs.class = String(v); },
-    get id() { return this.attrs.id || ''; },
-    get hidden() { return 'hidden' in this.attrs; },
-    set hidden(v) { if (v) this.attrs.hidden = ''; else delete this.attrs.hidden; },
-    get classList() {
-      const self = this;
-      const list = () => (self.attrs.class || '').split(/\s+/).filter(Boolean);
-      const set = (arr) => { self.attrs.class = arr.join(' '); };
-      return {
-        contains: (c) => list().includes(c),
-        add: (...cs) => set([...new Set(list().concat(cs))]),
-        remove: (...cs) => set(list().filter((x) => !cs.includes(x))),
-        toggle: (c, on) => { const has = list().includes(c); const want = on === undefined ? !has : !!on; if (want && !has) set(list().concat(c)); if (!want && has) set(list().filter((x) => x !== c)); return want; },
-      };
-    },
-    get textContent() { return this.text !== null ? this.text : this.children.map((c) => c.textContent).join(''); },
-    set textContent(v) { this.children = []; this.text = String(v); },
-    get innerText() { return this.textContent; },
-    get firstElementChild() { return this.children[0] || null; },
-    appendChild(c) { if (c.parentNode) c.parentNode.removeChild(c); c.parentNode = this; this.text = null; this.children.push(c); return c; },
-    removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); c.parentNode = null; return c; },
-    replaceChild(n, o) { const i = this.children.indexOf(o); this.children[i] = n; n.parentNode = this; o.parentNode = null; return o; },
-    cloneNode(deep) { const c = makeEl(tag); c.attrs = Object.assign({}, this.attrs); if (deep) this.children.forEach((k) => c.appendChild(k.cloneNode(true))); return c; },
-    contains(n) { while (n) { if (n === this) return true; n = n.parentNode; } return false; },
-    matches(sel) { return matches(this, sel); },
-    closest(sel) { let n = this; while (n && n.tag) { if (matches(n, sel)) return n; n = n.parentNode; } return null; },
-    querySelector(sel) { return walk(this, []).find((n) => matches(n, sel)) || null; },
-    querySelectorAll(sel) { return walk(this, []).filter((n) => matches(n, sel)); },
-    addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
-    removeEventListener() {},
-    getClientRects() { let n = this; while (n && n.tag) { if (n.hidden) return []; n = n.parentNode; } return [{}]; },
-    getBoundingClientRect() { return { top: 0, left: 0, width: 10, height: 10, bottom: 10, right: 10 }; },
-    focus() { focused.push(this); },
-    click() { dispatch(this, 'click'); },
-  };
-  return node;
-}
-function textNode(t) { return { tag: null, children: [], parentNode: null, get textContent() { return t; } }; }
-
-function parse(src) {
-  const top = makeEl('body');
-  const stack = [top];
-  const re = /<!--[\s\S]*?-->|<script\b[^>]*>[\s\S]*?<\/script>|<\/([a-zA-Z][\w-]*)\s*>|<([a-zA-Z][\w-]*)((?:\s+[^\s"'>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*(\/?)>|([^<]+)/g;
-  let m;
-  while ((m = re.exec(src))) {
-    const cur = stack[stack.length - 1];
-    if (m[1]) {
-      const t = m[1].toLowerCase();
-      for (let i = stack.length - 1; i > 0; i--) { if (stack[i].tag === t) { stack.length = i; break; } }
-    } else if (m[2]) {
-      const t = m[2].toLowerCase();
-      const n = makeEl(t);
-      const are = /([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
-      let a;
-      while ((a = are.exec(m[3] || ''))) n.attrs[a[1]] = decode(a[2] !== undefined ? a[2] : a[3] !== undefined ? a[3] : a[4] !== undefined ? a[4] : '');
-      if ('disabled' in n.attrs) n.disabled = true;
-      cur.appendChild(n);
-      if (!m[4] && !VOID.has(t)) stack.push(n);
-    } else if (m[5] && m[0][0] !== '<') {
-      cur.children.push(Object.assign(textNode(decode(m[5])), { parentNode: cur }));
-    }
-  }
-  return top;
-}
-
+const want = JSON.parse(process.argv[3]); // {first, hold, next, key, label, me, pin, other_tab, other_url, panels: {id: 조각 파일}}
+const D = fakeDom();
+const { dispatch, docListeners, focused } = D;
 // ── 문서 · 창 ──
-const body = parse(html);
-const focused = [];
-const docListeners = {};
+const body = D.parse(html);
 const calls = { fetch: [], replaceState: [], replace: [], assign: [], viewer: [], reason: [], confirm: [] };
 let fetchReply = () => ({ success: true, data: {} });
-function dispatch(target, type, extra) {
-  const ev = Object.assign({ type, target, defaultPrevented: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false,
-    preventDefault() { this.defaultPrevented = true; }, stopPropagation() {} }, extra || {});
-  let n = target;
-  while (n && n.tag) { (n.listeners[type] || []).forEach((f) => f.call(n, ev)); n = n.parentNode; }
-  (docListeners[type] || []).forEach((f) => f(ev));
-  return ev;
-}
 const store = {};
 const location = {
   href: 'http://127.0.0.1/erp/production/home?tab=steps', origin: 'http://127.0.0.1', pathname: '/erp/production/home', search: '?tab=steps',
@@ -146,14 +34,14 @@ const document = {
   body, readyState: 'complete', referrer: '',
   querySelector: (s) => body.querySelector(s), querySelectorAll: (s) => body.querySelectorAll(s),
   getElementById: (id) => body.querySelector('#' + id),
-  createElement: (t) => makeEl(t.toLowerCase()),
+  createElement: (t) => D.makeEl(t.toLowerCase()),
   addEventListener(t, f) { (docListeners[t] = docListeners[t] || []).push(f); },
   removeEventListener() {},
   contains: (n) => body.contains(n),
   dispatchEvent() { return true; },
 };
 const ctx = {
-  console, URL, JSON, Promise, Date, Math, Object, Array, String, Number, Boolean, RegExp, Error, Set, Map, setTimeout, clearTimeout,
+  console, URL, JSON, Promise, AbortController, Date, Math, Object, Array, String, Number, Boolean, RegExp, Error, Set, Map, setTimeout, clearTimeout,
   document, location,
   history: { state: null, replaceState(s, t, u) { calls.replaceState.push(u); } },
   localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } },
@@ -163,6 +51,12 @@ const ctx = {
   CustomEvent: function CustomEvent(t, o) { this.type = t; this.detail = (o || {}).detail; },
   fetch: (url, opts) => {
     calls.fetch.push({ url, method: (opts || {}).method, body: (opts || {}).body ? JSON.parse(opts.body) : null });
+    const u = new URL(url, location.href);
+    if (u.searchParams.get('view') === 'panel') { // 판 하나 조각 = 서버가 그린 진짜 조각 파일
+      const id = u.searchParams.get('order');
+      const text = fs.readFileSync(want.panels[id], 'utf8');
+      return Promise.resolve({ ok: true, status: 200, headers: { get: (h) => (h === 'X-FOMS-HOME-PANEL' ? id : null) }, text: () => Promise.resolve(text) });
+    }
     const data = fetchReply(url);
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) });
   },
@@ -175,27 +69,34 @@ const ctx = {
 ctx.window = ctx;
 ctx.addEventListener = (t, f) => { (docListeners['win:' + t] = docListeners['win:' + t] || []).push(f); };
 vm.createContext(ctx);
-for (const rel of ['static/js/production/foms-production-home-steps.js', 'static/js/production/foms-production-sheet-page.js',
+for (const rel of ['static/js/production/foms-production-home-steppane.js', 'static/js/production/foms-production-home-steps.js',
+  'static/js/production/foms-production-sheet-page.js',
   'static/js/foms/tablet-domain-sheets.js']) {
   vm.runInContext(read(rel), ctx, { filename: rel });
 }
 const flush = () => new Promise((r) => setImmediate(r));
 const $ = (s) => body.querySelector(s);
 const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
-const modal = $('[data-foms-step-modal]');
 
 (async () => {
-  const want = JSON.parse(process.argv[3]); // {first, hold, next, key, label, me, other_tab}
   // 0) order= 로 고른 탭은 마지막 탭 기억보다 앞(home.js 가 읽기 전에 기억을 맞춘다)
   if (want.pin) assert.strictEqual(store['foms-prod-step-tab'], want.pin, 'pin → 기억');
-  // 1) 줄 누름 = 판만 바뀐다(요청 0) · 주소 · [다시 받기]
-  assert.ok(!pane(want.first).hidden && pane(want.hold).hidden, '처음 고른 줄 판만 보임');
+  // 1) 줄 누름 = 고른 표시 즉시 · 고른 줄 판만 서버가 그렸다 → 판 하나 받아 끼움 · 주소 · [다시 받기]
+  assert.ok(!pane(want.first).hidden && pane(want.hold) === null, '처음엔 고른 줄 판만 있다');
   const link = $(`[data-foms-home-qrow="${want.hold}"]`).querySelector('[data-foms-step-sheet]');
   const ev = dispatch(link, 'click');
   assert.ok(ev.defaultPrevented, '줄 링크 누름은 이동하지 않는다');
-  assert.ok(pane(want.first).hidden && !pane(want.hold).hidden, '판이 바뀐다');
   assert.ok($(`[data-foms-home-qrow="${want.hold}"]`).classList.contains('is-on') && !$(`[data-foms-home-qrow="${want.first}"]`).classList.contains('is-on'));
-  assert.strictEqual(calls.fetch.length, 0, '줄 누름 요청 0');
+  assert.ok(pane(want.first).hidden && !$('[data-foms-step-wait]').hidden, '받는 동안 옛 판은 숨기고 받는 중');
+  await flush(); await flush(); await flush();
+  assert.ok(pane(want.hold) && !pane(want.hold).hidden && $('[data-foms-step-wait]').hidden, '받은 판이 보인다');
+  const got = new URL(calls.fetch.pop().url, location.href);
+  assert.deepStrictEqual([got.searchParams.get('view'), got.searchParams.get('step'), got.searchParams.get('order'), got.searchParams.get('tab')],
+    ['panel', want.key, String(want.hold), 'steps']);
+  dispatch($(`[data-foms-home-qrow="${want.first}"]`).querySelector('.fph-qr__n'), 'click');
+  dispatch(link, 'click'); // 받은 판은 남는다 — 다시 누르면 요청 0
+  assert.strictEqual(calls.fetch.length, 0, '받은 판 다시 누름 요청 0');
+  assert.ok(pane(want.first).hidden && !pane(want.hold).hidden);
   assert.strictEqual(calls.replaceState.pop(), `/erp/production/home?tab=steps&order=${want.hold}`);
   assert.strictEqual($('[data-foms-home-reload]').getAttribute('href'), `/erp/production/home?tab=steps&order=${want.hold}`);
   // 보류 줄 판엔 [끝] 이 없다
@@ -205,39 +106,66 @@ const modal = $('[data-foms-step-modal]');
   assert.strictEqual(calls.replaceState.pop(), want.other_url, '공정 탭 주소');
   dispatch($(`[data-foms-home-qrow="${want.first}"]`).querySelector('.fph-qr__n'), 'click');
   assert.ok(!pane(want.first).hidden);
-  // 3) [끝] → 확인 창 → [취소] = POST 0
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  assert.ok(!modal.hidden && modal.classList.contains('is-open'), '창이 열린다');
-  assert.strictEqual(modal.querySelector('[data-foms-step-modal-title]').textContent, `${want.label} 끝으로 바꿀까요?`);
-  assert.strictEqual(modal.querySelector('[data-foms-step-modal-run]').textContent, `${want.label} 끝`);
-  const item = modal.querySelector('[data-foms-step-modal-list]').textContent;
-  assert.ok(item.includes(`${want.label} 중 → ${want.label} 끝 · ${want.me}`) && item.includes(`#${want.first}`), item);
-  assert.ok(modal.querySelector('.pp-mimg img'), '판 그림을 창 줄에 옮겨 담는다');
-  dispatch(modal.querySelector('[data-foms-step-modal-close]'), 'click');
-  assert.ok(modal.hidden && !modal.classList.contains('is-open'));
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  dispatch(modal, 'click'); // 바깥(딤) 누름
-  assert.ok(modal.hidden);
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  (docListeners.keydown || []).forEach((f) => f({ key: 'Escape' }));
-  assert.ok(modal.hidden, 'Esc 로 닫힌다');
-  assert.strictEqual(calls.fetch.length, 0, '[취소] · 바깥 · Esc = POST 0');
-  // 4) [끝] → 창 [끝] = 공정 API 한 번 → 다음 손님 주소
+  // 3) [끝] = 확인 창 없이 바로 공정 API 한 번(두 번 눌러도 한 번, 2026-11-22 "확인 창 빼기") → 다음 손님 주소 · [되돌리기] 띠
+  assert.strictEqual($('[data-foms-step-modal]'), null, '확인 창은 없다');
   fetchReply = () => ({ success: true, data: { steps: [], complete_ready: false } });
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  dispatch(modal.querySelector('[data-foms-step-modal-run]'), 'click');
-  dispatch(modal.querySelector('[data-foms-step-modal-run]'), 'click'); // 두 번 눌러도 한 번
+  const fin = pane(want.first).querySelector('[data-foms-step-finish]');
+  dispatch(fin, 'click');
+  assert.ok(fin.getAttribute('aria-disabled') === 'true' && fin.classList.contains('is-wait'), '첫 누름부터 답이 올 때까지 잠근다');
+  dispatch(fin, 'click');
   await flush(); await flush();
-  assert.deepStrictEqual(calls.fetch, [{ url: `/api/orders/${want.first}/production/steps`, method: 'POST', body: { key: want.key, done: true } }]);
+  const stepCall = (done) => ({ url: `/api/orders/${want.first}/production/steps`, method: 'POST', body: { key: want.key, done } });
+  assert.deepStrictEqual(calls.fetch, [stepCall(true)]);
   assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.next}`]);
-  // 실패면 창에 글 · 단추가 풀린다
+  const status = $('[data-foms-home-status]');
+  assert.ok(status.classList.contains('is-undo') && status.querySelector('span').textContent === `${want.first_name} ${want.label} 끝`, status.textContent);
+  assert.strictEqual(status.querySelector('[data-foms-step-undo]').textContent, '되돌리기');
+  // 4) 새 화면(셸 교체로 이 JS 가 다시 돈다): 되돌리기 띠를 다시 그리고 [끝]은 잠깐(600ms) 잠근다 — 두 번 누름이 다음 주문에 떨어지지 않게
   calls.fetch.length = 0;
-  ctx.fetch = () => Promise.reject(new Error('offline'));
-  // 새 판(다음 줄)으로 다시: 창 상태를 비운다
-  modal.hidden = true; modal.classList.remove('is-open');
+  const homeRoot = $('[data-foms-prod-home]');
+  homeRoot.removeAttribute('data-foms-home-steps-bound');
+  status.textContent = '';
+  status.classList.remove('is-undo');
+  vm.runInContext(read('static/js/production/foms-production-home-steps.js'), ctx);
+  assert.ok(status.classList.contains('is-undo') && status.querySelector('[data-foms-step-undo]'), '새 화면에도 되돌리기');
+  const locked = () => fin.getAttribute('aria-disabled') === 'true' && fin.classList.contains('is-wait');
+  assert.ok(locked() && !fin.disabled, '새 화면 [끝] 잠금(진짜 disabled 아님 — 누름을 받아 연장한다)');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  dispatch(fin, 'click'); // 연타: 잠금 동안 누르면 600ms 를 다시 센다
+  await sleep(400);
+  dispatch(fin, 'click');
+  await sleep(400);
+  assert.ok(locked(), '연타하는 동안은 계속 잠금');
+  assert.strictEqual(calls.fetch.length, 0, '잠금 동안 [끝] 누름은 버린다');
+  await sleep(350);
+  assert.ok(!locked(), '손을 떼고 600ms 뒤 풀린다');
+  // 5) [되돌리기] = 같은 공정 API {done:false} 한 번(두 번 눌러도) → 그 주문 줄로 다시 받기
+  calls.replace.length = 0;
+  dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
+  dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
+  await flush(); await flush();
+  assert.deepStrictEqual(calls.fetch, [stepCall(false)]);
+  assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.first}`]);
+  assert.ok(status.textContent.startsWith('되돌렸어요') && !status.classList.contains('is-undo'), status.textContent);
+  // 6) 실패: 저장 실패 = 판 글 · 단추 풀림 · 이동 0. 되돌리기 실패 = 띠가 붉게 + 글, 단추는 남는다
+  calls.fetch.length = 0;
+  calls.replace.length = 0;
+  ctx.fetch = (url, opts) => { calls.fetch.push({ url, method: opts.method, body: JSON.parse(opts.body) }); return Promise.reject(new Error('offline')); };
+  dispatch(fin, 'click');
+  await flush(); await flush();
+  assert.strictEqual(pane(want.first).querySelector('[data-foms-sheet-status]').textContent, '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.');
+  assert.ok(!fin.hasAttribute('aria-disabled') && calls.replace.length === 0 && !status.classList.contains('is-undo'));
+  const G = ctx.__FOMS_PROD_STEPS_BOUND;
+  G.undo = { id: String(want.first), key: want.key, name: want.first_name, label: want.label, until: Date.now() + 8000, busy: false, error: '' };
+  G.api.showUndo();
+  dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
+  await flush(); await flush();
+  assert.ok(status.classList.contains('is-err') && status.textContent.includes('되돌리지 못했어요') && status.querySelector('[data-foms-step-undo]'), status.textContent);
+  assert.strictEqual(calls.replace.length, 0);
+  G.undo = null;
   // 5) 그림 = 원본 뷰어(그림 원본 전부)
   dispatch(pane(want.first).querySelector('[data-foms-step-view]'), 'click');
-  assert.strictEqual(calls.viewer.length, 1);
+  assert.ok(calls.viewer.length >= 1); // 4) 에서 셸 교체를 같은 루트로 흉내 내 두 번 묶였다(실제는 새 루트) — 열림만 본다
   assert.ok(calls.viewer[0].files.length >= 1 && calls.viewer[0].files.every((f) => f.view_url.startsWith('/api/files/view/')), JSON.stringify(calls.viewer));
   // 6) [불량] → 칩 → 불량 API
   ctx.fetch = (url, opts) => { calls.fetch.push({ url, method: opts.method, body: JSON.parse(opts.body) }); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: { latest: { reason: '파손' } } }) }); };
@@ -262,4 +190,5 @@ const modal = $('[data-foms-step-modal]');
   assert.deepStrictEqual(calls.fetch.pop(), { url: `/api/orders/${want.hold}/production/hold`, method: 'POST', body: { active: false, reason: '' } });
   // 8) 쓰기 길은 셋뿐(공정 · 불량 · 보류)
   console.log('OK');
+  process.exit(0); // 되돌리기 · 잠금 타이머를 기다리지 않는다
 })().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

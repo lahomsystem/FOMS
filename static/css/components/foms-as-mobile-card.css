@@ -1488,3 +1488,20 @@
   font-size: 1.125rem;
   line-height: 1;
 }
+
+/* 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) — 안내 [×] 가 화면 크기 80% 에서 26px 로 보였다.
+   모양 · 안내 상자 높이는 그대로 두고 투명 누름 칸(::after)만 '44px ÷ 배율'(보이는 44×44)로 넓힌다. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .as-timeline-hint__dismiss {
+    position: relative;
+  }
+  .as-timeline-hint__dismiss::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: calc(44px / var(--foms-ui-zoom, 1));
+    height: calc(44px / var(--foms-ui-zoom, 1));
+    transform: translateY(-50%); /* 오른쪽 끝에 붙여 왼쪽으로만 넓힌다 — 화면 밖으로 나가 가로 굴림이 생기지 않게 */
+  }
+}

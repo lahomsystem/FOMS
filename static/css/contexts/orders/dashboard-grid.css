@@ -1842,3 +1842,12 @@
       }
     }
 
+
+    /* 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) — 정렬 머리(실측일 · 시공일)가 화면 크기 80% 에서
+       40×14px 로 보였다. '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두 보이는 높이 · 폭 44px 이상. PC(마우스) · 폰은 이 규칙 밖. */
+    @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+      .erp-col-sort {
+        min-width: calc(44px / var(--foms-ui-zoom, 1));
+        min-height: calc(44px / var(--foms-ui-zoom, 1));
+      }
+    }

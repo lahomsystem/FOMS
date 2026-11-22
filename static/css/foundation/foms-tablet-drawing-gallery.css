@@ -887,3 +887,12 @@
 .foms-viewer-actions__status:empty {
   display: none;
 }
+
+/* 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) — [D-3 이내만] · [전달 대기만] 체크 이름표(누름 칸)가
+   화면 크기 80% 에서 35px 로 보였다. '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두 보이는 44px, 옆 칸(정렬 · 검색)과 보이는 8px 이상. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-drawing-workshop__check {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+    margin-inline: calc(2px / var(--foms-ui-zoom, 1));
+  }
+}

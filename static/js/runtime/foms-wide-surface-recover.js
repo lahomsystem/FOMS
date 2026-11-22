@@ -18,7 +18,8 @@
    쿠키 없는 첫 요청(사이트 데이터를 지운 공장 태블릿)은 단추 대신 [data-foms-write-omitted] 표식만 받는다
    (foms/services/production/pc_view.production_screen_flags 의 write_omitted, 표식 templates/production/partials/
    write_omitted_marker.html). 그 화면을 그리기 전에 layout_head 인라인 부트가 이미 foms_ptr 를 심었으므로, 터치 기기
-   `(pointer: coarse)` 이고 표식이 남아 있으면 같은 길(셸 다시 받기 1회 → 새로고침 1회 → 멈춤)로 지금 화면을 다시 받는다.
+   이고(부트와 같은 판정 window.__fomsPointerHint — 키보드 커버 태블릿도 터치, 11-22) 표식이 남아 있으면 같은 길(셸 다시 받기 1회 →
+   새로고침 1회 → 멈춤)로 지금 화면을 다시 받는다. 포인터 미디어 식이 바뀌면(커버를 뗌) 부트가 쿠키를 다시 쓴 뒤 다시 본다.
    마우스 기기(fine)는 아무것도 하지 않는다.
    한 번만 묶는다(셸 스왑으로 다시 실행돼도 리스너가 쌓이지 않게 — 퍼포먼스 가드 G4). */
 (function () {
@@ -30,11 +31,13 @@
   var WIDE_MQ = '(min-width: 992px)';
   var OMITTED_SELECTOR = '[data-foms-wide-surface-omitted]';
   var COARSE_MQ = '(pointer: coarse)';
+  var ANY_COARSE_MQ = '(any-pointer: coarse)';
   var WRITE_OMITTED_SELECTOR = '[data-foms-write-omitted]';
   var RELOAD_GUARD_KEY = 'foms_wide_surface_reload';
   var RELOAD_GUARD_MS = 60 * 1000;
   var wideMql = window.matchMedia(WIDE_MQ);
   var coarseMql = window.matchMedia(COARSE_MQ);
+  var anyCoarseMql = window.matchMedia(ANY_COARSE_MQ);
   /** 셸 다시 받기를 이미 한 주소(캐시 키). 표면이 돌아오면 비운다. */
   var refetchKey = null;
   /** 셸 다시 받기를 보내고 스왑을 기다리는 중 — 그 사이 다른 호출이 새로고침으로 넘어가지 않게. */
@@ -71,10 +74,15 @@
     return guard.slice(0, cut) === key && Date.now() - Number(guard.slice(cut + 1)) < RELOAD_GUARD_MS;
   }
 
+  /** 터치 기기인가 — 쿠키를 심는 부트와 같은 판정(부트가 없으면 주 포인터만). */
+  function touchDevice() {
+    return typeof window.__fomsPointerHint === 'function' ? window.__fomsPointerHint() === 'coarse' : coarseMql.matches;
+  }
+
   /** 서버가 뺀 표면이 지금 기기 · 창에서 필요한가 — 넓은 창 표면 또는 터치 기기의 생산 쓰기 단추. */
   function omittedNow() {
     return (wideMql.matches && !!document.querySelector(OMITTED_SELECTOR)) ||
-      (coarseMql.matches && !!document.querySelector(WRITE_OMITTED_SELECTOR));
+      (touchDevice() && !!document.querySelector(WRITE_OMITTED_SELECTOR));
   }
 
   function shellApi() {
@@ -128,11 +136,18 @@
     window.setTimeout(recover, 0);
   }
 
-  if (wideMql.addEventListener) {
-    wideMql.addEventListener('change', onWideChange);
-  } else if (wideMql.addListener) {
-    wideMql.addListener(onWideChange);
+  function onPointerChange() {
+    awaitingSwap = false;
+    window.setTimeout(recover, 0); // 부트의 foms_ptr 갱신(먼저 등록된 리스너) 뒤
   }
+
+  [[wideMql, onWideChange], [coarseMql, onPointerChange], [anyCoarseMql, onPointerChange]].forEach(function (pair) {
+    if (pair[0].addEventListener) {
+      pair[0].addEventListener('change', pair[1]);
+    } else if (pair[0].addListener) {
+      pair[0].addListener(pair[1]);
+    }
+  });
   document.addEventListener('foms:erp-shell-fragment-swapped', function () {
     awaitingSwap = false;
     recover();

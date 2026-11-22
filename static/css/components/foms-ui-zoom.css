@@ -276,3 +276,29 @@ html[data-foms-fs] .erp-pro-nav {
   zoom: calc(1 / var(--foms-fs, 1));
   top: calc(var(--foms-global-nav-sticky-h, 0px) * var(--foms-fs, 1));
 }
+
+/* ── 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) ─────────────────────────────
+   화면 크기는 손잡이 · 단추까지 같이 줄인다 — 80% 에서 글자 [−] · [+] 가 24px, 그림 보기 [이전] · [다음] 이 32px 로 보였다.
+   크기를 '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두 보이는 44px 가 되게 하고, 글자 손잡이 칸 사이는 보이는 8px 로 띄운다
+   (이웃 칸이 손가락 누름을 받아 가지 않게). 가로 태블릿(터치)에서만 — PC(마우스) · 폰은 지금 그대로다.
+   시공 · 생산 첫 화면은 자기 파일(tablet-first.css · home.css)이 같은 값으로 덮는다. 레일 화면 크기 손잡이는 foms-tablet-rail.css.
+   그림 보기 화살표의 꾸밈은 layout_scripts.html 안 <style> 이 가진다 — 뒤에 실리므로 #global-image-viewer 로 특이도를 올렸다. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .foms-fs {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  .foms-fs__btn,
+  .foms-fs__now {
+    height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  .foms-fs__btn {
+    width: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  .foms-fs__now {
+    min-width: calc(50px / var(--foms-ui-zoom, 1));
+  }
+  #global-image-viewer .global-viewer-nav {
+    width: calc(44px / var(--foms-ui-zoom, 1));
+    height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+}

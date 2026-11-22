@@ -5,7 +5,9 @@
  * 제작 시작/완료/취소/보류/변경 확인 단추는 tablet-domain-sheets.js 몫(여기선 안 건드림).
  * 실패 글은 설계서 §8 한 가지: "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요."
  * 전체 화면 시트만(11-21, 시안 안 2): 공정 '지금 여기' 글 · 저장 · 연결 한 줄.
- * 두 시트 모두(11-21): 검수까지 끝나야 파란 [제작 완료] — 서버 제작 완료 API 와 같은 규칙(공정 API 응답 complete_ready). */
+ * 두 시트 모두(11-21): 검수까지 끝나야 파란 [제작 완료] — 서버 제작 완료 API 와 같은 규칙(공정 API 응답 complete_ready).
+ * 2026-11-22: 회색 [제작 완료] · 잠긴 공정 칸(파트 계정)은 진짜 disabled 가 아니라 aria-disabled — 누르면 요청 없이 까닭을 상태 줄에
+ * 알린다(남은 공정 이름 · 잠금 글). 예전에는 눌러도 아무 일이 없어 '단추가 안 먹는다'고 여러 번 눌렀다. */
 (function () {
   'use strict';
 
@@ -123,6 +125,14 @@
     var completeHint = completeBtn ? completeBtn.querySelector('[data-foms-sheet-complete-hint]') : null;
     var completeBase = completeBtn && completeBtn.classList.contains('foms-prod-sheet__btn') ? 'foms-prod-sheet__btn' : 'foms-prod-page__btn';
     function stepButtons() { return toArr(page.querySelectorAll('[data-foms-sheet-step]')); }
+    function stepLabel(b) { var n = b.querySelector('span'); return n ? String(n.textContent || '').trim() : ''; }
+    // 회색 [제작 완료]를 누름 = 남은 공정을 글로(요청 없음). 공정 4칸 이름 · 남은 칸 이름은 화면의 칸 글 그대로.
+    function completeBlockedText() {
+      var buttons = stepButtons();
+      var left = buttons.filter(function (b) { return b.getAttribute('aria-pressed') !== 'true'; }).map(stepLabel).filter(Boolean);
+      var all = buttons.map(stepLabel).filter(Boolean);
+      return '공정 ' + all.length + '칸(' + all.join(' · ') + ')을 모두 끝내야 제작 완료를 누를 수 있어요.' + (left.length ? ' 남은 공정: ' + left.join(' · ') : '');
+    }
     // [제작 완료]: 검수까지(공정 4칸 모두) 끝났을 때만 파랗게 누를 수 있다 — 서버 제작 완료 API 도 같은 규칙으로 막는다(11-21).
     // serverReady = 공정 API 응답의 complete_ready(서버 한 함수 production_complete_ready). 응답이 없을 때만(오프라인 줄 세움)
     // 지금 칸 모양으로 미리 보인다 — 그래도 누르면 서버가 같은 판정으로 다시 본다.
@@ -132,8 +142,8 @@
       var ready = typeof serverReady === 'boolean' ? serverReady
         : (buttons.length > 0 && (buttons.every(function (b) { return b.getAttribute('aria-pressed') === 'true'; })
           || buttons.every(function (b) { return b.getAttribute('aria-pressed') !== 'true'; })));  // 한 칸도 안 켰으면 규칙 밖(11-21)
-      completeBtn.disabled = !ready;
-      if (ready) { completeBtn.removeAttribute('aria-disabled'); } else { completeBtn.setAttribute('aria-disabled', 'true'); }
+      // 진짜 disabled 는 쓰지 않는다 — 회색에서 누르면 까닭을 알린다(아래 completeBtn 누름). 화면 읽기는 aria-disabled.
+      if (ready) { completeBtn.disabled = false; completeBtn.removeAttribute('aria-disabled'); } else { completeBtn.setAttribute('aria-disabled', 'true'); }
       completeBtn.classList.toggle(completeBase + '--pri', ready);
       completeBtn.classList.toggle(completeBase + '--off', !ready);
       if (completeHint) { completeHint.hidden = ready; }
@@ -162,6 +172,11 @@
     }
     function toggleStep(btn) {
       if (btn.disabled) { return; }
+      if (btn.getAttribute('aria-disabled') === 'true') { // 잠긴 칸(파트 계정) — 요청 없이 까닭만
+        var note = page.querySelector('[data-foms-sheet-steps-locked]');
+        setStatus((note && String(note.textContent || '').trim()) || '공정은 도면 카드에서 체크해요', 'bad');
+        return;
+      }
       var key = btn.getAttribute('data-foms-sheet-step');
       var done = btn.getAttribute('aria-pressed') !== 'true';
       btn.disabled = true;
@@ -214,6 +229,16 @@
           setReasonsOpen(false);
           setStatus(netEl ? savedText('') + ' · 불량을 알렸어요' : '불량을 알렸어요', 'ok');
         });
+    }
+
+    // 회색 [제작 완료] — 단추 자리에서 먼저 받아 막는다(옆 시트는 단추가 공정 루트 밖). 문서 위임(tablet-domain-sheets.js)까지 안 간다.
+    if (completeBtn) {
+      completeBtn.addEventListener('click', function (e) {
+        if (completeBtn.getAttribute('aria-disabled') !== 'true') { return; }
+        e.preventDefault();
+        e.stopPropagation();
+        setStatus(completeBlockedText(), 'bad');
+      });
     }
 
     page.addEventListener('click', function (e) {

@@ -152,21 +152,48 @@
     })();
     </script>
     {# Pointer-hint boot: inline before paint (SSOT copy lives in static/js/runtime/,
-       src 아님이라 G1 렌더차단 가드와 무관). `(pointer: coarse)` 매치 여부만 쿠키
-       `foms_ptr` 로 남겨, 다음 요청부터 서버가 터치 전용 표면(시공 태블릿 작업 모드,
-       스테이징 실측 241.8KB = fragment 의 32.4%)을 마우스 기기에 안 보낼 수 있게 한다.
-       pointer 는 기기 고정 특성이라 창 크기·회전으로 바뀌지 않는다 — 뷰포트 폭 기반
-       표면(모바일 셸)은 이 쿠키로 판정하면 안 된다. 쿠키 없음/이상값 = 전부 렌더(현행). #}
+       실행 코드 글자 동일 — 계약 tests/domains/test_tablet_shell_t0_contract.py. src 아님이라 G1 렌더차단 가드와 무관).
+       터치 기기인지(coarse = 주 포인터 coarse, 또는 터치 화면이 있는 폰 · 태블릿 — 키보드 커버 태블릿) 마우스 PC 인지(fine)를
+       쿠키 `foms_ptr` 로 남겨, 다음 요청부터 서버가 터치 전용 표면(시공 태블릿 작업 모드,
+       스테이징 실측 241.8KB = fragment 의 32.4%)을 마우스 기기에 안 보내고 생산 쓰기 단추를 태블릿에만 그린다.
+       페이지마다 · 포인터 미디어 식이 바뀔 때마다 다시 재어 다르면 다시 쓴다 — 뷰포트 폭 기반
+       표면(모바일 셸)은 이 쿠키로 판정하면 안 된다. 쿠키 없음/이상값 = "모름"(feature_flags.pointer_hint). #}
     <script>
     (function () {
       var NAME = 'foms_ptr';
       try {
         if (!window.matchMedia) return;
-        var value = window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine';
-        if (document.cookie.indexOf(NAME + '=' + value) !== -1) return;
-        document.cookie =
-          NAME + '=' + value + ';path=/;max-age=31536000;SameSite=Lax' +
-          (location.protocol === 'https:' ? ';Secure' : '');
+        var primary = window.matchMedia('(pointer: coarse)');
+        var any = window.matchMedia('(any-pointer: coarse)');
+        var detect = function () {
+          if (primary.matches) return 'coarse';
+          if (!any.matches) return 'fine';
+          var ua = navigator.userAgent || '';
+          var touches = navigator.maxTouchPoints > 1;
+          return /Android|iPhone|iPad|iPod/.test(ua) || (touches && /Macintosh|X11; Linux/.test(ua)) ? 'coarse' : 'fine';
+        };
+        var sync = function () {
+          var value = detect();
+          try {
+            if (document.cookie.indexOf(NAME + '=' + value) === -1) {
+              document.cookie =
+                NAME + '=' + value + ';path=/;max-age=31536000;SameSite=Lax' +
+                (location.protocol === 'https:' ? ';Secure' : '');
+            }
+          } catch (e) {
+            console.warn('[foms-pointer-hint-boot] pointer hint write failed:', e);
+          }
+          return value;
+        };
+        sync();
+        window.__fomsPointerHint = sync;
+        [primary, any].forEach(function (m) {
+          if (m.addEventListener) {
+            m.addEventListener('change', sync);
+          } else if (m.addListener) {
+            m.addListener(sync);
+          }
+        });
       } catch (e) {
         console.warn('[foms-pointer-hint-boot] pointer hint unavailable:', e);
       }
@@ -295,7 +322,7 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}?v=20261109f">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260626a">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261109j">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261122t">
     {# P0-07 토큰(--foms-*)은 아래 erp-pro 번들 링크 바로 앞 이 한 줄로만 싣는다(2026-10-02). 예전엔
        erp-pro/01-intro-tokens.css 가 무버전 @import 로 한 번 더 받아(URL 이 달라 이중 다운로드)
        erp-pro 첫 규칙 앞에 다시 깔았다 — 이 자리가 그 순서를 그대로 잇는다. 핀은 WAM 레이아웃과 같은 값. #}
@@ -338,7 +365,7 @@
        /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
        계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint in ('order_edit.edit_order', 'notices_web.notice_list') or request.path.startswith('/wdcalculator')) %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20261115m">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20261122t">
     {% endif %}
     {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(2026-07-13 누출 봉합).
        원 소유 hide 규칙이 담긴 foms-shell.css 는 /erp·주문 수정 경로에서만 @import 되므로,
@@ -354,7 +381,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20261109f">
     {# 알림 센터 시트 전역 스타일 — 시트 partial 이 layout_scripts 에서 전 페이지
        include 되므로 CSS 도 셸 변형 무관 전역 로드(SSOT, foms-shell.css 에서 이관). #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20261109f">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20261122t">
     {# ORDER-REASON-00: 사유 시트/배너는 PC·태블릿·모바일 모두에서 뜬다 — 전역 로드. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-change-reason.css') }}?v=20260813a">
     {# 판매채널 출처 마크 — 대시보드 밖(전체 주문 목록 `/` · 실측 `/erp/measurement`)에도

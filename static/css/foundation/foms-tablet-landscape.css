@@ -1255,3 +1255,28 @@
     color: var(--foms-text-primary);
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) ---
+   화면 크기(--foms-ui-zoom) 80% 에서 작게 보이던 칸을 '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두 보이는 44px 로 한다.
+   ① 대시보드 거르기 체크(긴급만 · 경보만 · 내 담당): 상자(24px)는 그대로 두고 이름표(label for)를 상자 위까지 넓혀
+      상자 + 이름 전체가 높이 44px 누름 칸이 된다(이름표를 누르면 브라우저가 체크를 바꾼다).
+   ② 옆 시트 불러오기 실패의 [상세] 링크(보이는 17px — a 라 min-height 가 안 먹었다). 이력 [검색] 단추는 history-tablet.css. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check-label {
+    display: inline-flex;
+    align-items: center;
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+    margin-left: calc(-24px - .25rem);
+    padding-left: calc(24px + .25rem);
+  }
+  /* 마지막 체크(내 담당)와 오른쪽 [초기화] 사이도 보이는 8px 이상. */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check:last-child .form-check-label {
+    margin-right: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  .foms-tablet-sheet__retry {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+}

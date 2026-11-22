@@ -6,7 +6,7 @@
     {% set erp_sub_nav_active = 'production' %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}{% if pc_view %}{% include 'production/partials/home_pc_subnav.html' %}{% endif %}
-  <section class="foms-prod-home{% if step_panel %} fph-has-sp{% endif %}{% if pc_view %} is-pc{% if edit_on %} is-editing{% endif %}{% endif %}" data-foms-prod-home data-loaded-at="{{ loaded_at_iso }}" data-foms-home-tab="{{ tab }}">
+  <section class="foms-prod-home{% if step_panel %} fph-has-sp{% endif %}{% if pc_view %} is-pc{% if edit_on %} is-editing{% endif %}{% endif %}" data-foms-prod-home data-foms-home-tab="{{ tab }}">
     <header class="foms-prod-home__bar">
       <h1 class="foms-prod-home__title">{% if part_title %}{{ part_title[0] }} <span class="foms-prod-home__me">{{ part_title[1] }}</span>{% else %}생산{% endif %}</h1>
       <span class="foms-prod-home__date">{{ today_label }} · 전체 {{ total }}건</span>
@@ -22,14 +22,14 @@
       </nav>
       {# 오른쪽 묶음 — 줄이 넘치면 같이 다음 줄로 간다(단추 하나만 떨어져 한 줄이 비지 않게, 사용자 11-10 ②). 알림 종은 가로 태블릿만(11-21 ③) #}
       <div class="foms-prod-home__tools">
-        {% if pc_view %}{% include 'production/partials/home_pc_tools.html' %}{% endif %}<span class="foms-prod-home__sync" data-foms-home-sync>{{ loaded_at_hm }} 에 받음</span>
+        {% if pc_view %}{% include 'production/partials/home_pc_tools.html' %}{% endif %}{# 받은 시각은 본문에 두지 않는다(셸 조각이 304 로 답하게, 11-22) — 셸이 받거나 서버가 '그대로'라고 확인한 때를 foms-production-home.js 가 적는다 #}<span class="foms-prod-home__sync" data-foms-home-sync>방금 받음</span>
         {% set foms_prod_bell_ns = 'foms-prod-home' %}{% include 'production/partials/notif_bell.html' %}
         {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
         {% include 'partials/shared/foms_font_scale_control.html' %}
         <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ home_href(tab, part_board.part if part_board else None, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
       </div>
     </header>{% if edit_on %}{% include 'production/partials/home_pc_band.html' %}{% endif %}
-    <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 {{ loaded_at_hm }} 에 받은 것이에요.</p>
+    <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 <span data-foms-home-sync-at></span> 에 받은 것이에요.</p>
     <p class="foms-prod-home__status" data-foms-home-status aria-live="polite"></p>
 
     {% if tab == 'steps' %}
@@ -50,8 +50,8 @@
   {# '내 공정' 판(설계서 2026-11-21-production-my-steps-panel §3-5): [보류] 사유 창 = 공용 사유 시트 세트(조각 · CSS · JS, 칸반 tablet_kanban_body.html 과 같다),
      [불량] 칩 · 최근 불량 = 작업 시트 JS — 문서 리스너를 달므로 data-foms-run-once(셸 교체로 온 새 판은 그 파일이 foms:erp-shell-fragment-swapped 로 묶는다). #}
   {% include 'partials/shared/foms_reason_sheet.html' %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
-  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261121c" defer data-foms-run-once="prod-sheet-page"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">
+  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261122t" defer data-foms-run-once="prod-sheet-page"></script>
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   {% endif %}{% if step_panel_omitted %}{# 터치인데 좁은 창(세로)이라 판을 뺐다 — 가로로 돌리면 화면을 다시 받는다(wide_surface_omitted_marker 계약) #}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if write_omitted and tab == 'steps' %}{# 쿠키 없는 첫 요청이라 [끝]을 뺐다 — 터치 기기면 다시 받는다(write_omitted_marker.html) #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
 </div>

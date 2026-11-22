@@ -332,7 +332,9 @@ def test_sheet_step_buttons_read_only_for_part_account(client, url):
     _login(client, _user("김재단", part="cut"))
     soup = BeautifulSoup(client.get(url.format(oid=oid)).get_data(as_text=True), "html.parser")
     buttons = soup.select("[data-foms-sheet-step]")
-    assert len(buttons) == 4 and all(b.has_attr("disabled") and "is-locked" in b["class"] for b in buttons)
+    # 진짜 disabled 없이 aria-disabled — 누르면 잠금 글을 알린다(2026-11-22, test_production_sheet_tap_explains)
+    assert len(buttons) == 4 and all(not b.has_attr("disabled") and b.get("aria-disabled") == "true" and "is-locked" in b["class"]
+                                     for b in buttons)
     note = soup.select("[data-foms-sheet-steps-locked]")
     assert len(note) == 1 and note[0].get_text(strip=True) == "공정은 도면 카드에서 체크해요"
     assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 그대로
@@ -345,7 +347,7 @@ def test_control_sheet_step_buttons_unchanged(client, url, team, role):
     _login(client, _user("대조", team=team, role=role, part="cut" if role == "ADMIN" else None))
     soup = BeautifulSoup(client.get(url.format(oid=oid)).get_data(as_text=True), "html.parser")
     buttons = soup.select("[data-foms-sheet-step]")
-    assert len(buttons) == 4 and not any(b.has_attr("disabled") for b in buttons)
+    assert len(buttons) == 4 and not any(b.has_attr("disabled") or b.has_attr("aria-disabled") for b in buttons)
     assert not soup.select("[data-foms-sheet-steps-locked]") and "is-locked" not in str(soup)
 
 

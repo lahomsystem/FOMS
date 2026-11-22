@@ -12,6 +12,8 @@
  * 환경 변수(없으면 보통 직원 그대로):
  *   FOMS_SIM_PREFETCH_ALLOW — 스크립트 태그 data-foms-prefetch-allow 값(켜진 프리랜서 흉내, 공백으로 나눈 경로).
  *   FOMS_SIM_CURRENT — 쉼표로 나눈 지금 화면 경로 목록.
+ *   FOMS_SIM_PRODUCTION_WORK=1 — 스크립트 태그 data-foms-production-work="1"(생산 쓰기 팀 흉내).
+ *   FOMS_SIM_RAIL=1 — 태블릿 가로 레일(.foms-tablet-rail)이 보임(공장 태블릿 흉내).
  *   (tests/domains/test_freelancer_menus.py 의 미리 받기 시험)
  */
 const fs = require('fs');
@@ -24,6 +26,8 @@ const ORIGIN = 'https://foms.test';
 const SIM_SECONDS = 3600;
 const ACTIVITY_EVERY_MS = 30 * 1000;
 const PREFETCH_ALLOW = process.env.FOMS_SIM_PREFETCH_ALLOW;
+const PRODUCTION_WORK = process.env.FOMS_SIM_PRODUCTION_WORK === '1';
+const RAIL_VISIBLE = process.env.FOMS_SIM_RAIL === '1';
 const CURRENT_PATHS = process.env.FOMS_SIM_CURRENT
   ? process.env.FOMS_SIM_CURRENT.split(',')
   : ['/erp/production/home', '/erp/shipment'];
@@ -75,6 +79,12 @@ async function simulate(currentPath) {
             return PREFETCH_ALLOW;
           },
         };
+      }
+      if (PRODUCTION_WORK && selector === 'script[data-foms-production-work]') {
+        return { getAttribute: () => '1' };
+      }
+      if (RAIL_VISIBLE && selector === '.foms-tablet-rail') {
+        return { getClientRects: () => [{ width: 72, height: 800 }] };
       }
       return null;
     },

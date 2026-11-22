@@ -316,7 +316,7 @@ def test_erp_shell_popstate_skips_overlay_entries():
     js = _read(ERP_SHELL_JS)
     handler = js.split("window.addEventListener('popstate', function (e) {", 1)[1].split("\n  });", 1)[0]
     assert handler.index("shouldKeepOnPop(e && e.state)") < handler.index("navigateByShell(url, { fromPopState: true })")
-    assert "js/runtime/erp-shell.js') }}?v=20261122a" in _read(LAYOUT_SCRIPTS)
+    assert "js/runtime/erp-shell.js') }}?v=20261122s" in _read(LAYOUT_SCRIPTS)
 
 
 def test_sheet_parts_js_contract():
@@ -382,7 +382,7 @@ def test_erp_shell_keep_requires_same_rendered_page():
     keep = js.split("function shouldKeepOnPop(state)", 1)[1].split("\n  }\n", 1)[0]
     assert "state.fomsShellKeep" in keep
     assert "getCacheKey(window.location.href) === lastRenderedKey" in keep
-    apply = js.split("function applyFragmentToMain(html, swapUrl)", 1)[1].split("\n  }\n", 1)[0]
+    apply = js.split("function applyFragmentToMain(html, swapUrl, meta)", 1)[1].split("\n  }\n", 1)[0]
     assert "lastRenderedKey = getCacheKey(swapUrl);" in apply
     assert "var lastRenderedKey = getCacheKey(window.location.href);" in js
     assert "window.FOMS_ERP_SHELL.syncRenderedUrl = syncRenderedUrl;" in js

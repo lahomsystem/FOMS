@@ -173,13 +173,16 @@
 .foms-prod-page__callout { margin: 0; padding: 10px 14px; border-left: 4px solid var(--fpp-warn); background: var(--fpp-warn-50); color: var(--fpp-amber-text); border-radius: 6px; font-size: calc(15px * var(--foms-fs, 1)); }
 .foms-prod-page__callout--rework { border-left-color: var(--fpp-danger); background: var(--fpp-danger-50); color: var(--fpp-danger); }
 
-/* 공정 */
-.foms-prod-page__steps { display: flex; flex-direction: column; }
+/* 공정 — 칸 사이 8px(칸 키 56 → 50, 네 칸 키 합 224 그대로). 2026-11-22 터치 점검: 칸이 틈 없이 붙어 있고 칸 안 그림 · 글 ·
+   작은 글이 따로 누를 곳으로 잡혀, 손가락이 칸 경계 ±1~7px 에 닿으면 크롬 터치 보정이 이웃 칸의 작은 안쪽 조각을 더 맞는 곳으로
+   골라 이웃 칸이 눌렸다(80% 14/89 · 100% 12/112). 안쪽 조각은 누름을 받지 않고(칸 하나 = 누를 곳 하나) 칸 사이를 띄운다. */
+.foms-prod-page__steps { display: flex; flex-direction: column; gap: 8px; }
+.foms-prod-page__step > * { pointer-events: none; }
 .foms-prod-page__step {
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 56px;
+  min-height: 50px;
   padding: 0 4px;
   border: 0;
   border-top: 1px solid var(--fpp-line);
@@ -200,8 +203,8 @@
 .foms-prod-page__step.is-now { color: var(--fpp-brand-dark); }
 .foms-prod-page__step.is-now i { border: 3px solid var(--fpp-brand); background: var(--fpp-brand-50); }
 .foms-prod-page__step:disabled { opacity: .6; cursor: wait; }
-/* 파트 계정 = 공정 읽기 전용(설계서 §15.4) — 저장 중 흐림이 아니라 그대로 보이고 누를 수만 없다 */
-.foms-prod-page__step.is-locked:disabled { opacity: 1; cursor: default; }
+/* 파트 계정 = 공정 읽기 전용(설계서 §15.4) — 저장 중 흐림이 아니라 그대로 보이고, 누르면 까닭 글만(aria-disabled, 11-22) */
+.foms-prod-page__step.is-locked[aria-disabled="true"] { opacity: 1; cursor: default; }
 .foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); }
 .foms-prod-page__defect-recent { margin: 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-danger); }
 .foms-prod-page__box > .foms-prod-page__defect-recent { margin-top: 8px; }
@@ -282,7 +285,7 @@
 .foms-prod-sheet__contact-meta { font-size: calc(13px * var(--foms-fs, 1)); color: #4b525d; }
 .foms-prod-sheet__contact-meta a { color: #4a55b8; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .foms-prod-sheet__card-count { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4b525d; margin-left: 6px; }
-.foms-prod-sheet .foms-prod-page__steps { display: flex; flex-direction: column; }
+.foms-prod-sheet .foms-prod-page__steps { display: flex; flex-direction: column; gap: 0; } /* 옆 시트 꼴은 그대로(누를 곳 하나는 위 규칙이 같이) */
 .foms-prod-sheet .foms-prod-page__step { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 2px; border: 0; border-top: 1px solid #dde1e6; background: transparent; color: #14171c; font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; text-align: left; cursor: pointer; }
 .foms-prod-sheet .foms-prod-page__step:first-child { border-top: 0; }
 .foms-prod-sheet .foms-prod-page__step i { width: 40px; height: 40px; border-radius: 10px; border: 2px solid #c1c7d0; display: flex; align-items: center; justify-content: center; color: transparent; flex-shrink: 0; }
@@ -293,7 +296,7 @@
 .foms-prod-sheet .foms-prod-page__step.is-now { color: #4a55b8; }
 .foms-prod-sheet .foms-prod-page__step.is-now i { border: 3px solid #5a67d8; background: #f3f4ff; }
 .foms-prod-sheet .foms-prod-page__step:disabled { opacity: .6; cursor: wait; }
-.foms-prod-sheet .foms-prod-page__step.is-locked:disabled { opacity: 1; cursor: default; }
+.foms-prod-sheet .foms-prod-page__step.is-locked[aria-disabled="true"] { opacity: 1; cursor: default; }
 .foms-prod-sheet .foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4b525d; }
 .foms-prod-sheet .foms-prod-page__defect { margin-top: 8px; padding-top: 8px; border-top: 1px solid #dde1e6; display: flex; flex-direction: column; gap: 8px; }
 .foms-prod-sheet .foms-prod-page__defect-recent { margin: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #dc2626; }

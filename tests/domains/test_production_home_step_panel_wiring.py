@@ -25,12 +25,15 @@ from tests.support.production_home_step_panel_seed import (
     add_order,
     get_html,
     login,
+    panel_url,
     seed_cut_queue,
     set_cookies,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_home_steps_node_checks.js"
+PANE_CHECK = ROOT / "tests/support/production_home_steppane_node_checks.js"
+PANE_JS = "js/production/foms-production-home-steppane.js"
 
 
 @pytest.fixture()
@@ -52,8 +55,11 @@ def test_끝_불량_보류는_지금_API_길을_부른다_Node(client, cohort, t
     frag = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
     page = tmp_path / "steps.html"
     page.write_text(frag, encoding="utf-8")
-    want = {"first": a.id, "hold": c.id, "next": b.id, "key": "cut", "label": "재단", "me": "이철호", "pin": None,
-            "other_tab": "edge", "other_url": f"{HOME}?tab=steps&order={e.id}"}
+    # 고르지 않은 줄(보류 한지우)의 판은 누를 때 받는 조각 — 서버가 그린 진짜 조각을 가짜 fetch 가 돌려준다
+    held = tmp_path / f"panel_{c.id}.html"
+    held.write_text(get_html(client, panel_url("cut", c.id)), encoding="utf-8")
+    want = {"first": a.id, "first_name": "박서준", "hold": c.id, "next": b.id, "key": "cut", "label": "재단", "pin": None,
+            "other_tab": "edge", "other_url": f"{HOME}?tab=steps&order={e.id}", "panels": {str(c.id): str(held)}}
     proc = subprocess.run([node, str(NODE_CHECK), str(page), json.dumps(want, ensure_ascii=False)], capture_output=True,
                           text=True, encoding="utf-8", timeout=60)
     assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
@@ -66,11 +72,38 @@ def test_끝_불량_보류는_지금_API_길을_부른다_Node(client, cohort, t
     assert "/production/defect" not in js and "/production/hold" not in js  # 불량 · 보류는 지금 시트 JS 몫
 
 
-def test_새_JS_는_화면에_한_번_묶고_문서_리스너는_한_번() -> None:
+def test_판_하나_받기_마지막_누름_실패_다시_해_보기_옮겨_간_줄_Node(client, cohort, tmp_path) -> None:
+    """고른 판만 그리고 다른 줄 판은 누를 때 받는다(2026-11-22) — 늦은 응답 버림 · 실패 글 · [다시 해 보기] · 404 · 끼운 판 묶기."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node 없음")
+    login(client)
+    a, b, c, d, e = seed_cut_queue()
+    set_cookies(client, TABLET)
+    page = tmp_path / "steps.html"
+    page.write_text(get_html(client, HOME + "?tab=steps&view=fragment", SHELL), encoding="utf-8")
+    panels = {}
+    for o in (b, c, d):
+        f = tmp_path / f"panel_{o.id}.html"
+        f.write_text(get_html(client, panel_url("cut", o.id)), encoding="utf-8")
+        panels[str(o.id)] = str(f)
+    want = {"b": b.id, "d": d.id, "extra": c.id, "key": "cut", "panels": panels}
+    proc = subprocess.run([node, str(PANE_CHECK), str(page), json.dumps(want, ensure_ascii=False)], capture_output=True,
+                          text=True, encoding="utf-8", timeout=60)
+    assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
+    js = (ROOT / "static" / PANE_JS).read_text(encoding="utf-8")
+    assert "/api/" not in js and "addEventListener" not in js  # 읽기만 · 리스너 없음(셸 교체로 다시 돌아도 쌓이지 않는다)
+    assert "if (window.FomsProdStepPanes) { return; }" in js and len(js.splitlines()) <= 300
+    proc = subprocess.run([node, "--check", str(ROOT / "static" / PANE_JS)], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_새_JS_는_화면에_한_번_묶고_문서_리스너는_없다() -> None:
     js = (ROOT / "static" / STEPS_JS).read_text(encoding="utf-8")
     assert "root.getAttribute('data-foms-home-steps-bound') === '1'" in js
-    assert "window.__FOMS_PROD_STEPS_BOUND" in js and "if (!G.once)" in js
-    assert js.count("document.addEventListener(") == 1 and "window.addEventListener(" not in js
+    # 확인 창(Esc 문서 리스너)을 뺐다(2026-11-22) — 셸 교체를 건너는 것은 되돌리기 상태뿐(window.__FOMS_PROD_STEPS_BOUND)
+    assert "window.__FOMS_PROD_STEPS_BOUND" in js and "document.addEventListener(" not in js and "window.addEventListener(" not in js
+    assert "var UNDO_MS = 8000;" in js and "var GUARD_MS = 600;" in js and "data-foms-step-modal" not in js
     assert "try {" in js and "result.ok" in js  # 응답 규약: 성공 판정은 공용 쓰기 래퍼 · data.success
     assert "data.success !== false" in js
     assert len(js.splitlines()) <= 300
@@ -121,13 +154,31 @@ def test_내_공정_탭_쿼리_수는_주문이_늘어도_같고_판은_0개_더
         body = resp.get_data(as_text=True)
         assert "많은7" in body
         counts[(label, "big")] = n
-        if label == "panel":
-            assert body.count('data-foms-step-pane="') == 12
+        if label == "panel":  # 고른 줄 판만(공정 줄마다 하나) — 다른 줄 판은 누를 때 받는다(2026-11-22)
+            assert body.count('data-foms-step-pane="') == body.count("fph-q fph-q--sp has-sp") == 3
     for label in ("plain", "panel"):
         delta = counts[(label, "big")] - counts[(label, "small")]
         assert delta <= STEPS_ALLOWED_DELTA, (label, counts)
         assert counts[(label, "big")] <= STEPS_ABS_QUERY_CAP, (label, counts)
     assert counts[("panel", "big")] == counts[("plain", "big")], f"판이 쿼리를 더했어요: {counts}"
+
+
+def test_판_하나_조각_쿼리_수는_주문이_늘어도_같고_다_그린_탭을_넘지_않는다(client, cohort) -> None:
+    """판 하나 받기(view=panel)는 같은 행을 읽고 판 하나만 그린다 — 쿼리 수는 정해져 있고 주문 수와 상관없다."""
+    login(client)
+    set_cookies(client, TABLET)
+    first = add_order("처음", 1)
+    for i in range(3):
+        add_order(f"적은{i}", 2 + i)
+    url = HOME + f"?tab=steps&order={first.id}&view=panel&step=cut"
+    assert client.get(url).status_code == 200  # warmup
+    _, small = _count(lambda: client.get(url))
+    for i in range(12):
+        add_order(f"많은{i}", i % 5, done=("cut",) if i % 3 == 0 else (), pngs=3)
+    resp, big = _count(lambda: client.get(url))
+    assert resp.status_code == 200 and resp.get_data(as_text=True).count('data-foms-step-pane="') == 1
+    _, full = _count(lambda: client.get(HOME + "?tab=steps"))
+    assert big - small <= STEPS_ALLOWED_DELTA and big <= full <= STEPS_ABS_QUERY_CAP, (small, big, full)
 
 
 # --------------------------------------------------------------------------- #
@@ -178,10 +229,10 @@ def test_판_CSS_반반_문_밖은_숨김_끝_단추는_늘_판_안() -> None:
 
 def test_핀과_화면_HTML(client, cohort) -> None:
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
-    assert "home.css') }}?v=20261121f" in styles and "{% if part_board or step_panel %}" in styles
+    assert "home.css') }}?v=20261122t" in styles and "{% if part_board %}" in styles  # parts.css = 도면 카드 판만(11-22 확인 창 뺌)
     early = (ROOT / "templates/production/partials/home_early.html").read_text(encoding="utf-8")
-    assert f"filename='{STEPS_JS}') }}}}?v=20261121a" in early
+    assert f"filename='{STEPS_JS}') }}}}?v=20261122t" in early
     login(client)
     seed_cut_queue()
     set_cookies(client, TABLET)
-    assert "home.css?v=20261121f" in get_html(client, HOME + "?tab=steps")
+    assert "home.css?v=20261122t" in get_html(client, HOME + "?tab=steps")

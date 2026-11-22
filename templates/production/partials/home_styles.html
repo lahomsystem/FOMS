@@ -1,6 +1,6 @@
 {# 생산 첫 화면 CSS — 전체 페이지(home.html)와 셸 조각(home_fragment.html)이 같이 쓴다(?v= 핀 한 곳).
-   parts.css = 도면 카드 판, 또는 '내 공정' 판의 [<공정> 끝] 확인 창(파트 카드 창과 같은 .pp-modal 꼴). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261121f">
-{% if part_board or step_panel %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261121a">
-{% endif %}{% if pc_view %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261121b">
+   parts.css = 도면 카드 판(.pp-modal 확인 창 꼴 포함). '내 공정' 판은 확인 창을 뺐다(2026-11-22 — 두 번 누름 + 되돌리기). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261122t">
+{% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261121a">
+{% endif %}{% if pc_view %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261122b">
 {% endif %}

@@ -128,7 +128,7 @@ def test_제목_줄_탭은_보드_없이_찾기로_끝나고_레일_생산이_�
     nav = nav[: nav.index("</nav>")]
     assert "data-foms-home-board" not in nav and "/erp/production/dashboard" not in nav and "navtab--out" not in nav
     assert nav.rstrip().endswith(">찾기</a>")
-    assert "home.css?v=20261121f" in html
+    assert "home.css?v=20261122t" in html
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
     tools = html[html.index('class="foms-prod-home__tools"'):]
     tools = tools[: tools.index("</header>")]
@@ -280,7 +280,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261121f" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261122t" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -296,7 +296,7 @@ def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸�
     assert ".foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in css
     page = (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")
     assert '<h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>' in page
-    assert "sheet.css') }}?v=20261121d" in page
+    assert "sheet.css') }}?v=20261122t" in page
 
 
 def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다() -> None:
@@ -307,7 +307,7 @@ def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다()
     bar = frag.split('<div class="foms-prod-sheet__titlebar">')[1].split("{# ──")[0]
     assert '<div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>' in bar
     body = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
-    assert "css/contexts/production/sheet.css') }}?v=20261121d" in body
+    assert "css/contexts/production/sheet.css') }}?v=20261122t" in body
 
 
 def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채우거나_48px_로_굴린다() -> None:
@@ -355,7 +355,7 @@ def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채�
     assert _pane(626, 1) < _pane(626, 0.9) < _px(1)  # 100% · 90%: 줄 48 그대로 띠 안에서 굴린다
     assert _pane(626, 0.9) < 40 + rows * 48 + 49
     assert _pane(800, 1) >= _px(1)  # 1280×800: 칸을 채운다(줄 49.1px)
-    assert "home.css') }}?v=20261121f" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261122t" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_두_줄로_100퍼센트는_그대로() -> None:
@@ -365,20 +365,20 @@ def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_
     gate = "@media (min-width: 992px) {\n  .fph-panes { container: fph-pane / inline-size; }"
     assert css.count(gate) == 1  # 세로 · 폰(992px 아래)은 원래 두 줄 규칙만
     block = css.split(gate)[1].split("\n}\n")[0]
-    for line in (".foms-prod-home__list { container: fph-list / inline-size; }", ".fph-q { container: fph-q / inline-size; }",
-                 ".fph-inbox--page { container: fph-inbox / inline-size; }"):
+    for line in (".foms-prod-home__list { container: fph-list / inline-size; }", ".fph-q { container: fph-q / inline-size; }"):
         assert line in block
     queries = dict(re.findall(r"@container (fph-\w+) \(max-width: calc\(([^\n]+) - 0\.02px\)\) \{", block))
-    assert set(queries) == {"fph-pane", "fph-list", "fph-q", "fph-inbox"}
+    # 받은함(바뀐 것)은 장 최소 너비로 칸 수를 스스로 정한다(auto-fit, test_production_home_changes_layout.py) — 컨테이너 쿼리 없음
+    assert set(queries) == {"fph-pane", "fph-list", "fph-q"} and "fph-inbox" not in block
 
     def _px(name: str, fs: float) -> float:  # 쿼리 식을 글자 배율 fs 에서 px 로 푼다(1rem = 16 × fs)
         py = re.sub(r"(\d+(?:\.\d+)?)rem", rf"(\1*{16 * fs})", queries[name])
         return eval(py.replace("px", ""), {"max": max})  # noqa: S307 — 저장소 CSS 의 고정 식
 
     # 실측 카드를 담은 칸 너비(CSS px): 100% · 글자 100% 는 그대로(1176×626 이 가장 좁다), 130% + 글자 150% 는 두 줄
-    for name, base_w, big_w in (("fph-pane", 760, 455), ("fph-list", 1072, 801), ("fph-q", 1072, 801), ("fph-inbox", 1072, 800)):
+    for name, base_w, big_w in (("fph-pane", 760, 455), ("fph-list", 1072, 801), ("fph-q", 1072, 801)):
         assert _px(name, 1) < base_w and _px(name, 1.5) > big_w, name
-    # 경계 = 이름 칸이 이름 글자의 12배(날짜 장 20px · 찾기 22px · 내 공정 22px · 받은함 19px, 글자 배율을 곱한다)
+    # 경계 = 이름 칸이 이름 글자의 12배(날짜 장 20px · 찾기 22px · 내 공정 22px, 글자 배율을 곱한다)
     assert abs(_px("fph-pane", 1) - (128 + 154 + 92 + 36 + 12 + 2 + 12 * 20)) < 0.01
     assert abs(_px("fph-list", 1.5) - (150 + 290 + 130 + 20 + 2 + 44 + 12 * 22 * 1.5)) < 0.01
     assert abs(_px("fph-q", 1.2) - (64 + 190 + 30 + 16 + 2 + 150 * 1.2 + 12 * 22 * 1.2)) < 0.01
@@ -386,7 +386,6 @@ def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_
     assert not re.search(r"font-size|(?<![-\w])(min-)?(width|height):|display: none", block)
     for card in (".fph-dr {", ".foms-prod-home__job {", ".fph-qr {"):
         assert card + " grid-template-columns:" in block and "grid-template-rows: auto auto;" in block
-    assert ".fph-inbox--page > .fph-al { grid-column: 1 / -1; }" in block  # 받은함은 두 칸 → 한 칸
 
 
 def test_phone_nav_tabs_scroll_inside_instead_of_widening_page() -> None:

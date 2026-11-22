@@ -26,8 +26,11 @@ function el(props) {
     nodeType: 1, tagName: 'INPUT', type: 'text', value: '', defaultValue: '', isConnected: true, form: null, hiddenUp: false,
     rect: { width: 300, height: 200, left: 10, top: 10, right: 310, bottom: 210 }, style: { display: 'block', visibility: 'visible', opacity: '1' },
     closest() { return this.hiddenUp ? {} : null; }, getBoundingClientRect() { return this.rect; },
+    getClientRects() { return this.rendered === false ? [] : [this.rect]; },
   }, props);
 }
+
+const { matchesSel } = require('./fake_selector_match');
 
 function FakeXHR() { this.ls = {}; }
 FakeXHR.prototype.open = function (m) { this.method = m; };
@@ -47,7 +50,7 @@ function boot(o) {
     visibilityState: o.hidden ? 'hidden' : 'visible', currentScript: tag, documentElement: { className: '' }, body, activeElement: body,
     addEventListener: on(ls.document),
     querySelector: (s) => (s === 'script[data-foms-release]' ? tag : s === '[aria-busy="true"]' && env.busy ? {} : null),
-    querySelectorAll: (s) => (s.indexOf('aria-modal') !== -1 ? env.overlays : []),
+    querySelectorAll: (s) => (s.indexOf('aria-modal') !== -1 ? env.overlays.filter((e) => !e.attrs || matchesSel(e, s)) : []),
   };
   const addTimer = (fn, ms) => { const id = ++env.seq; env.timers.push({ id, fn, due: env.clock + Math.max(0, ms || 0) }); return id; };
   const every = (fn, ms) => { const tick = () => addTimer(() => { tick(); fn(); }, ms); tick(); return 0; };
@@ -146,10 +149,6 @@ S.dirty_field_removed = () => run({}, async (t) => {
   field.isConnected = false; // 셸 스왑 · 창 닫힘으로 칸이 사라짐
   await t.advance(15 * SEC);
   return { before };
-});
-S.search_box_is_not_unsaved = () => run({}, async (t) => {
-  await t.fire('document', 'input', { target: el({ type: 'search', value: '김' }) });
-  await t.wake();
 });
 S.instant_checkbox_is_not_unsaved = () => run({}, async (t) => {
   await t.fire('document', 'change', { target: el({ type: 'checkbox', checked: true, defaultChecked: false }) });
@@ -273,8 +272,11 @@ S.no_flapping_back = async () => {
   });
 };
 
-(async () => {
+async function main(scenarios) {
   const out = {};
-  for (const name of Object.keys(S)) out[name] = await S[name]();
+  for (const name of Object.keys(scenarios)) out[name] = await scenarios[name]();
   process.stdout.write(JSON.stringify(out));
-})().catch((e) => { console.error(e); process.exit(1); });
+}
+
+module.exports = { el, run, main, SEC, MIN };
+if (require.main === module) main(S).catch((e) => { console.error(e); process.exit(1); });

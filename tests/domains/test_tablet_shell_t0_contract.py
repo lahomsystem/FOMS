@@ -620,6 +620,97 @@ def test_pointer_hint_boot_records_only_pointer_coarse() -> None:
     assert "orientation" not in code
 
 
+def _ptr_boot_code(text: str) -> str:
+    """부트 IIFE 실행 코드만(주석 · 들여쓰기 뺌) — 인라인 사본과 SSOT 파일 대조용."""
+    start = text.index("(function () {")
+    body = text[start:text.index("})();", start) + len("})();")]
+    return "\n".join(line.strip() for line in body.splitlines() if line.strip())
+
+
+def test_pointer_hint_inline_copy_equals_ssot_file() -> None:
+    """layout_head 인라인 부트와 SSOT 파일의 실행 코드는 글자 그대로 같다(한쪽만 고치면 서버 판정과 되돌림 판정이 갈린다)."""
+    head = _read(LAYOUT_HEAD)
+    at = head.index("var NAME = 'foms_ptr';")
+    block = head[head.rindex("(function () {", 0, at):]
+    assert _ptr_boot_code(block) == _ptr_boot_code(_read(PTR_BOOT_JS))
+
+
+_PTR_SIM = r"""
+const vm = require('vm');
+const src = require('fs').readFileSync(process.argv[2], 'utf8');
+const cases = JSON.parse(process.argv[3]);
+const out = cases.map((c) => {
+  const mq = {};
+  const ls = {};
+  const writes = [];
+  const doc = { _c: c.cookie || '' };
+  Object.defineProperty(doc, 'cookie', { get() { return this._c; }, set(v) { writes.push(v); this._c = v.split(';')[0]; } });
+  const win = {
+    document: doc, location: { protocol: 'https:' }, console: { warn() {} },
+    navigator: { userAgent: c.ua, maxTouchPoints: c.touches || 0 },
+    matchMedia(q) {
+      if (!mq[q]) mq[q] = { q, get matches() { return !!c[q]; }, addEventListener(t, fn) { (ls[q] = ls[q] || []).push(fn); } };
+      return mq[q];
+    },
+  };
+  win.window = win;
+  vm.createContext(win);
+  vm.runInContext(src, win);
+  const first = doc._c;
+  let after = null;
+  if (c.flip) {
+    Object.assign(c, c.flip);
+    Object.keys(ls).forEach((q) => ls[q].forEach((fn) => fn()));
+    after = doc._c;
+  }
+  return { first, writes: writes.length, after, hint: typeof win.__fomsPointerHint === 'function' ? win.__fomsPointerHint() : null };
+});
+process.stdout.write(JSON.stringify(out));
+"""
+_UA_ANDROID = "Mozilla/5.0 (Linux; Android 14; SM-X910) AppleWebKit/537.36 Chrome/131.0 Safari/537.36"
+_UA_IPAD_DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15"
+_UA_ANDROID_DESKTOP = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36"
+_UA_WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36"
+_P, _ANY = "(pointer: coarse)", "(any-pointer: coarse)"
+
+
+def test_pointer_hint_detects_keyboard_cover_tablets_and_heals_stale_values(tmp_path) -> None:
+    """11-22 터치 감사 D4: 키보드 커버 · 마우스를 단 태블릿(주 포인터 fine)도 터치, 터치 화면 Windows 노트북은 fine.
+
+    페이지마다 다시 재어 낡은 값(fine)을 고쳐 쓰고, 같은 값이면 다시 쓰지 않으며, 미디어 식이 바뀌면 다시 쓴다.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    assert node, "node must be on PATH"
+    cases = [
+        {"name": "phone", _P: True, _ANY: True, "ua": _UA_ANDROID, "touches": 5},
+        {"name": "android+cover", _P: False, _ANY: True, "ua": _UA_ANDROID, "touches": 10, "cookie": "foms_ptr=fine"},
+        {"name": "ipad-desktop-ua+cover", _P: False, _ANY: True, "ua": _UA_IPAD_DESKTOP, "touches": 5},
+        {"name": "android-desktop-mode+cover", _P: False, _ANY: True, "ua": _UA_ANDROID_DESKTOP, "touches": 10},
+        {"name": "windows-touch-laptop", _P: False, _ANY: True, "ua": _UA_WINDOWS, "touches": 10},
+        {"name": "mac", _P: False, _ANY: False, "ua": _UA_IPAD_DESKTOP, "touches": 0},
+        {"name": "pc-same", _P: False, _ANY: False, "ua": _UA_WINDOWS, "cookie": "foms_ptr=fine"},
+        {"name": "surface-detach", _P: False, _ANY: True, "ua": _UA_WINDOWS, "touches": 10, "flip": {_P: True}},
+    ]
+    script = tmp_path / "ptr_sim.js"
+    script.write_text(_PTR_SIM, encoding="utf-8")
+    proc = subprocess.run([node, str(script), str(ROOT / PTR_BOOT_JS), json.dumps(cases)], capture_output=True,
+                          text=True, encoding="utf-8", timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    got = {c["name"]: r for c, r in zip(cases, json.loads(proc.stdout))}
+    want = {"phone": "coarse", "android+cover": "coarse", "ipad-desktop-ua+cover": "coarse",
+            "android-desktop-mode+cover": "coarse", "windows-touch-laptop": "fine", "mac": "fine", "pc-same": "fine",
+            "surface-detach": "fine"}
+    for name, value in want.items():
+        assert got[name]["first"] == "foms_ptr=" + value, (name, got[name])
+    assert got["android+cover"]["writes"] == 1, "낡은 fine 은 고쳐 쓴다"
+    assert got["pc-same"]["writes"] == 0, "같은 값이면 쓰지 않는다"
+    assert got["surface-detach"]["after"] == "foms_ptr=coarse" and got["surface-detach"]["hint"] == "coarse",         "주 포인터가 바뀌면(키보드를 뗌) 그 자리에서 다시 쓴다"
+
+
 def test_pointer_hint_boot_is_inlined_not_render_blocking_src() -> None:
     """layout_head 는 pre-paint 인라인 사본을 싣는다(G1: 신규 동기 head script 금지)."""
     head = _read(LAYOUT_HEAD)
@@ -767,3 +858,26 @@ def test_as_desktop_table_is_not_screen_gated() -> None:
     assert "wide_only_surfaces" not in window, (
         "AS 표에 광폭 게이트가 붙었다 — 폰 가로에서 blank 가 된다"
     )
+
+
+def test_pointer_cookie_has_one_reader_and_one_meaning() -> None:
+    """``foms_ptr`` 는 서버에서 한 곳(``pointer_hint``)만 읽는다 — 없음 · 이상한 값 = "모름"이 두 판정에서 같다(11-22 D4).
+
+    모름 → 터치 표면은 그린다(wants_coarse_pointer_surfaces True) · PC 꼴도 생산 쓰기 단추도 아니다(표식으로 다시 받는다).
+    """
+    from types import SimpleNamespace
+
+    from foms.services.feature_flags import pointer_hint, wants_coarse_pointer_surfaces
+    from foms.services.production.pc_view import _pointer, production_screen_flags
+
+    prod = SimpleNamespace(role="STAFF", team="PRODUCTION", partner_org_id=None, is_active=True)
+    for raw, want in (("fine", "fine"), ("coarse", "coarse"), ("", ""), ("weird", ""), (None, "")):
+        req = SimpleNamespace(cookies={} if raw is None else {"foms_ptr": raw})
+        assert pointer_hint(req) == want and _pointer(req) == want, raw
+        assert wants_coarse_pointer_surfaces(req) is (want != "fine"), raw
+        flags = production_screen_flags(prod, req, 1_800_000_000)
+        assert flags["pc_view"] is (want == "fine") and flags["can_act"] is (want == "coarse"), raw
+        assert flags["write_omitted"] is (want == ""), raw
+    assert pointer_hint(SimpleNamespace(cookies=None)) == ""
+    src = (ROOT / "foms/services/production/pc_view.py").read_text(encoding="utf-8")
+    assert "cookies.get('foms_ptr')" not in src and "return pointer_hint(request)" in src

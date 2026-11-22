@@ -329,11 +329,13 @@ def test_되돌림_JS_는_터치_기기에서만_쓰기_표식을_다시_받는�
     js = (ROOT / "static/js/runtime/foms-wide-surface-recover.js").read_text(encoding="utf-8")
     assert len(js.splitlines()) <= 300
     assert "var COARSE_MQ = '(pointer: coarse)';" in js and "var WRITE_OMITTED_SELECTOR = '[data-foms-write-omitted]';" in js
-    assert "(coarseMql.matches && !!document.querySelector(WRITE_OMITTED_SELECTOR))" in js
+    assert "(touchDevice() && !!document.querySelector(WRITE_OMITTED_SELECTOR))" in js
+    # 터치 판정 = 쿠키를 심는 부트와 같은 함수(키보드 커버 태블릿도 터치, 11-22) · 포인터 식이 바뀌면 다시 본다
+    assert "window.__fomsPointerHint() === 'coarse'" in js and "[coarseMql, onPointerChange], [anyCoarseMql, onPointerChange]" in js
     assert "if (!omittedNow()) {" in js and "if (reloadedRecently(guard, key)) {" in js  # 되풀이 막음(같은 길)
     # 쿠키를 심는 부트와 같은 식 — 터치면 이 화면에서 이미 foms_ptr=coarse 가 심겨 있다
     head = (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
-    assert "window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine'" in head
+    assert "window.__fomsPointerHint = sync;" in head and "var primary = window.matchMedia('(pointer: coarse)');" in head
     # 두 표식이 같은 파일 · 같은 핀 · 같은 run-once 열쇠(한 화면에 같이 있어도 한 번만 묶인다)
     pins = []
     for tpl in ("templates/production/partials/write_omitted_marker.html", "templates/partials/shared/wide_surface_omitted_marker.html"):
@@ -484,4 +486,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261121b" in (ROOT / tpl).read_text(encoding="utf-8"), tpl
+        assert "pc.css') }}?v=20261122b" in (ROOT / tpl).read_text(encoding="utf-8"), tpl

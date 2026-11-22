@@ -592,7 +592,7 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     for token in (
         "foms-construction-mobile-card.css') }}?v=20261119b",
         "foms-v2-domain-heroes.css') }}?v=20261109f",
-        "foms-complete-gate.css') }}?v=20261109a",
+        "foms-complete-gate.css') }}?v=20261122t",
         "foms-packing.css') }}?v=20261109f",
     ):
         assert token in dash
@@ -614,7 +614,7 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     assert "foms-complete-gate.css" in frag
     assert "foms-packing.css" in frag
     assert "foms-construction-mobile-card.css" in frag
-    assert "v=20261109a" in frag  # 화면 크기 배율 보정(2026-11-09)으로 complete-gate · packing 핀을 함께 올렸다
+    assert "v=20261122t" in frag  # 화면 크기 배율 보정(2026-11-09)으로 complete-gate · packing 핀을 함께 올렸다
     # 화면 밖 카드 미루기(2026-11-19)로 카드 CSS 에 첫 핀을 달았다 — 기기 캐시의 옛 CSS 를 끊는다.
     assert "foms-construction-mobile-card.css?v=20261119b" in full
     assert "foms-construction-mobile-card.css?v=20261119b" in frag
@@ -755,4 +755,4 @@ def test_construction_reason_sheet_set_renders_exactly_once(client, monkeypatch,
     assert body.count("js/foms/foms-reason-sheet.js") == 1, tag
     assert body.count("js/foms/foms-admin-override.js") == 1, tag
     assert body.count("css/components/foms-reason-sheet.css") == 1, tag
-    assert "css/components/foms-reason-sheet.css?v=20261109a" in body, tag
+    assert "css/components/foms-reason-sheet.css?v=20261122t" in body, tag
