@@ -25,6 +25,7 @@ WATCH_JS = ROOT / "static" / "js" / "runtime" / "foms-release-watch.js"
 SHELL_JS = ROOT / "static" / "js" / "runtime" / "erp-shell.js"
 WATCH_SIM = ROOT / "tests" / "support" / "foms_release_watch_node_checks.js"
 HOOK_SIM = ROOT / "tests" / "support" / "erp_shell_release_hook_node_checks.js"
+OVERLAY_SIM = ROOT / "tests" / "support" / "foms_release_watch_overlay_checks.js"
 _MAX_TRIES_GUARD = "if (g === undefined || tries >= MAX_TRIES) return;"
 _SHELL_HOOK_CALL = "        noteServerRelease(r);\n"
 
@@ -43,7 +44,7 @@ def _node(script: Path, env_key: str | None = None, copy: Path | None = None) ->
 
 @pytest.fixture(scope="module")
 def sim() -> dict:
-    return _node(WATCH_SIM)
+    return {**_node(WATCH_SIM), **_node(OVERLAY_SIM)}
 
 
 def test_new_release_reloads_once_when_idle(sim):
@@ -117,7 +118,7 @@ def test_negative_control_old_rules_block_dashboard_and_drop_search(tmp_path):
            .replace(search_rule, "if (type === 'search') return false;"))
     copy = tmp_path / "foms-release-watch.js"
     copy.write_text(old, encoding="utf-8")
-    out = _node(WATCH_SIM, "FOMS_SIM_WATCH_JS", copy)
+    out = _node(OVERLAY_SIM, "FOMS_SIM_WATCH_JS", copy)
     assert out["docked_side_sheet_is_not_overlay"]["reloads"] == 0
     assert out["docked_side_sheet_is_not_overlay"]["why"] == "overlay"
     assert out["search_box_is_unsaved"]["before"] == {"n": 1, "why": ""}
