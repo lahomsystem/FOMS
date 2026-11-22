@@ -202,12 +202,14 @@ def _complete_button(html: str) -> str:
 
 
 def test_검수_전_제작_완료는_회색이고_누를_수_없다(client) -> None:
+    """회색 · 막힘은 그대로 — 2026-11-22 부터 진짜 disabled 없이 aria-disabled 만(누르면 남은 공정을 알린다,
+    test_production_sheet_tap_explains)."""
     _make_user(client, "sheet_prod_gate1", "PRODUCTION")
     order = _seed_order()  # 공정 1/4
     html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
     btn = _complete_button(html)
     assert "foms-prod-page__btn--off" in btn and "foms-prod-page__btn--pri" not in btn
-    assert " disabled" in btn and 'aria-disabled="true"' in btn and "data-foms-sheet-complete" in btn
+    assert " disabled" not in btn and 'aria-disabled="true"' in btn and "data-foms-sheet-complete" in btn
     assert ">제작 완료<" in btn and "검수까지 끝나면 눌러요" in btn and "data-foms-sheet-complete-hint>" in btn
 
 

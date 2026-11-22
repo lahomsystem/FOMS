@@ -41,11 +41,11 @@ function fakeDom() {
   const focused = [];
   const docListeners = {};
   function dispatch(target, type, extra) {
-    const ev = Object.assign({ type, target, defaultPrevented: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false,
-      preventDefault() { this.defaultPrevented = true; }, stopPropagation() {} }, extra || {});
+    const ev = Object.assign({ type, target, defaultPrevented: false, stopped: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false,
+      preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } }, extra || {});
     let n = target;
-    while (n && n.tag) { (n.listeners[type] || []).forEach((f) => f.call(n, ev)); n = n.parentNode; }
-    (docListeners[type] || []).forEach((f) => f(ev));
+    while (n && n.tag && !ev.stopped) { (n.listeners[type] || []).forEach((f) => f.call(n, ev)); n = n.parentNode; }
+    if (!ev.stopped) { (docListeners[type] || []).forEach((f) => f(ev)); }
     return ev;
   }
   function textNode(t) { return { tag: null, children: [], parentNode: null, get textContent() { return t; } }; }

@@ -159,7 +159,7 @@
     <div class="foms-prod-page__steps">
       {% for s in order.steps %}
       {% if can_act_production %}<button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
-              data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
+              data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
         <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
         <span>{{ s.label }}</span>
         <small data-foms-sheet-step-meta>{{ s.meta }}</small>
@@ -248,7 +248,7 @@
          공정 API 응답의 complete_ready 로 바로 바꾼다(단추는 공정 루트 밖이라 .foms-prod-sheet 안에서 찾는다). #}
       {% set _ready = order.complete_ready if order.complete_ready is defined else true %}
       <button type="button" class="foms-prod-sheet__btn {{ 'foms-prod-sheet__btn--pri' if _ready else 'foms-prod-sheet__btn--off' }}"
-              data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _ready %} disabled aria-disabled="true"{% endif %}><b>제작 완료</b><span class="foms-prod-sheet__off-hint" data-foms-sheet-complete-hint{% if _ready %} hidden{% endif %}>검수까지 끝나면 눌러요</span></button>
+              data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _ready %} aria-disabled="true"{% endif %}><b>제작 완료</b><span class="foms-prod-sheet__off-hint" data-foms-sheet-complete-hint{% if _ready %} hidden{% endif %}>검수까지 끝나면 눌러요</span></button>
     {% elif order.stage == '제작완료' %}
       <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--ghost"
               data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
