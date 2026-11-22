@@ -15,6 +15,7 @@ import datetime
 import time
 from typing import Any
 
+from foms.services.feature_flags import pointer_hint
 from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date
 from foms.services.production.home_step_panel import _hold_reason, _prev_line, _run_start_text
 from foms.services.production.late_rule import production_late_view
@@ -30,10 +31,8 @@ _WEEKDAY_KO = '월화수목금토일'
 
 
 def _pointer(request: Any) -> str:
-    """``foms_ptr`` 쿠키 → 'fine' · 'coarse' · ''(없음 · 이상한 값)."""
-    cookies = getattr(request, 'cookies', None) or {}
-    value = cookies.get('foms_ptr')
-    return value if value in ('fine', 'coarse') else ''
+    """``foms_ptr`` 쿠키 → 'fine' · 'coarse' · ''(모름 — 뜻은 :func:`foms.services.feature_flags.pointer_hint` 한 곳)."""
+    return pointer_hint(request)
 
 
 def edit_cookie_fresh(request: Any, now_epoch: float | None = None) -> bool:

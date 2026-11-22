@@ -141,6 +141,39 @@ def is_enabled_for_user(
     return user_id is not None and user_id in cohort
 
 
+#: 기기 포인터 쿠키 이름과 값 — 부트(layout_head.html 인라인 + ``static/js/runtime/foms-pointer-hint-boot.js``)가 심는다.
+POINTER_COOKIE = "foms_ptr"
+_POINTER_VALUES = frozenset({"fine", "coarse"})
+
+
+def pointer_hint(request: "Request | None" = None) -> str:
+    """``foms_ptr`` 쿠키를 읽는 **한 곳** — ``'coarse'``(터치 기기) · ``'fine'``(마우스 PC) · ``''``(모름).
+
+    ``''`` 의 뜻은 모든 판정에서 같다 — **"아직 모른다"**(첫 요청 · 쿠키 차단 · 이상한 값). 그래서
+    (1) 터치에서만 보이는 표면은 그린다(CSS 가 마우스에서 끈다 — 느릴 뿐 화면이 비지 않는다, :func:`wants_coarse_pointer_surfaces`),
+    (2) 터치 기기임이 확인돼야 하는 것(생산 쓰기 단추, ``pc_view.production_screen_flags``)은 그리지 않고 PC 꼴도 아니다 —
+    대신 표식을 남겨 부트가 쿠키를 심은 뒤 터치 기기면 한 번 다시 받는다(``write_omitted_marker.html``).
+    즉 "모름"은 마우스 PC 로도 터치 기기로도 확정하지 않는다(2026-11-22 — 두 읽기가 따로 놀던 것을 하나로).
+
+    Args:
+        request: Flask/Werkzeug request(``cookies`` 를 가진 것) 또는 None(활성 request context 사용, 없으면 모름).
+
+    Returns:
+        ``'coarse'`` · ``'fine'`` · ``''``.
+    """
+    req = request
+    if req is None:
+        from flask import has_request_context
+        from flask import request as flask_request
+
+        if not has_request_context():
+            return ""
+        req = flask_request
+    cookies = getattr(req, "cookies", None) or {}
+    value = cookies.get(POINTER_COOKIE)
+    return value if value in _POINTER_VALUES else ""
+
+
 def wants_coarse_pointer_surfaces(request: "Request | None" = None) -> bool:
     """터치 전용(``pointer: coarse``) 표면을 이 요청에 렌더해야 하는지 판정한다.
 
@@ -151,7 +184,8 @@ def wants_coarse_pointer_surfaces(request: "Request | None" = None) -> bool:
     (스테이징 실측 241.8KB = 시공 fragment 의 32.4%).
 
     안전 폴백: 쿠키 미설정(첫 요청·쿠키 차단)이나 미지의 값이면 True — 즉 현행대로
-    전부 렌더한다. 판정을 못 할 때 화면이 비는 대신 느려지기만 하도록 기울인다.
+    전부 렌더한다. 판정을 못 할 때 화면이 비는 대신 느려지기만 하도록 기울인다
+    ("모름"의 뜻은 :func:`pointer_hint` 한 곳).
 
     뷰포트 폭 기반 표면(모바일 셸 ``max-width: 991.98px``)에는 쓰면 안 된다. 그쪽은
     PC 창을 좁히는 것만으로 필요해지는데 pointer 값은 그대로라 오판한다.
@@ -162,18 +196,7 @@ def wants_coarse_pointer_surfaces(request: "Request | None" = None) -> bool:
     Returns:
         coarse 전용 표면을 렌더해야 하면 True.
     """
-    req = request
-    if req is None:
-        from flask import has_request_context
-        from flask import request as flask_request
-
-        if not has_request_context():
-            return True
-        req = flask_request
-    cookies = getattr(req, "cookies", None)
-    if cookies is None:
-        return True
-    return cookies.get("foms_ptr") != "fine"
+    return pointer_hint(request) != "fine"
 
 
 #: 광폭 전용 표면이 처음 나타나는 브레이크포인트(px). 물리 화면의 긴 변이 이 값
