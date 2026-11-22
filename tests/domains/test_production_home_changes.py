@@ -345,3 +345,65 @@ def test_바뀐_것_탭과_찾기_탭_쿼리는_사람_읽기_한_번만_더한�
     assert q_big == q_small and q_all_big == q_all_small, (q_small, q_big, q_all_small, q_all_big)
     assert q_small - q_date == 1 and q_all_small - q_date == 1, (q_date, q_small, q_all_small)
     assert q_big <= CHANGES_TAB_QUERY_CAP and q_all_big <= CHANGES_TAB_QUERY_CAP
+
+
+# ── 바뀐 것 탭 자리(사용자 11-22 "빈 공간이 너무 많아. CSS 정렬 시켜") ──
+
+ROOT_DIR = __import__("pathlib").Path(__file__).resolve().parents[2]
+
+
+def _rule(css: str, selector: str) -> str:
+    start = css.index(selector + " {")
+    return css[start: css.index("}", start)]
+
+
+def test_바뀐_것_탭은_장_최소_너비로_칸_수를_정하고_한_줄의_장은_키가_같다() -> None:
+    """11-22 실측(1176×626, 가짜 주문 12 · 7 · 3 · 1 · 0장): 두 칸 고정 + 칸마다 제 키라 키 큰 장 옆이 줄마다 최대 96px 비었고,
+    화면 크기 80% 는 장마다 글 끝 ~ 단추 사이가 평균 270 · 최대 336px 비었다. 칸 수는 장 최소 너비가 정한다(auto-fit — 장이 적으면 남는 칸을 접는다)."""
+    css = (ROOT_DIR / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    pc = (ROOT_DIR / "static/css/contexts/production/pc.css").read_text(encoding="utf-8")
+    page = _rule(css, ".fph-inbox--page")
+    assert "grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--fph-al-min)), 1fr));" in page
+    assert "align-items: stretch;" in page and "align-items: start" not in page
+    assert ".fph-inbox--page > .fph-al { align-items: start; }" in css  # 글 · 단추는 장 위에서(옆 장과 첫 줄이 맞게)
+    wide = css.split("@media (min-width: 992px) {\n  .fph-panes")[1].split("\n}\n")[0]
+    assert "fph-inbox" not in wide  # 옛 두 칸 → 한 칸 컨테이너 쿼리 없음
+    tablet = re.search(r"--fph-al-min: calc\(([^;]+)\);", page).group(1)
+    pc_min = re.search(r"\.foms-prod-home\.is-pc \.fph-inbox--page \{ --fph-al-min: calc\(([^;]+)\); \}", pc).group(1)
+
+    def _px(expr: str, fs: float) -> float:  # 1rem = 16px × 글자 배율
+        return eval(re.sub(r"(\d+(?:\.\d+)?)rem", rf"(\1*{16 * fs})", expr).replace("px", ""), {"max": max})  # noqa: S307
+
+    def _cols(content_w: float, expr: str, fs: float) -> int:  # auto-fit: 틈 10px
+        return max(1, int((content_w + 10) // (_px(expr, fs) + 10)))
+
+    # 실측 칸 너비(CSS px, 좌우 여백 32 뺌): 태블릿 100% 1048 · 화면 크기 80% 1342 · PC 1440×900 1384 · 세로 800 은 992 아래(한 칸 규칙)
+    assert abs(_px(tablet, 1) - (2 + 28 + 12 + 128 + 16 * 16)) < 0.01
+    assert _cols(1048, tablet, 1) == 2 and _cols(1342, tablet, 1) == 3 and _cols(1048, tablet, 1.2) == 2
+    assert _cols(1048, tablet, 1.5) == 1 and _cols(1342, tablet, 1.5) == 2
+    # PC(1440×900 칸 1384 · 글자 150% 1372)는 시공일 칸이 더 있고 글 칸 10.5rem — 글자 100 ~ 150% 모두 두 칸(한 칸이면 장 안이 600px 넘게 빈다)
+    assert abs(_px(pc_min, 1) - (58 + 8.5 * 16 + 128 + 10.5 * 16)) < 0.01
+    assert _cols(1384, pc_min, 1) == 2 and _cols(1372, pc_min, 1.5) == 2 and _cols(1860, pc_min, 1) == 3
+    # 빈 글은 머리 아래 한 줄(가운데 큰 상자 아님) · 머리 · 더 보기는 모든 칸을 가로지른다
+    assert ".fph-inbox--page > .foms-prod-home__empty { grid-column: 1 / -1; padding: 6px 4px; text-align: left; }" in css
+    assert ".fph-inbox--page > .fph-inbox__h, .fph-inbox--page > .fph-inbox__more { grid-column: 1 / -1; }" in css
+    # 누르는 곳: 화면 크기 80% 에서도 실제 48px 이상
+    btn = re.search(r"\.fph-al \.foms-prod-home__btn \{ min-width: 128px; min-height: (\d+)px; \}", css)
+    more = re.search(r"\.fph-inbox__more a \{ min-height: (\d+)px;", css)
+    assert btn and more and int(btn.group(1)) * 0.8 >= 48 and int(more.group(1)) * 0.8 >= 48
+    # 세로 · 폰(992 아래)은 그대로 한 칸
+    phone = css[css.index("@media (max-width: 991.98px) {"):]
+    assert ".fph-inbox--page { grid-template-columns: minmax(0, 1fr); padding: 12px 12px 90px; }" in phone
+
+
+def test_바뀐_것_탭_장_마크업은_그대로다(client) -> None:
+    """자리만 CSS 로 바꿨다 — 장 · [확인했어요] · 확인한 것 · 빈 글 마크업과 순서(받은함 → 확인한 것 → 더 보기)는 그대로."""
+    viewer = _user("chg_lay_viewer", "가생산", "PRODUCTION")
+    sales = _user("chg_lay_sales", "나영업", "SALES")
+    _login(client, viewer)
+    _seed_done(viewer, sales, 9, "끝")
+    _date_changed(_order("PRODUCTION", "새장", run=True), datetime.timedelta(minutes=5), sales)
+    html = client.get(HOME + "?tab=changes").get_data(as_text=True)
+    page = html[html.index('<div class="fph-inbox fph-inbox--page" aria-label="바뀐 것">'):]
+    assert page.index('data-foms-home-inbox="') < page.index('data-foms-home-done="') < page.index('class="fph-inbox__more"')
+    assert page.count('data-kanban-action="change-ack"') == 1 and 'style="' not in page.split("</section>")[0]
