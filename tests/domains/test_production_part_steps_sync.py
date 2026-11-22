@@ -394,3 +394,32 @@ def test_step_changing_write_query_counts(client):
     resp_b, q_big = _count(lambda: client.post(BULK, json={"part": "cut", "seen": "none", "items": items_big}))
     assert len(resp_s.get_json()["data"]["order_steps"]) == 1 and len(resp_b.get_json()["data"]["order_steps"]) == 10
     assert q_big - q_small <= 9 + STEP_CHANGE_BULK_SLACK and q_big <= STEP_CHANGE_BULK_ABS_CAP, (q_small, q_big)
+
+
+def test_same_clock_tick_last_person_is_the_one_who_just_finished(client, monkeypatch):
+    """시계 눈금이 같아도(모든 쓰기가 같은 시각) 마지막 장을 끝낸 사람이 칸에 적힌다 — 흔들리던 시험의 원인 고정."""
+    import foms.api.production.part_marks as part_marks_api
+
+    frozen = now_utc_naive()
+    monkeypatch.setattr(part_marks_api, "now_utc_naive", lambda: frozen)
+    oid = _order(3)
+    _login(client, _user("박재단", part="cut"))
+    for j in range(2):
+        assert _finish(client, oid, j, "cut").status_code == 200
+    _login(client, _user("김재단", part="cut"))
+    assert _finish(client, oid, 2, "cut").get_json()["data"]["order_step"]["done"] is True
+    assert _step(oid, "cut")["by_name"] == "김재단"
+
+
+def test_pure_last_person_tie_break_on_identical_done_at():
+    """같은 ``done_at`` — 저장 전(id 없음) 줄이 가장 늦고, 저장된 줄끼리는 id 큰 쪽이 늦다(줄 차례와 무관)."""
+    at = now_utc_naive()
+    sd = {"drawing_current_files": [{"key": "a"}, {"key": "b"}, {"key": "c"}]}
+    row = lambda key, name, rid: SimpleNamespace(drawing_key=key, part="cut", state="DONE", done_by_name=name,
+                                                 done_at=at, id=rid)
+    pending_first = [row("c", "김재단", None), row("a", "박재단", 7), row("b", "박재단", 8)]
+    assert plan_part_step_changes(sd, pending_first)[0].by_name == "김재단"
+    assert plan_part_step_changes(sd, list(reversed(pending_first)))[0].by_name == "김재단"
+    stored = [row("a", "최재단", 9), row("b", "박재단", 3), row("c", "이재단", 5)]
+    assert plan_part_step_changes(sd, stored)[0].by_name == "최재단"
+    assert plan_part_step_changes(sd, list(reversed(stored)))[0].by_name == "최재단"
