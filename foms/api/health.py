@@ -18,6 +18,8 @@ import time
 
 from flask import Blueprint, jsonify, session
 
+from foms.services.common.release_watch import RELEASE_HEADER, public_release_id
+
 health_bp = Blueprint("health", __name__)
 
 
@@ -65,3 +67,21 @@ def healthz_cpu() -> tuple[object, int]:
         acc += len(json.dumps(_CPU_CALIB_PAYLOAD, sort_keys=True))
     cpu_ms = (time.perf_counter() - t0) * 1000
     return jsonify({"success": True, "data": {"cpu_ms": round(cpu_ms, 2), "work": acc}, "error": None}), 200
+
+
+@health_bp.route("/api/foms/release", methods=["GET"])
+def foms_release() -> object:
+    """지금 서버 릴리스(STALE-TAB-01) — 열어 둔 탭이 깨어날 때 · 몇 분마다 견주는 값.
+
+    ``static/js/runtime/foms-release-watch.js`` 가 문서를 그린 릴리스와 다르면 한가할 때 한 번 새로 읽는다.
+    DB · Redis 를 건드리지 않는다. 값은 ``/healthz`` 의 ``commit`` 과 같은 축(배포 식별자)이라 새로 드러나는 것이 없다.
+
+    Returns:
+        ``{"success": True, "data": {"release": "<id 또는 빈 문자열>"}, "error": None}`` · ``no-store`` · 머리글.
+    """
+    release = public_release_id()
+    response = jsonify({"success": True, "data": {"release": release}, "error": None})
+    response.headers["Cache-Control"] = "no-store"
+    if release:
+        response.headers[RELEASE_HEADER] = release
+    return response

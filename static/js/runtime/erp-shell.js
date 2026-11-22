@@ -1145,6 +1145,17 @@
     });
   }
 
+  /**
+   * 지금 서버 릴리스(응답 머리글 X-Foms-Release, 304 포함)를 새 배포 감시(foms-release-watch.js)에 알린다.
+   * 하트비트 · 미리 받기 · 이동 응답이 이미 서버를 다녀오므로 감시가 따로 묻지 않아도 된다(STALE-TAB-01).
+   */
+  function noteServerRelease(r) {
+    var watch = window.FOMS_RELEASE_WATCH;
+    if (watch && typeof watch.observe === 'function' && r && r.headers) {
+      watch.observe(r.headers.get('X-Foms-Release'));
+    }
+  }
+
   function fetchFragment(canonical) {
     // Consume the one-shot nav abort signal set by navigateByShell (null for
     // prefetch/heartbeat callers). Read+clear before any early return so a reused
@@ -1190,6 +1201,7 @@
       signal: navSignal || undefined,
     })
       .then(function (r) {
+        noteServerRelease(r);
         if (r.status === 304) {
           // 내용 무변경 → 캡처해 둔 html 재사용(비행 중 evict/invalidate 경합에도 안전 —
           // If-None-Match 는 priorHtml 이 있을 때만 보냈으므로 여기서 null 불가).

@@ -1630,6 +1630,9 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" defer integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js" defer integrity="sha384-GyzlITcjwPgjvsKMq6Pws/ETSXr/1Za1ieVBHZnkws6Pkyn7rc13MTLI8gFJvjuY" crossorigin="anonymous"></script>
     {% if current_user %}
+    {# 열어 둔 탭도 새 화면으로(STALE-TAB-01) — 이 문서를 그린 릴리스. 서버 릴리스가 바뀌면 한가할 때 한 번 새로 읽는다
+       (static/js/runtime/foms-release-watch.js · foms/services/common/release_watch.py). 값이 비면 스크립트가 아무것도 안 한다. #}
+    <script src="{{ asset_url('js/runtime/foms-release-watch.js') }}" data-foms-release="{{ foms_release_id() }}" defer></script>
     <script src="{{ asset_url('js/foms/partner-order-filter.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/global-nav-runtime.js') }}" defer></script>
     {# nav 수집 뱃지 숫자는 렌더 뒤에 채운다 — 서버에서 세면 워크벤치 코호트 콜드에
@@ -1649,7 +1652,7 @@
 {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260930b" defer></script>
-    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20261121p"{{ _foms_prefetch_allow_attr }} defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20261122a"{{ _foms_prefetch_allow_attr }} defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20261121a" defer></script>
     {# 주문·생산·시공 상세 펼침의 제품 여러 건 목록+상세 공용 도우미. 조각(fragment)에 두면 탭 전환마다 다시 읽혀 여기서 한 번만 싣는다. #}
     <script src="{{ url_for('static', filename='js/foms/order-items-md.js') }}?v=20260929a" defer></script>

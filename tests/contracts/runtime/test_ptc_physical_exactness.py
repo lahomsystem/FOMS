@@ -78,6 +78,8 @@ _PTC_RUNTIME_JS_ALLOWLIST: frozenset[str] = frozenset(
         "erp-mobile-shell.js",
         "erp-shell.js",
         "foms-pointer-hint-boot.js",
+        # STALE-TAB-01: 열어 둔 탭이 새 배포를 알아채면 한가할 때 한 번 새로 읽는다(layout_scripts.html, 로그인 문서).
+        "foms-release-watch.js",
         "foms-screen-hint-boot.js",
         "foms-shell-mode-boot.js",
         "foms-theme-boot.js",
@@ -121,6 +123,8 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "template_warm.py",
         # REQ-DIAG-01: 모든 요청 공통 구간 계측(느린 요청 로그·HTML 진단 헤더)
         "request_phase_profile.py",
+        # STALE-TAB-01: 탭에 알리는 지금 릴리스(머리글 X-Foms-Release · /api/foms/release · 문서 data-foms-release)
+        "release_watch.py",
     }
 )
 

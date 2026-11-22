@@ -52,6 +52,8 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "KEY_VERSION",
     "RELEASE_ID",
+    "RELEASE_ID_SOURCE",
+    "RELEASE_SOURCE_PROCESS",
     "SHADOW_KEY_PREFIX",
     "SHADOW_MISMATCH_COUNTER_KEY",
     "SHADOW_STATE_COUNTER_PREFIX",
@@ -261,7 +263,11 @@ def _session_material() -> str:
         return "unavailable"
 
 
-def _compute_release_id() -> str:
+#: 릴리스 식별자 출처 — 프로세스 uuid(최후 수단)는 워커마다 값이 달라 탭 새 화면 감시에 쓰면 안 된다.
+RELEASE_SOURCE_PROCESS: Final[str] = "process"
+
+
+def _compute_release_id_and_source() -> tuple[str, str]:
     """릴리스 축 — 배포로 마크업이 바뀌어도 테이블 카운터는 안 움직인다.
 
     같은 그림자 관측에서 함께 드러났다. 프래그먼트 본문에는 자산 ``?v=`` 핀이 26개
@@ -274,12 +280,12 @@ def _compute_release_id() -> str:
     → 프로세스 uuid(최후 수단: 정확하지만 워커마다 달라 304 적중률이 떨어진다).
 
     Returns:
-        16자 이하의 릴리스 식별 문자열.
+        (16자 이하의 릴리스 식별 문자열, 출처 ``env`` · ``templates`` · ``process``).
     """
     for name in ("FOMS_RELEASE_ID", "RAILWAY_GIT_COMMIT_SHA", "RAILWAY_DEPLOYMENT_ID"):
         value = (os.environ.get(name) or "").strip()
         if value:
-            return value[:16]
+            return value[:16], "env"
     try:
         root = Path(__file__).resolve().parents[3] / "templates"
         if root.is_dir():
@@ -288,14 +294,26 @@ def _compute_release_id() -> str:
                 stat = path.stat()
                 digest.update(str(path.relative_to(root)).encode("utf-8"))
                 digest.update(f"{stat.st_size}:{int(stat.st_mtime)}".encode("utf-8"))
-            return digest.hexdigest()[:16]
+            return digest.hexdigest()[:16], "templates"
     except Exception:
         logger.warning("[FragVer] template digest unavailable", exc_info=True)
-    return uuid.uuid4().hex[:16]
+    return uuid.uuid4().hex[:16], RELEASE_SOURCE_PROCESS
+
+
+def _compute_release_id() -> str:
+    """:func:`_compute_release_id_and_source` 의 식별자만.
+
+    Returns:
+        16자 이하의 릴리스 식별 문자열.
+    """
+    return _compute_release_id_and_source()[0]
 
 
 #: 프로세스 기동 시 1회 계산. 배포하면 프로세스가 새로 뜨므로 값이 바뀐다.
-RELEASE_ID: Final[str] = _compute_release_id()
+_RELEASE: Final[tuple[str, str]] = _compute_release_id_and_source()
+RELEASE_ID: Final[str] = _RELEASE[0]
+#: 위 식별자의 출처(``foms/services/common/release_watch.py`` 가 ``process`` 면 탭에 알리지 않는다).
+RELEASE_ID_SOURCE: Final[str] = _RELEASE[1]
 
 
 def build_fragment_version_key(

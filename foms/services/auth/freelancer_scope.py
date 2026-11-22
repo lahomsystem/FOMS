@@ -44,6 +44,8 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # 브라우저가 스스로 부르는 아이콘 · 모든 화면이 보내는 익명 화면 속도 기록(읽는 것 없음)
     "favicon",
     "foms_rum.ingest_rum_event",
+    # 열어 둔 탭의 새 배포 확인(STALE-TAB-01) — 서버 릴리스 식별자 하나만 돌려준다(DB · 주문 없음)
+    "health.foms_release",
     # 내 정보 — 보기 · 비밀번호 바꾸기. 같은 폼의 이름은 핸들러가 지금 이름으로 되돌린다(J8 · 검토 A1,
     # foms.services.auth.freelancer_edit_guards.freelancer_profile_name).
     "auth.profile",
