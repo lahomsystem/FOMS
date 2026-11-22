@@ -116,7 +116,7 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
     }
 
 
-def _step_panel_screen(tab: str, surface: bool, queues: dict | None, user) -> dict:
+def _step_panel_screen(tab: str, surface: bool, queues: dict | None) -> dict:
     """'내 공정' 탭 오른쪽 판(설계서 2026-11-21-production-my-steps-panel §3-1 · §3-6) 템플릿 값.
 
     문 = 도면 카드와 같은 기기 문(모바일 v2 셸 + 터치) + 넓은 창. 문 밖(PC 마우스 · 폰 · 세로 쿠키)은 판을 아예 그리지 않는다 —
@@ -134,7 +134,6 @@ def _step_panel_screen(tab: str, surface: bool, queues: dict | None, user) -> di
         'step_pin': pinned,
         'step_order': order if pinned else None,
         'defect_reasons': _PRODUCTION_DEFECT_REASONS,
-        'step_me': (getattr(user, 'name', None) or getattr(user, 'username', '') or '') if panel else '',
     }
 
 
@@ -252,7 +251,7 @@ def erp_production_home():
         counts=production_home_counts(rows, len(tombstones)),
         changes=changes,
         queues=queues,
-        **_step_panel_screen(tab, surface, queues, user),
+        **_step_panel_screen(tab, surface, queues),
         **flags,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
     ))

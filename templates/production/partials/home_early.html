@@ -1,7 +1,7 @@
 {# 생산 첫 화면 '날 고르기' JS — 머리(전체 페이지)와 셸 조각 맨 앞에 싣는다(11-14). defer 스크립트는 문서 순서대로 돌므로
    여기 두면 공용 스크립트 수십 개보다 먼저 묶여, 화면이 보이는데 날 누름이 버려지는 구간이 줄어든다(tap_delay 실측 4배 559~924ms).
    묶이기 전 누름은 날 단추가 진짜 링크라 그 날 주소로 이동한다. 이 파일은 다른 스크립트에 기대지 않는다.
-   '내 공정' 판(step_panel, 11-21) 줄 고르기 · [<공정> 끝] 확인 창 JS 도 같은 까닭으로 여기 — 묶이기 전 줄 누름은 ?tab=steps&order= 진짜 링크.
+   '내 공정' 판(step_panel, 11-21) 줄 고르기 · [<공정> 끝](바로 저장 + 되돌리기, 11-22) JS 도 같은 까닭으로 여기 — 묶이기 전 줄 누름은 ?tab=steps&order= 진짜 링크.
    판 하나 받기(steppane.js, 11-22 — 고른 판만 그리고 다른 줄 판은 누를 때 받는다)는 줄 고르기 JS 바로 앞(defer 는 문서 순서대로 돈다). #}
 {% if days %}<script src="{{ url_for('static', filename='js/production/foms-production-home-days.js') }}?v=20261114a" defer></script>
 {% endif %}{% if step_panel %}<script src="{{ url_for('static', filename='js/production/foms-production-home-steppane.js') }}?v=20261122a" defer></script>

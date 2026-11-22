@@ -163,7 +163,7 @@ def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> N
     html = get_html(client, HOME + "?tab=steps")
     # 판 = 공정 줄마다 고른 줄 하나(재단 박서준 · 엣지 엣지집) — 다른 줄 판은 누를 때 받는다
     assert re.findall(r'data-foms-step-pane="(\d+)"', html) == [str(a.id), str(e.id)]
-    assert html.count('id="foms-step-confirm-modal"') == 1
+    assert "foms-step-confirm-modal" not in html and html.count("data-foms-step-base=") == 1  # 확인 창 없음(11-22)
     assert 'class="foms-prod-home fph-has-sp"' in html
     # 문 밖: PC 마우스 · 폰(세로) · 쿠키 없음(안전 폴백 = 다 그림)은 각각
     for cookies, want in (({"foms_ptr": "fine", "foms_vw": "wide"}, 0), ({"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "915"}, 0),
@@ -171,7 +171,7 @@ def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> N
         set_cookies(client, cookies)
         out = get_html(client, HOME + "?tab=steps")
         assert out.count('data-foms-step-pane="') == want, cookies
-        assert ("foms-step-confirm-modal" in out) == bool(want), cookies
+        assert ("data-foms-step-base=" in out) == bool(want), cookies
         if not want:
             assert "fph-has-sp" not in out and STEPS_JS not in out and "fph-q__list" not in out
             # 판 없는 화면 = 지금 그대로: 줄마다 [끝](보류 줄 빼고), 줄 링크 = 작업 시트. PC 마우스는 보기 전용이라
@@ -216,7 +216,7 @@ def test_관리자_영업_CS_도_판을_본다(client, cohort, who) -> None:
     seed_cut_queue()
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")
-    assert html.count('data-foms-step-pane="') == 2 and f'data-foms-step-me="{name}"' in html
+    assert html.count('data-foms-step-pane="') == 2 and "data-foms-step-base=" in html
 
 
 # --------------------------------------------------------------------------- #
@@ -263,7 +263,7 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     # 금액 · 인라인 style · script 없음
     panes = "".join(pane_html(get_html(client, panel_url("cut", o.id)), o.id) for o in (a, b, c, d)) + pane_html(html, e.id)
     assert not re.search(r"금액|단가|price|amount|₩|\d원", panes)
-    for rel in ("home_step_panel.html", "home_step_confirm.html", "home_steps.html"):
+    for rel in ("home_step_panel.html", "home_steps.html"):
         text = (ROOT / "templates/production/partials" / rel).read_text(encoding="utf-8")
         assert 'style="' not in text and "<script" not in text, rel
 
@@ -303,19 +303,17 @@ def test_order_가_선_탭이_첫_탭이고_없는_번호는_무시(client, coho
         assert "data-foms-home-step-pin" not in out and f'data-foms-home-reload data-foms-erp-no-shell="1" href="{HOME}?tab=steps"' in out
 
 
-def test_확인_창_마크업과_실을_것(client, cohort) -> None:
+def test_확인_창은_없고_실을_것(client, cohort) -> None:
+    """2026-11-22 사장님 "확인 창 빼기"(두 번 누름 + 되돌리기) — 판 [끝] 확인 창 · 그 꼴 CSS(parts.css)를 싣지 않는다."""
     login(client)
     seed_cut_queue()
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")
-    modal = re.search(r'<div id="foms-step-confirm-modal"[^>]*>', html).group(0)
-    assert 'class="foms-prod-change-modal pp-modal"' in modal and 'role="dialog"' in modal and 'aria-modal="true"' in modal
-    assert " hidden>" in modal and 'data-foms-step-me="이철호"' in modal and f'data-foms-step-base="{HOME}?tab=steps"' in modal
-    assert html.count("foms-prod-change-modal") >= 1 and html.count('id="foms-step-confirm-modal"') == 1
-    assert 'class="foms-prod-change-modal__btn foms-prod-change-modal__btn--close pp-mbtn" data-foms-step-modal-close>취소</button>' in html
-    assert 'class="foms-prod-change-modal__btn pp-mbtn pp-mgo pp-mgo--done" data-foms-step-modal-run>' in html
-    # 꼴 CSS = 파트 카드 창 그대로(parts.css .pp-modal) — 판이 있을 때 싣는다. 새 JS 는 머리(일찍), 시트 JS 는 문서당 한 번
-    assert "css/contexts/production/parts.css?v=" in html
+    assert "foms-step-confirm-modal" not in html and "data-foms-step-modal" not in html and "pp-modal" not in html
+    assert not (ROOT / "templates/production/partials/home_step_confirm.html").exists()
+    assert f'data-foms-step-base="{HOME}?tab=steps"' in html and "data-foms-home-status" in html
+    # 확인 창 꼴이 쓰던 parts.css 는 이제 도면 카드 판에만. 새 JS 는 머리(일찍), 시트 JS 는 문서당 한 번
+    assert "css/contexts/production/parts.css" not in html
     assert html.index(STEPS_JS + "?v=20261121a") < html.index("</head>")
     assert 'js/production/foms-production-sheet-page.js?v=20261121c" defer data-foms-run-once="prod-sheet-page"' in html
     assert "js/foms/tablet-domain-sheets.js?v=" in html and "js/foms/foms-reason-sheet.js?v=" in html
@@ -323,8 +321,9 @@ def test_확인_창_마크업과_실을_것(client, cohort) -> None:
     # 셸 조각도 같은 것(조각 맨 앞에 새 JS)
     frag = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
     assert "<!DOCTYPE" not in frag and frag.index(STEPS_JS) < frag.index("data-foms-prod-home")
-    for asset in ("foms-production-sheet-page.js", "tablet-domain-sheets.js", "foms-reason-sheet.js", "parts.css"):
+    for asset in ("foms-production-sheet-page.js", "tablet-domain-sheets.js", "foms-reason-sheet.js"):
         assert asset in frag, asset
+    assert "parts.css" not in frag
     # 판 없는 화면은 하나도 싣지 않는다
     set_cookies(client, {"foms_ptr": "fine", "foms_vw": "wide"})
     pc = get_html(client, HOME + "?tab=steps")
