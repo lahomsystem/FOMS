@@ -154,6 +154,9 @@
 
 /* ── 바뀐 것 받은함(PC): 장 맨 앞 시공일 칸 ── */
 .fph-al.fpc-al { grid-template-columns: 8.5rem minmax(0, 1fr) auto; gap: 4px 14px; word-break: keep-all; overflow-wrap: anywhere; }
+/* 장 최소 너비(home.css .fph-inbox--page auto-fit) = 테두리 · 여백 · 틈 58(틈 14 × 2) + 시공일 칸 8.5rem + 단추 + 글 칸 10.5rem.
+   글 칸을 태블릿(16rem)보다 좁게 둬 1440×900 은 글자 100 ~ 150% 모두 두 칸(옛 두 칸 고정과 같다) — 한 칸이면 장마다 글 끝 ~ 단추가 600px 넘게 빈다. */
+.foms-prod-home.is-pc .fph-inbox--page { --fph-al-min: calc(58px + 8.5rem + max(128px, 5rem + 38px) + 10.5rem); }
 .fph-al.fpc-al.is-late { border-color: var(--fpc-danger-line); box-shadow: inset 6px 0 0 var(--fpc-danger); }
 .fph-al.fpc-al.is-tight { border-color: var(--fpc-warn-soft); box-shadow: inset 6px 0 0 var(--fpc-warn-line); }
 
