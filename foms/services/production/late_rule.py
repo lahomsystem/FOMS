@@ -5,6 +5,10 @@
 
 순수 함수만 둔다(쿼리 0 · 요청 문맥 없음). 숫자 표는 :data:`LATE_THRESHOLDS` 한 곳 — 제안값으로 시작한다(결정 3).
 기준점 = 옛 '생산 D-2' 배지(``foms/services/erp_display.py`` — 영업일 0~2, 제작 대기 늦음 W ≤ 2 와 맞춤).
+
+도면 · 컨펌 기다림 줄은 표 대신 **도면 마감**(시공일 − 2영업일)에 맞춘다 — 늦음 = 마감 지남, 빠듯 = 마감 오늘 · 다음 영업일
+(설계서 ``docs/specs/2026-11-22-production-drawing-arrival-upgrade_SPEC.md`` §7, 판정은 ``drawing_arrival`` 한 곳). 띠는 주황 '마감 내일'
+인데 PC 줄은 빨강 '늦음' 이던 두 말을 하나로. 시공일이 지난 줄은 자리와 상관없이 늦음(그대로).
 """
 
 from __future__ import annotations
@@ -13,13 +17,16 @@ import datetime
 from typing import Any
 
 from foms.services.common.business_calendar import business_days_between
+from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
+from foms.services.production.drawing_arrival import SOON as DEADLINE_SOON
+from foms.services.production.drawing_arrival import deadline_state, drawing_deadline, soon_word
 
 LATE = 'late'
 TIGHT = 'tight'
 
 #: 지금 자리 → (빠듯 W 상한, 늦음 W 상한). 표에 없는 자리(제작 완료 · 시공 단계 · 시공일 없음)는 색이 없다.
+#: 도면 · 컨펌 기다림(``'wait'``)은 표가 아니라 도면 마감으로 센다(:func:`production_late_level`).
 LATE_THRESHOLDS: dict[str, tuple[int, int]] = {
-    'wait': (5, 3),   # 도면 · 컨펌 기다림
     'ready': (4, 2),  # 제작 대기(회차 없음 · 재단 전)
     'early': (3, 1),  # 재단 중 · 엣지 중
     'final': (2, 0),  # 조립 중 · 검수 중
@@ -43,11 +50,13 @@ def late_spot(row: dict[str, Any]) -> tuple[str | None, str]:
         row: 첫 화면 행(``home_stage`` · ``home_steps`` · ``hold_active`` · ``home_has_run``).
 
     Returns:
-        ``('ready', '시작 전')`` · ``('early', '엣지')`` · ``(None, '제작 완료 전')`` 같은 쌍.
+        ``('ready', '시작 전')`` · ``('early', '엣지')`` · ``(None, '제작 완료 전')`` 같은 쌍. 기다림은 막힌 까닭
+        (``dw_blocker`` — '도면 고치는 중', 행에 없으면 단계 글).
     """
     stage = str(row.get('home_stage') or '')
     if stage in _WAIT_STAGES:
-        return 'wait', stage
+        blocker = row.get('dw_blocker') if isinstance(row.get('dw_blocker'), dict) else {}
+        return 'wait', str(blocker.get('label') or stage)
     if stage == '제작 대기':
         return 'ready', '시작 전'
     if stage == '보류':
@@ -81,7 +90,8 @@ def _parse_day(value: Any) -> datetime.date | None:
 def production_late_level(row: dict[str, Any], today: datetime.date, *, due: Any = None) -> str | None:
     """늦음(``'late'``) · 빠듯(``'tight'``) · 없음(None). 쿼리 0.
 
-    시공일이 오늘보다 앞(지남)인데 제작 완료가 아니면 자리와 상관없이 늦음. 그 밖은 W(일하는 날)와 자리 표를 견준다.
+    시공일이 오늘보다 앞(지남)인데 제작 완료가 아니면 자리와 상관없이 늦음. 기다림은 도면 마감(늦음 = 지남 · 빠듯 = 오늘 ·
+    다음 영업일), 그 밖은 W(일하는 날)와 자리 표를 견준다.
 
     Args:
         row: 첫 화면 행. ``home_view`` 가 'done'(제작 완료)이면 늘 None.
@@ -99,6 +109,9 @@ def production_late_level(row: dict[str, Any], today: datetime.date, *, due: Any
         return LATE if (spot is not None or where) else None
     if spot is None:
         return None
+    if spot == 'wait':
+        state = deadline_state(drawing_deadline(day), today, all_in=False)
+        return {DEADLINE_LATE: LATE, DEADLINE_SOON: TIGHT}.get(state)
     tight_max, late_max = LATE_THRESHOLDS[spot]
     work = business_days_between(today, day)
     if work <= late_max:
@@ -130,6 +143,11 @@ def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any 
     level = production_late_level(row, today, due=day)
     line = ''
     if level is not None:
-        _spot, where = late_spot(row)
-        line = f"{'늦음' if level == LATE else '빠듯'} — {_when_text(day, today)}, 아직 {where}"
+        spot, where = late_spot(row)
+        if spot == 'wait' and day >= today:
+            deadline = drawing_deadline(day)
+            line = (f"늦음 — 도면 마감 {deadline.month}/{deadline.day} ({'월화수목금토일'[deadline.weekday()]}) 지남, 아직 {where}"
+                    if level == LATE else f"빠듯 — 도면 마감 {soon_word(deadline, today)}")
+        else:
+            line = f"{'늦음' if level == LATE else '빠듯'} — {_when_text(day, today)}, 아직 {where}"
     return {'level': level, 'line': line, 'tip': tip}

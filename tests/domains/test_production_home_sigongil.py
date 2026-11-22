@@ -63,8 +63,12 @@ def test_날짜_탭_고른_날_큰_줄과_작은_칸에_시공일이_늘_보이�
         chip = re.search(rf'<a class="fph-wi[^"]*" href="[^"]*/{oid}[^"]*">(.*?)</a>', pane).group(1)
         assert chip.startswith('<span class="fph-due is-today" data-foms-home-due>')
         assert f'<b class="fph-wi__nm">{name}</b>' in chip and _dues(chip) == [("is-today", _label(0), "")]
-    # 미리 보기 줄(다음에 만들 것)도 같은 표 + D-n
-    row = _block(pane, f'data-foms-home-dayrow="{later.id}">')
+    # 그날 장은 그날 시공 주문만(설계서 2026-11-22-production-drawing-arrival-upgrade §5-2 — 미리 보기를 뺐다).
+    # 다른 날 주문은 그 날 장에서 같은 표 + D-n
+    assert f'data-foms-home-dayrow="{later.id}"' not in pane
+    key3 = (get_today_kst() + datetime.timedelta(days=3)).isoformat()
+    row = _block(_pane(client.get(HOME + f"?day={key3}&view=day").get_data(as_text=True), key3),
+                 f'data-foms-home-dayrow="{later.id}">')
     assert _dues(row) == [("", _label(3), "D-3")]
 
 
@@ -145,9 +149,11 @@ def test_도면_카드와_카드_판_작은_칸에_시공일(client, cohort) -> 
         # 이름 줄(pp-ln) 바로 아래 제 줄 — 품목 줄 폭을 안 뺏는다
         between = _block(card, '<span class="pp-no">', '<span class="fph-dr__pr pp-item">')
         assert _dues(between) == [("is-today", _label(0), "")]
-    for oid, tail in ((wait.id, "붙박이장"), (nodraw.id, "도면 없음")):
-        chip = re.search(rf'<a class="fph-wi pp-wait" href="[^"]*/{oid}[^"]*">(.*?)</a>', block).group(1)
-        assert _dues(chip) == [("is-today", _label(0), "")] and chip.endswith(f"<small>#{oid} · {tail}</small>")
+    # 기다림 칸(도면 단계)은 둘째 줄에 막힌 까닭 · 담당(fph_wait, 2026-11-22 §5-3), 생산 단계 '도면 없음' 칸은 그대로(fph_chip)
+    for oid, cls, tail in ((wait.id, "fph-wi has-why pp-wait", '<span class="fph-wi__why">'), (nodraw.id, "fph-wi pp-wait", "")):
+        chip = re.search(rf'<a class="{cls}" href="[^"]*/{oid}[^"]*">(.*?)</a>', block).group(1)
+        small = f"<small>#{oid} · {'붙박이장' if oid == wait.id else '도면 없음'}</small>"
+        assert _dues(chip) == [("is-today", _label(0), "")] and (small + tail in chip if tail else chip.endswith(small))
 
 
 def test_시공일_표_CSS_는_줄지_않고_글자_손잡이를_따른다() -> None:

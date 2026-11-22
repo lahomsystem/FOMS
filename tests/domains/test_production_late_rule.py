@@ -1,4 +1,5 @@
 """생산 늦음 · 빠듯 규칙 — 설계서 docs/specs/2026-11-21-production-pc-viewer_SPEC.md §8 · §13 결정 3(일하는 날로 센다).
+도면 · 컨펌 기다림 줄은 도면 마감(시공일 − 2영업일)에 맞춘다 — 설계서 docs/specs/2026-11-22-production-drawing-arrival-upgrade_SPEC.md §7.
 
 표의 경계값 전부(자리 넷 × 빠듯 · 늦음 · 없음) + 주말 · 공휴일 빼기 + 지난 시공일 + 보류(멈춘 공정 자리) + 제작 완료 · 검수 끝
 + 시공일 없음 + KST 자정 경계(UTC 서버에서도 KST 오늘로 센다). 순수 함수라 DB 없이 돈다.
@@ -29,13 +30,15 @@ def _d(day: int, month: int = 11) -> str:
 
 
 def test_숫자_표는_설계서_제안값_한_곳() -> None:
-    assert LATE_THRESHOLDS == {"wait": (5, 3), "ready": (4, 2), "early": (3, 1), "final": (2, 0)}
+    # 기다림('wait')은 표가 아니라 도면 마감으로 센다(2026-11-22 §7 — 표에서 지웠다)
+    assert LATE_THRESHOLDS == {"ready": (4, 2), "early": (3, 1), "final": (2, 0)}
 
 
 @pytest.mark.parametrize(("row", "cases"), [
-    # 도면 · 컨펌 기다림: 빠듯 W ≤ 5 · 늦음 W ≤ 3
-    (_row("컨펌 기다림", None, view="wait", run=False), [(_d(26), "late"), (_d(27), "tight"), (_d(30), "tight"), (_d(1, 12), None)]),
-    (_row("도면 기다림", None, view="wait", run=False), [(_d(23), "late"), (_d(26), "late"), (_d(27), "tight"), (_d(1, 12), None)]),
+    # 도면 · 컨펌 기다림: 마감(시공일 − 2영업일) 지남 = 늦음, 마감 오늘 · 다음 영업일 = 빠듯, 그 밖 없음(오늘 11/23 월)
+    # 11/24 화 → 마감 11/20 금 · 11/25 수 → 11/23 월(오늘) · 11/26 목 → 11/24 화(다음 영업일) · 11/27 금 → 11/25 수
+    (_row("컨펌 기다림", None, view="wait", run=False), [(_d(24), "late"), (_d(25), "tight"), (_d(26), "tight"), (_d(27), None)]),
+    (_row("도면 기다림", None, view="wait", run=False), [(_d(23), "late"), (_d(24), "late"), (_d(26), "tight"), (_d(30), None)]),
     # 제작 대기: 빠듯 W ≤ 4 · 늦음 W ≤ 2 (옛 '생산 D-2' 배지와 같은 기준점)
     (_row("제작 대기", None, run=False), [(_d(25), "late"), (_d(26), "tight"), (_d(27), "tight"), (_d(30), None)]),
     # 재단 · 엣지 중: 빠듯 W ≤ 3 · 늦음 W ≤ 1
@@ -109,6 +112,25 @@ def test_줄_글과_마우스_글() -> None:
     assert production_late_view(_row("제작 대기", _d(30), run=False), MON)["tip"] == "시공까지 일하는 날 5일"
     # 여러 시공일 주문은 견줄 날(due)을 따로 받는다
     assert production_late_level(_row("제작 대기", _d(1, 12), run=False), MON, due=datetime.date(2026, 11, 24)) == "late"
+
+
+def test_기다림_줄은_도면_마감에_맞춘다_띠와_같은_말() -> None:
+    """설계서 2026-11-22 §7 — 띠는 주황 '마감 내일' 인데 PC 줄은 빨강 '늦음' 이던 것을 하나로. 오늘 11/24 (화) 예(§7 표)."""
+    tue = datetime.date(2026, 11, 24)
+    wait = _row("도면 기다림", None, view="wait", run=False)
+    assert production_late_level({**wait, "construction_date": _d(27)}, tue) == "tight"  # 금(W 3): 빨강 → 주황
+    assert production_late_level({**wait, "construction_date": _d(30)}, tue) is None  # 월(W 4): 주황 → 색 없음
+    assert production_late_level({**wait, "construction_date": _d(25)}, tue) == "late"  # 수: 빨강 그대로
+    # 줄 글 — 늦음은 마감 날과 막힌 까닭(행의 dw_blocker), 빠듯은 마감 '언제'
+    fixing = {**wait, "construction_date": _d(25), "dw_blocker": {"key": "fixing", "label": "도면 고치는 중", "none": False}}
+    assert production_late_view(fixing, tue)["line"] == "늦음 — 도면 마감 11/23 (월) 지남, 아직 도면 고치는 중"
+    assert production_late_view({**wait, "construction_date": _d(27)}, tue)["line"] == "빠듯 — 도면 마감 내일"
+    # 금요일에 월요일 마감 = 빠듯 '월요일'(다음 영업일을 '내일'로 친다, §14 답 4)
+    fri = datetime.date(2026, 11, 27)
+    assert production_late_level({**wait, "construction_date": _d(2, 12)}, fri) == "tight"
+    assert production_late_view({**wait, "construction_date": _d(2, 12)}, fri)["line"] == "빠듯 — 도면 마감 월요일"
+    # 다른 자리 표는 그대로(제작 대기 W 2 = 늦음)
+    assert production_late_level(_row("제작 대기", _d(26), run=False), tue) == "late"
 
 
 def test_KST_자정_경계_UTC_서버에서도_KST_오늘(monkeypatch) -> None:

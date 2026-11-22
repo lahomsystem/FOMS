@@ -27,7 +27,22 @@
   <span class="fph-dr__dw">{{ r.drawing_label }}</span>
 </a>
 {% endmacro %}
-{# 작은 칸(도면·컨펌 기다림 · 제작 완료) — 시공일이 맨 앞이라 칸이 좁아도 안 잘린다. tail = 번호 뒤 글(없으면 품목 · 단계). #}
+{# 작은 칸(제작 완료 · 파트 '도면 없음') — 시공일이 맨 앞이라 칸이 좁아도 안 잘린다. tail = 번호 뒤 글(없으면 품목 · 단계). #}
 {% macro fph_chip(r, done, extra='', tail=None) %}
 <a class="fph-wi{% if done %} is-done{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ tail if tail is not none else (r.v3_product_label or r.home_stage) }}</small></a>
 {% endmacro %}
+{# 안 내려온 주문의 막힌 까닭 한 줄(설계서 2026-11-22-production-drawing-arrival-upgrade §4-4 · §4-5) — '도면 고치는 중 · 도면 장미래 · 영업 이하늘'.
+   '담당 없음' 만 빨강(is-none). deadline=True(여러 날 장 · 찾기 밖 칸)면 앞에 '마감 M/D'(마감 상태 색). 값 = drawing_arrival.attach_drawing_arrival. #}
+{% macro fph_why(r, deadline=False) -%}
+{%- if deadline and r.dw_deadline_md %}<span class="fph-dwst is-{{ r.dw_state }}">마감 {{ r.dw_deadline_md }}</span> · {% endif -%}
+{%- if r.dw_blocker %}<b{% if r.dw_blocker.none %} class="is-none"{% endif %}>{{ r.dw_blocker.label }}</b>{% for p in (r.dw_people.parts if r.dw_people else []) %} · <span>{{ p }}</span>{% endfor %}{% endif -%}
+{%- endmacro %}
+{# 기다림 칸(도면·컨펌 기다림) = 작은 칸 + 둘째 줄 막힌 까닭 · 도면 담당 · 영업 담당(§5-2). 날짜 탭 장 · 파트 판이 같이 쓴다. #}
+{% macro fph_wait(r, deadline=False, extra='') %}
+<a class="fph-wi has-why{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ r.v3_product_label or r.home_stage }}</small><span class="fph-wi__why">{{ fph_why(r, deadline) }}</span></a>
+{% endmacro %}
+{# 기다림 묶음 머리 앞 마감 글(h = 장의 wait_head: 하루 장 '마감 11/23 (월) 지났어요' 빨강 · 빠듯 주황 · 그 밖 색 없음, 시공일 없음 장 '시공일이 없어 마감이 없어요').
+   여러 날 장은 h 가 없어 아무것도 안 그린다(칸마다 마감). 뒤에 ' · ' 를 붙인다. #}
+{% macro fph_wait_head(h) -%}
+{%- if h %}<span{% if h.state %} class="is-{{ h.state }}"{% endif %}>{{ h.text }}</span> · {% endif -%}
+{%- endmacro %}

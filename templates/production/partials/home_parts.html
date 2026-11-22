@@ -2,8 +2,11 @@
    home_date.html 이 장마다 include 한다(d = 날짜 묶음 한 장, part_board = foms/services/production/part_board.py 판).
    카드 = 확정 도면 한 장. 내 파트 단추는 쓸 수 있는 사람에게만(D53 · D55), 다른 파트 한 줄은 누를 수 없는 글(D51).
    칸 단추 셋은 보이기/숨기기만(새 요청 없음). 확인 창 · 크게 보기 겉틀은 home_parts_overlays.html 에 한 번만 있다.
-   인라인 style · script 없음, 모양은 static/css/contexts/production/parts.css. 금액 없음(D7). #}
-{% from 'production/partials/home_date_macros.html' import home_href, fph_due, fph_chip %}
+   인라인 style · script 없음, 모양은 static/css/contexts/production/parts.css. 금액 없음(D7).
+   순서 = 도면·컨펌 기다림(카드 위, 머리에 마감 · 칸 둘째 줄 막힌 까닭 · 담당) → 도면 카드 → 제작 완료 — 반장 장과 같은 순서(설계서
+   2026-11-22-production-drawing-arrival-upgrade §5-3, 사장님 "파트 화면 순서 = 반장과 같이"). 생산 단계인데 확정 그림이 없는 주문
+   (no_drawing_rows)은 내려온 주문이라 까닭 없이 '도면 없음' 그대로. #}
+{% from 'production/partials/home_date_macros.html' import home_href, fph_due, fph_chip, fph_wait, fph_wait_head %}
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
 {% set is_cut = pb.part == 'cut' %}
@@ -49,6 +52,10 @@
     </div>
   </div>
   <div class="pp-main">
+    {% if pp.wait_count %}
+    <h3 class="fph-pane__g pp-wait-g">도면·컨펌 기다림 {{ pp.wait_count }} <small>{% if pp.wait_rows %}{{ fph_wait_head(d.wait_head) }}{% endif %}도면이 오면 카드로 나와요</small></h3>
+    <div class="fph-wg">{% for r in pp.wait_rows %}{{ fph_wait(r, d.show_day, 'pp-wait') }}{% endfor %}{% for r in pp.no_drawing_rows %}{{ fph_chip(r, false, 'pp-wait', '도면 없음') }}{% endfor %}</div>
+    {% endif %}
     <div class="pp-grid" data-pp-grid>
       {% for c in pp.cards %}
       <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}"
@@ -72,10 +79,6 @@
     </div>
     <p class="pp-empty" data-pp-empty{% if pp.cards %} hidden{% endif %}>{% if pp.no_drawing_rows or pp.wait_count %}아직 확정 도면이 없어요.{% else %}이 날은 만들 도면이 없어요.{% endif %}</p>
     {% if pp.hidden %}<p class="pp-cap">더 있는 {{ pp.hidden }}장은 안 보여요. 날을 나눠 보거나 찾기 탭에서 찾아 주세요.</p>{% endif %}
-    {% if pp.wait_count %}
-    <h3 class="fph-pane__g pp-wait-g">도면·컨펌 기다림 {{ pp.wait_count }} <small>도면이 오면 카드로 나와요</small></h3>
-    <div class="fph-wg">{% for r in pp.wait_rows %}{{ fph_chip(r, false, 'pp-wait') }}{% endfor %}{% for r in pp.no_drawing_rows %}{{ fph_chip(r, false, 'pp-wait', '도면 없음') }}{% endfor %}</div>
-    {% endif %}
     {% if pp.done_count %}
     <h3 class="fph-pane__g">제작 완료 {{ pp.done_count }} <small>파트 일이 끝난 집</small></h3>
     <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true, 'pp-donechip') }}{% endfor %}</div>

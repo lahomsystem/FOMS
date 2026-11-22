@@ -21,6 +21,7 @@ from sqlalchemy import or_
 from models import Order
 from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.production.drawing_arrival import attach_drawing_arrival
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from foms.services.production_read_model import (
@@ -431,4 +432,6 @@ def build_production_home(
                 row.get('address'), row.get('phone'), big,
             ) if part
         ).lower()
+    # 기다림 행의 도면 마감 · 막힌 까닭 · 담당(설계서 2026-11-22-production-drawing-arrival-upgrade §8) — 같은 행에서, 쿼리 0
+    attach_drawing_arrival(rows, today)
     return rows, stats

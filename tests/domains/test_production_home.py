@@ -291,7 +291,8 @@ def test_바뀐_것은_생산_단계_주문만_도면_기다림과_제작_완료
     assert tab_n in date
     pane = date.split(f'data-foms-home-daypane="{day}"')[1].split("data-foms-home-daypane=")[0]
     chips = {m.group(2).strip(): m.group(1) for m in re.finditer(r'<a class="fph-wi([^"]*)"[^>]*><span class="fph-due[^"]*" data-foms-home-due>.*?</span><b class="fph-wi__nm">([^<]+)</b><small>', pane)}
-    assert chips == {"도면바뀜": "", "완료바뀜": " is-done"}
+    # 기다림 칸은 둘째 줄(막힌 까닭)이 붙은 has-why 꼴(2026-11-22 §5-2) — 바뀜(is-chg) 테두리는 여전히 없다(D20)
+    assert chips == {"도면바뀜": " has-why", "완료바뀜": " is-done"}
     big = re.search(r'<a class="fph-dr ([^"]*)"[^>]*>.*?fph-dr__nm"><b>생산바뀜', pane, re.S)
     assert big and "is-chg" in big.group(1) and "<small>바뀜</small>" in pane
     found = client.get(HOME_URL + "?tab=all").get_data(as_text=True)
