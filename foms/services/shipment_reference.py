@@ -57,6 +57,7 @@ _ALLOWED_FIELDS = frozenset(
         "measurement_managers",
         "site_extra",
         "construction_workers",
+        "as_technicians",
     }
 )
 
@@ -64,6 +65,8 @@ _MAX_CONSTRUCTION_TIME = 50
 _MAX_DRAWING_MANAGERS = 100
 _MAX_MEASUREMENT_MANAGERS = 100
 _MAX_SITE_EXTRA = 100
+#: AS 기사(이름만 — AS 는 자수를 세지 않는다. 설계서 2026-11-23-as-worker-blank-and-as-technicians §2.2).
+_MAX_AS_TECHNICIANS = 100
 _MAX_CONSTRUCTION_WORKERS = 100
 _MAX_WORKER_NAME_LEN = 200
 
@@ -406,6 +409,12 @@ def validate_reference_payload(payload: Any) -> dict[str, Any]:
         canonical["construction_workers"] = _validate_construction_workers(
             payload["construction_workers"]
         )
+    # AS 기사도 시공자 마스터와 같은 규칙 — key 가 있을 때만 싣는다(없으면 기존 값 보존, 비우려면 빈 리스트).
+    if "as_technicians" in payload:
+        canonical["as_technicians"] = _trimmed_string_list(
+            payload["as_technicians"],
+            field="as_technicians", max_items=_MAX_AS_TECHNICIANS, max_len=200,
+        )
     return canonical
 
 
@@ -445,6 +454,7 @@ def project_to_legacy_shape(raw: Any) -> dict[str, Any]:
         "drawing_manager_en": drawing_manager_en,
         "measurement_manager": measurement,
         "construction_workers": data.get("construction_workers", []),
+        "as_technicians": data.get("as_technicians", []),
         "site_extra": data.get("site_extra", []),
     }
 

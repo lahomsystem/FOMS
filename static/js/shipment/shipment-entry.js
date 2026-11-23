@@ -25,7 +25,7 @@
     // 태블릿 가로 위 줄 [협력사 희망 N] — 같은 판을 위에서 내려오는 서랍으로 여닫기(§14.8) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-prb-drop.js?v=20261112a',
     // 태블릿 가로 하루치 출고표 시공자 칸 이름판(설계서 tablet-production-ui §14.3) — 문서 위임 싱글턴.
-    '/static/js/shipment/tablet-ship-assign.js?v=20261123a',
+    '/static/js/shipment/tablet-ship-assign.js?v=20261123b',
     // 태블릿 가로 왼쪽 '날짜별 남은 자수' 띠 여닫기(열림 기억) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-ship-capstrip.js?v=20261111a',
     // 태블릿 가로 위 줄 날짜 버튼 띠 넘기기 · 돋보기 · [더보기] 여닫기(§14.10 P14-8) — 문서 위임 싱글턴.

@@ -371,7 +371,10 @@ def test_changed_assets_repinned():
     cons_pin = _read("templates/construction/partials/scripts.html").split(
         "js/construction/dashboard.js') }}?v=", 1)[1].split('"', 1)[0]
     assert cons_pin >= _PIN, cons_pin
-    assert f"js/cs/as-dashboard.js') }}}}?v={_PIN}" in _read("templates/cs/partials/as_dashboard_body.html")
+    # 뒤 작업이 정당하게 올린다(2026-11-23 AS 탭 고르기 목록에 AS 기사, 20261123a) — "이 작업 핀보다 오래되지 않았다".
+    as_pin = _read("templates/cs/partials/as_dashboard_body.html").split(
+        "js/cs/as-dashboard.js') }}?v=", 1)[1].split('"', 1)[0]
+    assert as_pin >= _PIN, as_pin
 
 
 @pytest.mark.parametrize("rel", [

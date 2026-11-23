@@ -43,6 +43,7 @@ from foms.services.orders.as_cycle_service import (
     AS_IN_PROGRESS,
     AS_RECEIVED,
     ASCycleError,
+    clears_workers_on_register,
     complete_as_cycle,
     current_cycle,
     cycle_status,
@@ -171,15 +172,6 @@ def _load_order_structured_data_for_update(order):
         raise ValueError(
             f"structured_data를 안전하게 불러올 수 없어 저장을 중단했습니다: {exc}"
         ) from exc
-
-
-def _confirmed_construction_worker_name(user) -> str:
-    """Return the construction worker name confirmed by the AS register actor."""
-    if not user:
-        return ""
-    return str(
-        getattr(user, "name", None) or getattr(user, "username", None) or ""
-    ).strip()
 
 
 def _scope_hash(command_id: str, order_id: int) -> str:
@@ -667,11 +659,6 @@ def register_as_from_payload(order_id, data, user_id, *, drawing_round=None,
 
     user = get_user_by_id(user_id)
     today = get_today_kst().strftime("%Y-%m-%d")
-    cw_name = (
-        _confirmed_construction_worker_name(user)
-        if source_screen == "erp_construction_dashboard"
-        else ""
-    )
     old_sd = copy.deepcopy(order.structured_data or {})
     # meta['finalized_at']로 JSONB에 남는 값 — naive 타임스탬프는 UTC 규약(전역 규약 2).
     now = now_utc_naive()
@@ -741,8 +728,9 @@ def register_as_from_payload(order_id, data, user_id, *, drawing_round=None,
         projected = copy.deepcopy(sd)
         shipment = ensure_path(projected, "shipment")
         shipment["as_content"] = as_content
-        if cw_name:
-            shipment["construction_workers"] = [cw_name]
+        # 서비스가 새 건 접수에서 시공자 칸을 비우는 규칙 그대로(같은 함수) — 원장에 "시공 인원: 누구 → 비움" 이 남는다.
+        if clears_workers_on_register(order, shipment):
+            shipment["construction_workers"] = []
         return projected
 
     def _register_side_records(sd: Dict[str, Any], *, new_cycle: bool) -> None:
@@ -856,8 +844,7 @@ def register_as_from_payload(order_id, data, user_id, *, drawing_round=None,
         _register_side_records(sd, new_cycle=False)
         shipment = ensure_path(sd, "shipment")
         shipment["as_content"] = as_content
-        if cw_name:
-            shipment["construction_workers"] = [cw_name]
+        # 다시 접수는 시공자 칸을 건드리지 않는다 — 이미 정해 둔 AS 담당을 지우거나 접수한 사람 이름으로 덮지 않는다(2026-11-23).
         locked.as_received_date = today
         locked.as_completed_date = None
         if shipping:
@@ -879,7 +866,7 @@ def register_as_from_payload(order_id, data, user_id, *, drawing_round=None,
             register_as_cycle(
                 db, order_id=order_id, actor_user_id=user_id, as_content=as_content,
                 shipping_scheduled_date=shipping, source_screen=source_screen or None,
-                received_date=today, construction_worker_name=cw_name or None,
+                received_date=today,
                 recurrence=recurrence,
                 scope_hash=_scope_hash("AS_REGISTER", order_id), request_hash=_request_hash(data),
                 idempotency_key=_idempotency_key(data),

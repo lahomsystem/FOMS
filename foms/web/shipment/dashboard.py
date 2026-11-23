@@ -719,7 +719,10 @@ def erp_shipment_dashboard():
     # 소비처(tablet_ship_grid.html · 위 줄 '시공자 없음' 알약)는 둘 다 `wide_viewport_surfaces or not erp_mobile_v2_enabled`
     # 게이트 안이라 모바일 셸 폰(터치 + 992 미만 창)엔 안 만든다.
     tablet_day_sheet = (
-        build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
+        build_tablet_day_sheet(
+            rows, worker_settings, selected_date if use_single_day else None,
+            as_technicians=settings.get('as_technicians'),
+        )
         if wants_wide_viewport_surfaces() or not mobile_v2_active or not ship_omit_pc_table
         else None
     )

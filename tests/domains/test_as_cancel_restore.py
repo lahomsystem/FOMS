@@ -80,23 +80,36 @@ def test_cancel_restores_a_legacy_logistics_status(client) -> None:
 
 
 def test_cancel_puts_back_the_workers_and_loading_date_the_reception_overwrote(client) -> None:
-    user_name = _login(client).name  # 요청 뒤에는 세션에서 떨어지므로 지금 읽어 둔다
-    oid = _order(stage="CONSTRUCTION")
+    # 2026-11-23: 접수는 시공자 칸을 비운다(시공이 끝난 주문만) — 접수한 사람 이름을 넣지 않는다.
+    _login(client)
+    oid = _order(stage="CS")
     order = _reload(oid)
     order.shipping_scheduled_date = "2026-11-10"
     db_session.commit()
     _register(client, oid, source_screen="erp_construction_dashboard", shipping_scheduled_date="2026-12-05")
     mid = _reload(oid)
-    assert mid.structured_data["shipment"]["construction_workers"] == [user_name]
+    assert mid.structured_data["shipment"]["construction_workers"] == []
     assert mid.shipping_scheduled_date == "2026-12-05"
 
     assert _cancel(client, oid).status_code == 200
     saved = _reload(oid)
     assert saved.structured_data["shipment"]["construction_workers"] == ["가짜기사"]
-    assert saved.shipping_scheduled_date == "2026-11-10" and saved.status == "CONSTRUCTION"
+    assert saved.shipping_scheduled_date == "2026-11-10" and saved.status == "CS"
 
-    # 대조군: 접수 뒤에 누가 시공자를 다시 고쳤으면 그 값을 덮지 않는다.
-    edited = _order(stage="CONSTRUCTION")
+    # 대조군 1: 시공이 아직 남은 주문(본 흐름 열림)은 접수가 시공자 칸을 건드리지 않는다 — 남은 시공일의 시공자다.
+    still_building = _order(stage="CONSTRUCTION")
+    _register(client, still_building, source_screen="erp_construction_dashboard")
+    assert _reload(still_building).structured_data["shipment"]["construction_workers"] == ["가짜기사"]
+
+    # 대조군 2: 다시 접수(열린 건에 한 번 더)는 정해 둔 AS 담당을 지우지 않는다.
+    again = _order(stage="CS")
+    _register(client, again)
+    _edit_sd(again, lambda sd: sd["shipment"].update(construction_workers=["가짜AS기사"]))
+    _register(client, again, content="가짜 문짝 처짐 — 다시 접수")
+    assert _reload(again).structured_data["shipment"]["construction_workers"] == ["가짜AS기사"]
+
+    # 대조군 3: 접수 뒤에 누가 시공자를 다시 고쳤으면 취소가 그 값을 덮지 않는다.
+    edited = _order(stage="CS")
     _register(client, edited, source_screen="erp_construction_dashboard")
     _edit_sd(edited, lambda sd: sd["shipment"].update(construction_workers=["가짜새기사"]))
     assert _cancel(client, edited).status_code == 200
