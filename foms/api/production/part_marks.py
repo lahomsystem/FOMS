@@ -21,7 +21,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from db import get_db
 from foms.services.orders.revision import RevisionError
-from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, part_account_part, part_view_mode
+from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_SUB, part_account_parts, part_view_mode
 from foms.services.production.part_constants import BASIC_ALLOWED_PART, PRODUCTION_PART_KEYS
 from foms.services.production.part_mark_rules import (
     ACTION_BASIC,
@@ -95,17 +95,19 @@ def _actor() -> Any:
 
 
 def _gate_part(user: Any, part: str) -> bool:
-    """파트 문(D53 · D55). 통과하면 관리자 여부를 돌려준다.
+    """파트 문(D53 · D55 · 2026-11-23 §4-12 · §5). 통과하면 남의 장을 대신 처리할 수 있는지(관리자 · 대신)를 돌려준다.
+
+    관리자 · 대신(파트 없는 생산팀) = 네 파트 모두 + 덮어쓰기. 파트 계정 = 계정 파트들 중 하나만(여러 파트도 됨).
 
     Raises:
-        MarkRefusal: 파트 없는 계정 403 ``PART_REQUIRED`` · 남의 파트 403 ``PART_FORBIDDEN``.
+        MarkRefusal: 쓸 수 없는 계정 403 ``PART_REQUIRED`` · 내 파트 밖 403 ``PART_FORBIDDEN``.
     """
     mode = part_view_mode(user)
-    if mode == VIEW_ADMIN:
+    if mode in (VIEW_ADMIN, VIEW_SUB):
         return True
     if mode != VIEW_PART:
         raise MarkRefusal(403, "PART_REQUIRED", "생산 파트가 정해진 계정만 체크할 수 있어요.")
-    if part_account_part(user) != part:
+    if part not in part_account_parts(user):
         raise MarkRefusal(403, "PART_FORBIDDEN", "자기 파트만 체크할 수 있어요.")
     return False
 
@@ -147,10 +149,10 @@ def api_part_mark():
     def _handle(db: Any) -> dict[str, Any]:
         user = _actor()
         req = _parse_one(request.get_json(silent=True) or {})
-        admin = _gate_part(user, req.part)
+        override = _gate_part(user, req.part)
         if req.action == ACTION_BASIC and req.part != BASIC_ALLOWED_PART:
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
-        return mark_one(db, user, admin, req)
+        return mark_one(db, user, override, req)
 
     return _run(_handle)
 
@@ -181,9 +183,9 @@ def api_part_marks_basic():
     def _handle(db: Any) -> dict[str, Any]:
         user = _actor()
         part, pairs = _parse_bulk(request.get_json(silent=True) or {})
-        admin = _gate_part(user, part)
+        override = _gate_part(user, part)
         if part != BASIC_ALLOWED_PART:
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
-        return bulk_basic(db, user, admin, pairs)
+        return bulk_basic(db, user, override, pairs)
 
     return _run(_handle)

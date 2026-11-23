@@ -555,6 +555,13 @@ class ProductionRun(Base):
 # 작성 시점 스냅샷으로 들고 있다.
 PRODUCTION_PART_CHECK_VALUES_SQL = "('cut','edge','assemble','inspect')"
 PRODUCTION_PART_MARK_STATE_CHECK_VALUES_SQL = "('NONE','NEED','BASIC','DONE')"
+# PRODPARTS-01(설계서 docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md §6-1): 계정 파트 목록
+# ``users.production_parts`` 의 CHECK — PostgreSQL 전용(jsonb 연산자). SQLite 시험 레인은 앱 한 곳
+# (``part_constants.normalize_production_parts``)이 값을 맞춘다. 글은 마이그레이션 ``prodparts_01`` 과 글자 단위로 같다.
+PRODUCTION_PARTS_CHECK_SQL = (
+    "production_parts IS NULL OR (jsonb_typeof(production_parts) = 'array' "
+    "AND production_parts <@ '[\"cut\",\"edge\",\"assemble\",\"inspect\"]'::jsonb)"
+)
 
 
 class ProductionPartMark(Base):
@@ -1593,6 +1600,8 @@ class User(Base):
             f'production_part IS NULL OR production_part IN {PRODUCTION_PART_CHECK_VALUES_SQL}',
             name='ck_users_production_part',
         ),
+        # PRODPARTS-01: 파트 목록은 비었거나(NULL) 네 key 만 든 배열 — PG 전용(SQLite 는 앱 검사).
+        CheckConstraint(PRODUCTION_PARTS_CHECK_SQL, name='ck_users_production_parts').ddl_if(dialect='postgresql'),
     )
 
     id = Column(Integer, primary_key=True)
@@ -1624,9 +1633,15 @@ class User(Base):
     # PARTNER-04: 연락처(협력사 직원 — 담당인 주문의 도면 "담당 연락처"에 찍힌다). sender_phone 과 별개.
     contact_phone = Column(String(30), nullable=True)
     # PRODPART-00: 생산팀 계정의 파트(cut · edge · assemble · inspect, 설계서 §15.3 D47). 요청마다 이 행을
-    # 읽으므로 바뀌어도 세션을 끊지 않는다(보안 버전 트리거 대상 아님). 읽는 쪽은
-    # foms.services.production.part_constants.account_production_part 를 거친다(생산팀이 아니면 None).
+    # 읽으므로 바뀌어도 세션을 끊지 않는다(보안 버전 트리거 대상 아님). 2026-11-23 P2 부터는 아래 목록 칸의 첫 파트 사본
+    # (옛 코드 호환 — 운영 1주 뒤 prodparts_02 가 지운다). 읽는 쪽은 part_constants.account_production_parts 를 거친다.
     production_part = Column(String(16), nullable=True)
+    # PRODPARTS-01: 계정 파트 목록(0 ~ 4개, 정의 순서 — 설계서 2026-11-23 §4-12 · §6-1). 이 칸이 기준이고 옛 칸
+    # ``production_part`` 는 한 판 동안 첫 파트를 같이 적는다(되돌린 옛 코드가 맞는 파트를 읽게 — 관리자 저장이 둘을 같이 씀).
+    # 빈 목록은 저장하지 않는다(NULL). 읽는 쪽은 ``part_constants.account_production_parts`` 를 거친다.
+    # none_as_null: 파이썬 None 을 JSON 'null' 이 아니라 SQL NULL 로 쓴다 — 기본 JSON 꼴은 None 을 'null' 로 써서 PG CHECK
+    # (NULL 또는 배열)에 걸린다(PG 레인 tests/postgres/test_users_production_parts_pg.py 가 잡음). DDL 은 JSONColumn 과 같다.
+    production_parts = Column(JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), 'postgresql'), nullable=True)
     # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
     partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
     # SESSION-REVOKE-01: 세션 세대 번호(비밀번호·역할 변경 때 +1 → 모든 세션 끊김)와
@@ -1648,6 +1663,7 @@ class User(Base):
             'is_active': self.is_active,
             'approval_status': self.approval_status,
             'production_part': self.production_part,
+            'production_parts': self.production_parts,
             'created_at': format_datetime_kst(self.created_at),
             'last_login': format_datetime_kst(self.last_login)
         }

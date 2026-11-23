@@ -31,6 +31,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.revision import execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.production.part_access import is_part_admin
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PART,
     MARK_STATE_BASIC,
@@ -313,8 +314,9 @@ def order_ready(order: Order, views: list[Any], user: Any, req: MarkRequest, tar
     return {"order_id": int(order.id)} if complete_state(sd, views)["ready"] else None
 
 
-def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool) -> str:
-    """감사 글 — 지금 누름은 지금 글 그대로, 새 누름(맡기 취소 · 담당 바꾸기)은 새 글."""
+def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool, user: Any = None) -> str:
+    """감사 글 — 지금 누름은 지금 글 그대로, 새 누름(맡기 취소 · 담당 바꾸기)은 새 글. 덮어쓰기 꼬리는 관리자 "(관리자 덮어쓰기)",
+    대신(파트 없는 생산팀, 2026-11-23 §4-12)은 "(대신 처리)"."""
     label = PRODUCTION_PART_LABELS[req.part]
     if req.action == ACTION_TAKEOVER:
         return f"{label} 담당 바꿈 ({write.before.picked_by_name or '담당 없음'} → {write.values['picked_by_name']})"
@@ -322,7 +324,9 @@ def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool) -> st
         note = f"{label} 맡기 취소 ({write.before.picked_by_name or '담당 없음'})"
     else:
         note = f"{label} {_state_words(req.part, write.before.state)} → {_state_words(req.part, target)}"
-    return note + (" (관리자 덮어쓰기)" if override else "")
+    if not override:
+        return note
+    return note + (" (관리자 덮어쓰기)" if is_part_admin(user) else " (대신 처리)")
 
 
 def _decide(req: MarkRequest, order: Order, rows: list[Any], row: Any, user: Any, admin: bool) -> Any:
@@ -374,7 +378,7 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
         starting = {req.order_id} - orders_with_current_run(db, [req.order_id])  # 잠금 아래 — 회차 찾기 +1
     views = after_views(rows, [write])
     steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting)
-    write_audit(db, user, _note(req, write, decision.target, decision.override) + step_note(steps)
+    write_audit(db, user, _note(req, write, decision.target, decision.override, user) + step_note(steps)
                 + (" · 제작 시작" if started else ""),
                 {"key": req.key, "part": req.part, "action": req.action, "from": write.before.state,
                  "to": decision.target, "override": decision.override, "order_steps": steps,

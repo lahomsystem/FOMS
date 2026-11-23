@@ -25,7 +25,8 @@ from db import get_db
 from foms.api.production.part_marks import production_part_marks_bp
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.production.home_access import can_view_production_home
-from foms.services.production.part_board import other_part_word, part_sync_cursor
+from foms.services.production.part_access import own_parts
+from foms.services.production.part_board import mine_other, other_part_word, part_sync_cursor
 from foms.services.production.part_mark_rules import mark_payload
 from foms.services.production_home_read_model import PRODUCTION_HOME_STAGE_CODES
 from models import Order, ProductionPartMark
@@ -105,14 +106,17 @@ def fetch_marks_since(db: Any, order_ids: list[int], since: datetime.datetime) -
     )
 
 
-def sync_mark_body(row: ProductionPartMark) -> dict[str, Any]:
+def sync_mark_body(row: ProductionPartMark, viewer_id: Any = None, viewer_parts: tuple[str, ...] = ()) -> dict[str, Any]:
     """카드가 쓰는 표시 한 장 — 쓰기 응답과 같은 꼴(``mark_payload``) + 다른 파트 한 줄 낱말(``word`` · ``tone``).
 
     2026-11-23(§7)부터 ``mark_payload`` 가 ``picked_at`` · ``picked_day`` · ``handed_from_name`` · ``handed_at`` 을 더 싣는다
-    (같은 줄에 실려 가므로 쿼리는 그대로 1). 지금 칸의 이름 · 값은 그대로다.
+    (같은 줄에 실려 가므로 쿼리는 그대로 1). 지금 칸의 이름 · 값은 그대로다. 받는 사람(``viewer_id`` · ``viewer_parts`` =
+    :func:`~foms.services.production.part_access.own_parts`)의 파트이고 그 사람이 담당이면 낱말은 "내 담당"(판이 그린 낱말과
+    같은 규칙, 2026-11-23 §4-12 — 이미 읽은 사용자 행, 쿼리 0).
     """
     payload = mark_payload(row)
-    word = other_part_word(str(row.part), payload["state"])
+    mine = mine_other(row, str(row.part), viewer_id, viewer_parts)
+    word = other_part_word(str(row.part), payload["state"], mine)
     return {**payload, "order_id": int(row.order_id), "drawing_key": str(row.drawing_key), "part": str(row.part),
             "word": word["word"], "tone": word["tone"]}
 
@@ -138,7 +142,8 @@ def api_part_marks_since():
     except SQLAlchemyError:
         db.rollback()
         return _fail(500, "READ_FAILED", "표시를 받아 오지 못했어요. 잠시 뒤 다시 받아 주세요.")
-    response = jsonify({"success": True, "data": {"marks": [sync_mark_body(r) for r in rows],
+    mine = own_parts(user)  # 여러 파트 계정의 "내 담당" 낱말(쿼리 0)
+    response = jsonify({"success": True, "data": {"marks": [sync_mark_body(r, user.id, mine) for r in rows],
                                                   "server_time": server_time}, "error": None})
     response.headers["Cache-Control"] = "private, no-store"
     return response, 200
