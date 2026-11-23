@@ -326,7 +326,11 @@ def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool) -> st
 
 
 def _decide(req: MarkRequest, order: Order, rows: list[Any], row: Any, user: Any, admin: bool) -> Any:
-    """전이 표 + 막는 까닭(§4-6) — apply 결정 또는 same(None 자리에 결정)을 돌려주고, 막히면 거절한다."""
+    """전이 표 + 막는 까닭(§4-6) — apply · same(멱등) 결정을 돌려주고, 막히면 :class:`MarkRefusal` 로 거절한다.
+
+    순서: 잘못된 짝(400) → 멱등(막힘 안 봄) → 보류 · 도면 고치는 중 · 손 체크 칸(409) → 경합(409) · 남의 장 맡기 취소(403)
+    → 검수 순서(409). 경합 · 막힘 응답에는 서버의 지금 표시(``mark``)를 싣는다.
+    """
     sd = order.structured_data
     decision = decide_mark(MarkSnapshot.from_row(row), action=req.action, seen=req.seen, actor_id=user.id, admin=admin,
                            seen_by=req.seen_by)
