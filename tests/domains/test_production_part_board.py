@@ -211,17 +211,22 @@ def test_cut_puts_unseen_first_then_order_and_sheet_others_keep_order(app):
     order_of = {oid: pos for pos, oid in enumerate(make_ids)}  # 주문 순서 = 지금 만들 것 줄 순서
     assert all(c["order_pos"] == order_of[c["order_id"]] for c in pane["cards"])
     keys = [c["key"] for c in pane["cards"]]
-    assert set(keys[:2]) == {"o6/d1.png", "o7/d0.png"}  # 안 본 장 먼저
-    assert set(keys[2:]) == {"o6/d0.png", "o6/d2.png", "o7/d1.png"}
-    for group in (pane["cards"][:2], pane["cards"][2:]):  # 묶음 안은 주문 · 장 번호 순
+    # 2026-11-23 §8-1 '판 순서': 모든 파트 남은 일 앞 — 미정 → 담당 → 완료(재단만 '안 본 장 먼저'이던 것을 넓힘)
+    assert set(keys[:2]) == {"o6/d1.png", "o7/d0.png"}  # 미정(안 본 장) 먼저
+    assert keys[2] == "o6/d2.png"  # 그다음 담당
+    assert set(keys[3:]) == {"o6/d0.png", "o7/d1.png"}  # 완료 · 기본은 뒤
+    for group in (pane["cards"][:2], pane["cards"][3:]):  # 묶음 안은 주문 · 장 번호 순
         assert [(c["order_pos"], c["no"]) for c in group] == sorted((c["order_pos"], c["no"]) for c in group)
-    edge_cards = _today(_board(edge))["cards"]
+    edge_cards = _today(_board(edge))["cards"]  # 엣지는 모두 미정 — 주문 · 장 번호 순 그대로
     assert [(c["order_id"], c["no"]) for c in edge_cards] == \
         [(c["order_id"], c["no"]) for c in sorted(edge_cards, key=lambda c: (c["order_pos"], c["no"]))]
-    # 순수 함수 대조군: 재단이 아니면 안 본 장을 앞으로 당기지 않는다.
-    cards = [{"state": "done", "order_pos": 0, "no": 1}, {"state": "none", "order_pos": 0, "no": 2}]
-    assert [c["no"] for c in sort_cards(cards, "cut")] == [2, 1]
-    assert [c["no"] for c in sort_cards(cards, "edge")] == [1, 2]
+    # 순수 함수: 어느 파트든 미정 → 담당 → 완료(손 체크 포함), 검수는 검수 전(앞 파트 미완료)이 담당 뒤
+    cards = [{"state": "done", "order_pos": 0, "no": 1}, {"state": "none", "order_pos": 0, "no": 2},
+             {"state": "need", "order_pos": 0, "no": 3}, {"state": "hand", "order_pos": 0, "no": 4}]
+    assert [c["no"] for c in sort_cards(cards, "cut")] == [2, 3, 1, 4]
+    assert [c["no"] for c in sort_cards(cards, "edge")] == [2, 3, 1, 4]
+    pre = {"state": "none", "order_pos": 0, "no": 5, "block": {"kind": "pre"}}
+    assert [c["no"] for c in sort_cards(cards + [pre], "inspect")] == [2, 3, 5, 1, 4]
 
 
 def test_card_cap_200_reports_hidden_and_counts_everything(app):
