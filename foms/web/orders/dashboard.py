@@ -832,7 +832,7 @@ def erp_dashboard_field_calendar():
 @erp_dashboard_bp.route('/dashboard/construction-day-counts')
 @login_required
 def erp_dashboard_construction_day_counts():
-    """주문 화면 시공일 달력(flatpickr) 칸 숫자(?month=YYYY-MM) — 날짜별 시공 건수(협력사 달력과 같은 표기)."""
+    """주문 화면 시공일 · 실측일 달력(flatpickr) 칸 숫자(?month=YYYY-MM) — 날짜별 시공 · 실측 건수(협력사 달력과 같은 표기)."""
     data = construction_day_counts(get_db(), getattr(g, 'current_user', None), request.args.get('month'))
     return {'success': True, 'data': data, 'error': None}
 
