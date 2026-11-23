@@ -59,7 +59,7 @@
     return Math.max(0, total);
   }
 
-  /** 할인 금액 칸: 숫자만이면 "40,000원", 식이면 "50,000-10,000" 그대로 두고 결과로 계산. */
+  /** 할인 금액 칸: 입력 중엔 "50,000-10,000" 식을 받고, 칸을 벗어나면 결과 "40,000원"만 남긴다. */
   function bindExprInput(el, row) {
     function apply(raw) {
       var expr = formatExpr(raw);
@@ -86,6 +86,13 @@
       var digits = v.replace(/[^0-9]/g, "");
       apply(digits.slice(0, -1));
       el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    // 칸을 벗어나면 식 대신 최종 금액만 보여 준다(저장도 금액만).
+    el.addEventListener("change", function () {
+      row.amount = coerce(row.amount);
+      row.expr = "";
+      el.value = row.amount > 0 ? formatWon(row.amount) : "";
+      syncTotal();
     });
     el.addEventListener("input", function (event) {
       if (event.isTrusted === false) return;
@@ -114,7 +121,6 @@
     amount.className = "erp-amount-value erp-amount-value--discount erp-discount-row__amount";
     amount.value = row.amount > 0 ? formatWon(row.amount) : "";
     amount.setAttribute("aria-label", "할인 금액");
-    amount.value = row.expr ? row.expr : amount.value;
     bindExprInput(amount, row);
 
     var remove = document.createElement("button");
