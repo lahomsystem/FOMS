@@ -28,7 +28,14 @@ from foms.services.feature_flags import (
 )
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.home_step_panel import attach_step_panels, parse_step_order, step_panel_for
-from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, VIEW_SUB, part_view_mode
+from foms.services.production.part_access import (
+    VIEW_ADMIN,
+    VIEW_PART,
+    VIEW_READONLY,
+    VIEW_SUB,
+    part_account_parts,
+    part_view_mode,
+)
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT, production_parts_label
 from foms.services.production.part_screen import morning_chip, read_screen_marks
@@ -98,7 +105,8 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
     판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 대신 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1 —
     날짜 탭은 칸 아래 이름이 읽은 줄 ``marks`` 를 다시 써 0).
     ``days`` 는 그릴 장만 담은 묶음(``{'panes': [고른 장]}``) — 다른 날 판은 그 날을 누를 때 조각으로 만든다(11-14).
-    아침 칩(설계서 2026-11-23 §4-9)은 파트 계정의 전체 페이지(``full``)에서만 — 쿼리 1, 날 조각에는 없다.
+    아침 칩(설계서 2026-11-23 §4-9)은 파트 계정의 전체 페이지(``full``)에서만 — 쿼리 1, 날 조각에는 없다. 여러 파트 계정은
+    내 파트 전부를 센다(같은 쿼리 한 번, §4-12).
     """
     board = None
     # 30초 받아 오기(P15-7)의 첫 since = 그리는 서버 시각(기기 시계 아님). 표시 줄을 읽기 **전**에 잡는다.
@@ -117,7 +125,8 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
             'today': (today or get_today_kst()).isoformat(),
         }
         if full and mode == VIEW_PART and tab == 'date':
-            chip = morning_chip(db, user, board['part'], full_rows_of(days), today or get_today_kst())
+            chip = morning_chip(db, user, tuple(p['key'] for p in board['parts']), full_rows_of(days),
+                                today or get_today_kst())
     return {
         'part_board': board,
         'part_config': config,
@@ -128,7 +137,23 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
         'parts_link': surface and mode in _PARTS_TAB_MODES and wants_wide_only_surfaces(),
         'hide_steps_tab': mode == VIEW_PART,
         'part_title': (_title_parts(board), name) if board is not None and mode == VIEW_PART else None,
+        'nav_part': _nav_part(mode, user, board),
     }
+
+
+def _nav_part(mode: str, user, board) -> str | None:
+    """여러 파트 계정이 고른 파트 — 위 탭 [날짜] · [바뀐 것] · [찾기] · [다시 받기]가 주소에 싣는다(2026-11-23 §4-12).
+
+    '바뀐 것' · '찾기'에 갔다 [날짜]로 돌아와도 고른 파트가 남게 한다. 판이 있으면 판이 고른 파트, 없으면(다른 탭 · PC · 폰) 주소
+    ``part`` 가 내 파트일 때만. 파트 하나 · 파트 없는 계정 · 관리자 · 읽기 전용은 None — 지금 주소 그대로.
+    """
+    if mode != VIEW_PART:
+        return None
+    if board is not None:
+        return board['part'] if board.get('pick') else None
+    mine = part_account_parts(user)
+    asked = str(request.args.get('part') or '').strip().lower()
+    return asked if len(mine) > 1 and asked in mine else None
 
 
 def _title_parts(board: dict) -> str:

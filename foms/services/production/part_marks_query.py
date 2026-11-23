@@ -74,13 +74,14 @@ def orders_with_current_run(db: Any, order_ids: Iterable[int]) -> set[int]:
     return {int(order_id) for (order_id,) in rows}
 
 
-def my_old_claims(db: Any, user_id: int, part: str, order_ids: Iterable[int], before: Any) -> list[ProductionPartMark]:
+def my_old_claims(db: Any, user_id: int, parts: Iterable[str], order_ids: Iterable[int],
+                  before: Any) -> list[ProductionPartMark]:
     """밤 넘긴 내 담당(아침 칩, 설계서 2026-11-23 §4-9) — 그 주문들에서 내가 맡은 NEED 줄 중 맡은 때가 ``before`` 전. 쿼리 1.
 
     Args:
         db: 세션.
         user_id: 나.
-        part: 내 파트.
+        parts: 내 파트들(여러 파트 계정은 모두 — 2026-11-23 §4-12, 같은 쿼리 한 번에서 파트 조건만 넓힌다).
         order_ids: 첫 화면 생산 주문 id 들(없으면 쿼리 0).
         before: 오늘 KST 0시(UTC naive).
 
@@ -88,10 +89,11 @@ def my_old_claims(db: Any, user_id: int, part: str, order_ids: Iterable[int], be
         ``ProductionPartMark`` 줄 목록(지금 장인지는 부르는 쪽이 거른다).
     """
     ids = sorted({int(i) for i in order_ids})
-    if not ids:
+    keys = sorted({str(p) for p in parts})
+    if not ids or not keys:
         return []
     return (db.query(ProductionPartMark)
-            .filter(ProductionPartMark.order_id.in_(ids), ProductionPartMark.part == part,
+            .filter(ProductionPartMark.order_id.in_(ids), ProductionPartMark.part.in_(keys),
                     ProductionPartMark.state == "NEED", ProductionPartMark.picked_by_user_id == int(user_id),
                     ProductionPartMark.picked_at < before)
             .all())
