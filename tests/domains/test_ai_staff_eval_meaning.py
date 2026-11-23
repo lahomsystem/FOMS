@@ -1,12 +1,15 @@
-"""'AI 시험' 뜻 판정 · 옳은 넘김 · 까닭 코드 수 · 매주 한 번(설계서 2026-11-22-ai-eval-meaning-judge 4 — D281).
+"""'AI 시험' 판정 · 옳은 넘김 · 까닭 코드 수 · 매주 한 번(설계서 2026-11-22-ai-eval-meaning-judge 4 — D281 · 물음은
+2026-11-23-brain-learning-upgrade 4.2 '이 초안을 보내도 되나'로 바뀌었다).
 
 완료 기준:
-- 합성 판정자(:func:`.evals_meaning.meaning_source`)로 same · partial · different · 부르기 실패 · 꼴 틀림 · 돈 상한을 센다 —
-  통과는 same 하나, partial 은 따로 센다, 실패 · 꼴 틀림은 '판정 못 받음', 돈 상한이면 평가가 '상한에서 멈춤'.
-- 늘 사람 몫인 넘김 넷은 분모에서 빠지고(옳은 넘김), 그 밖의 넘김은 실패다.
+- 합성 판정자(:func:`.evals_meaning.meaning_source`)로 통과 · 실패 셋 · 옛 코드 · 부르기 실패 · 꼴 틀림 · 돈 상한을 센다 —
+  통과는 pass 하나, '부분'은 없다(옛 same · partial · different 를 내면 꼴 틀림), 실패 · 꼴 틀림은 '판정 못 받음', 돈 상한이면
+  평가가 '상한에서 멈춤'. 판정자는 가린 앞 대화도 받는다.
+- 늘 사람 몫인 넘김 넷은 분모에서 빠지고(옳은 넘김), 그 밖의 넘김은 실패다(규칙 까닭이면 넘김 까닭 판정을 부르지 않는다).
 - 글자 '복사'면 판정자를 부르지 않는다(부른 수 0). ``codes`` 합 = 본 수.
 - 가짜 두뇌가 낸 꼴 틀린 판정 답은 '판정 못 받음'이고 돈은 평가 줄에 적힌다.
-- 판 ⑪ 글: "AI 답이 직원 답과 같은 뜻 N% (M차례 · 옳은 넘김 K · 지난번 P%)" — 새 칸이 없는 옛 결과 줄도 그린다.
+- 판 ⑪ 글: 새 줄 "보내도 되는 답 N% (M차례 · 옳은 넘김 K · 지난번 P%)" — ``judge`` 칸이 없는 옛 결과 줄은 옛 글
+  "AI 답이 직원 답과 같은 뜻 N% …" 그대로 그린다.
 - 매주 단계: 월요일이 아니면 · 6일 안에 돈 결과가 있으면 · 준비가 안 됐으면 · 도는 줄이 있으면 넣지 않는다, 맞으면 한 번만 넣는다.
 - 밤 바퀴 단계는 여섯이고 마지막이 ``weekly_eval`` 이다.
 합성 차례 · 합성 지식만 — 바깥 호출 없음(모델 · 큐 모두 가짜).
@@ -18,7 +21,7 @@ import datetime
 from types import SimpleNamespace
 
 from db import db_session
-from foms.services.ai_staff import evals, evals_meaning, evals_view, evals_weekly
+from foms.services.ai_staff import evals, evals_handoff, evals_meaning, evals_view, evals_weekly
 from foms.services.brain.scope import viewer_of
 from foms.services.cs_agent import brain_prompt, brain_spend, learning_pass
 from foms.services.cs_agent.brain_spend import BrainUnavailable, SpendCapReached
@@ -50,37 +53,45 @@ def _plant(monkeypatch, keys, start):
     return ids
 
 
-# ── 뜻 판정 ──────────────────────────────────────────────────────────────
-def test_the_meaning_judge_counts_same_partial_different_and_unknown(world, monkeypatch):
-    plan = {"합성 뜻 같음": "same", "합성 뜻 덜함": "partial", "합성 뜻 다름": "different", "합성 뜻 꼴틀림": "maybe"}
-    ids = _plant(monkeypatch, [*plan, "합성 뜻 모름"], 11)
+# ── 판정(보내도 되나) ────────────────────────────────────────────────────
+def test_the_judge_counts_pass_three_fails_and_unknown(world, monkeypatch):
+    plan = {"합성 판정 통과": "pass", "합성 판정 어긋남": "fail_conflict", "합성 판정 약속": "fail_promise",
+            "합성 판정 안답": "fail_unanswered", "합성 판정 꼴틀림": "maybe", "합성 판정 옛말": "partial"}
+    ids = _plant(monkeypatch, [*plan, "합성 판정 모름"], 11)
     _turn(10, "합성 질문 같음", held_out=True, reply=STAFF)  # 글자 복사 — 판정자를 부르지 않는다
+    _turn(9, "합성 판정 앞말", held_out=True, reply="합성 직원 답 앞말입니다", context="[손님] 합성 앞 대화 한 줄")
+    monkeypatch.setitem(ANSWERS, "합성 판정 앞말", ("다른 안내 문장을 길게 적어 드립니다", ["hours-day"], False))
     _settings(past=10, risk=0, target=0)
     seen = []
 
-    def fake(question, staff, draft):
-        seen.append((question, staff, draft))
+    def fake(question, staff, draft, context):
+        seen.append((question, staff, draft, context))
+        if "합성 판정 앞말" in question:
+            return "pass"
         key = next(k for k in ids if k in question)
-        if key == "합성 뜻 모름":
+        if key == "합성 판정 모름":
             raise BrainUnavailable("timeout")
         return plan[key]
 
     client = FakeClient()
     with evals_meaning.meaning_source(fake):
         assert _run(client)["status"] == evals.DONE
-    assert len(client.calls) == 6 and client.judge_calls == []  # 합성 판정자 — 모델을 부르지 않는다
-    assert len(seen) == 5 and all(question.startswith(ASKED) for question, _s, _d in seen)
-    assert {staff for _q, staff, _d in seen} == {f"합성 직원 답 {n}번입니다" for n in range(11, 16)}
+    assert len(client.calls) == 9 and client.judge_calls == []  # 합성 판정자 — 모델을 부르지 않는다
+    assert len(seen) == 8 and all(question.startswith(ASKED) for question, *_rest in seen)
+    assert {staff for _q, staff, *_rest in seen} >= {f"합성 직원 답 {n}번입니다" for n in range(11, 18)}
+    assert [context for question, _s, _d, context in seen if "앞말" in question] == ["[손님] 합성 앞 대화 한 줄"]
     run = _results()[0]
-    assert run["past"] == {"total": 6, "done": 6, "passed": 2, "right_handoff": 0, "partial": 1}
-    assert run["codes"]["past"] == {"copied": 1, "same": 1, "partial": 1, "different": 1, "judge_unknown": 2}
+    assert run["past"] == {"total": 9, "done": 9, "passed": 3, "right_handoff": 0}  # '부분' 칸 없음
+    assert run["codes"]["past"] == {"copied": 1, "pass": 2, "fail_conflict": 1, "fail_promise": 1, "fail_unanswered": 1,
+                                    "judge_unknown": 3}
     assert sum(run["codes"]["past"].values()) == run["past"]["done"]
     assert sorted((f["turn"], f["code"]) for f in run["failures"]) == sorted([
-        (ids["합성 뜻 덜함"], "partial"), (ids["합성 뜻 다름"], "different"), (ids["합성 뜻 꼴틀림"], "judge_unknown"),
-        (ids["합성 뜻 모름"], "judge_unknown")])
-    assert run["cost_usd"] == "6.000000"  # 초안 6 — 합성 판정자는 돈을 쓰지 않는다
+        (ids["합성 판정 어긋남"], "fail_conflict"), (ids["합성 판정 약속"], "fail_promise"),
+        (ids["합성 판정 안답"], "fail_unanswered"), (ids["합성 판정 꼴틀림"], "judge_unknown"),
+        (ids["합성 판정 옛말"], "judge_unknown"), (ids["합성 판정 모름"], "judge_unknown")])
+    assert run["cost_usd"] == "9.000000"  # 초안 9 — 합성 판정자는 돈을 쓰지 않는다
     row = _past_text()
-    assert row["pct"] == 33 and row["text"] == "AI 답이 직원 답과 같은 뜻 33% (6차례 · 옳은 넘김 0)"
+    assert row["pct"] == 33 and row["text"] == "보내도 되는 답 33% (9차례 · 옳은 넘김 0)"
     assert row["verdict"] == {"text": "33%", "tone": "primary"}
 
 
@@ -136,15 +147,18 @@ def test_always_human_handoffs_leave_the_denominator_and_others_fail(world, monk
     def never(*_texts):
         raise AssertionError("넘김 · 복사에는 판정자를 부르지 않는다")
 
-    with evals_meaning.meaning_source(never):
-        assert _run(FakeClient())["status"] == evals.DONE
+    client = FakeClient()
+    with evals_meaning.meaning_source(never), evals_handoff.handoff_source(never):
+        assert _run(client)["status"] == evals.DONE
+    assert len(client.calls) == 6  # 초안만 — 일정 넘김은 규칙 까닭이라 까닭 판정도 부르지 않는다
     run = _results()[0]
-    assert run["past"] == {"total": 6, "done": 6, "passed": 1, "right_handoff": 4, "partial": 0}
+    assert run["past"] == {"total": 6, "done": 6, "passed": 1, "right_handoff": 4}
     assert run["codes"]["past"] == {"right_handoff": 4, "handoff": 1, "copied": 1}
     assert sum(run["codes"]["past"].values()) == run["past"]["done"]
+    assert run["handoff_kinds"] == {"rule": 1}  # 옳은 넘김 넷은 까닭을 가르지 않는다
     assert [(f["turn"], f["code"]) for f in run["failures"]] == [(ids["schedule"], "handoff")]
     row = _past_text()
-    assert row["pct"] == 50 and row["text"] == "AI 답이 직원 답과 같은 뜻 50% (2차례 · 옳은 넘김 4) · 기준 50%"
+    assert row["pct"] == 50 and row["text"] == "보내도 되는 답 50% (2차례 · 옳은 넘김 4) · 기준 50%"
     assert row["verdict"] == {"text": "통과", "tone": "success"}
 
 

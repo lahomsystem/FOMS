@@ -36,6 +36,13 @@
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) max-content; gap: 12px; align-items: end;
 }
 
+/* 사장님 채점(ADMIN — 설계서 2026-11-23-brain-learning-upgrade 4.1) — 한 줄에 손님 글 · 직원 답 · AI 초안(.f-quote — 줄바꿈 그대로)
+   · 단추 둘. 줄 사이는 가는 선 하나. 글자 크기는 토큰 그대로(새 크기 없음). */
+.fb-evals-marks-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.fb-evals-mark { padding-top: 12px; border-top: 1px solid var(--divider); }
+.fb-evals-mark-text { margin: 0; overflow-wrap: anywhere; }
+.fb-evals-mark-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
 /* 마지막 시험 줄 — 아이콘은 첫 글 줄 높이에 */
 .fb-evals-last > .f-i { margin-top: 1px; }
 .fb-evals-last > span:not(.f-i) { min-width: 0; }
@@ -60,4 +67,5 @@
 @media (max-width: 991.98px) {
   .f-app .fb-evals-form .f-input,
   .f-app .fb-evals-form .f-btn { height: 44px; line-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) */
+  .f-app .fb-evals-mark-acts .f-btn { min-height: 44px; }
 }

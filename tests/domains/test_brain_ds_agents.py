@@ -67,7 +67,8 @@ def test_admin_screen_has_its_places(app, ids, monkeypatch):
                   "비용 · 시간"):
         assert title in body, title
     scripts = re.findall(r'<script src="([^"]*ds-agents[^"]*)" defer></script>', body)
-    assert [Path(src.split("?")[0]).name for src in scripts] == ["ds-agents-evals.js", "ds-agents-kit.js", "ds-agents.js"]  # T16 조각
+    assert [Path(src.split("?")[0]).name for src in scripts] == [  # T16 조각 · 사장님 채점(ADMIN 만 — 설계서 2026-11-23 4.1)
+        "ds-agents-evals.js", "ds-agents-marks.js", "ds-agents-kit.js", "ds-agents.js"]
     assert all("?v=" in src for src in scripts)  # 내용 지문 핀(asset_url)
     assert re.search(r'href="[^"]*brain-ds-agents\.css\?v=[^"]+"', body)
     assert 'style="' not in body

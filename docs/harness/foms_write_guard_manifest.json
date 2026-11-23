@@ -1274,6 +1274,10 @@
       "mode": "guard",
       "rule": "/api/ai-staff/levels"
     },
+    "ai_staff_api.ai_staff_evals_mark_save": {
+      "mode": "guard",
+      "rule": "/api/ai-staff/evals/marks"
+    },
     "ai_staff_api.ai_staff_evals_run": {
       "mode": "guard",
       "rule": "/api/ai-staff/evals/run"

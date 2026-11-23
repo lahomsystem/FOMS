@@ -14,6 +14,11 @@
 409 · 큐가 없으면 503 — web 에서 대신 돌리지 않는다) · ``POST /api/ai-staff/evals/settings``(ADMIN 만). 둘 다 공용 CSRF · Origin 가드
 뒤 · 길 목록 ``ADMIN_OPS`` · 처리기 안에서 ADMIN 을 다시 본다(아니면 404). 감사 줄은 :mod:`foms.services.ai_staff.evals` 가 남긴다.
 
+사장님 채점(설계서 2026-11-23-brain-learning-upgrade 4.1 — ADMIN 만, 아니면 404): ``GET /api/ai-staff/evals/marks`` 오늘 채점할
+차례(하루 10개 — 채점 코드는 싣지 않는다) · ``POST /api/ai-staff/evals/marks`` 채점 하나 저장(본문 ``{"mark", "answer",
+"fail_kind"?}`` — 꼴 틀림 400 · 없음 · 이미 채점함 · 오늘 다 함 409). 쓰기는 위 둘과 같은 가드 · 길 목록 ``ADMIN_OPS`` · 감사 줄은
+:mod:`foms.services.ai_staff.evals_marks` 가 남긴다.
+
 점검 2차(11-15): ``GET /api/ai-staff/ask`` 답에도 ``evals`` 칸(물어보기 평가 마지막 점수 — :mod:`foms.services.ai_staff.ask_eval`,
 설계서 3.10 '있을 때'). ``GET /api/ai-staff/<열쇠>/instructions`` — 지시문 보기(사용자 결정 D233 · ADMIN 만 · 읽기만, 아니면 404 —
 :mod:`foms.services.ai_staff.instructions`).
@@ -30,6 +35,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from db import get_db
 from foms.services.ai_staff.ask_eval import ask_eval_view
 from foms.services.ai_staff.evals import FAILED, EvalError, begin_run, enqueue_run, save_eval_settings, update_run
+from foms.services.ai_staff.evals_marks import queue_view, save_mark
 from foms.services.ai_staff.evals_view import eval_view
 from foms.services.ai_staff.instructions import instructions_view
 from foms.services.ai_staff.levels import LevelError, save_levels
@@ -46,8 +52,9 @@ __all__ = ["ai_staff_api_bp"]
 _NOT_FOUND = "찾을 수 없습니다."
 _SAVE_FAILED = "저장하지 못했어요. 잠시 뒤 다시 해 주세요."
 _QUEUE_DOWN = "지금은 시험을 돌릴 수 없어요. 잠시 뒤 다시 해 주세요."
-#: 평가 거절 코드 → 답 상태(꼴 틀림 400 · 설정 0 · 도는 중 409). ADMIN 아님은 404 로 따로 간다.
-_EVAL_STATUS = {"EVAL_SHAPE": 400, "EVAL_NO_CAP": 409, "EVAL_NO_SIZE": 409, "EVAL_BUSY": 409}
+#: 평가 거절 코드 → 답 상태(꼴 틀림 400 · 설정 0 · 도는 중 · 채점 없음 · 오늘 다 함 409). ADMIN 아님은 404 로 따로 간다.
+_EVAL_STATUS = {"EVAL_SHAPE": 400, "EVAL_NO_CAP": 409, "EVAL_NO_SIZE": 409, "EVAL_BUSY": 409, "EVAL_MARK_SHAPE": 400,
+                "EVAL_MARK_GONE": 409, "EVAL_MARK_LIMIT": 409}
 
 
 def _reply(status: int, data: Any, error: Optional[str]) -> tuple[Any, int]:
@@ -208,5 +215,42 @@ def ai_staff_evals_settings() -> tuple[Any, int]:
     except SQLAlchemyError:
         db.rollback()
         logger.warning("[AI-STAFF] 시험 설정 저장 DB 오류")
+        return _reply(500, None, _SAVE_FAILED)
+    return _reply(200, data, None)
+
+
+@ai_staff_api_bp.route("/evals/marks", methods=["GET"])
+def ai_staff_evals_marks() -> tuple[Any, int]:
+    """오늘 채점할 차례(ADMIN 만 · 읽기만) — ``{"items", "graded_today", "left", "limit", "fail_kinds"}``."""
+    user, denied = _admin_only()
+    if denied:
+        return denied
+    db = get_db()
+    try:
+        data = queue_view(db, user, now_utc_naive())
+    except EvalError as exc:
+        return _eval_refused(exc)
+    finally:
+        db.rollback()  # 읽기만
+    return _reply(200, data, None)
+
+
+@ai_staff_api_bp.route("/evals/marks", methods=["POST"])
+def ai_staff_evals_mark_save() -> tuple[Any, int]:
+    """채점 하나 저장(ADMIN 만) — 본문 ``{"mark", "answer", "fail_kind"?}``. ``{"graded_today", "left"}``."""
+    user, denied = _admin_only()
+    if denied:
+        return denied
+    payload = request.get_json(silent=True)
+    db = get_db()
+    try:
+        data = save_mark(db, user, payload if isinstance(payload, dict) else {}, now_utc_naive())
+        db.commit()
+    except EvalError as exc:
+        db.rollback()
+        return _eval_refused(exc)
+    except SQLAlchemyError:
+        db.rollback()
+        logger.warning("[AI-STAFF] 시험 채점 저장 DB 오류")
         return _reply(500, None, _SAVE_FAILED)
     return _reply(200, data, None)
