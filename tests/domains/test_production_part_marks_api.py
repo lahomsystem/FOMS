@@ -127,7 +127,8 @@ def test_part_account_writes_only_own_part(client):
     assert ok.status_code == 200 and ok.get_json()["data"]["mark"]["state"] == "need"
 
 
-@pytest.mark.parametrize("team,role", [("PRODUCTION", "STAFF"), ("CS", "STAFF"), ("SALES", "STAFF"),
+# 2026-11-23 §4-12(P2): 파트 없는 생산팀 STAFF 는 대신(반장)이라 쓴다 — tests/domains/test_production_multi_parts.py 가 본다.
+@pytest.mark.parametrize("team,role", [("DRAWING", "STAFF"), ("CS", "STAFF"), ("SALES", "STAFF"),
                                        ("CS", "MANAGER"), ("PRODUCTION", "VIEWER")])
 def test_accounts_without_part_get_part_required(client, team, role):
     order = _order()
