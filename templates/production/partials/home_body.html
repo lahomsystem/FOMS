@@ -26,7 +26,7 @@
         {% set foms_prod_bell_ns = 'foms-prod-home' %}{% include 'production/partials/notif_bell.html' %}
         {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
         {% include 'partials/shared/foms_font_scale_control.html' %}
-        <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ home_href(tab, part_board.part if part_board else None, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
+        <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ home_href(tab, part_board.url_part if part_board else None, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
       </div>
     </header>{% if edit_on %}{% include 'production/partials/home_pc_band.html' %}{% endif %}
     <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 <span data-foms-home-sync-at></span> 에 받은 것이에요.</p>

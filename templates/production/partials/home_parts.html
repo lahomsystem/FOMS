@@ -9,7 +9,9 @@
    파트 맡기 고침(설계서 2026-11-23 §8-1, 승인 때 고친 것 1 — 지금 글은 그대로, 새 칸에만 새 글): 내 담당 = 한 층 [맡기 취소][<파트> 완료]
    + 다른 파트 줄 끝 "내 담당"(· 어제부터 · 박엣지에서 바뀜) · 남이 맡은 칸("박엣지 맡음") = 누르면 [담당 바꾸기] 창 · 막힌 칸(보류 ·
    도면 고치는 중 · 검수 전 · 손 체크) = button aria-disabled, 누르면 까닭 말풍선(.pp-why, 글 = 서버 거절 글 그대로) · 이름 줄 = 작업 시트
-   링크. 카드 단추 그리기는 JS(foms-production-parts-claim.js renderAct)와 같은 규칙이다 — 둘을 같이 고친다. #}
+   링크. 카드 단추 그리기는 JS(foms-production-parts-claim.js renderAct)와 같은 규칙이다 — 둘을 같이 고친다.
+   여러 파트(2026-11-23 §4-12 · §8-1, P2): 파트가 둘 이상인 계정만 판 머리 첫 자리에 내 파트 고르기(.pp-picks — 같은 날, 주소 part).
+   파트 하나인 계정은 고르기 없이 지금 그대로. 파트 없는 생산팀(대신)은 관리자와 같은 판(네 파트 고르기 .pp-parts · 단추). #}
 {% from 'production/partials/home_date_macros.html' import home_href, fph_due, fph_chip, fph_wait, fph_wait_head %}
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
@@ -53,9 +55,10 @@
 {%- endmacro %}
 <div class="fph-parts" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
-    <h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
+    {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
+    {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
     {% if part_morning %}{# 아침 칩(설계서 2026-11-23 §4-9) — 밤 넘긴 내 담당. 누르면 시공일마다 [보기](그 날 장) #}
-    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 담당 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 담당" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }} {{ dd.count }}장 <a href="{{ home_href(None, None, dd.key) }}" aria-label="{{ dd.label }} 보기">보기</a></p>{% endfor %}</span></span>
+    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 담당 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 담당" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }} {{ dd.count }}장 <a href="{{ home_href(None, pb.url_part, dd.key) }}" aria-label="{{ dd.label }} 보기">보기</a></p>{% endfor %}</span></span>
     {% endif %}
     {% if pb.mode != 'part' %}
     <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('parts', p.key, d.key) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
