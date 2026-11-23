@@ -288,7 +288,9 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "", "-sync")]
     assert order == sorted(order)
-    assert len(re.findall(r"foms-production-parts(?:-claim|-modal)?\.js'\) \}\}\?v=20261123v\" defer", tpl)) == 3
+    # P2(2026-11-23 §4-12)가 modal(대신 한 줄)을 다시 올렸다 — parts · claim 은 P1 핀 그대로
+    assert len(re.findall(r"foms-production-parts(?:-claim)?\.js'\) \}\}\?v=20261123v\" defer", tpl)) == 2
+    assert len(re.findall(r"foms-production-parts-modal\.js'\) \}\}\?v=20261124a\" defer", tpl)) == 1
 
 
 def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> None:

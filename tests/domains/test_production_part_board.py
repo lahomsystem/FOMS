@@ -161,7 +161,7 @@ def test_part_account_ignores_requested_part_admin_and_readonly_pick(app):
     assert _board(_user("관리자", team="PRODUCTION", role="ADMIN", part="cut"), part="inspect")["mode"] == "admin"
     assert _board(_user("영업", team="SALES"), part="edge")["part"] == "edge"
     assert _board(_user("영업2", team="SALES"), part="paint")["part"] == "cut"  # 모르는 파트 → 재단
-    assert _board(_user("반장", team="PRODUCTION"))["mode"] == "readonly"  # 파트 없는 생산 = 읽기 전용
+    assert _board(_user("반장", team="PRODUCTION"))["mode"] == "sub"  # 파트 없는 생산 = 대신(2026-11-23 §4-12, 예전 읽기 전용)
     assert _board(_user("도면", team="DRAWING"))["mode"] == "readonly"  # 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1)
     assert _board(_user("팀없음", team=None)) is None  # 첫 화면을 못 보는 사람
 

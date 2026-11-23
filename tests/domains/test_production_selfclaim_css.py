@@ -18,6 +18,8 @@ from tests.support.color_contrast import contrast_ratio, hex_rgb, pair_distances
 ROOT = Path(__file__).resolve().parents[2]
 CSS_DIR = ROOT / "static/css/contexts/production"
 PIN = "20261123v"
+#: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다.
+PARTS_PIN = "20261124a"
 
 
 def _css(name: str) -> str:
@@ -253,8 +255,8 @@ def test_옮기지_말_것() -> None:
 
 def test_네_파일_핀() -> None:
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
-    for name in ("home.css", "parts.css", "pc.css"):
-        assert f"production/{name}') }}}}?v={PIN}" in styles, name
+    for name, pin in (("home.css", PIN), ("parts.css", PARTS_PIN), ("pc.css", PIN)):
+        assert f"production/{name}') }}}}?v={pin}" in styles, name
     for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
         assert f"production/sheet.css') }}}}?v={PIN}" in (ROOT / rel).read_text(encoding="utf-8"), rel
     assert f"production/pc.css') }}}}?v={PIN}" in (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")

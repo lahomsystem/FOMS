@@ -151,36 +151,39 @@ def test_part_change_keeps_target_session_but_team_change_kills_it(app, client):
 
 
 def test_audit_snapshot_and_log_include_part(app):
-    assert "production_part" in _AUDITED_USER_FIELDS
+    """2026-11-23 §8-6(P2): 감사 칸은 파트 목록 하나(``production_parts``) — 옛 칸은 첫 파트 사본이라 따로 적지 않는다.
+    글은 "생산 파트 미지정 → 조립"(옛 글 "production_part 미지정→assemble"). 옛 고르기 칸(production_part)으로 보내도 같다."""
+    assert "production_parts" in _AUDITED_USER_FIELDS and "production_part" not in _AUDITED_USER_FIELDS
     uid = _make_user(team="PRODUCTION")
-    assert _user_audit_snapshot(_user(uid))["production_part"] is None
+    assert _user_audit_snapshot(_user(uid))["production_parts"] is None
 
     admin = _admin_client(app)
     assert _edit(admin, uid, production_part="assemble").status_code == 302
     db_session.remove()
     messages = [row.message for row in db_session.query(SecurityLog).order_by(SecurityLog.id)]
     edits = [m for m in messages if f"사용자 #{uid} 수정:" in m]
-    assert edits == [f"사용자 #{uid} 수정: production_part 미지정→assemble"], messages
+    assert edits == [f"사용자 #{uid} 수정: 생산 파트 미지정 → 조립"], messages
     row = db_session.query(SecurityLog).filter(SecurityLog.action == "USER_UPDATE", SecurityLog.target_id == uid).one()
-    assert row.detail["changes"] == {"production_part": {"from": None, "to": "assemble"}}
+    assert row.detail["changes"] == {"production_parts": {"from": None, "to": ["assemble"]}}
 
 
 # --------------------------------------------------------------------------- #
 # 화면
 # --------------------------------------------------------------------------- #
 def test_edit_and_add_forms_render_part_select(app):
+    """2026-11-23 §8-6(P2): 한 칸 고르기(없음 · 재단 …) → 체크칸 넷. 칸 이름 · 안내 글은 지금 그대로, 둘째 안내만 새 글."""
     admin = _admin_client(app)
     uid = _make_user(team="PRODUCTION", part="edge")
     html = admin.get(f"/admin/users/edit/{uid}").get_data(as_text=True)
-    assert 'name="production_part"' in html
-    assert '<option value="edge" selected>엣지' in html
-    for label in ("없음", "재단", "엣지", "조립", "검수"):
-        assert label in html
-    assert "생산팀일 때만 쓰여요" in html
+    assert 'name="production_part"' not in html  # 옛 고르기 칸은 없다(서버는 배포 전 화면 저장을 위해 그 이름도 받는다)
+    assert 'name="production_parts" value="edge" checked>' in html
+    assert html.count('type="checkbox" id="production_parts_') == 4 and html.count(" checked>") >= 1
+    for label in ("재단", "엣지", "조립", "검수"):
+        assert f'>{label}</label>' in html
+    assert "생산 파트 (선택)" in html and "생산팀일 때만 쓰여요" in html and "여럿 골라도 돼요" in html
 
     add_html = admin.get("/admin/users/add").get_data(as_text=True)
-    assert 'name="production_part"' in add_html
-    assert '<option value="inspect">검수</option>' in add_html
+    assert 'name="production_parts" value="inspect">' in add_html and 'name="production_part"' not in add_html
 
 
 def test_user_list_appends_part_to_team_text(app):
