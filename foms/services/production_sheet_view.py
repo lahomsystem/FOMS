@@ -44,6 +44,7 @@ from foms.services.production_home_read_model import (
 from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_ready, parts_progress
+from foms.services.production.sheet_parts import sheet_part_extras
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
@@ -224,6 +225,8 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
         'complete_ready': complete_ready(sd, marks),
         'final_sheet_count': len(resolve_final_drawing_files(sd)),
         'part_progress': parts_progress(sd, marks),
+        # 공정 칸 옆 "카드 3/5 · 2장 미완료" · [제작 완료] 까닭 · 바뀐 기록 번호(카드를 쓴 주문만 — 그 밖은 지금 글 그대로)
+        **sheet_part_extras(sd, marks),
         'latest_defect': {
             'reason': str(latest.get('reason') or ''),
             'meta': ' '.join(p for p in (str(latest.get('by_name') or '').strip(), _format_at_kst(latest.get('at'))) if p),

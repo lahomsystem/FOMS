@@ -31,6 +31,7 @@ from foms.services.production.home_step_panel import attach_step_panels, parse_s
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT
+from foms.services.production.part_screen import morning_chip, read_screen_marks
 from foms.services.production.pc_view import attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_home_changes import (
@@ -88,35 +89,62 @@ def _resolve_home_tab(raw, mode: str, surface: bool) -> str:
     return tab
 
 
-def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
-    """파트 화면 템플릿 값 — 판(없으면 None) · [도면 카드로 보기] · '내 공정' 숨김 · 위 줄 제목 · JS 설정.
+def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=None, today=None, full: bool = False) -> dict:
+    """파트 화면 템플릿 값 — 판(없으면 None) · [도면 카드로 보기] · '내 공정' 숨김 · 위 줄 제목 · JS 설정 · 아침 칩.
 
-    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1).
+    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1 —
+    날짜 탭은 칸 아래 이름이 읽은 줄 ``marks`` 를 다시 써 0).
     ``days`` 는 그릴 장만 담은 묶음(``{'panes': [고른 장]}``) — 다른 날 판은 그 날을 누를 때 조각으로 만든다(11-14).
+    아침 칩(설계서 2026-11-23 §4-9)은 파트 계정의 전체 페이지(``full``)에서만 — 쿼리 1, 날 조각에는 없다.
     """
     board = None
     # 30초 받아 오기(P15-7)의 첫 since = 그리는 서버 시각(기기 시계 아님). 표시 줄을 읽기 **전**에 잡는다.
     since = part_sync_cursor()
     if days is not None and surface and ((tab == 'date' and mode == VIEW_PART) or tab == 'parts'):
-        board = build_part_board(db, user, days, part=request.args.get('part'))
+        board = build_part_board(db, user, days, part=request.args.get('part'), marks=marks, today=today)
     name = getattr(user, 'name', None) or getattr(user, 'username', '') or ''
     config = None
+    chip = None
     if board is not None:
         config = {
             'mode': board['mode'], 'part': board['part'], 'label': board['part_label'], 'writable': board['writable'],
             'verb': '자름' if board['part'] == PART_CUT else board['part_label'], 'me': name,
             'me_id': getattr(user, 'id', None),
+            # 서버 KST 오늘 — 받아 오기로 고친 카드의 "어제부터" 판정(기기 시계 대신, 설계서 2026-11-23 §4-9)
+            'today': (today or get_today_kst()).isoformat(),
         }
+        if full and mode == VIEW_PART and tab == 'date':
+            chip = morning_chip(db, user, board['part'], full_rows_of(days), today or get_today_kst())
     return {
         'part_board': board,
         'part_config': config,
         'part_since': since if board is not None else None,
+        'part_morning': chip,
         # 날짜 장 제목 옆 [도면 카드로 보기](11-21 사용자 ② — '도면 카드' 탭을 뺀 자리). 문은 예전 탭과 같고(관리자 · 읽기 전용 +
         # 터치 기기), 화면 긴 변이 992 미만인 폰(``foms_scr``)은 가로로 돌려도 카드를 못 보니 뺀다. 주소(?tab=parts)는 그대로 열린다.
         'parts_link': surface and mode in (VIEW_ADMIN, VIEW_READONLY) and wants_wide_only_surfaces(),
         'hide_steps_tab': mode == VIEW_PART,
         'part_title': (board['part_label'], name) if board is not None and mode == VIEW_PART else None,
     }
+
+
+def full_rows_of(days) -> list:
+    """아침 칩이 세는 줄 — 전체 행(``days['all_rows']``, 없으면 그릴 장의 만들 것)."""
+    if days.get('all_rows') is not None:
+        return days['all_rows']
+    return [row for pane in days.get('panes') or [] for row in pane.get('make_rows') or []]
+
+
+def _screen_marks(db, tab: str, pane, rows: list, pc_view: bool, today):
+    """칸 아래 이름(설계서 2026-11-23 §4-10)을 달 줄의 표시 줄을 한 번 읽는다 — 날짜 탭 고른 장 · PC 찾기 탭 생산 줄.
+
+    '도면 카드' 탭(판만)은 판이 그 장 줄을 읽게 None 을 돌려준다(쿼리 수 그대로). 그 밖 탭은 0.
+    """
+    if tab == 'date' and pane is not None:
+        return read_screen_marks(db, list(pane.get('make_rows') or []), today)
+    if tab == 'all' and pc_view:
+        read_screen_marks(db, rows, today)
+    return None
 
 
 def _step_panel_screen(tab: str, surface: bool, queues: dict | None) -> dict:
@@ -216,7 +244,10 @@ def erp_production_home():
                                  focus_order=parse_step_order(request.args.get('order') or request.args.get('focus_order')))
             if tab in ('date', 'parts') else None)
     pane = selected_day_pane(days) if days is not None else None
-    screen = _part_screen(db, user, tab, mode, surface, {'panes': [pane]} if pane is not None else None)
+    marks = _screen_marks(db, tab, pane, rows, flags['pc_view'], today)
+    screen = _part_screen(db, user, tab, mode, surface,
+                          {'panes': [pane], 'all_rows': rows} if pane is not None else None,
+                          marks=marks, today=today, full=not day_view)
     _t0 = time.perf_counter()
     if day_view:
         pane_tpl = 'production/partials/home_pc_day_pane.html' if flags['pc_view'] else 'production/partials/home_day_pane.html'
