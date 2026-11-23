@@ -60,7 +60,7 @@ DECISION_FORBIDDEN = "forbidden"
 
 STALE_MESSAGE = "그사이 다른 사람이 바꿨어요. 다시 받아 주세요."
 #: 새 누름(맡기 취소 · 담당 바꾸기)의 경합 글(§9 '경합').
-NEW_STALE_MESSAGE = "그사이 카드가 바뀌었어요. 위 [다시 받기]를 눌러 주세요."
+NEW_STALE_MESSAGE = "그사이 담당이 바뀌었어요. 위 [다시 받기]를 눌러 주세요."
 RELEASED_MESSAGE = "그사이 맡기가 취소됐어요. 지금은 담당 미정이에요."
 RELEASE_NOT_HOLDER_MESSAGE = "내가 맡은 도면만 맡기를 취소할 수 있어요. 직접 하려면 [담당 바꾸기]를 눌러 주세요."
 
