@@ -195,11 +195,12 @@ POLICY_REGISTRY: dict[str, Policy] = {
     "PRODUCTION_ACK": _p("PRODUCTION_ACK", teams=("CS", "SALES", "PRODUCTION", "DRAWING", "CONSTRUCTION", "SHIPMENT"),
                          gate="foms.services.production.write_access:can_ack_production_change",
                          description="production change-ack(개인 확인 기록, Order 불변) — ADMIN, 또는 생산 화면 보는 팀(CS · 회계 · 영업 · 생산 · 도면 · 시공 · 출고)의 STAFF · MANAGER(2026-11-21 결정 5). VIEWER · 팀 없음 · 협력사 deny."),
-    # 생산 파트 표시(도면 카드 맡기 · 기본 · 완료 · 되돌리기 — 설계서 2026-11-09-tablet-production-ui §15.4 · D53 · D55):
+    # 생산 파트 표시(도면 카드 맡기 · 기본 · 완료 · 되돌리기 — 설계서 2026-11-09-tablet-production-ui §15.4 · D53 · D55,
+    # 맡기 취소 · 담당 바꾸기 — 2026-11-23-production-self-claim-and-factory2 §4-5):
     # 가드는 팀 PRODUCTION(+ ADMIN/MANAGER override)까지만 거르고, 파트 판정(자기 파트만 · 관리자 아무 파트)은 핸들러가
     # foms.services.production.part_access 로 한다. 켜진 프리랜서 허용 목록에는 넣지 않는다.
     "PRODUCTION_PART_MARK": _p("PRODUCTION_PART_MARK", teams=("PRODUCTION",),
-                               description="생산 파트 표시 한 장 · 재단 일괄 기본 — 파트 계정(생산팀 + 계정 파트)은 자기 파트만, ADMIN 은 아무 파트나(D55). CS/SALES · 파트 없는 생산 · VIEWER · 협력사 · 프리랜서 deny."),
+                               description="생산 파트 표시 한 장(맡기 · 기본 · 완료 · 되돌리기 · 맡기 취소 · 담당 바꾸기) · 재단 일괄 기본 — 파트 계정(생산팀 + 계정 파트)은 자기 파트만, ADMIN 은 아무 파트나(D55). 첫 카드는 제작 시작을 같이 한다. CS/SALES · 파트 없는 생산 · VIEWER · 협력사 · 프리랜서 deny."),
 
     # --- 시공 (§2.1 line 165) -----------------------------------------------
     "CONSTRUCTION_EDIT": _p("CONSTRUCTION_EDIT", teams=("CS", "SALES", "CONSTRUCTION"),

@@ -42,7 +42,8 @@ from foms.services.production_home_read_model import (
     production_home_steps,
 )
 from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
-from foms.services.production.steps import production_complete_ready
+from foms.services.production.part_marks_query import order_marks
+from foms.services.production.part_progress import complete_ready, parts_progress
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
@@ -185,7 +186,8 @@ def _worker_names(sd: dict[str, Any]) -> list[str]:
     return names
 
 
-def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: Any, stage_label: str) -> dict[str, Any]:
+def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: Any, stage_label: str,
+                       marks: list[Any]) -> dict[str, Any]:
     customer = (sd.get('parties') or {}).get('customer') or {}
     orderer = (sd.get('parties') or {}).get('orderer') or {}
     site = sd.get('site') or {}
@@ -217,8 +219,11 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
         'drawing_files': _prod_sheet_drawing_files(sd),
         'steps': steps,
         'steps_done': sum(1 for s in steps if s['done']),
-        # [제작 완료] 를 누를 수 있는지(검수까지 끝남) — 제작 완료 API 와 같은 한 함수(서버 · 화면 같은 규칙, 11-21)
-        'complete_ready': production_complete_ready(sd),
+        # [제작 완료] 를 누를 수 있는지(검수까지 끝남) — 제작 완료 API 와 같은 한 함수(서버 · 화면 같은 규칙, 11-21).
+        # 카드를 쓴 주문은 표시 줄로 판정한다(2026-11-23 §4-3) — 공정 칸 옆 "카드 3/5" · 손 체크 확인 창 장 수도 같은 값.
+        'complete_ready': complete_ready(sd, marks),
+        'final_sheet_count': len(resolve_final_drawing_files(sd)),
+        'part_progress': parts_progress(sd, marks),
         'latest_defect': {
             'reason': str(latest.get('reason') or ''),
             'meta': ' '.join(p for p in (str(latest.get('by_name') or '').strip(), _format_at_kst(latest.get('at'))) if p),
@@ -244,6 +249,7 @@ def _drawing_wait(db: Any, order: Order, sd: dict[str, Any], today: datetime.dat
 def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool = False,
                                 today: datetime.date | None = None) -> dict[str, Any]:
     """작업 시트 뷰 모델. 쿼리: current run 1 + 도면 게이트 + 변경 알림(OrderEvent IN) — 옆 시트와 같다.
+    ``full`` 이면 그 주문 표시 줄 +1(카드를 쓴 주문의 완료 판정 · 파트 진행, 설계서 2026-11-23 §4-3).
 
     Args:
         db: 세션. order: 이미 읽은 ``Order``. user: 보는 사람(변경 알림 ack 판정).
@@ -291,7 +297,7 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
     sheet['change_history'] = _sc['history']
     sheet['has_change_history'] = bool(_sc['history'])
     if full:
-        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label))
+        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, order_marks(db, order.id)))
         # 파트 계정 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 — 공정 API 403 과 같은 판정)
         sheet.update(steps_locked=steps_locked_for(user), steps_locked_note=PART_ACCOUNT_STEPS_MESSAGE)
         sheet['dw_wait'] = _drawing_wait(db, order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7 · 알림 켬이면 +1)

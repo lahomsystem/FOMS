@@ -28,6 +28,8 @@ import foms.services.orders.stage_override as stage_override_mod
 import foms.services.production_sheet_view as sheet_view_mod
 from db import db_session
 from foms.services.orders.admin_override import ADMIN_OVERRIDE_EVENT, GATE_CODES, GATE_STEPS_INCOMPLETE
+from foms.services.production import complete_move as complete_move_mod
+from foms.services.production import part_progress as progress_mod
 from foms.services.production import steps as steps_mod
 from foms.services.production.steps import (
     STEPS_INCOMPLETE_CODE,
@@ -360,12 +362,17 @@ def test_파트_카드로_네_칸이_켜지면_완료된다(client) -> None:
 @pytest.mark.usefixtures("_quiet_push")
 def test_카드를_안_쓴_파트가_있으면_막히고_파트_없는_계정이_칸을_켜면_풀린다(client) -> None:
     """막다른 길 분석: 엣지가 카드를 안 쓰면 엣지 칸은 손 값 그대로(꺼짐). 파트 계정은 칸을 손으로 못 켠다(403) →
-    파트 없는 계정(생산 관리자 · CS · 영업 · 관리자)이 작업 시트에서 켜면 풀린다."""
+    파트 없는 계정(생산 관리자 · CS · 영업 · 관리자)이 작업 시트에서 켜면 풀린다. 2026-11-23(§4-7 B11): 그동안 검수 카드도 막힌다."""
     oid, key = _part_order()
-    for part in ("cut", "assemble", "inspect"):
+    for part in ("cut", "assemble"):
         _finish_part(client, oid, key, part)
-    blocked = _complete(client, oid)  # 마지막 로그인 = 검수 파트 계정
-    assert blocked.status_code == 409 and blocked.get_json()["missing_steps"] == [{"key": "edge", "label": "엣지"}]
+    _login(client, _user(part="inspect"))
+    early = client.post("/api/production/part-marks",
+                        json={"order_id": oid, "drawing_key": key, "part": "inspect", "action": "take", "seen": "none"})
+    assert early.status_code == 409 and early.get_json()["data"]["left"] == [{"part": "edge", "holder": None}]
+    blocked = _complete(client, oid)  # 카드를 쓴 주문 — 엣지(칸 꺼짐) · 검수(카드 미완료)가 남음
+    assert blocked.status_code == 409
+    assert blocked.get_json()["missing_steps"] == [{"key": "edge", "label": "엣지"}, {"key": "inspect", "label": "검수"}]
     edge_part = _user(part="edge")
     _login(client, edge_part)
     denied = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
@@ -373,7 +380,8 @@ def test_카드를_안_쓴_파트가_있으면_막히고_파트_없는_계정이
 
     _login(client, _user(part=None))
     ok = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
-    assert ok.status_code == 200 and ok.get_json()["data"]["complete_ready"] is True
+    assert ok.status_code == 200 and ok.get_json()["data"]["complete_ready"] is False  # 검수가 아직
+    _finish_part(client, oid, key, "inspect")  # 엣지 칸이 켜져 검수가 열린다
     assert _complete(client, oid).status_code == 200
 
 
@@ -461,19 +469,19 @@ def test_칸_고치기로_상태를_시공에_넣는_옆문도_막힌다(client)
 # 7. 위치 고정 — 서버 · 화면이 같은 한 함수
 # --------------------------------------------------------------------------- #
 def test_판정_함수는_한_곳이고_모두_그것을_부른다() -> None:
-    assert prod_api.production_complete_block_body is steps_mod.production_complete_block_body
-    assert prod_api.production_complete_ready is steps_mod.production_complete_ready
-    assert stage_override_mod.production_complete_block_body is steps_mod.production_complete_block_body
-    assert sheet_view_mod.production_complete_ready is steps_mod.production_complete_ready
-    assert status_mod.production_complete_move_block is stage_override_mod.production_complete_move_block
-    # 완료 API 게이트 · 일반 쓰기 셋(단건 · 일괄 · 칸 고치기)이 실제로 부른다
-    assert "_steps_incomplete_block(sd)" in inspect.getsource(prod_api.api_production_complete)
+    # 2026-11-23 §4-3: 판정 한 곳 = part_progress(카드를 쓴 주문은 표시 줄로, 안 쓴 주문은 steps 칸 규칙을 그대로 부름)
+    for mod in (prod_api, complete_move_mod):
+        assert mod.complete_block_body is progress_mod.complete_block_body
+    assert prod_api.complete_ready is sheet_view_mod.complete_ready is progress_mod.complete_ready
+    for mod in (status_mod, field_update_mod):
+        assert mod.production_complete_move_block is complete_move_mod.production_complete_move_block
+    assert "production_complete_block_body(sd)" in inspect.getsource(progress_mod.complete_block_body)
+    assert "_steps_incomplete_block(sd, marks)" in inspect.getsource(prod_api.api_production_complete)  # 일반 쓰기 셋도 아래
     assert "production_complete_move_block(order, from_stage, new_status)" in inspect.getsource(
         status_mod.update_order_status_response)
-    assert "production_complete_move_block(order, from_stage, new_status)" in inspect.getsource(
-        status_mod.bulk_update_order_status_response)
+    assert "marks=bulk_marks.get(order.id))" in inspect.getsource(status_mod.bulk_update_order_status_response)
     assert "production_complete_move_block(" in inspect.getsource(field_update_mod)
-    assert "'complete_ready': production_complete_ready(sd)" in inspect.getsource(sheet_view_mod._full_sheet_extras)
+    assert "'complete_ready': complete_ready(sd, marks)" in inspect.getsource(sheet_view_mod._full_sheet_extras)
     # 판정 몸통은 공정 모듈 안에만(다른 곳에서 4칸을 다시 세지 않는다)
     assert "step_done_map(sd)" in inspect.getsource(steps_mod.production_steps_missing)
 

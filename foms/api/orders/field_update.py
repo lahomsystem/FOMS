@@ -16,6 +16,7 @@ from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.status_constants import STATUS, is_logistics_board_status
 from foms.services.orders.order_mutation_policy import user_can
+from foms.services.production.complete_move import production_complete_move_block
 from db import get_db
 from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
@@ -693,7 +694,6 @@ def update_order_field_from_payload(
                 OVERRIDE_BLOCK_MESSAGE,
                 current_stage_for_order,
                 normalize_main_stage,
-                production_complete_move_block,
                 requires_dedicated_command,
                 requires_privileged_override,
             )

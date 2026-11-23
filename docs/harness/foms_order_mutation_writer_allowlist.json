@@ -195,10 +195,16 @@
       "reason": "정산 차감 넣기 · 취소(issue_deduction · void_deduction) — 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 깊은 복사 · 재대입 · flag_modified 는 execute_order_mutation 콜백 안에서만 한다(version bump + receipt, If-Match 는 보내면 확인). 예전 api/cs/dashboard.py 무잠금 통째 저장(검수 A12)을 대체한다."
     },
     {
-      "path": "foms/api/production/part_marks.py",
+      "path": "foms/services/production/part_mark_write.py",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01",
-      "reason": "생산 파트 표시가 주문 공정 칸을 바꿀 때(설계서 tablet-production-ui §15.5 동기화) REV-00 execute_order_mutation 콜백 안에서 deepcopy → 재대입 → flag_modified 로만 쓴다."
+      "reason": "생산 파트 표시가 주문 공정 칸을 바꾸거나 첫 카드로 제작을 시작할 때(설계서 tablet-production-ui §15.5 동기화 · 2026-11-23 self-claim §4-8) REV-00 execute_order_mutation 콜백 안에서 deepcopy → 재대입 → flag_modified 로만 쓴다. 2026-11-23 에 foms/api/production/part_marks.py 몸통을 옮겨 왔다(API 는 얇게)."
+    },
+    {
+      "path": "foms/services/production/start_run.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01",
+      "reason": "제작 시작 곁일(단계 기록 · 회차 열기, 2026-11-23 self-claim §4-8) — [제작 시작] 라우트(foms/api/production/orders.py — execute_order_mutation 콜백 또는 transition_order 뒤 같은 tx)와 첫 카드 맡기(part_mark_write.py execute_order_mutation 콜백)가 부른다. 호출자가 deepcopy 한 사본을 재대입 → flag_modified 한다."
     },
     {
       "path": "foms/services/orders/construction_note.py",

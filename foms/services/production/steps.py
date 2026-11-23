@@ -4,9 +4,13 @@
 도면 쓰기 셋)가 **같은 함수**로 칸을 바꾼다(복사 금지). 모두 순수 계산이다 — DB · commit · 이벤트 없이 호출자가
 deepcopy 한 ``structured_data`` dict 만 제자리에서 고친다(재대입 · ``flag_modified`` 는 호출자 몫).
 
-[제작 완료]를 누를 수 있는지(검수까지 끝남)도 여기 한 함수 :func:`production_complete_ready` 가 정한다(2026-11-21).
+[제작 완료]를 누를 수 있는지(검수까지 끝남)의 **칸 규칙**은 여기 :func:`production_complete_ready` 다(2026-11-21).
+2026-11-23(설계서 production-self-claim-and-factory2 §4-3)부터 화면 · 서버가 부르는 판정은
+:func:`foms.services.production.part_progress.complete_ready` · ``complete_block_body`` 다 — 카드를 쓴 주문은 표시 줄로
+보고, 카드를 안 쓴 주문은 이 모듈의 두 함수를 그대로 부른다(같은 글 · 같은 꼴). 이 모듈은 표시 줄을 모른다(순환 없음).
 
-칸 모양: ``{key, label, done, at, by_name}`` — ``at`` = 켠 때(UTC iso), ``by_name`` = 켠 사람 이름. 끄면 둘 다 None.
+칸 모양: ``{key, label, done, at, by_name[, via]}`` — ``at`` = 켠 때(UTC iso), ``by_name`` = 켠 사람 이름, ``via`` = 누가
+켰나(``'sheet'`` 사람 · ``'part_marks'`` 카드 동기화, 3판 전 옛 칸은 없음). 끄면 ``at`` · ``by_name`` 은 None, ``via`` 는 지운다.
 """
 
 from __future__ import annotations
@@ -71,13 +75,19 @@ def step_done_map(sd: Any) -> dict[str, bool]:
 # "검수까지 끝남" = 공정 4칸(재단 · 엣지 · 조립 · 검수)이 모두 켜짐 — 첫 화면 큰 글자 '검수 끝'
 # (``production_home_read_model.production_home_stage``)과 작업 시트 '4/4' 와 같은 뜻이다. 칸이 아예 없는 옛 주문은
 # 4칸 모두 꺼짐으로 읽는다(:func:`normalize_production_steps`). 옛 주문에 남은 도장(paint)은 보지 않는다(D15).
-# 제작 완료 API · 일반 단계 쓰기(생산 → 시공) · 작업 시트 단추 · 공정 체크 응답이 모두 :func:`production_complete_ready`
-# 하나로 판정한다(복사 금지 — ``tests/domains/test_production_complete_requires_inspect.py`` 가 위치를 고정).
+# 제작 완료 API · 일반 단계 쓰기(생산 → 시공) · 작업 시트 단추 · 공정 체크 응답이 모두
+# :func:`foms.services.production.part_progress.complete_ready` 하나로 판정하고, 카드를 안 쓴 주문은 그 함수가 이 모듈의
+# 칸 규칙(:func:`production_steps_missing` · :func:`production_complete_block_body`)을 그대로 쓴다(복사 금지 —
+# ``tests/domains/test_production_complete_requires_inspect.py`` 가 위치를 고정, 2026-11-23 §4-3).
 
 #: 막힘 코드 — 관리자 강제 진행 게이트 코드(``admin_override.GATE_STEPS_INCOMPLETE``) · 화면 재시도 목록과 같은 글자.
 STEPS_INCOMPLETE_CODE = "STEPS_INCOMPLETE"
 #: 막힘 글(서버 거절) — 작업 시트 회색 단추 글 "검수까지 끝나면 눌러요" 와 같은 말.
 STEPS_INCOMPLETE_MESSAGE = "검수까지 끝나야 제작 완료할 수 있어요."
+
+#: 공정 칸 ``via`` — 사람이 작업 시트 · 내 공정 · PC 에서 체크 / 파트 카드 동기화가 체크.
+STEP_VIA_SHEET = "sheet"
+STEP_VIA_PART_MARKS = "part_marks"
 
 
 def production_steps_missing(sd: Any) -> list[dict[str, str]]:
@@ -94,15 +104,19 @@ def production_steps_missing(sd: Any) -> list[dict[str, str]]:
 
 
 def production_complete_ready(sd: Any) -> bool:
-    """[제작 완료]를 누를 수 있는지 — 검수까지(공정 4칸 모두) 끝났으면 True. 서버 · 화면이 같이 쓰는 한 규칙."""
+    """[제작 완료]를 누를 수 있는지 — 칸 규칙(검수까지 공정 4칸 모두, 칸을 하나도 안 켰으면 참).
+
+    화면 · 서버는 :func:`foms.services.production.part_progress.complete_ready` 를 부른다(카드를 안 쓴 주문이면 이 함수).
+    """
     return not production_steps_missing(sd)
 
 
 def production_complete_block_body(sd: Any) -> Optional[dict[str, Any]]:
-    """검수까지 안 끝났으면 거절 본문(409 로 보낼 것), 끝났으면 None.
+    """칸 규칙으로 막히면 거절 본문(409 로 보낼 것), 되면 None — 카드를 안 쓴 주문의 글.
 
     모양은 같은 라우트의 다른 업무 게이트(``QUEST_INCOMPLETE`` 의 ``missing_teams``)와 같다 —
-    ``{success: False, code, message, missing_steps}``. 글에 남은 공정 이름을 붙인다.
+    ``{success: False, code, message, missing_steps}``. 글에 남은 공정 이름을 붙인다. 화면 · 서버는
+    :func:`foms.services.production.part_progress.complete_block_body` 를 부른다.
     """
     missing = production_steps_missing(sd)
     if not missing:
@@ -117,7 +131,7 @@ def production_complete_block_body(sd: Any) -> Optional[dict[str, Any]]:
 
 
 def set_production_step(sd: dict[str, Any], key: str, done: bool, *, by_name: Optional[str],
-                        at_iso: str) -> list[dict[str, Any]]:
+                        at_iso: str, via: Optional[str] = None) -> list[dict[str, Any]]:
     """공정 칸 하나를 켜거나 끈다(제자리) — 지금 공정 API 와 파트 카드 동기화가 같이 쓴다.
 
     Args:
@@ -126,6 +140,7 @@ def set_production_step(sd: dict[str, Any], key: str, done: bool, *, by_name: Op
         done: 켬 여부.
         by_name: 켤 때 남길 이름(끌 때는 무시하고 None).
         at_iso: 켤 때 남길 때(UTC iso, 끌 때는 무시하고 None).
+        via: 켤 때 남길 표지(:data:`STEP_VIA_SHEET` · :data:`STEP_VIA_PART_MARKS`). 끄거나 None 이면 칸에서 지운다.
 
     Returns:
         공정 목록(sd 안 참조와 같은 객체).
@@ -138,4 +153,8 @@ def set_production_step(sd: dict[str, Any], key: str, done: bool, *, by_name: Op
     target["done"] = bool(done)
     target["at"] = at_iso if done else None
     target["by_name"] = by_name if done else None
+    if done and via:
+        target["via"] = via
+    else:
+        target.pop("via", None)
     return steps
