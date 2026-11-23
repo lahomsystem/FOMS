@@ -208,11 +208,70 @@
     return { text: (rest ? rest + ' ' : '') + body, mixed: rest === now };
   }
 
+  /** 바뀌는 곳 셈의 한도 — 앞뒤 같은 조각을 뗀 가운데가 이보다 길면 '통째로 바뀜'(빠짐 하나 + 들어감 하나)으로 본다. */
+  var DIFF_MAX = 600;
+
+  /** 낱말 조각 — 빈칸 · 줄 바꿈도 한 조각으로 남긴다(조각을 이으면 원래 글 그대로). */
+  function words(text) {
+    return String(text || '').split(/(\s+)/).filter(function (t) { return t !== ''; });
+  }
+
+  function put(out, kind, text) {
+    if (!text) return;
+    var last = out[out.length - 1];
+    if (last && last.kind === kind) last.text += text; else out.push({ kind: kind, text: text });
+  }
+
+  /** 가운데 조각 — 가장 긴 같은 줄(LCS)로 같음 · 빠짐 · 들어감을 조각마다 가른다. */
+  function middle(a, b) {
+    var n = a.length, m = b.length, i, j, out = [];
+    if (n > DIFF_MAX || m > DIFF_MAX) return [{ kind: 'del', text: a.join('') }, { kind: 'add', text: b.join('') }];
+    var len = [];
+    for (i = n; i >= 0; i -= 1) {
+      len[i] = [];
+      for (j = m; j >= 0; j -= 1) {
+        // 빈칸 조각은 거의 0 으로 센다 — 1 로 세면 빈칸이 많이 겹치는 쪽을 골라 옮긴 문장이 '빠짐 + 들어감'으로 두 번 보인다
+        len[i][j] = i === n || j === m ? 0 : a[i] === b[j] ? len[i + 1][j + 1] + (/\S/.test(a[i]) ? 1 : 0.001)
+          : Math.max(len[i + 1][j], len[i][j + 1]);
+      }
+    }
+    for (i = 0, j = 0; i < n || j < m;) {
+      if (i < n && j < m && a[i] === b[j]) { out.push({ kind: 'same', text: a[i] }); i += 1; j += 1; }
+      else if (j >= m || (i < n && len[i + 1][j] >= len[i][j + 1])) { out.push({ kind: 'del', text: a[i] }); i += 1; }
+      else { out.push({ kind: 'add', text: b[j] }); j += 1; }
+    }
+    return out;
+  }
+
+  /**
+   * 바뀌는 곳 — 지금 글(before)과 저장할 글(after)을 낱말로 견줘 [{kind: 'same'|'del'|'add', text}]. 바뀐 낱말 사이의 빈칸은
+   * 바뀐 쪽에 넣어 한 덩어리(빠짐 하나 + 들어감 하나)로 묶는다 — 'del' 을 뺀 조각을 이으면 after, 'add' 를 뺀 조각을 이으면 before.
+   */
+  function textDiff(before, after) {
+    var a = words(before), b = words(after), head = 0, tail = 0;
+    while (head < a.length && head < b.length && a[head] === b[head]) head += 1;
+    while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail += 1;
+    var ops = [{ kind: 'same', text: a.slice(0, head).join('') }]
+      .concat(middle(a.slice(head, a.length - tail), b.slice(head, b.length - tail)),
+              [{ kind: 'same', text: a.slice(a.length - tail).join('') }]);
+    var out = [], del = '', add = '';
+    ops.forEach(function (op, k) {
+      var next = ops[k + 1];
+      var gap = op.kind === 'same' && !/\S/.test(op.text) && (del || add) && next && next.kind !== 'same';
+      if (op.kind === 'del' || gap) del += op.text;
+      if (op.kind === 'add' || gap) add += op.text;
+      if (op.kind === 'same' && !gap) { put(out, 'del', del); put(out, 'add', add); del = ''; add = ''; put(out, 'same', op.text); }
+    });
+    put(out, 'del', del);
+    put(out, 'add', add);
+    return out;
+  }
+
   var api = { BINS: BINS, KEYS: KEYS, LATER: LATER, ACTION_SECS: ACTION_SECS, find: find, binOf: binOf, minutes: minutes,
               counts: counts, inBin: inBin, typeLabel: typeLabel, peekText: peekText, binRows: binRows, emptyLine: emptyLine,
               stripTotals: stripTotals, fromQuery: fromQuery, addressFor: addressFor, phoneSplit: phoneSplit,
               pcSummary: pcSummary, whenText: whenText, bulkScope: bulkScope, confirmTableText: confirmTableText,
-              doneText: doneText, outsideDraft: outsideDraft };
+              doneText: doneText, outsideDraft: outsideDraft, DIFF_MAX: DIFF_MAX, textDiff: textDiff };
   root.FOMS_DS_INBOX_VIEW = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

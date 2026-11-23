@@ -40,6 +40,18 @@
 .fb-drawer[open] > summary { margin-bottom: 8px; }
 .fb-edit { padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
 .fb-confirm { align-self: flex-start; }
+/* ③ 답 칸의 바뀌는 곳(설계서 2026-11-23 5.1) — 빠지는 글 = 빨강 + 가운데 줄, 들어가는 글 = 초록 + 밑줄 · 굵게(색을 못 가려도 읽히게). */
+.fb-change__text {
+  margin: 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface); line-height: 20px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.fb-change__del { color: var(--red2); background: rgba(205,66,70,.12); text-decoration-line: line-through; text-decoration-thickness: 2px; }
+.fb-change__add {
+  color: var(--green2); background: rgba(35,133,81,.14); font-weight: 600; text-decoration-line: underline;
+  text-decoration-thickness: 2px; text-underline-offset: 3px;
+}
+.f-dark .fb-change__del { color: var(--red5); }
+.f-dark .fb-change__add { color: var(--green5); }
 .fb-rows .f-input { min-width: 160px; }
 
 /* 다시 확인 · 판 */
