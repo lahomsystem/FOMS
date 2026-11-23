@@ -28,6 +28,7 @@
   --fpc-hold-50: #fdf2f8;
   --fpc-hold-line: #f472b6;
   --fpc-tip: #1f2329;
+  --fpc-old-700: #9a3412; /* 밤 넘긴 담당 이름(태블릿 --fph-old-700 과 같은 값, 설계서 2026-11-23 §4-9) */
 }
 
 /* ── 제목 줄: [보드 →] · 보기 전용 표 · [고치기] · 주황 띠 ── */
@@ -102,6 +103,14 @@
 .fpc-s.is-done { background: var(--fpc-brand); border-color: var(--fpc-brand); color: #fff; }
 .fpc-s.is-now { border: 3px solid var(--fpc-brand); background: var(--fpc-brand-50); color: var(--fpc-brand-dark); }
 .fpc-s.is-stop { border: 3px solid var(--fpc-hold-line); background: var(--fpc-hold-50); color: var(--fpc-hold); }
+.fpc-s__m.is-old { color: var(--fpc-old-700); }
+/* 공정 칸 둘째 줄 = 날짜 줄 칸 아래와 같은 값(설계서 2026-11-23 §8-4 · §10 F8 · F9) — 칸 묶음이 .has-hd 를 달면 늘 보인다(지금 줄은 그대로:
+   아주 넓을 때만 '김재단 11/20'). 이름(b)만 말줄임, 꼬리(span — ' 외 n' · ' 바뀜')는 안 줄임. 칸 키 56px 그대로. */
+.fpc-steps.has-hd .fpc-s__m { display: flex; justify-content: center; max-width: 100%; margin-top: 3px; overflow: visible; text-overflow: clip; white-space: nowrap; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; }
+.fpc-s__m > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
+.fpc-s__m > span { flex-shrink: 0; margin-left: .25em; }
+.fpc-s.is-now .fpc-s__m.is-none { color: var(--fpc-text2); } /* '지금' 칸 연보라 위 "미정" 대비 4.37 → 7.21(F9) */
+.fpc-s.is-done .fpc-s__m.is-old { color: inherit; } /* 채운 칸(파랑) 위에는 호박 글자를 쓰지 않는다 — 밤 넘김은 하는 중 칸에만 */
 
 /* ⑤ 발주 · 담당 · ⑥ 도면 */
 .fpc-by { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: calc(15px * var(--foms-fs, 1)); line-height: 1.35; }

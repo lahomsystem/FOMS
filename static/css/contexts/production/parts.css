@@ -21,6 +21,24 @@
   --fph-wait-300: #d6d38a;
   --fph-wait-700: #57571f;
   --fph-mid-700: #7c3aed;
+  /* 파트 맡기 고침(설계서 2026-11-23-production-self-claim-and-factory2 §8-9 · §10) — 막힌 칸 셋(보류 · 도면 고치는 중 · 검수 미완료),
+     맡기 취소(무채색 금지 → 파랑, 기본 단추와 같은 값), 남의 담당 칸 누른 색 · 창 '지금' 줄 바탕, 까닭 말풍선, 아침 칩 테두리.
+     어제부터 · 칸 아래 이름 토큰(--fph-old-* · --fph-holder*)은 home.css. 값 · 짝 거리는 test_production_selfclaim_css.py 가 못 박는다. */
+  --fph-hold-50: #fed7aa;
+  --fph-hold-300: #fb923c;
+  --fph-hold-700: #9a3412;
+  --fph-revise-50: #fca5a5;
+  --fph-revise-300: #ef4444;
+  --fph-revise-700: #7f1d1d;
+  --fph-pre-50: #fef08a;
+  --fph-pre-300: #eab308;
+  --fph-pre-700: #713f12;
+  --fph-taken-10: #fdf2f8;
+  --fph-taken-100: #e6bccd;
+  --fph-note-50: #fff7ed;
+  --fph-note-700: #7c2d12;
+  --fph-old-line: #c2410c;
+  --fph-release-700: var(--fph-basic-700);
 }
 .foms-prod-home__me { margin-left: 4px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 600; color: var(--fph-text2); }
 
@@ -58,8 +76,9 @@
 .pp-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .pp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .pp-card { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 8px 10px 10px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; }
-/* 화면 밖 카드는 그리기를 미룬다(11-14, 새 장 그리기 4배 CPU 250~480ms → 줄임). 크기는 한 번 그린 뒤 기억(auto) */
-.pp-card { content-visibility: auto; contain-intrinsic-size: auto 312px; }
+/* 화면 밖 카드는 그리기를 미룬다(11-14, 새 장 그리기 4배 CPU 250~480ms → 줄임). 크기는 한 번 그린 뒤 기억(auto).
+   자리표시 키 = 실측 카드 키(2026-11-23 §10 F2: 1176×626 80% · 1280×800 100% 글자 100% 에서 342 ~ 345 CSS px — 312 는 작았다) */
+.pp-card { content-visibility: auto; contain-intrinsic-size: auto 344px; }
 .pp-card[hidden] { display: none; }
 .pp-card.is-mine { border: 2px solid var(--fph-brand); padding: 7px 9px 9px; }
 .pp-img { width: 100%; height: 148px; margin: 0 0 4px; padding: 0; background: #fff; border: 1px solid var(--fph-line); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: zoom-in; color: inherit; text-decoration: none; font: inherit; }
@@ -92,6 +111,26 @@
 .fph-by.pp-w-basic { color: var(--fph-basic-700); font-weight: 800; }
 .fph-by.pp-w-need { color: var(--fph-mid-700); font-weight: 800; }
 .fph-by.pp-w-none { color: var(--fph-text3); font-weight: 600; }
+/* ── 파트 맡기 고침(설계서 2026-11-23 §8-1 · §10) — 이름 줄 링크 · 시공 줄 · 다른 파트 줄 끝 꼬리 ── */
+/* 이름 줄 = 작업 시트 링크(a.pp-ln.pp-sheetlink). 키는 그대로 두고 누름 칸만 ::after 로 아래로 넓힌다(태블릿 덩이, F3). 꺾쇠 › 하나(F11) */
+.pp-sheetlink { position: relative; color: inherit; text-decoration: none; border-radius: 8px; }
+.pp-card .pp-sheetlink:hover, .pp-card .pp-sheetlink:focus { color: inherit; text-decoration: none; }
+.pp-sheetlink::after { content: ""; position: absolute; left: -4px; right: -4px; top: 0; bottom: 0; }
+.pp-sheetlink .fph-dr__nm > b { text-decoration: underline; text-decoration-color: var(--fph-brand); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.pp-sheetlink .fph-dr__nm, .pp-sheetlink .fph-dr__nm > b { padding-bottom: 5px; margin-bottom: -5px; } /* 밑줄이 이름 칸 overflow 에 안 잘리게 */
+.pp-sheetlink .pp-go { flex-shrink: 0; font-weight: 800; color: var(--fph-brand-dark); }
+.pp-sheetlink:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.pp-sheetlink:active { background: var(--fph-brand-50); }
+/* 시공 줄(.pp-duerow) = 시공일 표 + 오른쪽 불량 글(카드 키 그대로). 다른 파트 줄 끝 꼬리(.pp-tag) "내 담당 · 어제부터 · 박엣지에서 바뀜" —
+   줄을 넘기지 않고 끝부터 말줄임(다 푼 글은 aria-label · 창, §10 '카드 밀도') */
+.pp-card .pp-duerow { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; margin: 1px 0; }
+.pp-card .pp-duerow > .fph-due { margin: 0; }
+.pp-tag { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-need-700); }
+.pp-tag .is-old { color: var(--fph-old-700); }
+.pp-tag .is-chg { color: var(--fph-taken-700); }
+.pp-tag.is-defect { color: var(--fph-dw-late); }
+.pp-by .pp-tag { flex: 1 1 0; text-align: right; }
+.pp-card .pp-by.has-tag { column-gap: 10px; }
 
 /* ── 내 파트 칸: 단추 · 배지 ── */
 .pp-actbox { margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
@@ -107,7 +146,36 @@
 .fph-wi.pp-st-taken:hover { color: var(--fph-taken-700); border-color: var(--fph-taken-300); }
 .fph-wi.pp-st-done:hover { color: var(--fph-done-800); border-color: var(--fph-done-300); }
 .fph-wi.pp-st-basic:hover { color: var(--fph-basic-700); border-color: var(--fph-basic-300); }
+/* 단추가 된 칸(남의 담당 · 막힌 칸 · 손 체크) — 브라우저 단추 글꼴 · 폭을 칸 꼴로. 특이도를 낮게(0,1,1) 둬 아래 상태 칸 가운데 맞춤이 이긴다 */
+button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: left; }
+/* 막힌 칸 셋(설계서 2026-11-23 §4-6) — 누르면 까닭 말풍선(.pp-why)이라 button[aria-disabled="true"]. 터치 뒤 남는 :hover 색 되돌림(F5) */
+.fph-wi.pp-st-hold { background: var(--fph-hold-50); border-color: var(--fph-hold-300); color: var(--fph-hold-700); justify-content: center; }
+.fph-wi.pp-st-revise { background: var(--fph-revise-50); border-color: var(--fph-revise-300); color: var(--fph-revise-700); justify-content: center; }
+.fph-wi.pp-st-pre { background: var(--fph-pre-50); border-color: var(--fph-pre-300); color: var(--fph-pre-700); justify-content: center; }
+.fph-wi.pp-st-hold:hover { color: var(--fph-hold-700); border-color: var(--fph-hold-300); }
+.fph-wi.pp-st-revise:hover { color: var(--fph-revise-700); border-color: var(--fph-revise-300); }
+.fph-wi.pp-st-pre:hover { color: var(--fph-pre-700); border-color: var(--fph-pre-300); }
+.fph-wi.pp-st-hold, .fph-wi.pp-st-revise, .fph-wi.pp-st-pre { white-space: normal; text-align: center; line-height: 1.25; } /* 글자 150% 면 두 줄 */
+/* 남의 담당 = 분홍 칸 하나가 곧 단추(누르면 담당 바꾸기 창, §8-1): 첫 줄 "담당 박엣지", 둘째 줄 어제부터 · 김민준에서 바뀜 14:20, 오른쪽 › */
+.fph-wi.pp-held { justify-content: space-between; gap: 8px; padding: 4px 12px; line-height: 1.2; }
+.pp-held__who { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.pp-held__who b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-wi.pp-held .pp-held__who small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: inherit; }
+.pp-held__go { flex-shrink: 0; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.fph-wi.pp-held:active { background: var(--fph-taken-100); }
+/* 손 체크(카드를 안 쓴 파트를 작업 시트에서 체크, §4-2) — 완료 칸 + 작은 글 "작업 시트", 단추 없음 */
+.fph-wi.pp-hand { flex-direction: column; align-items: center; justify-content: center; gap: 0; line-height: 1.2; }
+.fph-wi.pp-hand small { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-done-800); }
+/* 키보드 초점(F5 · F6) — 카드 안 칸 · 끝 단추 · 남의 담당 칸 */
+.fph-wi.pp-act:focus-visible, .pp-actbox .fph-qr__done:focus-visible { outline: 3px solid var(--fph-text); outline-offset: 2px; }
+/* 까닭 말풍선(막힌 칸을 누르면) — 단추 위에 떠서 카드 키를 안 바꾼다(F16). 16px(80% 에서 보이는 12.8) */
+.pp-actbox { position: relative; }
+.pp-why { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 2; margin: 0; padding: 8px 10px; border: 1px solid var(--fph-old-300); border-radius: 9px; background: var(--fph-note-50); color: var(--fph-note-700); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; box-shadow: 0 6px 18px rgba(20, 23, 28, .18); word-break: keep-all; overflow-wrap: anywhere; }
+.pp-why[hidden] { display: none; }
 .foms-prod-home .pp-fin.fph-qr__done { min-height: 72px; background: var(--fph-done-700); border-color: var(--fph-done-700); }
+/* 내 담당 = 한 층 [맡기 취소][엣지 완료](.pp-two.is-mine, 둘 다 56px — 80% 에서 보이는 44.8). 끝 단추는 짝일 때 72 → 56 */
+.foms-prod-home .pp-fin.fph-qr__done.is-pair { min-height: 56px; font-size: calc(18px * var(--foms-fs, 1)); }
+.foms-prod-home .pp-fin.fph-qr__done:active { background: var(--fph-done-800); border-color: var(--fph-done-800); }
 .pp-undo-row { justify-content: space-between; gap: 6px; padding: 4px 4px 4px 12px; }
 .pp-undo-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pp-undo { flex-shrink: 0; min-height: 48px; padding: 0 12px; border: 1px solid var(--fph-line2); background: var(--fph-surface); font-size: calc(15px * var(--foms-fs, 1)); }
@@ -171,7 +239,7 @@
 .foms-prod-home .pp-modal .pp-al--basic { border-left-color: var(--fph-basic-700); color: var(--fph-basic-700); }
 .foms-prod-home .pp-modal .pp-al--unbasic { border-left-color: var(--fph-brand); color: var(--fph-need-700); }
 .pp-mnote { margin: 10px 16px 0; padding: 8px 12px; border-radius: 9px; background: var(--fph-taken-50); color: var(--fph-taken-700); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; }
-.pp-merr { margin: 0 16px 10px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-danger); }
+.pp-merr { margin: 0 16px 10px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-danger); word-break: keep-all; overflow-wrap: anywhere; } /* 낱말 가운데서 안 꺾임(F15) */
 .foms-prod-home .pp-modal .pp-mbtn { min-height: 60px; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; }
 .foms-prod-home .pp-modal .pp-mbtn:disabled { opacity: .6; cursor: wait; }
 .foms-prod-home .pp-modal .pp-mgo { flex: 1.4; color: #fff; }
@@ -179,3 +247,49 @@
 .foms-prod-home .pp-modal .pp-mgo--done { background: var(--fph-done-700); border-color: var(--fph-done-700); }
 .foms-prod-home .pp-modal .pp-mgo--basic { background: var(--fph-basic-700); border-color: var(--fph-basic-700); }
 .foms-prod-home .pp-modal .pp-mgo--unbasic { background: var(--fph-brand); border-color: var(--fph-brand); }
+
+/* ── 확인 창 더함(설계서 2026-11-23 §8-1 · §9 창 글 · §10 F15) — 몸 글 · 담당 바꾸기 · 맡기 취소 톤 · 진 경합 · 관리자 고르기 ──
+   묶음 foms-tablet-production-kanban.css 의 창 기본꼴(0,2,1)을 이기게 .foms-prod-home .pp-modal 아래(0,3,0)로 적는다. 토큰은 다시 적지 않는다. */
+.foms-prod-home .pp-modal .pp-mbody { margin: 6px 18px 4px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fph-text); word-break: keep-all; }
+.foms-prod-home .pp-modal .pp-mbody[hidden] { display: none; }
+.foms-prod-home .pp-modal .pp-mbody b { font-weight: 800; }
+.foms-prod-home .pp-modal .pp-al--taken { border-left-color: var(--fph-taken-700); color: var(--fph-taken-700); }
+.foms-prod-home .pp-modal .pp-al--release { border-left-color: var(--fph-release-700); color: var(--fph-release-700); }
+/* 진 경합: 계획 줄을 서버 모습("지금: 담당 박엣지")으로 바꾸고(.pp-al--now) 빨간 글은 창 안 상자로 — 창 이름표 .is-lost */
+.foms-prod-home .pp-modal .pp-al--now { border-left-color: var(--fph-taken-700); color: var(--fph-taken-700); background: var(--fph-taken-10); }
+.foms-prod-home .pp-modal.is-lost .pp-merr { padding: 8px 12px; border: 1px solid var(--fph-revise-50); border-radius: 9px; background: var(--fph-danger-50); color: var(--fph-dw-late); font-weight: 800; }
+.foms-prod-home .pp-modal .pp-mgo--taken { background: var(--fph-taken-700); border-color: var(--fph-taken-700); }
+.foms-prod-home .pp-modal .pp-mgo--release { background: var(--fph-release-700); border-color: var(--fph-release-700); }
+/* 관리자가 남의 담당 칸을 누르면 [담당 바꾸기] [대신 완료] [맡기 취소] 셋을 한 줄에(맨 아래 줄은 [닫기]만) */
+.foms-prod-home .pp-modal .pp-mchoices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 8px 16px 0; }
+.foms-prod-home .pp-modal .pp-mchoices[hidden] { display: none; }
+/* 창이 열린 동안 뒤 페이지가 굴러가지 않게(P7) */
+body:has(.pp-modal:not([hidden])) { overflow: hidden; }
+
+/* ── 아침 칩(설계서 2026-11-23 §4-9) — 판 머리 줄(.pp-head) 안 "어제부터 내 담당 2장 ›". 누르면 작은 창에 시공일마다 [보기].
+   머리 줄 키를 안 키운다(띠 · 카드 첫 화면이 안 밀림, M3). 누름 칸 44px 는 아래 태블릿 덩이 ── */
+.pp-head .pp-mwrap { position: relative; }
+.pp-mchip { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1.5px solid var(--fph-old-line); border-radius: 10px; background: var(--fph-old-50); color: var(--fph-old-700); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; cursor: pointer; }
+.pp-mchip:active { background: var(--fph-hold-50); }
+.pp-mchip:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.pp-mpop { position: absolute; z-index: 6; top: calc(100% + 8px); left: 0; min-width: 300px; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--fph-old-300); border-radius: 12px; background: var(--fph-surface); box-shadow: 0 10px 28px rgba(20, 23, 28, .22); color: var(--fph-text); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; }
+.pp-mpop[hidden] { display: none; }
+.pp-mpop p { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pp-mpop a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--fph-line2); border-radius: 9px; background: var(--fph-surface); color: var(--fph-brand-dark); font-weight: 800; text-decoration: none; }
+.pp-mpop a:hover { color: var(--fph-brand-dark); text-decoration: none; }
+.pp-mpop a:active { background: var(--fph-old-50); }
+.pp-mpop a:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+
+/* ── 가로 터치 태블릿 누름 칸 · 틈(설계서 2026-11-23 §10 M4 · F3 · F4) — 화면 크기 80% 에서도 보이는 44px · 이웃 틈 8px.
+   '÷ 배율' 규칙은 이 덩이 안에만(test_tablet_touch_targets_zoom.py). 지금 칸(거르개 · [기본][내가 자름] 짝 등)은 건드리지 않는다. ── */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  /* 이름 줄 링크: 줄 키는 그대로, 투명 누름 칸만 아래(시공 표 · 품목 글 — 누를 것 없음)로 보이는 44px 까지 */
+  .pp-sheetlink::after { bottom: min(0px, calc(100% - 44px / var(--foms-ui-zoom, 1))); }
+  /* 그림 단추 ↔ 이름 줄 링크 사이 보이는 8px — 지금 그림 아래 4 + 카드 틈 3 = 7px 에 모자란 만큼만 */
+  .pp-card .pp-img + .pp-sheetlink { margin-top: max(0px, calc(8px / var(--foms-ui-zoom, 1) - 7px)); }
+  .pp-grid.is-need .pp-img + .pp-sheetlink { margin-top: 0; }
+  .pp-two.is-mine { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+  .pp-mchip, .pp-mpop a { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+  .pp-mpop { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+  .foms-prod-home .pp-modal .foms-prod-change-modal__foot, .foms-prod-home .pp-modal .pp-mchoices { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+}
