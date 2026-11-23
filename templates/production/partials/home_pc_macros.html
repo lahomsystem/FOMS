@@ -37,6 +37,13 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 <span class="fpc-st is-{{ 'w' if r.home_view == 'wait' or r.home_stage == '제작 대기' else ('h' if r.hold_active else ('f' if r.home_view == 'done' or r.home_stage == '검수 끝' else 'p')) }}"{% if r.pc_status_tip %} data-tip="{{ r.pc_status_tip }}" tabindex="0" aria-label="{{ r.home_stage }} · {{ r.pc_status_tip }}"{% endif %}><b>{{ r.home_stage }}</b>{% if r.pc_status_sub %}<small>{{ r.pc_status_sub }}</small>{% endif %}</span>
 {%- endmacro %}
 
+{# 공정 칸 둘째 줄 = 날짜 줄 칸 아래와 같은 값(설계서 2026-11-23 §8-4 · §4-10, h = part_holders.part_holder). 칸 묶음에 has-hd 를 달면
+   늘 보인다(pc.css). 이름 b 말줄임 · 꼬리 span 안 줄임. 카드를 쓴 파트가 미완료면 마우스 글도 새 글("재단 3/5 · 2장 미완료 · 담당 …"),
+   그 밖 칸의 마우스 글은 지금 글 그대로(pc_view._step_cells). #}
+{% macro _hd(h) -%}
+<span class="fpc-s__m{% if h.kind == 'none' %} is-none{% elif h.kind == 'held' and h.old %} is-old{% endif %}">{% if h.name %}<b>{{ h.name }}</b>{% if h.tail %}<span>{{ h.tail }}</span>{% endif %}{% endif %}</span>
+{%- endmacro %}
+
 {# 줄 한 개 = 여섯 칸(시공일 · 상태 · 손님/품목 · 공정 넷 · 발주/담당 · 도면). 공정 칸: 마우스 글 = '재단 끝 · 김재단 · 11/20 14:05',
    아주 넓은 화면(줄 칸 1,500px 이상)은 칸 안에 '김재단 11/20' 을 글로(pc.css 컨테이너 쿼리). #}
 {% macro pc_row(r, job=False) %}
@@ -44,7 +51,7 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
   {{ pc_due_cell(r) }}
   {{ _status(r) }}
   {{ _who(r) }}
-  <span class="fpc-steps" aria-label="공정">{% for s in r.pc_steps %}<span class="fpc-s{% if s.done %} is-done{% elif s.stopped %} is-stop{% elif s.now %} is-now{% endif %}" data-tip="{{ s.tip }}" tabindex="0" aria-label="{{ s.tip }}"><span class="fpc-s__lb">{% if s.done %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{% endif %}{{ s.label }}</span><span class="fpc-s__m">{{ s.cell }}</span></span>{% endfor %}</span>
+  <span class="fpc-steps{% if r.part_holders %} has-hd{% endif %}" aria-label="공정">{% for s in r.pc_steps %}{% set h = r.part_holders[loop.index0] if r.part_holders else none %}{% set tip = (h.tip if h and h.tip else s.tip) %}<span class="fpc-s{% if s.done %} is-done{% elif s.stopped %} is-stop{% elif s.now %} is-now{% endif %}" data-tip="{{ tip }}" tabindex="0" aria-label="{{ tip }}"><span class="fpc-s__lb">{% if s.done %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{% endif %}{{ h.label if h else s.label }}</span>{% if h %}{{ _hd(h) }}{% else %}<span class="fpc-s__m">{{ s.cell }}</span>{% endif %}</span>{% endfor %}</span>
   {{ _by(r) }}
   <span class="fpc-dw">{{ r.drawing_label }}</span>
 </div>

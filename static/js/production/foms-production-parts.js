@@ -1,8 +1,10 @@
-/* 생산 파트 도면 카드 — 카드 고치기 + 쓰는 쪽. 설계서 §15.6 '확인 창'(D53 · D54) · §15.4 API, P15-5 · P15-7.
+/* 생산 파트 도면 카드 — 카드 고치기 + 쓰는 쪽. 설계서 §15.6 '확인 창'(D53 · D54) · §15.4 API, P15-5 · P15-7, 2026-11-23 §4-4 · §4-5 · §8-1.
  * 카드 · 칸 숫자 고치기(applyMark)는 window.FomsPartsCards 하나로 내보내 30초 받아 오기(foms-production-parts-sync.js)와 같이 쓴다.
- * 쓰기(맡기 · 기본 · 모두 기본 · 완료 · 되돌리기)는 확인 창(#foms-part-confirm-modal)이 있는 사람(D55)에게만 묶이고, 요청은 창의
- * 실행 단추에서만 나간다. 성공 · 409 면 그 카드와 칸 숫자만 그 자리에서 고친다(다시 읽기 없음). 일괄 기본은 화면의 안 본 장만.
- * 보기 쪽(칸 단추 · 크게 보기)은 foms-production-parts-viewer.js(window.FomsPartsBoard). 실패 글은 설계서 §8 한 가지. */
+ * 쓰기(맡기 · 기본 · 모두 기본 · 완료 · 되돌리기 · 맡기 취소 · 담당 바꾸기 · 제작 완료)는 확인 창(#foms-part-confirm-modal)이 있는 사람(D55)
+ * 에게만 묶이고, 요청은 창의 실행 단추(관리자 고르기 셋 포함)에서만 나간다. 성공이면 그 카드와 칸 숫자만 그 자리에서 고친다(다시 읽기
+ * 없음). 경합 · 거절(409 · 403)은 창 안에 서버 글 + 서버 모습(.is-lost, [닫기] 하나). 검수 마지막 장이면 같은 창이 "제작 완료할까요?".
+ * 창 글 · 창 그리기는 foms-production-parts-modal.js(FomsPartsModal), 새 카드 칸(손 체크 · 막힘 · 내 담당 한 층 · 남의 담당 칸 ·
+ * 꼬리)은 foms-production-parts-claim.js(FomsPartsClaim), 보기 쪽은 foms-production-parts-viewer.js(FomsPartsBoard). */
 (function () {
   'use strict';
 
@@ -20,16 +22,12 @@
   var VERB = cfg.verb || LABEL;
   var IS_CUT = cfg.part === 'cut';
   var MINE = cfg.mode === 'part';
-  var NAME = cfg.me || '';
   var WRITABLE = !!(modal && cfg.writable); // 읽기 전용(D55) = 배지만, 단추 없음
+  var claim = window.FomsPartsClaim || {};
+  var M = window.FomsPartsModal || {};
   var pending = null;
   function toArr(list) { return [].slice.call(list || []); }
-  function q(sel) { return modal.querySelector(sel); }
   function attr(card, name) { return card.getAttribute(name) || ''; }
-  function josa(name) {
-    var code = name.charCodeAt(name.length - 1) - 0xAC00;
-    return name + (code >= 0 && code < 11172 && code % 28 === 0 ? '가' : '이');
-  }
   function setStatus(text, bad) {
     var box = root.querySelector('[data-foms-home-status]');
     if (box) { box.textContent = text || ''; box.classList.toggle('is-bad', !!bad); }
@@ -42,33 +40,7 @@
     return node;
   }
 
-  // ── 문구(설계서 §15.6 확인 창 표 9줄) ──
-  function plan(action, card) {
-    if (action === 'take') {
-      return { title: IS_CUT ? '내가 자를까요?' : '내가 ' + VERB + '할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 필요 · ' + NAME,
-        run: '내가 ' + VERB, tone: 'need' };
-    }
-    if (action === 'basic') { return { title: '기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: '기본으로', tone: 'basic' }; }
-    if (action === 'done') {
-      return { title: LABEL + ' 끝으로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' 끝 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
-    }
-    if (card && attr(card, 'data-state') === 'basic') { return { title: '안 봄으로 되돌릴까요?', line: '기본 → 안 봄', run: '되돌리기', tone: 'unbasic' }; }
-    return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 끝 → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need' };
-  }
-  // 관리자가 남이 맡거나 끝낸 장을 누를 때 한 줄 더(D55)
-  function ownerNote(card) {
-    if (cfg.mode !== 'admin' || !card) { return ''; }
-    var st = attr(card, 'data-state');
-    var picked = attr(card, 'data-picked-name');
-    var done = attr(card, 'data-done-name');
-    if (st === 'need' && picked && attr(card, 'data-picked-me') !== '1') { return josa(picked) + ' 맡은 도면이에요'; }
-    if ((st === 'done' || st === 'basic') && done && attr(card, 'data-done-me') !== '1') {
-      return josa(done) + (st === 'basic' ? ' 기본으로 한 도면이에요' : ' 끝낸 도면이에요');
-    }
-    return '';
-  }
-
-  // ── 확인 창 ──
+  // ── 확인 창 목록 줄(카드 그림 · 이름 · 도면 n/m · 품목 · 바뀔 상태 한 줄) ──
   function listItem(card, line, tone) {
     var li = el('li', 'foms-prod-change-modal__item pp-mitem');
     var pic = el('div', 'pp-mimg');
@@ -91,42 +63,22 @@
   }
   function openModal(action, cards, opener) {
     if (!cards.length) { return; }
-    var p = action === 'bulk' ? { title: cards.length + '장을 기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME,
-      run: cards.length + '장 기본으로', tone: 'basic' } : plan(action, cards[0]);
-    pending = { action: action, cards: cards, opener: opener, busy: false, run: p.run };
-    q('[data-pp-modal-title]').textContent = p.title;
-    q('[data-pp-modal-count]').textContent = cards.length + '장';
-    var note = action === 'bulk' ? '' : ownerNote(cards[0]);
-    q('[data-pp-modal-note]').textContent = note;
-    q('[data-pp-modal-note]').hidden = !note;
-    q('[data-pp-modal-err]').hidden = true;
-    var list = q('[data-pp-modal-list]');
-    list.textContent = '';
-    cards.forEach(function (card) { list.appendChild(listItem(card, p.line, p.tone)); });
-    var run = q('[data-pp-modal-run]');
-    run.className = 'foms-prod-change-modal__btn pp-mbtn pp-mgo pp-mgo--' + p.tone;
-    run.textContent = p.run;
-    modal.classList.toggle('is-many', cards.length > 1);
-    modal.hidden = false;
-    modal.classList.add('is-open');
-    q('[data-pp-modal-close]').focus();
+    var p = action === 'bulk' ? M.bulkPlan(cards) : M.plan(action, cards[0]);
+    var note = action === 'bulk' || p.note ? (p.note || '') : M.ownerNote(cards[0]);
+    p.note = note;
+    p.body = M.firstLine(action, cards);
+    pending = { action: action === 'held' ? '' : action, cards: cards, busy: false, run: p.run, locked: false };
+    M.open(p, cards.map(function (card) { return listItem(card, p.line, p.tone); }), opener, cards[0]);
   }
   function closeModal() {
     if (!pending || pending.busy) { return; }
-    var opener = pending.opener;
     pending = null;
-    modal.classList.remove('is-open');
-    modal.hidden = true;
-    if (opener && typeof opener.focus === 'function' && document.contains(opener)) { opener.focus(); }
+    M.close();
   }
   function setBusy(busy) {
     pending.busy = busy;
-    var run = q('[data-pp-modal-run]');
-    run.disabled = busy;
-    q('[data-pp-modal-close]').disabled = busy;
-    run.textContent = busy ? '저장하는 중…' : pending.run;
+    M.busy(busy, pending.run);
   }
-  function showError(text) { var err = q('[data-pp-modal-err]'); err.textContent = text; err.hidden = false; }
 
   // ── 카드 · 칸 숫자 고치기(그 자리에서) ──
   function membership(card) {
@@ -152,12 +104,15 @@
     var bulk = pane.querySelector('[data-pp-act="bulk"]');
     if (bulk) { bulk.hidden = !left; }
   }
+  // 카드 단추 칸 — 템플릿(home_parts.html pp_act)과 같은 규칙. 새 칸(손 체크 · 막힘 · 내 담당 한 층)은 claim 이 먼저 그린다.
   function renderAct(card) {
     var box = card.querySelector('[data-pp-actbox]');
     var st = attr(card, 'data-state');
     var picked = attr(card, 'data-picked-name');
     var done = attr(card, 'data-done-name');
-    box.textContent = '';
+    toArr(box.children).forEach(function (n) { if (!n.classList.contains('pp-why')) { box.removeChild(n); } });
+    if (claim.renderTag) { claim.renderTag(card, WRITABLE); }
+    if (claim.special && claim.special(card, box, { writable: WRITABLE, mine: MINE, label: LABEL })) { return; }
     if (st === 'none') {
       if (!WRITABLE) { return; }
       var two = IS_CUT ? el('div', 'pp-two') : box;
@@ -166,8 +121,9 @@
       return;
     }
     if (st === 'need') {
-      if (MINE && attr(card, 'data-picked-me') !== '1') { box.appendChild(el('span', 'fph-wi pp-act pp-st-taken', (picked || '다른 사람') + ' 맡음')); return; }
-      box.appendChild(el('span', 'fph-wi pp-act pp-st-need' + (WRITABLE ? ' pp-not-need' : ''), '작업 필요' + (picked ? ' · ' + picked : '')));
+      if (MINE && attr(card, 'data-picked-me') !== '1') { box.appendChild(claim.held(card, (picked || '다른 사람') + ' 맡음', 'pp-st-taken')); return; }
+      var head = '작업 필요' + (picked ? ' · ' + picked : '');
+      box.appendChild(WRITABLE ? claim.held(card, head, 'pp-st-need pp-not-need') : el('span', 'fph-wi pp-act pp-st-need', head));
       if (WRITABLE) { box.appendChild(el('button', 'fph-qr__done pp-act pp-fin pp-only-need', LABEL + ' 완료', 'done')); }
       return;
     }
@@ -197,6 +153,7 @@
     card.setAttribute('data-done-name', mark.done_by_name || '');
     card.setAttribute('data-in-need', inNeed ? '1' : '0');
     card.setAttribute('data-in-done', finished && (doneMe || !MINE) ? '1' : '0');
+    if (claim.setMarkAttrs) { claim.setMarkAttrs(card, mark); }
     card.classList.toggle('is-mine', inNeed);
     card.classList.toggle('is-done', finished);
     card.classList.toggle('is-other', st === 'need' && !inNeed);
@@ -207,7 +164,7 @@
   }
   function findCard(orderId, key) {
     return toArr(root.querySelectorAll('[data-pp-card]')).filter(function (c) {
-      return attr(c, 'data-order-id') === String(orderId) && attr(c, 'data-key') === key;
+      return attr(c, 'data-order-id') === String(orderId) && (key == null || attr(c, 'data-key') === key);
     });
   }
 
@@ -217,7 +174,7 @@
     var offline = { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE };
     var call = window.fomsMutationFetch || function (u, o) {
       return fetch(u, o).then(function (res) {
-        return res.json().then(function (d) { return { ok: res.ok, status: res.status, data: d || {}, message: (d && d.error) || '' }; });
+        return res.json().then(function (d) { return { ok: res.ok, status: res.status, data: d || {}, message: (d && (d.error || d.message)) || '' }; });
       });
     };
     try { return call(url, opts).catch(function () { return offline; }); } catch (e) { return Promise.resolve(offline); }
@@ -229,8 +186,11 @@
       }) } };
     }
     var card = p.cards[0];
-    return { url: '/api/production/part-marks', body: { order_id: Number(attr(card, 'data-order-id')), drawing_key: attr(card, 'data-key'),
-      part: cfg.part, action: p.action, seen: attr(card, 'data-state') } };
+    if (p.action === 'complete') { return { url: '/api/orders/' + encodeURIComponent(attr(card, 'data-order-id')) + '/production/complete', body: {} }; }
+    var body = { order_id: Number(attr(card, 'data-order-id')), drawing_key: attr(card, 'data-key'), part: cfg.part, action: p.action,
+      seen: attr(card, 'data-state') };
+    if (body.seen === 'need') { body.seen_by = attr(card, 'data-picked-id') ? Number(attr(card, 'data-picked-id')) : null; } // 본 담당까지 견준다(§4-5)
+    return { url: '/api/production/part-marks', body: body };
   }
   function bulkDone(data) {
     var changed = 0;
@@ -245,53 +205,70 @@
     if (skipped.length > 1) { text += ' · ' + skipped.length + '장은 그사이 다른 사람이 바꿨어요'; }
     return { text: text, bad: skipped.length > 0 };
   }
+  function started(data) { // 첫 카드 = 제작 시작(§4-8) — 그 집 카드의 첫 카드 표지를 뗀다
+    var ids = Array.isArray(data.run_started) ? data.run_started : (data.run_started && data.mark ? [data.mark.order_id] : []);
+    ids.forEach(function (id) { findCard(id).forEach(function (c) { c.removeAttribute('data-pp-first'); }); });
+    return ids.length ? ' · 제작 시작도 같이 됐어요' : '';
+  }
   function handle(p, result) {
     var body = result.data || {};
     var data = body.data || {};
     if (result.ok && body.success === true) {
-      var done = p.action === 'bulk' ? bulkDone(data) : { text: '저장했어요', bad: false };
-      if (p.action !== 'bulk') { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
+      var done = p.action === 'bulk' ? bulkDone(data) : { text: p.action === 'complete' ? '제작 완료했어요 — 시공 대기로 넘어갔어요' : '저장했어요', bad: false };
+      if (p.action !== 'bulk' && p.action !== 'complete') { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
+      done.text += p.action === 'complete' ? '' : started(data);
       setBusy(false);
+      if (data.order_ready && p.action === 'done') { // 검수 마지막 장 → 같은 창에서 "제작 완료할까요?"
+        p.action = 'complete';
+        p.run = '제작 완료';
+        M.complete(p.cards[0], findCard(attr(p.cards[0], 'data-order-id')).length || attr(p.cards[0], 'data-of'), p);
+        setStatus(done.text, false);
+        return;
+      }
       closeModal();
       setStatus(done.text, done.bad);
       return;
     }
     setBusy(false);
-    if (result.status === 0 || result.kind === 'network' || result.kind === 'timeout') { showError(OFFLINE); return; }
-    if (result.status === 409) {
-      if (data.code === 'MARK_CONFLICT' && data.mark && p.action !== 'bulk') { applyMark(p.cards[0], data.mark); }
-      closeModal();
-      setStatus(body.error || result.message, true);
+    if (result.status === 0 || result.kind === 'network' || result.kind === 'timeout') { M.error(OFFLINE); return; }
+    var text = body.error || body.message || result.message || OFFLINE;
+    if (result.status === 409 || result.status === 403) {
+      if (data.mark && p.action !== 'bulk' && p.action !== 'complete') { applyMark(p.cards[0], data.mark); }
+      M.lost(text, M.nowLine(data.mark));
       return;
     }
-    showError(body.error || result.message || OFFLINE);
+    M.error(text);
   }
   function send() {
-    if (!pending || pending.busy) { return; }
+    if (!pending || pending.busy || pending.locked || !pending.action) { return; }
     var p = pending;
     var req = requestFor(p);
     setBusy(true);
     post(req.url, req.body).then(function (result) { handle(p, result || {}); });
   }
 
-  // 받아 오기가 쓴다: 고치기 · 카드 찾기 · 이 카드가 내 확인 창에 있거나 저장 중인지(그러면 건너뛴다)
-  window.FomsPartsCards = { apply: applyMark, find: findCard, held: function (card) { return !!pending && pending.cards.indexOf(card) >= 0; } };
+  // 받아 오기가 쓴다: 고치기 · 카드 찾기 · 이 카드가 내 확인 창에 있거나 저장 중 · 말풍선이 열린 카드인지(그러면 건너뛴다) · 다시 그리기
+  window.FomsPartsCards = { apply: applyMark, find: findCard, held: function (card) {
+    return (!!pending && pending.cards.indexOf(card) >= 0) || !!(claim.busy && claim.busy(card));
+  }, render: renderAct };
   if (!modal) { return; } // 읽기 전용 — 누름 · 쓰기를 묶지 않는다
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== 'function') { return; }
     if (t === modal) { closeModal(); return; }
     if (t.closest('[data-pp-modal-close]')) { closeModal(); return; }
+    var choice = t.closest('[data-pp-choice]'); // 관리자 고르기 셋 — 누른 것이 곧 실행(같은 실행 길)
+    if (choice && pending && !pending.busy) { pending.action = choice.getAttribute('data-pp-choice'); pending.run = choice.textContent; }
     if (t.closest('[data-pp-modal-run]')) { send(); return; }
     var btn = t.closest('[data-pp-act]');
-    if (!btn) { return; }
+    if (!btn || modal.contains(btn)) { return; }
     var action = btn.getAttribute('data-pp-act');
     var pane = board.paneOf(btn);
     if (action === 'bulk') {
-      openModal('bulk', board.cardsOf(pane).filter(function (c) { return attr(c, 'data-state') === 'none'; }), btn);
+      openModal('bulk', board.cardsOf(pane).filter(function (c) { return attr(c, 'data-state') === 'none' && !c.querySelector('[data-pp-why]'); }), btn);
       return;
     }
-    openModal(action, [btn.closest('[data-pp-card]')], btn);
+    openModal(action === 'held' && MINE ? 'takeover' : action, [btn.closest('[data-pp-card]')], btn);
   });
   window.FomsPartsCards.onEscape = function () { if (pending && !modal.hidden) { closeModal(); } }; // Esc 는 viewer 의 문서 리스너 한 번이 부른다
 })();

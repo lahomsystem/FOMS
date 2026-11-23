@@ -5,7 +5,8 @@
  * 내 확인 창에 있거나 저장 중인 카드는 건너뛴다(그 판은 since 를 옮기지 않아 다음 번에 다시 받는다).
  * 읽기 전용 직원도 싣는다(보기만 — 이 파일엔 쓰기 요청이 없다). 셸 조각 교체로 다시 실행된다(11-14): 화면마다 한 번
  * (window.__FOMS_PROD_PARTS_BOUND.sync = 지금 화면), 30초 타이머는 문서에 한 번(.syncTimer) 달고 지금 화면의 받기(.syncTick)를 부른다.
- * 화면이 문서에서 빠지면(다른 탭으로 셸 이동) 받지 않는다. 날을 받아 끼운 장의 카드도 화면 안이라 같이 받는다. */
+ * 화면이 문서에서 빠지면(다른 탭으로 셸 이동) 받지 않는다. 날을 받아 끼운 장의 카드도 화면 안이라 같이 받는다.
+ * 2026-11-23: 받은 줄의 맡은 때 · 바뀐 기록 칸도 카드에 싣는다(고치기가 그린다). 까닭 말풍선이 열린 카드도 건너뛴다(held). */
 (function () {
   'use strict';
 
@@ -98,6 +99,7 @@
         if (cards.held(card)) { complete = false; return; }
         if (mark.part !== cfg.part) {
           if (setOther(card, mark)) {
+            if (window.FomsPartsClaim) { window.FomsPartsClaim.recheck(card); } // 검수 판: 앞 파트가 다 완료되면 저절로 열림(§4-6)
             document.dispatchEvent(new CustomEvent('foms:part-card-updated', { detail: { key: mark.drawing_key } }));
           }
           return;

@@ -6,10 +6,10 @@
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261123s">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261123u">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% if pc_view %}
 {# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261123s">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261123u">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -86,7 +86,10 @@
            바닥 단추 줄을 고정해(53d1c5bb6) 굴러가는 칸이 작아졌고, 공정 칸을 켜야 [제작 완료]가 풀리므로(8639452ba)
            공정 4칸 줄이 처음 화면에 있어야 한다. 마크업 순서 = 읽기 · 키보드 순서(CSS order 로 바꾸지 않는다).
            보류 · 재제작 · 제작 시작 막힘 사유는 바뀐 것 다음, 특이사항은 만들 것 다음. 옆 시트(tablet_sheet.html)는 그대로. #}
-        <section class="foms-prod-page__box" aria-label="공정">
+        {# 파트 카드 3판(설계서 2026-11-23 §8-3): 카드를 쓴 파트의 칸 옆 글 "카드 3/5 · 2장 미완료" · "카드로 완료 · 김재단 11/24 15:02"(그 밖 칸은
+           지금 글), 칸 아래 서버 거절 글(.fpp-stepmsg), [바뀐 기록 보기](카드를 쓴 주문만), 반장 손 체크 확인 창 자료(data-foms-sheet-parts —
+           쓰기 단추가 있을 때만). 글 · 창은 foms-production-sheet-parts.js. #}
+        <section class="foms-prod-page__box" aria-label="공정"{% if can_act %} data-foms-sheet-parts="{{ {'sheets': order.final_sheet_count, 'parts': order.part_progress, 'keys': order.current_keys} | tojson | forceescape }}"{% endif %}>
           <h2 class="foms-prod-page__h">공정 <small data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</small></h2>
           <div class="foms-prod-page__steps">
             {% for s in order.steps %}
@@ -94,11 +97,14 @@
                     data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
               <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
               <span>{{ s.label }}</span>
-              <small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>
+              {% set _note = order.step_notes[s.key] if order.step_notes and s.key in order.step_notes else none %}{% if _note %}<small class="fpp-note {{ _note.cls }}" data-foms-sheet-step-meta data-foms-sheet-cardnote>{{ _note.text }}</small>{% else %}<small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>{% endif %}
             {% if can_act %}</button>{% else %}</div>{% endif %}
             {% endfor %}
           </div>
           {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
+          {% if can_act %}<p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>{% endif %}
+          {% if order.uses_cards %}<button type="button" class="fpp-loglink" data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>
+          <ul class="fpp-log" id="foms-sheet-log" data-foms-sheet-log aria-live="polite" hidden></ul>{% endif %}
           <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
         </section>
 
@@ -188,7 +194,7 @@
                2026-11-22: 진짜 disabled 를 빼고 aria-disabled 만 — 눌러도 아무 일이 없던 것을, 누르면 남은 공정을 글로 알린다
                (요청 없음, foms-production-sheet-page.js). 공정 칸 잠금(파트 계정)도 같다. #}
             {% set _inspected = order.complete_ready %}
-            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} aria-disabled="true"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} aria-disabled="true"{% endif %}{% if order.complete_why %} data-foms-sheet-complete-why="{{ order.complete_why }}"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>
           {% elif order.stage == '제작완료' %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
@@ -205,13 +211,14 @@
   </section>
   {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
   {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>{% endif %}
-  {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}
+  {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}{% include 'production/partials/sheet_step_confirm.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261121a" defer></script>{% endif %}{% if write_omitted %}{# 쿠키 없는 첫 요청이라 단추 줄을 뺐다 — 터치 기기면 다시 받는다 #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261122t" defer></script>{% if edit_toggle %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261123u" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer></script>{% if edit_toggle %}
 <script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}
 {% endblock %}

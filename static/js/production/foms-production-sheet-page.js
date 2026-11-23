@@ -7,7 +7,8 @@
  * 전체 화면 시트만(11-21, 시안 안 2): 공정 '지금 여기' 글 · 저장 · 연결 한 줄.
  * 두 시트 모두(11-21): 검수까지 끝나야 파란 [제작 완료] — 서버 제작 완료 API 와 같은 규칙(공정 API 응답 complete_ready).
  * 2026-11-22: 회색 [제작 완료] · 잠긴 공정 칸(파트 계정)은 진짜 disabled 가 아니라 aria-disabled — 누르면 요청 없이 까닭을 상태 줄에
- * 알린다(남은 공정 이름 · 잠금 글). 예전에는 눌러도 아무 일이 없어 '단추가 안 먹는다'고 여러 번 눌렀다. */
+ * 알린다(남은 공정 이름 · 잠금 글). 예전에는 눌러도 아무 일이 없어 '단추가 안 먹는다'고 여러 번 눌렀다.
+ * 2026-11-23: 파트 카드 3판 칸(손 체크 확인 창 · 카드 막힘 글 · 회색 단추 까닭 · 바뀐 기록)은 foms-production-sheet-parts.js 가 있을 때만. */
 (function () {
   'use strict';
 
@@ -163,7 +164,7 @@
         btn.classList.toggle('is-now', isNow);
         btn.setAttribute('aria-pressed', done ? 'true' : 'false');
         var meta = btn.querySelector('[data-foms-sheet-step-meta]');
-        if (meta) {
+        if (meta && !meta.hasAttribute('data-foms-sheet-cardnote')) { // 카드 쓴 파트의 칸 옆 글은 서버 글 그대로(2026-11-23 §8-3)
           meta.textContent = done ? [(s.by_name || '').trim(), fmtAt(s.at)].filter(Boolean).join(' · ') : (isNow ? nowText : '');
         }
       });
@@ -179,14 +180,18 @@
       }
       var key = btn.getAttribute('data-foms-sheet-step');
       var done = btn.getAttribute('aria-pressed') !== 'true';
+      var sp = window.FomsSheetParts; // 반장 손 체크 확인 창 · 카드 막힘 글(foms-production-sheet-parts.js, 없으면 지금 그대로)
+      if (sp && !btn.hasAttribute('data-foms-sheet-asked')) { sp.beforeToggle(page, btn, done, function () { btn.setAttribute('data-foms-sheet-asked', ''); toggleStep(btn); }); return; }
+      btn.removeAttribute('data-foms-sheet-asked');
       btn.disabled = true;
       setStatus('저장하는 중…');
       mutate('/api/orders/' + encodeURIComponent(orderId) + '/production/steps', { key: key, done: done })
         .then(function (result) {
           btn.disabled = false;
           noteResult(result);
-          if (!result.ok) { setStatus(failText(result), 'bad'); return; }
+          if (!result.ok) { setStatus(sp && sp.refused(page, result) ? '' : failText(result), 'bad'); return; }
           var payload = (result.data && result.data.data) || {};
+          if (sp) { sp.render(page, payload); }
           if (payload.steps && payload.steps.length) {
             renderSteps(payload.steps, payload.complete_ready);
           } else {
@@ -237,6 +242,8 @@
         if (completeBtn.getAttribute('aria-disabled') !== 'true') { return; }
         e.preventDefault();
         e.stopPropagation();
+        var why = window.FomsSheetParts && window.FomsSheetParts.why(page); // 카드 쓴 주문 = 서버 남은 장 수
+        if (why) { window.FomsSheetParts.showWhy(statusEl, why); return; }
         setStatus(completeBlockedText(), 'bad');
       });
     }

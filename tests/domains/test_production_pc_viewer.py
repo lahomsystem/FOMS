@@ -391,6 +391,8 @@ def test_모든_탭의_모든_줄에_시공일_칸(client, cohort) -> None:
 
 
 def test_공정_칸_누가_언제는_PC_에만(client, cohort) -> None:
+    """2026-11-23 설계서 §4-10 B8 로 바뀐 결정: 공정 칸 아래 이름(완료한 사람 · 담당 · 미정)은 태블릿 날짜 장에도 선다 — 단 태블릿은
+    이름만(시각 · 마우스 글 data-tip 없음). 누가 · **언제**(마우스 글)는 PC 에만 그대로."""
     orders = _seed()
     _login(client, "prod")
     set_cookies(client, PC)
@@ -399,12 +401,19 @@ def test_공정_칸_누가_언제는_PC_에만(client, cohort) -> None:
     row = pane.split(f'data-foms-home-dayrow="{orders["edge"].id}"', 1)[1].split('<div class="fpc-r', 1)[0]
     # 시드: 재단 김재단 2026-11-21T00:12Z = KST 11/21 09:12, 회차 시작 2026-11-20 23:40Z = KST 11/21 08:40
     assert 'data-tip="재단 끝 · 김재단 · 11/21 09:12" tabindex="0" aria-label="재단 끝 · 김재단 · 11/21 09:12"' in row
-    assert '<span class="fpc-s__m">김재단 11/21</span>' in row
-    assert 'data-tip="엣지 · 지금 여기(아직)"' in row and 'data-tip="조립 · 아직"' in row
+    # 칸 둘째 줄 = 날짜 줄 칸 아래와 같은 값(늘 보임 — 묶음에 has-hd): 완료한 사람 · 그 밖 칸 '미정'
+    assert '<span class="fpc-steps has-hd" aria-label="공정">' in row
+    assert '<span class="fpc-s__m"><b>김재단</b></span>' in row and row.count('<span class="fpc-s__m is-none"><b>미정</b></span>') == 3
+    assert 'data-tip="엣지 · 지금 여기(아직)"' in row and 'data-tip="조립 · 아직"' in row  # 카드를 안 쓴 칸의 마우스 글은 그대로
     assert 'data-tip="제작 시작 11/21 08:40"' in row
     set_cookies(client, TABLET)
     tablet = get_html(client, HOME + f"?view=day&day={key}")
-    assert "data-tip=" not in tablet and "김재단" not in tablet
+    trow = tablet.split(f'data-foms-home-dayrow="{orders["edge"].id}"', 1)[1].split("</a>", 1)[0]
+    assert "data-tip=" not in tablet and "11/21 09:12" not in tablet  # 태블릿 = 이름만, 시각 · 마우스 글 없음
+    assert '<span class="fph-dr__steps has-hd" aria-label="공정">' in trow
+    assert '<small class="fph-dr__hd is-done" aria-hidden="true"><b>김재단</b></small>' in trow
+    assert trow.count('<small class="fph-dr__hd is-none" aria-hidden="true"><b>미정</b></small>') == 3
+    assert 'title="재단 완료 · 김재단"' in trow and '<span class="visually-hidden">, 엣지 · 담당 미정</span>' in trow
 
 
 def test_늦은_줄은_띠와_까닭_한_줄(client, cohort) -> None:
@@ -486,4 +495,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261123s" in (ROOT / tpl).read_text(encoding="utf-8"), tpl
+        assert "pc.css') }}?v=20261123u" in (ROOT / tpl).read_text(encoding="utf-8"), tpl

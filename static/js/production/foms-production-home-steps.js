@@ -36,9 +36,10 @@
     if (utils && typeof utils.safeJsonParse === 'function') { return utils.safeJsonParse(text, []) || []; }
     try { return JSON.parse(text || '[]') || []; } catch (e) { return []; }
   }
+  // 카드를 쓴 파트의 [끝]은 서버가 남은 장을 세어 막는다(409 PART_USES_CARDS, 설계서 2026-11-23 §4-2) — 그 글은 서버 글 그대로
   function failText(result) {
     return !result || result.kind === 'network' || result.kind === 'timeout' || result.status === 0 ? OFFLINE_TEXT
-      : ('오류: ' + (result.message || '처리하지 못했어요'));
+      : result.status === 409 && result.message ? result.message : ('오류: ' + (result.message || '처리하지 못했어요'));
   }
   var statusBox = root.querySelector('[data-foms-home-status]');
   function setStatus(text, bad) {

@@ -119,7 +119,7 @@
     if (!card || !viewer) { return; }
     var head = paneOf(card).querySelector('.pp-head .fph-pane__h');
     var day = head && head.firstChild ? head.firstChild.textContent.trim() : '';
-    viewer.querySelector('[data-pp-v-title]').textContent = cardText(card, '.fph-dr__nm');
+    viewer.querySelector('[data-pp-v-title]').textContent = cardText(card, '.fph-dr__nm b') + ' ' + cardText(card, '.fph-dr__nm small');
     viewer.querySelector('[data-pp-v-sub]').textContent = cardText(card, '.pp-item') + (day ? ' · ' + day + ' 시공' : '');
     viewer.querySelector('[data-pp-v-page]').textContent = card.getAttribute('data-no') + ' / ' + card.getAttribute('data-of');
     var by = viewer.querySelector('[data-pp-v-by]');
@@ -165,7 +165,7 @@
     if (!gv || typeof gv.open !== 'function') { return; }
     gv.open(files.map(function (c) {
       return { key: c.getAttribute('data-key'), view_url: c.getAttribute('data-view-url'),
-        filename: cardText(c, '.fph-dr__nm') + ' ' + c.getAttribute('data-no') + '/' + c.getAttribute('data-of') };
+        filename: cardText(c, '.fph-dr__nm b') + ' ' + cardText(c, '.fph-dr__nm small') + ' ' + c.getAttribute('data-no') + '/' + c.getAttribute('data-of') };
     }), Math.max(0, files.indexOf(card)));
   }
   function proxy(btn) {
