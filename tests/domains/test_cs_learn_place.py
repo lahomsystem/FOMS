@@ -150,7 +150,8 @@ def test_stub_items_are_never_candidates_or_targets(found):
     on(**{AUTO_FIELD: True})
     placer = FakePlacer({"verdict": "contradicts", "target": STUB, "clash": {"knowledge": "합성", "staff": "합성"}})
     counts = _night([ask([handed("uc-1", reply="합성 직원 답 — 선반 받침은 두 줄")], title="합성 선반 받침", text=TEXT)], placer)
-    assert [item["key"] for item in placer.requests[0]["candidates"]] == [TARGET]  # 빈 설명 칸은 후보가 아니다
+    shown = [item["key"] for item in placer.requests[0]["candidates"]]
+    assert TARGET in shown and STUB not in shown  # 빈 설명 칸은 후보가 아니다(낱말 찾기가 다른 합성 항목도 낼 수 있다)
     assert counts["blocked"] == {"place_unknown": 1} and changes() == []  # 후보 밖을 대상으로 고른 답
     common = dict(reason="합성", proposer=Proposer.agent_named(gates.AGENT), now=naive(NOW), known="",
                   evidence=["case:1", "staff:mgr-1"])
@@ -158,7 +159,8 @@ def test_stub_items_are_never_candidates_or_targets(found):
                                seen=[]) == "target"
     pointed = FakePlacer()
     again = _night([_one(key=STUB)], pointed, now=at(12, 1))  # 두뇌가 빈 설명 칸을 짚은 다른 말 — 그 칸 없이 판정
-    assert again["new"] == 1 and [item["key"] for item in pointed.requests[0]["candidates"]] == [TARGET]
+    shown = [item["key"] for item in pointed.requests[0]["candidates"]]
+    assert again["new"] == 1 and TARGET in shown and STUB not in shown
 
 
 def test_without_a_placer_or_panel_settings_nothing_is_filed(admin):
