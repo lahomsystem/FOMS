@@ -353,7 +353,7 @@ def test_client_prewarm_has_inflight_guard_before_run() -> None:
     assert guard < body.index("inflight[key] = true;") < body.index("function run()")
     assert "delete inflight[key];" in body  # 끝나면 표식을 지운다(완료 표식은 sessionStorage)
     tpl = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
-    assert "js/shipment/shipment-dashboard.js') }}?v=20261118w" in tpl
+    assert "js/shipment/shipment-dashboard.js') }}?v=20261123a" in tpl
 
 
 # --- 자동 예열은 광폭 마우스 PC 에서만 ------------------------------------------------------------

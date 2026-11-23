@@ -439,5 +439,7 @@ def test_4차_바뀐_파일_핀은_20261123b() -> None:
     assert '@import url("foms-tablet-measurement.css?v=20261123b")' in bundle
     assert "foms-tablet-bundle.css') }}?v=20261123b" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     ship = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
-    for f in ("shipment-dashboard-columns.css", "tablet-day-sheet.css", "dashboard-table-extras.css"):
+    for f in ("shipment-dashboard-columns.css", "tablet-day-sheet.css"):
         assert f + "') }}?v=20261123b" in ship, f
+    # dashboard-table-extras.css 는 같은 날 PC 카드 모양(칸 세로 선을 인라인에서 옮김)으로 한 번 더 올랐다.
+    assert "dashboard-table-extras.css') }}?v=20261123c" in ship

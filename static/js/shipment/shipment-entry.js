@@ -25,13 +25,15 @@
     // 태블릿 가로 위 줄 [협력사 희망 N] — 같은 판을 위에서 내려오는 서랍으로 여닫기(§14.8) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-prb-drop.js?v=20261112a',
     // 태블릿 가로 하루치 출고표 시공자 칸 이름판(설계서 tablet-production-ui §14.3) — 문서 위임 싱글턴.
-    '/static/js/shipment/tablet-ship-assign.js?v=20261111a',
+    '/static/js/shipment/tablet-ship-assign.js?v=20261123a',
     // 태블릿 가로 왼쪽 '날짜별 남은 자수' 띠 여닫기(열림 기억) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-ship-capstrip.js?v=20261111a',
     // 태블릿 가로 위 줄 날짜 버튼 띠 넘기기 · 돋보기 · [더보기] 여닫기(§14.10 P14-8) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-ship-datebar.js?v=20261112c',
     // 태블릿 가로 줄 누름 세부정보 서랍 보조(시간 단추 · AS 탭 기록 불러 붙이기, §14.3 P14-4) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-ship-sheet.js?v=20261111a',
+    // PC(마우스) 표 줄 누름 세부 창(설계서 2026-11-23-pc-shipment-card-table §4.2) — 문서 위임 싱글턴. 시간 단추는 위 파일이 맡는다.
+    '/static/js/shipment/pc-ship-sheet.js?v=20261123a',
     // 출고 패킹 서랍(카드 [data-foms-packing-trigger]) — 예전엔 온전한 페이지(dashboard.html scripts 블록)만 실어
     // 다른 탭에서 셸 스왑으로 들어오면 단추가 죽었다(2026-11-18). 시공 탭 '출발 전 자재 확인'
     // (construction/partials/dashboard_body.html)과 같은 파일 · 같은 핀 — 둘 다 실려도 __FOMS_PACKING_BOUND 가 두 번째 실행을 막는다.

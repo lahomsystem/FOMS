@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-11-23] **PC 출고 표 카드 모양(deploy)** — 잔여: 스테이징 확인 · 운영
 - [2026-11-21] **한 주문 여러 시공일 1단계 운영 #885** · 2단계(제품마다 시공 끝, 스위치 켬) 운영 #887
 - [2026-11-18] **접목판 운영(#855 ~ #862)** — 새 회사 지식 화면 · AI 칸 19명, 밤 훑기(두 제안 끔). **문장으로 고치기** #865 ~ #868(관리자 넷) · 물어보기 살림 #867 · 상담 AI 따라가기 넓힘 켬 #870(D243 ~ D257). 원장 `2026-11-14-foms-graft-plan`
 - [2026-11-13] **협력사 AS 접수·수정·AS방 자동 PUSH(운영 PR #837) · AS 내역·완료 배지(운영 #838·#839·#841)** — 잔여: 첫 실사용 · AS 취소 보류(§9). SPEC `2026-11-13-partner-as-intake-edit-push`
@@ -32,7 +33,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-10-22] **Railway 사고(env 유출)·배포 정지** — 복원 리허설 OK(pgvector)·SIDEFX 백업·Redis 문 닫음. 재개 전 DB Regenerate 금지. 가드 반영·대피 초안 준비됨
 
 ## 알려진 이슈
-- 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
+- 차단 이슈 없음. 구조 부채 `WR-B1`/`WR-J1`/`WR-H1` 은 future-batch 조건만. `wdcalculator_scripts_config.html` JS lint false-positive 는 기존과 동일.
 - 채널톡 잠복 2건 수정 완료(2026-08-27): `docs/harness/channel_latent_findings.md`
 
 ## 아키텍처 요약

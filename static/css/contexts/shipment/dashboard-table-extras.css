@@ -2,6 +2,20 @@
                 border-bottom: 1px solid #e9ecef;
               }
 
+              /* 칸 세로 선 — 예전엔 칸마다 인라인 스타일이었다(2026-11-23 여기로 옮김). PC 카드 모양(pc-card-table.css)은 이 선을 지운다. */
+              #shipment-dashboard-table > thead > tr > th:not(:last-child),
+              #shipment-dashboard-table > tbody > tr.shipment-row > td:not(:last-child) {
+                border-right: 1px solid #e0e0e0;
+              }
+
+              /* PC 카드 모양 전용 마크업(틈 줄 · 번호 · 시공자 칸 단추) — PC 문지기(pc-card-table.css) 밖에서는 숨긴다. */
+              #shipment-dashboard-table .shipment-card-gap,
+              #shipment-dashboard-table .shipment-card-no,
+              #shipment-dashboard-table .shipment-th-no,
+              #shipment-dashboard-table .shipment-wk-btn {
+                display: none;
+              }
+
               .shipment-customer-done {
                 background-color: #cfe2ff;
               }

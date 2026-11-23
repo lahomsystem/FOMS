@@ -414,9 +414,9 @@ def test_chip_click_replays_landing_flash_even_on_same_hash():
 # 6. 핀 동기 — 손댄 자산의 ?v 가 저장소 전체에서 일치해야 한다
 # --------------------------------------------------------------------------- #
 def test_extras_css_pin_bumped_and_unique():
-    """dashboard-table-extras.css 는 20261123b 로 범프되고 옛 핀이 남아 있지 않다."""
+    """dashboard-table-extras.css 는 20261123c 로 범프되고 옛 핀이 남아 있지 않다(2026-11-23 PC 카드 모양 — 칸 세로 선을 인라인에서 옮김)."""
     main = _read(DASHBOARD_MAIN)
-    assert "dashboard-table-extras.css') }}?v=20261123b" in main
+    assert "dashboard-table-extras.css') }}?v=20261123c" in main
     assert "dashboard-table-extras.css') }}?v=20260805a" not in main
     # 새 규칙이 실제로 그 시트에 있어야 한다(핀만 올리고 내용이 없으면 배지가 무스타일).
     css = _read(EXTRAS_CSS)
