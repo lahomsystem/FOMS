@@ -35,6 +35,6 @@
   </div>
   {% endfor %}
   {% if changes.done_more %}
-  <p class="fph-inbox__more"><a href="{{ home_href('changes', done='all') }}">확인한 것 {{ changes.done_more }}건 더 보기</a></p>
+  <p class="fph-inbox__more"><a href="{{ home_href('changes', nav_part, done='all') }}">확인한 것 {{ changes.done_more }}건 더 보기</a></p>
   {% endif %}
 </div>

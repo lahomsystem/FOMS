@@ -1,10 +1,10 @@
 {# 생산 첫 화면 매크로 — 주소(home_href) · 시공일 표(fph_due) · 날짜 탭 줄 · 칸. home_body · home_date · home_day_pane · home_parts · home_steps · home_all · home_changes 가 같이 쓴다. #}
 {# 첫 화면 주소는 여기 한 곳에서 만든다(11-14): 탭(날짜는 생략) · 파트('도면 카드' 탭만) · 날(날짜 · 도면 카드 탭만) · 확인한 것 다 보기('바뀐 것' 탭만, 11-21)
    · 고른 줄('내 공정' 탭 오른쪽 판만, 11-21). 화면 탭 · 날 단추 · 파트 고르기 · 판 줄 · [다시 받기] 가 모두 이것을 쓰고, JS 는 링크의 href 를 그대로 쓴다(주소를 다시 짓지 않는다). #}
-{# part 는 '도면 카드' 화면과 날짜 탭에만 싣는다 — 날짜 탭은 여러 파트 계정이 고른 파트(part_board.url_part, 2026-11-23 §4-12)뿐이고
-   파트 하나인 계정 · 판 없는 사람은 None 을 넘겨 주소가 지금 그대로다. #}
+{# part 는 '도면 카드' 화면과 날짜 · 바뀐 것 · 찾기 탭에만 싣는다 — 날짜 · 바뀐 것 · 찾기는 여러 파트 계정이 고른 파트(part_board.url_part ·
+   nav_part, 2026-11-23 §4-12)뿐이고 파트 하나인 계정 · 판 없는 사람은 None 을 넘겨 주소가 지금 그대로다. #}
 {% macro home_href(tab=None, part=None, day=None, done=None, order=None) -%}
-{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab and tab != 'date' else None), part=(part if tab in (None, 'date', 'parts') else None), day=(day if tab in (None, 'date', 'parts') else None), done=(done if tab == 'changes' else None), order=(order if tab == 'steps' else None)) }}
+{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab and tab != 'date' else None), part=(part if tab in (None, 'date', 'parts', 'changes', 'all') else None), day=(day if tab in (None, 'date', 'parts') else None), done=(done if tab == 'changes' else None), order=(order if tab == 'steps' else None)) }}
 {%- endmacro %}
 {# 시공일 표 — 줄 · 칸 · 카드 · 판 어디서나 같은 꼴로 늘 보인다(사용자 11-21 "시공일 표기 필요. 아주 중요한 정보야").
    r = 첫 화면 행(또는 같은 열쇠를 가진 카드 · 받은함 장): day_label('오늘 11/21 (금)' · '내일 11/22 (토)' · '11/23 (일)' · '시공일 없음'),

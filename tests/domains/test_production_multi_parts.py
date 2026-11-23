@@ -35,7 +35,7 @@ from foms.services.production.part_constants import (
     production_part_columns,
     production_parts_label,
 )
-from models import SecurityLog, User
+from models import ProductionPartMark, SecurityLog, User
 from tests.domains.test_production_part_board import _board, _files, _mark, _order, _today
 from tests.domains.test_production_selfclaim_query_count import MEASURED, _measure
 from tests.support.production_part_claim_seed import Person, check_step, code, login, make_order, mark, row
@@ -329,6 +329,59 @@ def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
     assert 'class="pp-parts"' in pane and 'data-pp-act="take"' in pane and "박재단 맡음" not in pane
     assert "작업 필요 · 박재단" in pane and 'data-pp-act="done"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료]
     assert "<h1 class=\"foms-prod-home__title\">생산</h1>" in html
+
+
+def _old_claim(order, key: str, part: str, me: User) -> None:
+    """밤 넘긴 내 담당 한 장(맡은 때 = 이틀 전)."""
+    old = now_utc_naive() - datetime.timedelta(days=2)
+    db_session.add(ProductionPartMark(order_id=order.id, drawing_key=key, part=part, state="NEED", picked_by_user_id=me.id,
+                                      picked_by_name=me.name, picked_at=old, updated_by_user_id=me.id, updated_at=old))
+    db_session.commit()
+
+
+def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client, cohort):
+    """재단을 보는 중인데 엣지에 밤 넘긴 담당이 있어도 칩이 뜬다(칩 숫자 = 내 파트 전부). 줄마다 파트 이름 · [보기]는 그 파트 판."""
+    me = _db_user("김두파", parts=["cut", "edge"])
+    order = _order("아침집", _files("mm", 3))
+    _old_claim(order, "mm/d0.png", "edge", me)
+    _old_claim(order, "mm/d1.png", "edge", me)
+    _old_claim(order, "mm/d2.png", "cut", me)
+    _tablet(client, Person(me.id, me.username, me.role, me.name))
+    html = _get(client, HOME)
+    assert 'aria-controls="pp-mpop">어제부터 내 담당 3장 <span aria-hidden="true">›</span>' in html
+    lines = re.findall(r'<p>(시공 [^<]*?) (\d)장 <a href="([^"]*)" aria-label="([^"]*)">보기</a></p>', html)
+    day = get_today_kst()
+    assert [(t.rsplit(" ", 1)[1], n) for t, n, _h, _a in lines] == [("재단", "1"), ("엣지", "2")]
+    assert "part=cut" in lines[0][2] and "part=edge" in lines[1][2] and all(f"day={day.isoformat()}" in h for _t, _n, h, _a in lines)
+    assert lines[1][3].endswith(" 엣지 보기")
+    other = _db_user("이엣재", parts=["cut", "edge"])
+    _old_claim(order, "mm/d1.png", "cut", other)  # 엣지를 보는 중에도 재단에 밤 넘긴 담당이 있으면 칩이 뜨고 [보기]는 재단 판
+    _tablet(client, Person(other.id, other.username, other.role, other.name))
+    html = _get(client, HOME + "?part=edge")
+    assert 'aria-controls="pp-mpop">어제부터 내 담당 1장' in html
+    only = re.findall(r'<p>(시공 [^<]*?) 1장 <a href="([^"]*)"', html)
+    assert len(only) == 1 and only[0][0].endswith(" 재단") and "part=cut" in only[0][1]
+
+
+def _nav(html: str) -> dict[str, str]:
+    box = html.split('<nav class="foms-prod-home__nav" aria-label="화면">', 1)[1].split("</nav>", 1)[0]
+    return {label: href.replace("&amp;", "&") for href, label in re.findall(r'href="([^"]*)"[^>]*>(날짜|바뀐 것|찾기)', box)}
+
+
+def test_top_tabs_keep_the_chosen_part_for_two_part_accounts_only(client, cohort):
+    _order("한빛", _files("mn", 2))
+    _tablet(client, _user("김두파", parts=["cut", "edge"]))
+    nav = _nav(_get(client, HOME + "?part=edge"))
+    assert all("part=edge" in nav[k] for k in ("날짜", "바뀐 것", "찾기")), nav
+    for tab in ("all", "changes"):  # '찾기' · '바뀐 것'에 갔다가 [날짜]로 돌아와도 고른 파트
+        back = _nav(_get(client, HOME + f"?tab={tab}&part=edge"))["날짜"]
+        assert "part=edge" in back, (tab, back)
+        assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in _pane(_get(client, back))
+    assert "part=" not in _nav(_get(client, HOME + "?tab=all&part=assemble"))["날짜"]  # 내 파트 밖은 안 실음
+    for who in (_user("박재단", parts=["cut"]), _user("박반장"), _user("관리자", team="CS", role="ADMIN")):
+        _tablet(client, who)  # 대조군: 파트 하나 · 파트 없는 생산팀 · 관리자는 위 탭 주소 그대로
+        for url in (HOME + "?part=edge", HOME + "?tab=all&part=edge", HOME + "?tab=changes&part=edge"):
+            assert not any("part=" in href for href in _nav(_get(client, url)).values()), (who, url)
 
 
 # --------------------------------------------------------------------------- #

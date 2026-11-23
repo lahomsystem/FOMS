@@ -15,10 +15,10 @@
            [도면 카드로 보기]로 들어가는 날짜 탭의 다른 모습이라 날짜가 켜진다(누르면 예전 탭처럼 날짜 첫 화면으로).
            옛 보드(칸반)로 가는 [보드 →] 는 태블릿에서 뺐다 — PC(마우스)에는 탭 끝에 남긴다(home_pc_board_link.html,
            설계서 2026-11-21-production-pc-viewer §10 R0 · R2 에서 뺀다). PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
-        <a class="foms-prod-home__navtab{% if tab in ('date', 'parts') %} is-on{% endif %}" href="{{ home_href() }}"{% if tab in ('date', 'parts') %} aria-current="page"{% endif %}>날짜</a>
+        <a class="foms-prod-home__navtab{% if tab in ('date', 'parts') %} is-on{% endif %}" href="{{ home_href(None, nav_part) }}"{% if tab in ('date', 'parts') %} aria-current="page"{% endif %}>날짜</a>
         {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정 <small>{{ counts.making }}</small></a>
-{% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ home_href('changes') }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
-        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all') }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>{% if pc_view %}{% include 'production/partials/home_pc_board_link.html' %}{% endif %}
+{% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ home_href('changes', nav_part) }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
+        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>{% if pc_view %}{% include 'production/partials/home_pc_board_link.html' %}{% endif %}
       </nav>
       {# 오른쪽 묶음 — 줄이 넘치면 같이 다음 줄로 간다(단추 하나만 떨어져 한 줄이 비지 않게, 사용자 11-10 ②). 알림 종은 가로 태블릿만(11-21 ③) #}
       <div class="foms-prod-home__tools">
@@ -26,7 +26,7 @@
         {% set foms_prod_bell_ns = 'foms-prod-home' %}{% include 'production/partials/notif_bell.html' %}
         {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
         {% include 'partials/shared/foms_font_scale_control.html' %}
-        <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ home_href(tab, part_board.url_part if part_board else None, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
+        <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ home_href(tab, part_board.url_part if part_board else nav_part, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
       </div>
     </header>{% if edit_on %}{% include 'production/partials/home_pc_band.html' %}{% endif %}
     <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 <span data-foms-home-sync-at></span> 에 받은 것이에요.</p>
