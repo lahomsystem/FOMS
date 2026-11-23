@@ -72,6 +72,18 @@ def test_outside_is_right_box_starts_with_the_outside_text_and_keeps_the_rest_of
 
 
 @NODE
+def test_outside_draft_does_not_repeat_sentences_the_outside_text_already_has():
+    """바깥 글이 지금 글의 문장 일부를 이미 담고 있으면(어긋난 문장만 바꿔 쓴 꼴) 그 문장을 두 번 넣지 않는다 — 11-23 운영에서
+    한 항목에 같은 두 문장이 앞뒤로 두 번 들어갔다. 어긋난 구절을 찾았으면 mixed 는 거짓이다."""
+    now = "합성 깊이를 너무 줄이면 흔들립니다. 합성 깊이를 줄여도 값은 같습니다. 합성 시공은 세워서 합니다."
+    card = "\n".join(["어긋남 — 회사 지식 「줄여도 값은 같습니다」 ↔ 직원 「소폭 추가」", "승인된 규칙과 다름",
+                      "합성 깊이를 크게 줄이면 소폭 추가됩니다. 합성 깊이를 너무 줄이면 흔들립니다. 합성 시공은 세워서 합니다."])
+    got = _node("v.outsideDraft(data[0], data[1])", [card, now])
+    assert got == {"text": "합성 깊이를 크게 줄이면 소폭 추가됩니다. 합성 깊이를 너무 줄이면 흔들립니다. 합성 시공은 세워서 합니다.",
+                   "mixed": False}
+
+
+@NODE
 def test_strip_totals_add_up_like_the_board():
     """판 ⑥ 의 숫자 — ② 4 · ③ 1 · ⑥ 2 + AI 할 일 제안 7 = 오늘 결정할 것 14 · 어림 6분(줄 어림 2 + 1 + 1, AI 2)."""
     cards = _cards(content=4, decide=1, rules=2)
