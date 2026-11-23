@@ -179,7 +179,7 @@ def test_step_cell_gate_card_part_with_sheets_left_refuses_with_exact_message():
 def test_step_cell_gate_card_part_all_done_refuses_turning_off_only():
     gate = step_cell_gate(_sd(on=("cut",)), _all("cut"), "cut", False)
     assert gate.code == "STEP_SET_BY_CARDS"
-    assert gate.message == "도면 카드로 완료한 칸이에요. 취소하려면 그 파트 카드에서 [완료 취소]를 눌러요."
+    assert gate.message == "도면을 모두 완료해서 체크된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
     assert step_cell_gate(_sd(), _all("cut"), "cut", True) is None  # 미완료 0장 = 지금처럼 켜짐
 
 

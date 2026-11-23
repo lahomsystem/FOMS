@@ -53,7 +53,7 @@ HOLD_MESSAGE = "보류된 주문이라 지금은 못 눌러요. 보류가 풀리
 REVISING_MESSAGE = "도면을 고치는 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
 #: 카드를 쓴 파트의 공정 칸 체크(승인 때 고친 것 2 — 글자 그대로, 숫자 = 남은 장).
 PART_USES_CARDS_MESSAGE = "도면 {left}장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 체크돼요."
-STEP_SET_BY_CARDS_MESSAGE = "도면 카드로 완료한 칸이에요. 취소하려면 그 파트 카드에서 [완료 취소]를 눌러요."
+STEP_SET_BY_CARDS_MESSAGE = "도면을 모두 완료해서 체크된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
 
 #: 보류 · 도면 고치는 중에도 되는 누름(§4-6 '되는 것' — 맡기 취소 · 완료 취소).
 ALLOWED_WHILE_BLOCKED: tuple[str, ...] = (ACTION_RELEASE, ACTION_UNDO)
