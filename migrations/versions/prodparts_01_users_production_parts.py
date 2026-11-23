@@ -14,9 +14,14 @@ upgrade(코드보다 먼저 도는 predeploy — 옛 코드는 이 칸을 모르
   2. 채우기 — 옛 칸 ``production_part`` 가 있는 행만 ``[옛 값]``(이미 채운 행은 건드리지 않는다 — 다시 돌려도 같다).
   3. CHECK ``ck_users_production_parts``(PG 전용) — NULL 이거나 네 key 만 든 배열. users 는 작은 표라 한 번에 검사한다.
 
-downgrade(되돌리기 §15 — 옛 칸 지우기 ``prodparts_02`` 전까지만): CHECK 를 지우고, 새 칸이 있는 행은 옛 칸을 새 칸 첫 값으로
-맞춘 뒤 새 칸을 지운다. 두 번째 이후 파트는 사라진다(옛 코드는 파트 하나만 안다). 커밋 되돌리기만 해도 옛 코드는 옛 칸
-(= 새 코드가 늘 같이 쓴 첫 파트)을 읽으므로 downgrade 는 골라서 해도 된다.
+downgrade(되돌리기 §15 — 옛 칸 지우기 ``prodparts_02`` 전까지만): CHECK 를 지우고 새 칸을 지운다. **downgrade 는 옛 칸을
+건드리지 않는다 — 두 칸이 어긋나면 옛 칸이 맞다.** 새 코드는 두 칸을 늘 같이 쓰므로(옛 칸 = 첫 파트) 같은 행에서는 옛 칸이 이미
+첫 파트이고, 어긋난 행은 코드만 되돌린 동안 옛 화면이 옛 칸을 나중에 고친 행이라 옛 칸이 나중 값이다(읽는 쪽 규칙
+``part_constants.stored_production_parts`` 와 같은 뜻). 두 번째 이후 파트는 사라진다(옛 코드는 파트 하나만 안다). 커밋 되돌리기만
+해도 옛 코드는 옛 칸을 읽으므로 downgrade 는 골라서 해도 된다.
+
+코드만 되돌린 동안 옛 화면에서 둘째 이후 파트를 뺀 것은 새 칸에 남지 않는다(읽는 쪽은 첫 파트가 바뀐 것만 알아챈다 —
+``part_constants.stored_production_parts``). 다시 배포한 뒤 그런 계정은 관리자 사용자 화면에서 한 번 더 저장한다(설계서 §15).
 
 옛 칸 ``production_part`` 는 이 판에서 지우지 않는다 — 한 판 동안 새 코드가 둘을 같이 쓴다(관리자 저장 = 새 칸 + 옛 칸 = 첫 파트).
 운영 1주 뒤 ``prodparts_02_drop_production_part`` 가 옛 칸을 지운다(이번 판 아님).
@@ -47,16 +52,12 @@ CHECK_SQL = (
 # models.JSONColumn 과 같은 꼴을 리터럴로(모델 import 금지 — 상수 동결).
 JSON_TYPE = sa.JSON().with_variant(postgresql.JSONB(), 'postgresql')
 
-# 채우기 · 되돌리기 글 — 방언마다 JSON 함수 이름만 다르다(PG = jsonb, SQLite = json1).
+# 채우기 글 — 방언마다 JSON 함수 이름만 다르다(PG = jsonb, SQLite = json1).
 _FILL_SQL = {
     'postgresql': ("UPDATE users SET production_parts = jsonb_build_array(production_part) "
                    "WHERE production_part IS NOT NULL AND production_parts IS NULL"),
     'sqlite': ("UPDATE users SET production_parts = json_array(production_part) "
                "WHERE production_part IS NOT NULL AND production_parts IS NULL"),
-}
-_RESTORE_SQL = {
-    'postgresql': "UPDATE users SET production_part = production_parts ->> 0 WHERE production_parts IS NOT NULL",
-    'sqlite': "UPDATE users SET production_part = json_extract(production_parts, '$[0]') WHERE production_parts IS NOT NULL",
 }
 
 
@@ -75,9 +76,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """(PG) CHECK 지움 → 옛 칸을 새 칸 첫 값으로 → 새 칸 지움."""
-    dialect = _dialect()
-    if dialect == 'postgresql':
+    """(PG) CHECK 지움 → 새 칸 지움. 옛 칸은 그대로 둔다(어긋나면 옛 칸이 나중 값 — 머리 설명)."""
+    if _dialect() == 'postgresql':
         op.drop_constraint(CHECK_NAME, TABLE, type_='check')
-    op.execute(sa.text(_RESTORE_SQL[dialect]))
     op.drop_column(TABLE, COLUMN)

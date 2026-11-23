@@ -1,8 +1,9 @@
 """PostgreSQL — 계정 파트 목록 ``users.production_parts``(설계서 2026-11-23 §6-1 · §15, 마이그레이션 ``prodparts_01``).
 
 * CHECK ``ck_users_production_parts``(PG 전용) — NULL · 네 key 만 든 배열은 받고, 모르는 key · 배열 아닌 값은 막는다.
-* 마이그레이션 한 칸 왕복(새 부트스트랩 DB = create_all + stamp head): downgrade 가 옛 칸을 새 칸 첫 값으로 살리고 칸 · CHECK 를
-  지운다 → upgrade 가 옛 칸만 있는 행을 ``[옛 값]`` 으로 채우고 CHECK 를 다시 단다. SQLite 레인은 jsonb 함수 · CHECK 를 못 본다.
+* 마이그레이션 한 칸 왕복(새 부트스트랩 DB = create_all + stamp head): downgrade 가 칸 · CHECK 만 지우고 옛 칸은 그대로 둔다
+  (어긋난 행의 옛 칸 = 나중 값) → upgrade 가 옛 칸만 있는 행을 ``[옛 값]`` 으로 채우고 CHECK 를 다시 단다. SQLite 레인은 jsonb 함수 ·
+  CHECK 를 못 본다.
 
 ``FOMS_TEST_DATABASE_URL`` 미설정이면 레인을 건너뛴다(conftest). 이름은 모두 지어낸 값이다.
 """
@@ -39,7 +40,7 @@ def test_check_rejects_unknown_parts_and_non_arrays(pg_session, parts):
         _insert(pg_session, "bad", parts)
 
 
-def test_prodparts_01_downgrade_then_upgrade_keeps_first_part_and_refills(
+def test_prodparts_01_downgrade_keeps_old_column_then_upgrade_refills(
     migration_chain_url: URL, monkeypatch: pytest.MonkeyPatch  # noqa: F811
 ) -> None:
     import app  # noqa: F401  (모든 모델 모듈을 Base.metadata 에 등록)
@@ -56,7 +57,9 @@ def test_prodparts_01_downgrade_then_upgrade_keeps_first_part_and_refills(
                 "INSERT INTO users (username, password, name, role, team, is_active, approval_status, "
                 "password_policy_version, session_version, production_parts, production_part) VALUES "
                 "('ppg_two', 'x', '김두파', 'STAFF', 'PRODUCTION', true, 'ACTIVE', 0, 0, '[\"edge\", \"inspect\"]', 'edge'),"
-                "('ppg_none', 'x', '박반장', 'STAFF', 'PRODUCTION', true, 'ACTIVE', 0, 0, NULL, NULL)"))
+                "('ppg_none', 'x', '박반장', 'STAFF', 'PRODUCTION', true, 'ACTIVE', 0, 0, NULL, NULL),"
+                # 어긋난 행 — 코드만 되돌린 동안 옛 화면이 옛 칸을 고쳤다(옛 칸이 나중 값)
+                "('ppg_mis', 'x', '오어긋', 'STAFF', 'PRODUCTION', true, 'ACTIVE', 0, 0, '[\"cut\", \"edge\"]', 'assemble')"))
 
         command.downgrade(config, "prodpart_01_handover")
         with engine.connect() as conn:
@@ -64,7 +67,7 @@ def test_prodparts_01_downgrade_then_upgrade_keeps_first_part_and_refills(
                 "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"))}
             assert "production_parts" not in cols and "production_part" in cols
             got = dict(conn.execute(text("SELECT username, production_part FROM users WHERE username LIKE 'ppg_%'")).all())
-            assert got == {"ppg_two": "edge", "ppg_none": None}
+            assert got == {"ppg_two": "edge", "ppg_none": None, "ppg_mis": "assemble"}  # 옛 칸은 downgrade 뒤에도 그대로
         with engine.begin() as conn:  # 옛 코드가 그사이 만든 행(옛 칸만)
             conn.execute(text(
                 "INSERT INTO users (username, password, name, role, team, is_active, approval_status, "
@@ -75,7 +78,7 @@ def test_prodparts_01_downgrade_then_upgrade_keeps_first_part_and_refills(
         with engine.connect() as conn:
             got = dict(conn.execute(text(
                 "SELECT username, production_parts FROM users WHERE username LIKE 'ppg_%'")).all())
-            assert got == {"ppg_two": ["edge"], "ppg_none": None, "ppg_old": ["assemble"]}
+            assert got == {"ppg_two": ["edge"], "ppg_none": None, "ppg_old": ["assemble"], "ppg_mis": ["assemble"]}
             kinds = dict(conn.execute(text(
                 "SELECT conname, contype FROM pg_constraint WHERE conname = 'ck_users_production_parts'")).all())
             assert kinds == {"ck_users_production_parts": "c"}
