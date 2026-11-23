@@ -235,7 +235,7 @@ def erp_production_home():
         attach_pc_inbox(changes, rows)
     if tab == 'all':
         production_home_attach_change_by(db, rows)
-    queues = production_home_step_queues(rows) if tab == 'steps' else None
+    queues = production_home_step_queues(rows, today) if tab == 'steps' else None
     # 셸 조각(레일 · 아래 메뉴에서 온 view=fragment): 몸통 + 이 화면 CSS · 스크립트(다른 탭 조각과 같은 꼴, 11-14).
     template_name = ('production/partials/home_fragment.html' if wants_erp_shell_tab_body(request)
                      else 'production/home.html')

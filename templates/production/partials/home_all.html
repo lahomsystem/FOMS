@@ -1,6 +1,8 @@
 {# 탭 "전체 주문"(안 1) — 시공일 순 한 줄, 날짜 묶음 접기/펴기. home.html 이 include.
-   줄마다 이름 옆 시공일 표(fph_due, 11-21) — 묶음 머리줄이 화면 밖으로 굴러가도, '지난 시공일' 묶음 안에서도 날이 보인다. #}
-{% from 'production/partials/home_date_macros.html' import fph_due %}
+   줄마다 이름 옆 시공일 표(fph_due, 11-21) — 묶음 머리줄이 화면 밖으로 굴러가도, '지난 시공일' 묶음 안에서도 날이 보인다.
+   7판(설계서 2026-11-22-production-drawing-arrival-upgrade §5-6): 묶음 머리 = 날짜 · 건수 · 바뀜 뒤에 도면 한 줄(g.arrival — 띠와 같은 글 · 색),
+   묶음 안 순서 = 기다림 → 생산 → 제작 완료, 기다림 줄 셋째 줄 = 주소 대신 막힌 까닭 · 담당(주소 찾기는 data-q 에 그대로). #}
+{% from 'production/partials/home_date_macros.html' import fph_due, fph_why %}
 {% set _open_n = groups | selectattr('is_open') | list | length %}
 <div class="foms-prod-home__filters">
   <div class="foms-prod-home__tabs" role="group" aria-label="보기">
@@ -27,6 +29,7 @@
       <b>{{ g.label }}</b>{% if g.sub %}<small>{{ g.sub }}</small>{% endif %}
       <span class="foms-prod-home__gcount" data-foms-home-grp-count>{{ g.count }}건</span>
       {% if g.changed %}<span class="foms-prod-home__gchg">바뀜 {{ g.changed }}</span>{% endif %}
+      {% if g.arrival %}<span class="fph-dwst is-{{ g.arrival.state }}">{{ g.arrival.strip }}</span>{% endif %}
       <svg class="foms-prod-home__gchev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <div class="foms-prod-home__rows" id="foms-prod-home-rows-{{ loop.index }}">
@@ -41,6 +44,8 @@
         <span class="foms-prod-home__pr"><b>{{ r.v3_product_label or '품목 없음' }}</b>{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
         {% if r.has_changes %}
         <span class="foms-prod-home__chg">{{ r.change_line }}</span>
+        {% elif r.home_view == 'wait' and r.dw_blocker %}
+        <span class="foms-prod-home__pr is-why">{{ fph_why(r) }}</span>
         {% else %}
         <span class="foms-prod-home__pr">{{ r.address }}</span>
         {% endif %}

@@ -76,6 +76,25 @@ def test_nav_badge_cache_ttl_constant():
     assert NAV_BADGE_CACHE_TTL_SEC == 30
 
 
+def test_fresh_db_starts_without_previous_tests_badges(request):
+    """app 고정물이 DB 를 비우면 사용자 id 열쇠 배지 캐시(아래 탭 · 알림 종)도 비운다.
+
+    안 비우면 앞 테스트의 같은 id 배지(30초)가 다음 테스트 화면에 실리고, 수명이 도중에 끝나면 같은 화면 두 번이
+    다르다(접목판 '스위치 끔 = 지금과 같다' 시험이 아래 탭 '미처리 1건' 하나 차이로 깨짐).
+    """
+    import time
+
+    from foms.api import notifications
+    from foms.services import dashboard_counts
+
+    with dashboard_counts._cache_lock:
+        dashboard_counts._cache[(1, False)] = dashboard_counts._CacheEntry(
+            expires_at=time.monotonic() + 30, counts={"dashboard": 7})
+    notifications._badge_cache[1] = (7, time.time() + 30)
+    request.getfixturevalue("app")
+    assert dashboard_counts._cache == {} and notifications._badge_cache == {}
+
+
 def test_compute_nav_badge_counts_empty_user():
     from foms.services.dashboard_counts import compute_nav_badge_counts, NAV_STATUS_BUCKETS
 

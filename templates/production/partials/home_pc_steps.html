@@ -8,7 +8,7 @@
   <button type="button" class="fph-steptab{% if q.key == _on %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if q.key == _on else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
   {% endfor %}
 </div>
-<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건{% if can_act %} — 시작과 제작 완료는 작업 시트에서 눌러요.{% endif %}</p>
+<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 도면 마감 지난 집 <b>{{ queues.deadline_missed }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건{% if can_act %} — 시작과 제작 완료는 작업 시트에서 눌러요.{% endif %}</p>
 {% for q in queues.queues %}
 <div class="fph-q fpc-qs" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if q.key != _on %} hidden{% endif %}>
   <h3 class="fph-pane__g">{{ q.label }}에 와 있는 것 {{ q.count }}건 <small>시공일 빠른 순</small></h3>

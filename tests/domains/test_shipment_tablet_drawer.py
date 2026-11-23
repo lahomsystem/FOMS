@@ -234,4 +234,4 @@ def test_as_log_font_floor_scoped_to_drawer() -> None:
     block = css[css.index(".foms-ship-sheet .foms-ship-sheet__aslog .as-rchart * {"):]
     assert "font-size: calc(13px * var(--foms-fs, 1));" in block[:120]
     bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
-    assert 'foms-tablet-landscape.css?v=20261122t' in bundle
+    assert 'foms-tablet-landscape.css?v=20261123a' in bundle

@@ -485,3 +485,37 @@ body.col-resizing-active {
      PC 테이블은 코호트에서 래퍼째 은닉되며, 태블릿 묶음 · 밀도는 tablet-day-sheet.css 소유.
      PC 그룹 행 마크업은 잔존하나 base-hide(파일 상단)로 상시 은닉된다. */
 }
+
+/* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) ---
+   출고 위 줄 [돋보기] · [AS 넣기] · [더보기 ▾], 펼친 검색칸 · [조회], [더보기] 안 날짜 칸 · [열기] 가 화면 크기 80% 에서 보이는 35px,
+   더보기 줄(48px)은 38px 였다. '44px ÷ 배율'로 80 · 90 · 100% 모두 보이는 44px 이상(100% 에선 지금 크기 그대로). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn,
+  body.erp-mobile-v2-layout .foms-ship-more__go {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__icon {
+    min-width: max(44px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__go {
+    min-width: max(52px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__item {
+    min-height: max(48px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-date,
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-q {
+    height: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-go {
+    width: calc(44px / var(--foms-ui-zoom, 1));
+    height: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  /* 나란히 놓인 칸 사이 '보이는 8px'(원래 8px 칸 사이가 80% 에서 6px 로 보였다) — 화면 크기 100% 미만에서만. */
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-ship-pcbar__actions,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-find.is-open .foms-ship-pcbar__filter {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+}

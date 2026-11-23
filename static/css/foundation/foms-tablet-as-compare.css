@@ -686,3 +686,68 @@
     min-height: calc(44px / var(--foms-ui-zoom, 1));
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) ---
+   AS 화면: 화면 크기 80% 에서 [영업/배송 · 미완료 · 완료] 칸 · [AS 접수] · 카드 아래 단추(주변 일정 · 사진 관리 · 주문 편집 · 일정 변경 ·
+   AS 완료)가 보이는 35px 였다. '44px ÷ 배율'로 80 · 90 · 100% 모두 보이는 44px. 세 칸 사이는 100% 미만에서 보이는 8px. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtab,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__cta,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtabs {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  /* 나란히 놓인 칸 사이 '보이는 8px'(원래 8px 칸 사이가 80% 에서 6px 로 보였다) — 화면 크기 100% 미만에서만. */
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__foot,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-secondary,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+}
+
+/* --- 터치 태블릿 누름 칸 44px 3차(보이는 크기, 2026-11-23) ---
+   준비물에 없던 두 가지를 스테이징 실데이터가 잡았다.
+   ① 위 '기준 일정이 변경된 AS' 배너의 바로 가기 칩(.as-drift-chip--ref_moved · --both_moved 등 모든 갈래)이 80% 에서 보이는 23px 높이.
+      알약 모양 · 배너 높이는 그대로 두고 투명 누름 칸(::after)만 위아래로 '44px ÷ 배율'까지 늘린다(배너가 커져 목록이 밀리지 않게).
+      칩 사이는 100% 에서 8px · 100% 미만에서 보이는 8px, 줄이 꺾일 때 위아래 누름 칸이 겹치지 않게 줄 사이를 넓힌다
+      (알약 높이 28px 안팎 → 52px ÷ 배율 − 24px 면 누름 칸 사이가 보이는 8px 넘는다).
+   ② 목록 아래 쪽 넘김(.pagination .page-link, 작은 크기 sm)이 80% 에서 보이는 20 × 25px, 칸끼리 붙어 있었다.
+      '44px ÷ 배율'로 보이는 44px, 붙은 칸은 떼어 낱개 알약으로(대시보드 쪽 넘김과 같은 모양), 칸 사이 보이는 8px. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-as-dashboard .as-schedule-drift-banner__chips {
+    column-gap: 8px;
+    row-gap: calc(52px / var(--foms-ui-zoom, 1) - 24px);
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-as-dashboard .as-schedule-drift-banner__chips {
+    column-gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard a.as-drift-chip {
+    position: relative;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard a.as-drift-chip::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: calc(44px / var(--foms-ui-zoom, 1));
+    transform: translateY(-50%);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .pagination {
+    gap: 8px;
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-as-dashboard .pagination {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .pagination .page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+    margin-left: 0;
+    border-radius: var(--bs-pagination-border-radius);
+  }
+}

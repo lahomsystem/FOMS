@@ -1,5 +1,6 @@
 {# 탭 "찾기" — PC(마우스) 꼴(설계서 2026-11-21-production-pc-viewer §6-2). home_all.html 의 PC 짝: 같은 거르기 줄 · 같은 날짜 묶음 ·
-   같은 JS 열쇠(data-foms-home-view · -q · -grp · -tog · -all · -job, foms-production-home.js). 줄만 여섯 칸(기다림 · 제작 완료는 네 칸). #}
+   같은 JS 열쇠(data-foms-home-view · -q · -grp · -tog · -all · -job, foms-production-home.js). 줄만 여섯 칸(기다림 · 제작 완료는 네 칸).
+   묶음 머리 도면 한 줄 · 묶음 안 순서(기다림 → 생산 → 제작 완료)는 태블릿과 같은 값(2026-11-22 §5-6 · §6). #}
 {% from 'production/partials/home_pc_macros.html' import pc_row, pc_mini %}
 {% set _open_n = groups | selectattr('is_open') | list | length %}
 <div class="foms-prod-home__filters">
@@ -27,6 +28,7 @@
       <b>{{ g.label }}</b>{% if g.sub %}<small>{{ g.sub }}</small>{% endif %}
       <span class="foms-prod-home__gcount" data-foms-home-grp-count>{{ g.count }}건</span>
       {% if g.changed %}<span class="foms-prod-home__gchg">바뀜 {{ g.changed }}</span>{% endif %}
+      {% if g.arrival %}<span class="fph-dwst is-{{ g.arrival.state }}">{{ g.arrival.strip }}</span>{% endif %}
       <svg class="foms-prod-home__gchev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <div class="foms-prod-home__rows" id="foms-prod-home-rows-{{ loop.index }}">

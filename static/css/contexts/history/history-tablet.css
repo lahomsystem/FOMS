@@ -163,3 +163,12 @@
     min-height: calc(44px / var(--foms-ui-zoom, 1));
   }
 }
+
+/* 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) — 이력 거르기 줄 검색 칸 · 단계 고르기 · 기간 날짜 칸이 화면 크기 80% 에서 보이는 40px 였다.
+   '44px ÷ 배율'로 80 · 90 · 100% 모두 보이는 44px(100% 에선 지금 크기 그대로). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-filters-form .form-control,
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-filters-form .form-select {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+}

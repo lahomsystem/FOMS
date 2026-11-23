@@ -69,6 +69,41 @@ def _seed_order(idx: int) -> int:
     return order.id
 
 
+#: 안 내려온 주문 씨앗(설계서 2026-11-22-production-drawing-arrival-upgrade §8): 도면 단계 담당 있음 · 없음 · 고객컨펌.
+#: 막힌 까닭 · 담당 이름 · 도면 마감은 이미 읽은 행에서 만든다 — 이 주문이 늘어도 쿼리가 늘면 안 된다.
+WAIT_KINDS = ("drawing_owner", "drawing_none", "confirm")
+
+
+def _seed_wait(idx: int, kind: str) -> int:
+    """안 내려온 주문 1건 — 오늘 · 내일 시공(장에 기다림 칸으로 선다)."""
+    day = (get_today_kst() + datetime.timedelta(days=idx % 2)).isoformat()
+    stage = "CONFIRM" if kind == "confirm" else "DRAWING"
+    sd = {
+        "workflow": {"stage": stage},
+        "parties": {"customer": {"name": f"기다림{idx}", "phone": f"010-4000-{idx:04d}"}, "manager": {"name": "영업가짜"}},
+        "schedule": {"construction": {"date": day}},
+        "items": [{"product_name": "신발장", "spec_width": "900"}],
+        "drawing_status": "CONFIRMED" if kind == "confirm" else "PENDING",
+    }
+    if kind != "drawing_none":
+        sd["drawing_assignees"] = [{"id": 9000 + idx, "name": f"도면가짜{idx}", "team": "DRAWING"}]
+        sd["assignments"] = {"drawing_assignee_user_ids": [9000 + idx]}
+    order = Order(
+        received_date=get_today_kst().isoformat(), customer_name=f"기다림{idx}", phone=f"010-4000-{idx:04d}",
+        address="가짜시", product="신발장", status=stage, manager_name="영업가짜", is_erp_order=True,
+        erp_stage_code=stage, erp_construction_date=day, structured_data=sd,
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order.id
+
+
+def _seed_waits(start: int, rounds: int) -> None:
+    for r in range(rounds):
+        for k, kind in enumerate(WAIT_KINDS):
+            _seed_wait(start + r * len(WAIT_KINDS) + k, kind)
+
+
 def _count_queries(fn):
     counter = {"n": 0}
 
@@ -88,6 +123,7 @@ def test_production_home_query_count_does_not_grow_with_orders(client):
     _login(client)
     for i in range(4):
         _seed_order(i)
+    _seed_waits(500, 1)  # 도면 · 컨펌 기다림 3건(§8)
     warm = client.get(HOME_URL)
     assert warm.status_code == 200
     resp_small, q_small = _count_queries(lambda: client.get(HOME_URL))
@@ -96,10 +132,14 @@ def test_production_home_query_count_does_not_grow_with_orders(client):
 
     for i in range(100, 108):  # +8 → 12건
         _seed_order(i)
+    _seed_waits(510, 3)  # 기다림 3 → 12건
     resp_big, q_big = _count_queries(lambda: client.get(HOME_URL))
     assert resp_big.status_code == 200
-    assert "첫화면107" in resp_big.get_data(as_text=True)
+    # 그날 장은 그날 주문만(2026-11-22 §5-2 — 미리 보기 없음): 오늘 시공(idx % 5 == 0)인 새 주문이 장에 섰다
+    assert "첫화면105" in resp_big.get_data(as_text=True)
 
+    big_html = resp_big.get_data(as_text=True)
+    assert "fph-wi__why" in big_html and "담당 없음" in big_html and "fph-sd__dw" in big_html  # 기다림 칸 · 띠 글이 섰다
     delta = q_big - q_small
     assert delta <= ALLOWED_DELTA, f"N+1 회귀 의심: 주문 8건 더해 쿼리 {delta}건 늘었어요(small={q_small}, big={q_big})"
     assert q_big <= ABS_QUERY_CAP, f"절대 쿼리 상한 넘음: big={q_big} > {ABS_QUERY_CAP}"
@@ -125,6 +165,7 @@ def test_production_home_part_screen_adds_one_query_only(client, monkeypatch):
     client.set_cookie("foms_ptr", "coarse", domain="localhost")
     for i in range(4):
         _seed_order(i)
+    _seed_waits(520, 1)
     assert client.get(HOME_URL).status_code == 200
     resp_small, q_small = _count_queries(lambda: client.get(HOME_URL))
     # 카드가 실제로 섰다(빈 판 재기 방지). 첫 응답은 고른 날(오늘) 장만 그린다(11-14) — 오늘 주문 1건 = 2장
@@ -132,6 +173,7 @@ def test_production_home_part_screen_adds_one_query_only(client, monkeypatch):
 
     for i in range(200, 208):
         _seed_order(i)
+    _seed_waits(530, 3)
     resp_big, q_big = _count_queries(lambda: client.get(HOME_URL))
     assert resp_big.get_data(as_text=True).count("data-pp-card ") == 6  # 오늘 3건 = 6장
 
@@ -160,6 +202,7 @@ def test_production_home_day_pane_fragment_query_count(client, monkeypatch):
     client.set_cookie("foms_ptr", "coarse", domain="localhost")
     for i in range(4):
         _seed_order(i)
+    _seed_waits(540, 1)
     day = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
     url = f"{HOME_URL}?day={day}&view=day"
     assert client.get(url).status_code == 200
@@ -171,6 +214,7 @@ def test_production_home_day_pane_fragment_query_count(client, monkeypatch):
 
     for i in range(300, 308):  # +8 → 내일 주문 3건(idx % 5 == 1: 301, 306)
         _seed_order(i)
+    _seed_waits(550, 3)
     resp_big, q_big = _count_queries(lambda: client.get(url))
     assert resp_big.get_data(as_text=True).count("data-pp-card ") == 6
     assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
@@ -197,6 +241,7 @@ def test_production_home_pc_query_count_same_cap(client, monkeypatch, tab):
         client.set_cookie(name, value, domain="localhost")
     for i in range(4):
         _seed_order(i)
+    _seed_waits(560, 1)
     url = HOME_URL + tab
     assert client.get(url).status_code == 200
     resp_small, q_small = _count_queries(lambda: client.get(url))
@@ -204,6 +249,7 @@ def test_production_home_pc_query_count_same_cap(client, monkeypatch, tab):
     assert "foms-prod-home is-pc" in html and '<nav class="erp-pro-nav"' in html and "data-foms-pc-due" in html
     for i in range(400, 408):
         _seed_order(i)
+    _seed_waits(570, 3)
     resp_big, q_big = _count_queries(lambda: client.get(url))
     assert resp_big.status_code == 200
     assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"

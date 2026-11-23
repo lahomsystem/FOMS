@@ -125,6 +125,29 @@ def _reset_database_to_fresh() -> None:
             conn.execute(text(seed_sql))
 
 
+def _reset_db_derived_process_caches() -> None:
+    """DB 를 비웠으면 DB 에서 센 값을 들고 있는 프로세스 캐시도 비운다.
+
+    셋 다 30초 캐시이고 열쇠가 DB 값(사용자 id 등)이다. 테스트마다 DB 를 비우고 id 를 1 부터 다시 매기므로,
+    안 비우면 앞 테스트의 수가 다음 테스트 화면에 실려 실행 순서에 따라 결과가 갈린다. 수명이 테스트 도중에
+    끝나면 한 테스트 안의 같은 화면 두 번도 다르다(2026-11 접목판 '스위치 끔 = 지금과 같다' 시험이 CI 에서
+    아래 탭 배지 '미처리 1건' 하나 차이로 깨짐).
+
+    * 네이버 처리 대기 수 — 처리 탭 렌더가 채우고 이력 탭 · nav 배지가 읽는다.
+    * 아래 탭 단계 배지(``dashboard_counts``) — 열쇠 (사용자 id, 내 것만).
+    * 알림 종 배지(``foms.api.notifications``) — 열쇠 사용자 id.
+    """
+    from foms.api.notifications import reset_badge_cache_for_tests
+    from foms.services.dashboard_counts import reset_nav_badge_cache_for_tests
+    from foms.services.integrations.naver_commerce.triage_count import (
+        reset_triage_count_cache_for_tests,
+    )
+
+    reset_triage_count_cache_for_tests()
+    reset_nav_badge_cache_for_tests()
+    reset_badge_cache_for_tests()
+
+
 @pytest.fixture(scope="session")
 def _schema():
     """세션에 한 번만 스키마를 만든다(after_create 시드 포함)."""
@@ -158,14 +181,7 @@ def app(_schema):
     # 비우므로, app fixture 를 쓰지 않는 테스트가 중간에 무엇을 남겨도 출발선이
     # 같다.
     _reset_database_to_fresh()
-    # DB 를 비웠으면 DB 에서 센 값을 들고 있는 프로세스 캐시도 비운다. 네이버 처리 대기 수
-    # (30초 캐시)는 처리 탭 렌더가 채우고 이력 탭·nav 배지가 읽는다 — 안 비우면 앞 테스트의
-    # 수가 다음 테스트 화면에 실려 실행 순서에 따라 결과가 갈린다.
-    from foms.services.integrations.naver_commerce.triage_count import (
-        reset_triage_count_cache_for_tests,
-    )
-
-    reset_triage_count_cache_for_tests()
+    _reset_db_derived_process_caches()
 
     yield flask_app
 

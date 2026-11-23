@@ -140,7 +140,7 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
     # 지금 장은 그대로 그려 두고(세로 = 지금 화면) 감싼다
     assert 'class="fph-pane__now"' in pane and "fph-dr" in pane.split('class="fph-pane__now"')[1]
     assert 'class="fph-date has-parts"' in html
-    # 맨 아래 '도면·컨펌 기다림' 연두 칩
+    # '도면·컨펌 기다림' 연두 칩 — 카드 위 · 마감 · 까닭(2026-11-22 §5-3)은 test_production_v7_screens 가 본다
     assert "pp-wait" in block and "오하람" in block and f"#{ids['wait']}" in block
     # 위 줄 = 파트 이름 + 내 이름, '내 공정' 탭 없음(D50)
     assert '<h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">김재단</span></h1>' in html

@@ -23,6 +23,7 @@ __all__ = [
     "NAV_STATUS_BUCKETS",
     "compute_nav_badge_counts",
     "get_nav_badge_counts",
+    "reset_nav_badge_cache_for_tests",
 ]
 
 NAV_BADGE_CACHE_TTL_SEC = 30
@@ -153,3 +154,13 @@ def get_nav_badge_counts(user: Any, *, mine_only: bool | None = None) -> dict[st
             counts=counts,
         )
     return counts
+
+
+def reset_nav_badge_cache_for_tests() -> None:
+    """테스트 격리용 — 프로세스 배지 캐시를 비운다.
+
+    캐시 열쇠는 사용자 id 다. 시험은 테스트마다 DB 를 비우고 id 를 1 부터 다시 매기므로, 안 비우면 앞 테스트의
+    같은 id 배지(30초)가 다음 테스트 화면에 실리고, 그 수명이 테스트 도중에 끝나면 같은 화면 두 번이 서로 다르다.
+    """
+    with _cache_lock:
+        _cache.clear()
