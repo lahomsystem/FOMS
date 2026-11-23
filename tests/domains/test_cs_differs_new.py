@@ -3,8 +3,7 @@
 - 밤 배우기: 바로 고치지 못한 다른 말 — 놓을 자리 판정이 '새 지식'이면 두 상담에서 들은 말은 새 지식(바로 반영 · 한 상담뿐이면
   기다리는 말 — 11-23), '부딪침'이면 엇갈림 카드(한 상담이어도), 판정을 못 하면 넣지도 카드도 없고, 직원 답에 없는 숫자는 새
   지식이 되지 못한다(``numbers``).
-- 쌓인 카드 다시 가르기(:mod:`foms.services.cs_agent.handoff_learning_resort`): 같은 판정으로 한 번 — 옮긴 카드는 '합쳐짐'으로
-  닫고, 같은 말 카드는 합치고, 부딪침 · 숫자는 그대로 둔다. 판정을 못 하면 다음 바퀴에 다시. 다 하면 다시 안 한다.
+- 쌓인 카드 다시 가르기(판 3 — 놓을 자리 판정 · 되풀이 문턱)는 :mod:`tests.domains.test_cs_card_resort`.
 
 합성 자료만(손님 글 · 직원 이름 · 금액 없음).
 """
@@ -17,22 +16,17 @@ from db import db_session
 from foms.services.brain.ai_gates import JudgeUnavailable, judge_source
 from foms.services.brain.store import current_object
 from foms.services.cs_agent import handoff_learning as hl
-from foms.services.cs_agent import handoff_learning_resort as resort
-from foms.services.cs_agent import handoff_learning_gates as gates
-from foms.services.cs_agent import learning_pass
-from foms.services.brain.proposals import Proposer
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD
 from foms.services.cs_agent.handoff_learning_gates import MERGED_ACTION
 from foms.services.cs_agent.handoff_learning_place import placer_source
-from models import SecurityLog, SystemSetting
+from models import SystemSetting
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture
 from tests.domains.test_cs_handoff_learning import NOW, admin, changes, handed, on  # noqa: F401 — admin 은 fixture
 from tests.domains.test_cs_learn_everything import SAID, TARGET, differs, run_clash
-from tests.support.cs_agent_fakes import FakeAnthropic, FakePlacer, at, clash_placer, keys, naive  # noqa: F401 — keys 는 fixture
+from tests.support.cs_agent_fakes import FakeAnthropic, FakePlacer, at, clash_placer, keys  # noqa: F401 — keys 는 fixture
 
 NEW_TEXT = "합성 선반 뒤 콘센트 자리는 타공해 드린다고 안내한다"
 NEW_SAID = "합성 직원 답 — 선반 뒤 콘센트 자리는 타공해 드려요"
-LATER = at(11, 9)  # 밤 창 밖(바퀴는 시각과 상관없이 다시 가른다)
 
 
 class Judge:
@@ -52,11 +46,6 @@ class Judge:
 def _night(judge, proposals, now=NOW, placer=None):
     with judge_source(judge), placer_source(placer or FakePlacer()):
         return hl.run_handoff_learning(db_session, now=now, client=FakeAnthropic({"proposals": proposals}))
-
-
-def _resort(judge, now=LATER):
-    with judge_source(judge):
-        return resort.resort_cards(db_session, now=now)
 
 
 # ── 밤 배우기 ─────────────────────────────────────────────────────────────
@@ -100,78 +89,6 @@ def test_a_new_detail_also_closes_the_earlier_card_that_said_the_same(admin):
     assert (card.status, card.decided_action) == ("expired", MERGED_ACTION)
 
 
-# ── 쌓인 카드 다시 가르기 ─────────────────────────────────────────────────
-def _cards():
-    """카드 넷 — 부딪침 · 새 내용 · 직원 답에 없는 숫자 · 새 내용과 같은 말(밤 배우기는 겹침 관문이 같은 카드를 또 만들지 않아
-    운영의 여러 밤처럼 직접 넣는다)."""
-    on(**{AUTO_FIELD: True})
-    run_clash(FakeAnthropic({"proposals": [
-        differs([handed("uc-5", reply=SAID)], text="합성 선반 깊이는 400mm 로 안내했어요"),
-        differs([handed("uc-6", reply=NEW_SAID)], title="합성 콘센트 자리 타공", text=NEW_TEXT),
-        differs([handed("uc-7", reply=NEW_SAID)], title="합성 받침 수", text="합성 선반 받침은 37개 들어간다"),
-    ]}))
-    turn = handed("uc-8", reply=NEW_SAID)
-    common = dict(reason="합성 — 같은 말 카드", proposer=Proposer.agent_named(gates.AGENT), now=naive(NOW), known=NEW_SAID,
-                  evidence=[f"case:{turn}", "staff:mgr-1"])
-    assert gates._differs_card(db_session, TARGET, title="합성 콘센트 타공 같은 말", text=NEW_TEXT + ".", number=99,
-                               common=common, now=at(12, 1), seen=[]) == "conflict_card"
-    db_session.commit()
-    cards = changes()
-    assert [c.item_type for c in cards] == ["conflict"] * 4
-    return cards
-
-
-def test_resort_moves_the_cards_that_do_not_clash_and_keeps_the_rest_once(admin):
-    clash, new, number, same = _cards()
-    judge = Judge(clash="400mm")
-    counts = _resort(judge)
-    assert counts == {"checked": 4, "left": 0, "halted": None, "conflict": 1, "moved": 1, "numbers": 1, "merged": 1}
-    db_session.expire_all()
-    for card, status in ((clash, "open"), (new, "expired"), (number, "open"), (same, "expired")):
-        db_session.refresh(card)
-        assert card.status == status, card.id
-    assert new.decided_action == same.decided_action == MERGED_ACTION
-    made = [c for c in changes() if c.item_type != "conflict"]
-    assert len(made) == 1 and (made[0].status, made[0].decided_action, made[0].item_type) == ("applied", "auto_learn", "policy")
-    assert current_object(db_session, made[0].item_key).text in (NEW_TEXT, NEW_TEXT + ".")  # 새 카드부터 — 둘 가운데 하나만
-    assert "엇갈림 카드에서 새 지식으로 옮김" in made[0].reason
-    assert not any(e.startswith("about:") for e in made[0].evidence)
-    assert db_session.query(SecurityLog).filter_by(action="BRAIN_MERGE").count() >= 2
-    assert resort.card_resort_state(db_session)["done"] is True
-    assert _resort(judge) == {"off": "done"}  # 한 번만
-
-
-def test_resort_waits_when_the_judge_is_down_and_goes_a_few_cards_per_tick(admin, monkeypatch):
-    cards = _cards()
-    down = _resort(Judge(down=True))
-    assert (down["checked"], down["halted"]) == (0, "judge_unavailable")
-    assert all(c.status == "open" for c in changes() if c.item_type == "conflict")
-    monkeypatch.setattr(resort, "PER_TICK", 2)
-    first = _resort(Judge(clash="400mm"))
-    assert (first["checked"], first["left"]) == (2, 2) and resort.card_resort_state(db_session)["done"] is False
-    later = handed("uc-9", reply=SAID)  # 다시 가르기를 시작한 뒤 생긴 카드는 새 규칙이 이미 가른 것 — 건드리지 않는다
-    run_clash(FakeAnthropic({"proposals": [differs([later], text="합성 선반 깊이는 400mm 가 맞다고 안내했어요")]}),
-              now=at(12, 1))
-    second = _resort(Judge(clash="400mm"))
-    assert (second["checked"], second["left"]) == (2, 0) and resort.card_resort_state(db_session)["done"] is True
-    newest = max((c for c in changes() if c.item_type == "conflict"), key=lambda c: c.id)
-    assert newest.id > max(c.id for c in cards) and newest.status == "open"
-
-
-def test_resort_needs_learning_on_and_auto_apply_on(admin):
-    _cards()
-    on(**{AUTO_FIELD: False})
-    assert _resort(Judge()) == {"off": "no_auto"}
-    assert all(c.status == "open" for c in changes())
-
-
-def test_the_learning_share_runs_the_resort_at_any_hour(admin, monkeypatch):
-    seen = []
-    monkeypatch.setattr(learning_pass, "resort_cards", lambda session, now: seen.append(now) or {"checked": 1})
-    out = learning_pass.run_learning(db_session, now=LATER, stop_check=lambda: None)
-    assert seen == [LATER] and out["card_resort"] == {"checked": 1}
-
-
 # ── 다른 말 전용 판정자(모델 길 — 합성 판정자 없이 가짜 두뇌로) ───────────────
 def _verdict(client, cfg=None, **kw):
     from foms.services.cs_agent.handoff_learning_judge import differs_verdict
@@ -204,14 +121,3 @@ def test_the_differs_judge_is_unavailable_without_a_learning_cap(admin):
     on(**{AUTO_FIELD: True, "learning_cap_usd_panel": None})
     client = FakeAnthropic({"verdict": "adds", "why": "합성"})
     assert _verdict(client, cfg=read_settings(db_session, log=False)) == "unavailable" and client.params == []
-
-
-def test_a_new_resort_version_checks_every_card_again(admin):
-    clash, new, number, same = _cards()
-    db_session.add(SystemSetting(setting_key=resort.STORE_KEY, description="합성", setting_value={
-        "policy": 1, "until": same.id, "checked": [clash.id, new.id, number.id, same.id], "done": True}))
-    db_session.commit()
-    counts = _resort(Judge(clash="400mm"))
-    assert (counts["checked"], counts.get("moved"), counts.get("merged")) == (4, 1, 1)  # 판 1 이 가른 표는 버리고 처음부터
-    state = resort.card_resort_state(db_session)
-    assert (state["policy"], state["done"]) == (resort.RESORT_POLICY, True) and len(state["checked"]) == 4
