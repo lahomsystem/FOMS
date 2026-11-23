@@ -571,8 +571,10 @@ class ProductionPartMark(Base):
     * 줄은 지우지 않는다 — 되돌려 안 봄이 되면 ``state='NONE'`` 으로 남긴다(공정 칸 동기화 표지, §15.5).
     * 이름 칸(``*_by_name``)은 표시 때 스냅샷이다 — 사용자가 지워져도(FK SET NULL) 이름은 남는다.
     * 주문이 하드 삭제되면 같이 지워진다(``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
+    * 담당 바꾸기 기록(``handed_from_name`` · ``handed_at``, 설계서 2026-11-23 §6-4) = 지금 담당이 누구에게서 · 언제
+      넘겨받았나(마지막 한 번 — 전체는 이벤트). 담당 바꾸기가 쓰고, 맡기 취소 · NONE 이 지운다. 둘 다 NULL 허용 · 색인 없음.
 
-    DDL(이름 · 칸 · 제약)은 마이그레이션 ``prodpart_00`` 과 같아야 한다(PG 왕복 시험이 강제).
+    DDL(이름 · 칸 · 제약)은 마이그레이션 ``prodpart_00`` + ``prodpart_01_handover`` 와 같아야 한다(PG 왕복 시험이 강제).
     """
 
     __tablename__ = 'production_part_marks'
@@ -593,6 +595,8 @@ class ProductionPartMark(Base):
     updated_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
                         server_default=func.now())
+    handed_from_name = Column(String(120), nullable=True)
+    handed_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
         # 장 · 파트 하나에 한 줄. 앞머리 order_id 라 ``order_id IN (…)`` 읽기 색인도 겸한다.
