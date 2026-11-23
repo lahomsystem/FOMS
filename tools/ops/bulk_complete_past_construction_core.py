@@ -315,7 +315,7 @@ def build_plan(rows: Iterable[dict[str, Any]], *, cutoff: str, today: str,
     }
 
 
-def completed_workflow(workflow: Any, *, now: datetime) -> dict[str, Any]:
+def completed_workflow(workflow: Any, *, now: datetime, batch: str = BATCH_ID) -> dict[str, Any]:
     """``workflow`` dict 를 COMPLETED 로 옮긴 새 dict(원본 불변).
 
     ``stage_override`` 표식은 기존 강제 변경과 같은 이유로 남긴다 — 이후 폼 저장의
@@ -324,6 +324,7 @@ def completed_workflow(workflow: Any, *, now: datetime) -> dict[str, Any]:
     Args:
         workflow: 기존 ``structured_data.workflow``(dict 가 아니면 빈 것으로 본다).
         now: 기록 시각(naive UTC).
+        batch: 표식에 남길 배치 이름(매일 자동 실행은 ``auto-YYYY-MM-DD``).
 
     Returns:
         새 workflow dict.
@@ -333,7 +334,7 @@ def completed_workflow(workflow: Any, *, now: datetime) -> dict[str, Any]:
     wf["stage"] = "COMPLETED"
     wf["stage_updated_at"] = stamp
     wf["stage_override"] = {
-        "at": stamp, "stage": "COMPLETED", "batch": BATCH_ID,
+        "at": stamp, "stage": "COMPLETED", "batch": batch,
         "measurement_date": wf.get("measurement_date"),
     }
     return wf
@@ -354,7 +355,8 @@ def _snapshot_rows(conn, ids: list[int]) -> list[dict[str, Any]]:
 
 
 def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
-              reason: str, cutoff: str | None = None) -> str:
+              reason: str, cutoff: str | None = None, batch: str = BATCH_ID,
+              keep_before: bool = False) -> str:
     """항목 1건을 적용한다(호출부가 트랜잭션 소유).
 
     Args:
@@ -364,12 +366,15 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
         now: 기록 시각(naive UTC).
         reason: 사유 문자열.
         cutoff: plan 의 기준일. 주면 잠근 뒤 남은 시공일을 다시 확인한다(plan 뒤에 더해진 날짜).
+        batch: 이벤트·감사행·표식의 배치 이름.
+        keep_before: True 면 이전값(스냅샷 행 모양)을 이벤트 payload ``before`` 에 싣는다 —
+            스냅샷 파일이 남지 않는 매일 자동 실행이 ``rollback --from-events`` 로 되돌릴 근거.
 
     Returns:
         ``applied`` 또는 ``skipped:<사유>``.
     """
     oid = int(item["order_id"])
-    cur.execute("""SELECT status, erp_stage_code, as_axis_status, structured_data
+    cur.execute("""SELECT status, erp_stage_code, erp_stage_updated_at, as_axis_status, structured_data
                      FROM orders WHERE id = %s FOR UPDATE""", (oid,))
     row = cur.fetchone()
     if row is None:
@@ -393,7 +398,12 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
             return f"skipped:later_construction_date({later})"
     if items_construction_open(structured):  # plan 뒤에 '시공 끝'이 찍혔어도 잠근 뒤 다시 본다
         return f"skipped:{ITEMS_CONSTRUCTION_OPEN_REASON}"
-    structured["workflow"] = completed_workflow(structured.get("workflow"), now=now)
+    before = ({"id": oid, "status": row["status"], "erp_stage_code": row["erp_stage_code"],
+               "erp_stage_updated_at": (row["erp_stage_updated_at"].isoformat()
+                                        if row["erp_stage_updated_at"] is not None else None),
+               "as_axis_status": row["as_axis_status"], "workflow": structured.get("workflow")}
+              if keep_before else None)
+    structured["workflow"] = completed_workflow(structured.get("workflow"), now=now, batch=batch)
     mode = item["mode"]
     if mode == "main":
         cur.execute("""
@@ -417,9 +427,10 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
         VALUES (%s, 'STAGE_OVERRIDE', %s, %s, %s)
     """, (oid, Jsonb({
         "from": item["observed_stage"], "to": "COMPLETED", "mode": "skip",
-        "manual": False, "batch": BATCH_ID, "reason": reason, "apply_mode": mode,
+        "manual": False, "batch": batch, "reason": reason, "apply_mode": mode,
         "from_status": item["observed_status"], "to_status": to_status,
         "as_axis_status": item.get("observed_as_axis"), "flags": item.get("flags") or [],
+        **({"before": before} if before is not None else {}),
     }), actor_user_id, now))
     cur.execute("""
         INSERT INTO security_logs(timestamp, user_id, message, action, target_type, target_id, detail)
@@ -431,12 +442,13 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
           Jsonb({
               "field": "status", "before": item["observed_status"], "after": to_status,
               "stage_before": item["observed_stage"], "stage_after": "COMPLETED",
-              "batch": BATCH_ID, "apply_mode": mode, "reason": reason,
+              "batch": batch, "apply_mode": mode, "reason": reason,
           })))
     return "applied"
 
 
-def rollback_one(cur, row: dict[str, Any], *, actor_user_id: int, now: datetime) -> str:
+def rollback_one(cur, row: dict[str, Any], *, actor_user_id: int, now: datetime,
+                 batch: str = BATCH_ID) -> str:
     """스냅샷 행 1건을 되돌린다(workflow dict 통째 + status + 평면 컬럼)."""
     oid = int(row["id"])
     cur.execute("SELECT status, erp_stage_code, structured_data FROM orders WHERE id = %s FOR UPDATE",
@@ -465,7 +477,7 @@ def rollback_one(cur, row: dict[str, Any], *, actor_user_id: int, now: datetime)
         VALUES (%s, 'STAGE_OVERRIDE', %s, %s, %s)
     """, (oid, Jsonb({
         "from": "COMPLETED", "to": row.get("erp_stage_code"), "mode": "restore",
-        "manual": True, "batch": BATCH_ID, "reason": f"{BATCH_ID} 되돌리기",
+        "manual": True, "batch": batch, "reason": f"{batch} 되돌리기",
         "from_status": cur_row["status"], "restored_status": row["status"],
     }), actor_user_id, now))
     return "applied"
