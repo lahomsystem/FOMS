@@ -53,6 +53,25 @@ def _cards(**bins: int) -> list[dict]:
 
 # ── 순수 계산 ─────────────────────────────────────────────────────────────
 @NODE
+def test_outside_is_right_box_starts_with_the_outside_text_and_keeps_the_rest_of_the_item():
+    """③ '바깥 글이 맞아요' 칸(사장님 11-23 "바깥 글이 들어와야") — 바깥 글이 지금 글을 품으면 바깥 글 그대로, 어긋난 구절이 든
+    문장만 빼고 붙이기, 구절을 못 찾으면 지금 글을 다 두고 붙이고 사람이 지우게(mixed)."""
+    now, head = "합성 선반 깊이는 350mm 입니다. 합성 받침은 한 줄입니다.", "승인된 규칙과 다름"
+    cards = {
+        "wraps": "\n".join([head, now + " 합성 손잡이는 없습니다."]),
+        "clash": "\n".join(["어긋남 — 회사 지식 「받침은 한 줄」 ↔ 직원 「받침은 두 줄」", head, "합성 받침은 두 줄입니다."]),
+        "lost": "\n".join(["어긋남 — 회사 지식 「없는 구절」 ↔ 직원 「두 줄」", head, "합성 받침은 두 줄입니다."]),
+        "now": now,
+    }
+    got = _node("[v.outsideDraft(data.wraps, data.now), v.outsideDraft(data.clash, data.now),"
+                " v.outsideDraft(data.lost, data.now), v.outsideDraft('', data.now)]", cards)
+    assert got[0] == {"text": now + " 합성 손잡이는 없습니다.", "mixed": False}
+    assert got[1] == {"text": "합성 선반 깊이는 350mm 입니다. 합성 받침은 두 줄입니다.", "mixed": False}
+    assert got[2] == {"text": now + " 합성 받침은 두 줄입니다.", "mixed": True}
+    assert got[3] == {"text": now, "mixed": False}
+
+
+@NODE
 def test_strip_totals_add_up_like_the_board():
     """판 ⑥ 의 숫자 — ② 4 · ③ 1 · ⑥ 2 + AI 할 일 제안 7 = 오늘 결정할 것 14 · 어림 6분(줄 어림 2 + 1 + 1, AI 2)."""
     cards = _cards(content=4, decide=1, rules=2)

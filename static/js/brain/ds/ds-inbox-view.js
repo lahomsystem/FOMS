@@ -181,11 +181,38 @@
     return '승인 ' + done + '개' + (failed ? ' · 못 함 ' + failed + '개(카드로 하나씩 봐 주세요)' : '');
   }
 
+  var CARD_HEAD = /^(승인된 규칙과 다름|어긋남 — .*)$/;
+  var CLASH = /^어긋남 — 회사 지식 「([\s\S]+)」 ↔ 직원 「/;
+
+  function flat(text) { return String(text || '').replace(/\s+/g, ' ').trim(); }
+
+  /**
+   * ③ '바깥 글이 맞아요' 칸에 처음 넣는 글 — {text, mixed}. 바깥 글(카드 머리줄은 뺀다)이 지금 지식 글을 품으면 바깥 글 그대로.
+   * 아니면 지금 글에서 어긋난 구절이 든 문장만 빼고 바깥 글을 뒤에 붙인다(지금 글의 다른 내용을 잃지 않게). 어긋난 구절을 못
+   * 찾으면 지금 글을 다 두고 붙인다 — mixed = 사람이 틀린 옛 문장을 지워야 한다.
+   */
+  function outsideDraft(sentence, current) {
+    var lines = String(sentence || '').split(/\n/);
+    var body = lines.filter(function (line) { return !CARD_HEAD.test(line.trim()); }).join(String.fromCharCode(10)).trim();
+    var now = String(current || '').trim();
+    if (!body || !now || flat(body).indexOf(flat(now)) >= 0) return { text: body || now, mixed: false };
+    var hit = CLASH.exec(lines[0].trim());
+    var phrase = hit ? flat(hit[1]) : '';
+    var parts = now.split(/([.!?]\s+)/);
+    var kept = [];
+    for (var i = 0; i < parts.length; i += 2) {
+      var one = parts[i] + (parts[i + 1] || '');
+      if (!phrase || flat(one).indexOf(phrase) < 0) kept.push(one);
+    }
+    var rest = kept.join('').trim();
+    return { text: (rest ? rest + ' ' : '') + body, mixed: rest === now };
+  }
+
   var api = { BINS: BINS, KEYS: KEYS, LATER: LATER, ACTION_SECS: ACTION_SECS, find: find, binOf: binOf, minutes: minutes,
               counts: counts, inBin: inBin, typeLabel: typeLabel, peekText: peekText, binRows: binRows, emptyLine: emptyLine,
               stripTotals: stripTotals, fromQuery: fromQuery, addressFor: addressFor, phoneSplit: phoneSplit,
               pcSummary: pcSummary, whenText: whenText, bulkScope: bulkScope, confirmTableText: confirmTableText,
-              doneText: doneText };
+              doneText: doneText, outsideDraft: outsideDraft };
   root.FOMS_DS_INBOX_VIEW = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
