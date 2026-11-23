@@ -145,3 +145,15 @@ def test_importing_app_does_not_load_the_morpheme_packages():
                           encoding="utf-8", errors="replace", timeout=300)
     assert done.returncode == 0, done.stderr[-2000:]
     assert "kiwi=False bm25=False" in done.stdout, done.stdout[-2000:]
+
+
+def test_release_drops_the_model_but_keeps_token_memory_and_reloads_on_next_use():
+    """밤 배우기 한 바퀴가 끝나면 형태소 모델을 놓는다(메모리) — 낱말 기억은 남고, 다음에 쓰면 다시 읽는다."""
+    from foms.services.brain import word_search as ws
+
+    ws.item_tokens("lahom/synth-release", 1, "합성 도면을 보냈어요")
+    assert ws._STATE["kiwi"] is not None
+    ws.release()
+    assert ws._STATE["kiwi"] is None and ("lahom/synth-release", 1) in ws._CACHE
+    assert ws.tokens("합성 도면이 왔나요")[:2] == ["합성", "도면"] and ws._STATE["kiwi"] is not None
+    assert ws.MODEL_OPTIONS == {"load_multi_dict": False, "load_typo_dict": False}

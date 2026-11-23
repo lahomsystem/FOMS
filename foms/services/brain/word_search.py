@@ -8,7 +8,7 @@
 
 - **모두 우리 서버 안에서만 돈다** — 바깥으로 글이 나가지 않는다.
 - **두 꾸러미는 함수 안에서만 불러온다**: 형태소 모델이 메모리에 수백 MB 라 ``import app``(웹 · gevent)이 그것을 지지 않게 한다.
-  처음 쓰는 순간 한 번 읽고(약 1 ~ 2초) 그 프로세스에서 다시 쓴다(:func:`_kiwi` — 잠금으로 한 번만).
+  처음 쓰는 순간 한 번 읽고(약 1초) 다시 쓴다(:func:`_kiwi` — 잠금으로 한 번만). 밤 배우기 한 바퀴가 끝나면 놓는다(:func:`release`).
 - **낱말 기억**(:func:`item_tokens`): (항목 키, 판) → 낱말. 한 밤 동안 바뀐 항목만 다시 나눈다(:data:`CACHE_SIZE` 개까지).
 - **쓸 수 없음**: 꾸러미 없음 · 모델 읽기 실패 · 꾸러미 안 오류는 모두 :class:`WordSearchUnavailable` 로 올린다(부르는 쪽은
   예전 찾기로). 로그는 코드만 — 글은 남기지 않는다. 꾸러미 없음 · 모델 읽기 실패는 기억해 두고 다시 읽지 않는다.
@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 import threading
 from collections import OrderedDict
@@ -23,12 +24,15 @@ from typing import Any, Mapping, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CACHE_SIZE", "WordSearchUnavailable", "available", "interleave", "item_tokens", "rank", "tokens"]
+__all__ = ["CACHE_SIZE", "WordSearchUnavailable", "available", "interleave", "item_tokens", "rank", "release", "tokens"]
 
 #: 남기는 형태소 꼴 — 체언(``N…``) · 용언(``V…``)은 앞 글자로, 어근 · 영문 · 숫자는 그대로(11-23 견주기와 같은 규칙).
 KEEP_HEADS, KEEP_TAGS = ("N", "V"), frozenset({"XR", "SL", "SN"})
 #: 낱말 기억 상한(항목 판 수) — 지식 항목이 수백 개라 한 밤의 항목이 모두 든다.
 CACHE_SIZE = 4096
+#: 형태소 나누개 읽는 값 — 다중 낱말 사전 · 오타 사전을 읽지 않는다. 11-23 견주기(같은 말 묶음 짝 452개)에서 점수가 같았고
+#: (낱말만 69.2% · 번갈아 67.5%) 메모리가 약 580 MB → 약 300 MB 로 준다.
+MODEL_OPTIONS: dict[str, Any] = {"load_multi_dict": False, "load_typo_dict": False}
 #: 한 글에서 나누는 글자 상한(아주 긴 글이 한 번에 붙잡지 않게).
 MAX_CHARS = 4000
 
@@ -60,7 +64,7 @@ def _kiwi() -> Any:
             logger.warning("[회사 지식 낱말 찾기] 쓸 수 없어 예전 찾기로 code=%s", _STATE["failed"])
             raise WordSearchUnavailable(_STATE["failed"]) from None
         try:
-            kiwi = Kiwi()
+            kiwi = Kiwi(**MODEL_OPTIONS)
             kiwi.tokenize("")  # 모델은 처음 나눌 때 읽힌다 — 여기서 읽어 실패를 한 곳에서 본다
         except Exception as exc:  # 모델 파일 · 메모리 — 꾸러미 안 오류 모두(코드만 적는다)
             _STATE["failed"] = "model_load"
@@ -152,6 +156,14 @@ def interleave(first: Sequence[str], second: Sequence[str], limit: int) -> list[
             if at < len(ranked) and len(out) < limit:
                 out.setdefault(ranked[at], None)
     return list(out)
+
+
+def release() -> None:
+    """형태소 나누개를 놓는다(낱말 기억 · 실패 기록은 그대로) — 학습 몫 한 바퀴(:mod:`foms.services.cs_agent.learning_pass`)가 끝나면 부른다. 감시 루프 프로세스가
+    모델을 밤새 쥐고 있지 않게(실측: 놓으면 약 300 MB 가운데 절반쯤 돌아온다). 다음에 쓰면 다시 읽는다(약 1초)."""
+    with _LOCK:
+        _STATE["kiwi"] = None
+    gc.collect()
 
 
 def _reset_for_tests() -> None:

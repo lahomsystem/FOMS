@@ -16,6 +16,7 @@ from typing import Any, Callable, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from foms.services.brain import word_search
 from foms.services.ai_staff.evals_weekly import run_weekly_eval
 from foms.services.cs_agent.brain_spend import BrainError
 from foms.services.cs_agent.handoff_learning import run_handoff_learning
@@ -60,4 +61,5 @@ def run_learning(session: Any, *, now: datetime.datetime, stop_check: Callable[[
             result = {"error": type(exc).__name__}
         if not _quiet(result):
             out[name] = result
+    word_search.release()  # 놓을 자리 판정이 읽은 형태소 모델을 바퀴 사이에 쥐고 있지 않는다(낱말 기억은 남는다)
     return out or None
