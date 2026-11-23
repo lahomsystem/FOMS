@@ -35,7 +35,7 @@ def _frag(client, url: str, etag: str | None = None):
     return client.get(url + ("&" if "?" in url else "?") + "foms_shell=fragment", headers=headers)
 
 
-@pytest.mark.parametrize("who", ["part", "readonly", "pc"])
+@pytest.mark.parametrize("who", ["part", "readonly", "pc", "pc_writer"])
 def test_home_fragment_answers_304_until_something_changes(client, cohort, who):
     me, park = _user("김재단", part="cut"), _user("박재단", part="cut")
     ids = _seed_day(me, park)
@@ -45,17 +45,29 @@ def test_home_fragment_answers_304_until_something_changes(client, cohort, who):
     elif who == "readonly":
         _login(client, _user("상담", team="CS"))
         url = HOME + "?tab=parts&part=cut"
+    elif who == "pc":
+        _login(client, _user("상담", team="CS"), ptr="fine")  # PC 보기 전용(쓰기 팀 아님)
+        url = HOME + "?tab=all"
     else:
-        # PC 보기 전용(쓰기 팀 아님). 쓰기 팀 PC 는 [고치기] 단추의 서버 시각(data-foms-prod-edit-now)이 본문에 있어 아직 늘 200 이다.
-        _login(client, _user("상담", team="CS"), ptr="fine")
+        # 쓰기 팀 PC — [고치기] 단추의 서버 시각(data-foms-prod-edit-now · 초 단위)이 본문에 있다. 11-23 까지는 이 값이 ETag 에
+        # 들어가 늘 200 이었고 운영 올림 perf-gate 의 조건부 304 확인이 초 경계에 따라 떨어졌다. 값은 본문에 두고 ETag 재료에서만
+        # 뺀다. 전제: foms-production-edit.js 가 단추마다 받은 때부터 흐른 시간만 더하므로 304 로 옛 단추가 남아도 쿠키 시각은
+        # 과거 쪽으로만 어긋난다(앞날 값 없음 — 서버는 pc_view.EDIT_CLOCK_SKEW_SECONDS 초 앞선 값까지만 받는다).
+        _login(client, me, ptr="fine")
         url = HOME + "?tab=all"
     first = _frag(client, url)
     body = first.get_data(as_text=True)
     assert first.status_code == 200 and first.headers.get("X-FOMS-ERP-FRAGMENT") == "1"
     assert "data-loaded-at" not in body and not re.search(r"\d\d:\d\d 에 받", body), "받은 시각은 본문에 없다"
-    assert ("data-pp-since=" in body) is (who != "pc"), "카드 판이 있는 화면은 첫 받아 오기 기준 시각을 그대로 싣는다"
+    assert ("data-pp-since=" in body) is (who in ("part", "readonly")), "카드 판이 있는 화면은 첫 받아 오기 기준 시각을 그대로 싣는다"
+    stamp = re.search(r'data-foms-prod-edit-now="(\d+)"', body)
+    assert (stamp is not None) is (who == "pc_writer"), "[고치기] 단추의 서버 시각은 쓰기 팀 PC 본문에만 있다"
     etag = first.headers["ETag"]
-    time.sleep(1.1)  # 예전 data-loaded-at 은 초 단위 — 1초 넘겨야 그것만으로도 달라진다
+    time.sleep(1.1)  # 예전 data-loaded-at · [고치기] 서버 시각은 초 단위 — 1초 넘겨야 그것만으로도 달라진다
+    if stamp:  # 본문 값은 여전히 요청마다 새 서버 시각이다(ETag 만 같다)
+        fresh = _frag(client, url)
+        assert fresh.headers["ETag"] == etag
+        assert int(re.search(r'data-foms-prod-edit-now="(\d+)"', fresh.get_data(as_text=True)).group(1)) > int(stamp.group(1))
     again = _frag(client, url, etag)
     assert again.status_code == 304, "아무것도 안 바뀌었으면 304"
     # 대조군: 바뀌면 200 · 다른 ETag

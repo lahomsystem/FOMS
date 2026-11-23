@@ -1,6 +1,6 @@
 """15분 바퀴의 학습 몫 — 사진 설명 뽑기(:mod:`.photo_desc`) · 주간 고침 안(:mod:`.weekly_fix`) · 사진 학습 → 회사 지식 제안
 (:mod:`.photo_learning` — 설계서 17.11.1 의 7) · 넘긴 상담 배우기 → 회사 지식 제안(:mod:`.handoff_learning` — 사장님 11-11) ·
-쌓인 엇갈림 카드 다시 가르기(:mod:`.handoff_learning_resort` — 사장님 11-21, 한 번) · 'AI 시험' 매주 한 번 줄 넣기
+쌓인 엇갈림 카드 다시 가르기(:mod:`.handoff_learning_resort` — 사장님 11-21 · 11-23, 판마다 한 번) · 'AI 시험' 매주 한 번 줄 넣기
 (:mod:`foms.services.ai_staff.evals_weekly` — 사장님 11-22, KST 월요일)를 차례로 부른다(설계서 17.6.1).
 
 감시 루프(:mod:`.loop`)가 초안 스위치가 꺼지지 않은 바퀴에서만 부른다 — 빠른 길(:mod:`.realtime`)은 부르지 않는다. 두 길은 각자

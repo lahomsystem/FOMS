@@ -26,7 +26,8 @@ from tests.support.brain_screen_support import people
 BASE = "/api/ai-staff"
 GOOD = {"cap_usd": "4", "past_size": 2, "risk_size": 1, "past_target_pct": 50}
 WRITES = {"ai_staff_api.ai_staff_evals_run": "/api/ai-staff/evals/run",
-          "ai_staff_api.ai_staff_evals_settings": "/api/ai-staff/evals/settings"}
+          "ai_staff_api.ai_staff_evals_settings": "/api/ai-staff/evals/settings",
+          "ai_staff_api.ai_staff_evals_mark_save": "/api/ai-staff/evals/marks"}  # 사장님 채점(설계서 2026-11-23 4.1)
 
 
 @pytest.fixture

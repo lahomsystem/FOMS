@@ -12,9 +12,12 @@
   - '위험 문장': 보내기 전 검사에 걸린 적 있는 차례(``check_codes`` 에 막는 코드가 있음 — 말투 알림만 있는 줄은 뺀다), 최근 것부터.
     JSON 칸을 글자로 바꿔 찾지 않고, 최근 :data:`RISK_POOL` 줄의 코드 칸만 읽어 파이썬으로 거른다.
 - **결과**(SystemSetting :data:`RESULTS_KEY`): ``{"runs": [...]}`` 최근 :data:`KEEP_RUNS` 번 — 시작 · 마지막 소식 · 끝 · 누른 사람
-  번호 · 묶음마다 수 · 통과 수(지난 상담은 옳은 넘김 · 덜 말함 수도 — 설계서 2026-11-22-ai-eval-meaning-judge 2.3) · 모델 · 쓴 돈 ·
-  상태 · 까닭 코드별 수(``codes`` — 묶음마다 모든 차례) · 틀린 차례(마지막 :data:`FAILURE_LIMIT` 개 번호 · 까닭 코드).
-  **글은 없다.** 그 칸이 없는 옛 줄은 0 으로 본다.
+  번호 · 판정 자의 판(``judge`` — :data:`JUDGE_VERSION`) · 묶음마다 수 · 통과 수(지난 상담은 옳은 넘김 수도 — 설계서
+  2026-11-22-ai-eval-meaning-judge 2.3) · 모델 · 쓴 돈 · 상태 · 까닭 코드별 수(``codes`` — 묶음마다 모든 차례) · 넘긴 까닭별 수
+  (``handoffs``) · 옳은 넘김이 아닌 넘김의 까닭별 수(``handoff_kinds`` — 설계서 2026-11-23-brain-learning-upgrade 4.3) · 틀린
+  차례(마지막 :data:`FAILURE_LIMIT` 개 번호 · 까닭 코드). **글은 없다**(AI 초안은 :mod:`.evals_marks` 표에만 — 가린 글 · ADMIN 만).
+  그 칸이 없는 옛 줄은 0 으로 본다. 옛 줄(``judge`` 칸 없음)의 지난 상담은 '같은 뜻인가' 자로 셌고 ``partial`` 수가 있다 —
+  새 줄에는 없다(화면은 두 꼴을 모두 그린다).
 - **한 번에 하나만**: 마지막 줄이 '줄 섬' · '도는 중'이고 마지막 소식이 :data:`STALE_AFTER` 안이면 도는 중이다(새로 누르면 409).
   그보다 오래 소식이 없으면 멈춘 것으로 보고 '멈춘 채 끝남'으로 풀어 준다.
 - **줄 일**: :data:`JOB_PATH` 를 RQ ``default`` 줄에 넣는다(:func:`enqueue_run`) — 그 줄은 WORKER 의 감독받는 큐 소비자만 꺼낸다.
@@ -46,7 +49,8 @@ from models import CsAgentTurn, SecurityLog, SystemSetting
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "AUDIT_RUN", "AUDIT_SETTINGS", "JOB_PATH", "RESULTS_KEY", "SETTINGS_KEY", "EvalCase", "EvalError", "EvalSet",
+    "AUDIT_RUN", "AUDIT_SETTINGS", "JOB_PATH", "JUDGE_VERSION", "RESULTS_KEY", "SETTINGS_KEY", "EvalCase", "EvalError",
+    "EvalSet",
     "EvalSettings", "add_run", "begin_run", "blocking_codes", "build_eval_set", "claim_run", "empty_codes",
     "empty_past", "enqueue_run", "is_stale", "latest_results", "money_text", "naive_utc", "parse_money", "parse_started",
     "read_eval_settings", "save_eval_settings", "update_run",
@@ -69,12 +73,18 @@ SET_PAST, SET_RISK = "past", "risk"
 UNSUPPORTED = "unsupported"
 AUDIT_SETTINGS = "AI_STAFF_EVAL_SETTINGS_SAVED"
 AUDIT_RUN = "AI_STAFF_EVAL_RUN"
+#: 지난 상담 판정 자의 판 — 2 = '이 초안을 보내도 되나'(설계서 2026-11-23-brain-learning-upgrade 4.2). 칸이 없는 옛 줄은 1
+#: ('직원 답과 같은 뜻인가' — 설계서 2026-11-22-ai-eval-meaning-judge).
+JUDGE_VERSION = 2
 MESSAGES: dict[str, str] = {
     "EVAL_FORBIDDEN": "찾을 수 없습니다.",
     "EVAL_SHAPE": "값이 맞지 않아요 — 다시 넣어 주세요.",
     "EVAL_NO_CAP": "돈 상한을 먼저 넣어 주세요.",
     "EVAL_NO_SIZE": "묶음 크기를 먼저 넣어 주세요.",
     "EVAL_BUSY": "시험이 이미 도는 중이에요.",
+    "EVAL_MARK_SHAPE": "고른 답이 맞지 않아요 — 다시 골라 주세요.",
+    "EVAL_MARK_GONE": "이미 채점했거나 없는 차례예요.",
+    "EVAL_MARK_LIMIT": "오늘 채점은 다 했어요.",
 }
 _INT_FIELDS: dict[str, int] = {"past_size": MAX_SET, "risk_size": MAX_SET, "past_target_pct": 100}
 _DESCRIPTIONS = {SETTINGS_KEY: "AI 직원 — 상담 AI 평가 한 번 돈 상한 · 묶음 크기 · 기준(설계서 2026-11-14-foms-graft 3.15)",
@@ -338,8 +348,8 @@ def build_eval_set(session: Any, now: datetime.datetime, settings: Optional[Eval
 
 # ── 결과 ─────────────────────────────────────────────────────────────────
 def empty_past() -> dict[str, int]:
-    """'지난 상담' 수 처음 값 — 차례 수 · 본 수 · 통과 · 옳은 넘김(분모에서 뺀다) · 덜 말함(실패 가운데)."""
-    return {"total": 0, "done": 0, "passed": 0, "right_handoff": 0, "partial": 0}
+    """'지난 상담' 수 처음 값 — 차례 수 · 본 수 · 통과 · 옳은 넘김(분모에서 뺀다). 옛 줄의 ``partial``(덜 말함)은 새 판정에 없다."""
+    return {"total": 0, "done": 0, "passed": 0, "right_handoff": 0}
 
 
 def empty_codes() -> dict[str, dict[str, int]]:
@@ -391,7 +401,8 @@ def add_run(session: Any, *, actor_id: Optional[int], now: datetime.datetime, se
     if _release_stale(runs, at) is not None:
         raise EvalError("EVAL_BUSY")
     run = {"id": max((int(r.get("id") or 0) for r in runs), default=0) + 1, "status": QUEUED, "code": None,
-           "actor_id": actor_id, "started_at": _iso(at), "heartbeat_at": _iso(at), "finished_at": None, "model": None,
+           "actor_id": actor_id, "judge": JUDGE_VERSION, "started_at": _iso(at), "heartbeat_at": _iso(at),
+           "finished_at": None, "model": None,
            "cost_usd": "0", "target_pct": settings.past_target_pct, "past": empty_past(),
            "risk": {"total": 0, "done": 0, "bad": 0}, "codes": empty_codes(), "failures": []}
     _put(row, {"runs": [*runs, run][-KEEP_RUNS:]})

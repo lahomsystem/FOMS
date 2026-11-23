@@ -70,7 +70,7 @@ from foms.services.cs_agent.send import SEND_BRAND
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["DROPPED", "Said", "file_proposals"]
+__all__ = ["DROPPED", "Said", "after_filed", "clash_line", "file_proposals"]
 
 #: 넣지 않는 판정 답 → 까닭 코드.
 DROPPED: dict[str, str] = {SAME: "same", DECIDED: "decided_before", NOT_RULE: "not_rule",
@@ -125,6 +125,11 @@ def _adds(session: Any, raw: dict[str, Any], card: dict[str, Any], verdict: Plac
         approved=approved, skip_gates=SKIP)
 
 
+def clash_line(verdict: Placement) -> str:
+    """엇갈림 카드 글 첫 줄 — 판정자가 낸 어긋나는 두 구절(:data:`.handoff_learning_gates.CLASH_HEAD`)."""
+    return f"{CLASH_HEAD}회사 지식 「{verdict.clash[0]}」 ↔ 직원 「{verdict.clash[1]}」"
+
+
 def _settle(session: Any, verdict: Placement, said: Said, *, raw: dict[str, Any], card: dict[str, Any],
             replies: dict[str, list[str]], known: str, approved: Sequence[str], pointing: bool,
             vector: Optional[list[float]], wraps: bool = False, done_as: Optional[str] = None) -> Placed:
@@ -134,8 +139,7 @@ def _settle(session: Any, verdict: Placement, said: Said, *, raw: dict[str, Any]
     if verdict.verdict in DROPPED:
         return DROPPED[verdict.verdict], None, [], None, None
     if verdict.verdict == CONTRADICTS:
-        clash = f"{CLASH_HEAD}회사 지식 「{verdict.clash[0]}」 ↔ 직원 「{verdict.clash[1]}」"
-        return _try_card(session, verdict.target, {**card, "clash": clash}), None, [], None, None
+        return _try_card(session, verdict.target, {**card, "clash": clash_line(verdict)}), None, [], None, None
     title, text = card["title"], card["text"]
     if wraps:
         if verdict.verdict != ADDS or not verdict.added:
@@ -230,6 +234,21 @@ def _placed(session: Any, raw: dict[str, Any], card: dict[str, Any], *, said: Sa
     return _settle(session, verdict, said, **ctx)
 
 
+def after_filed(session: Any, change: Any, *, waited: Optional[int], merged: Sequence[int], auto: Optional[AutoLearn],
+                now: datetime.datetime) -> Optional[str]:
+    """넣은 안(커밋됨) 뒤 — 올린 기다리는 말 끝내기 · 바로 반영 · 같은 말을 모아 둔 앞 카드 닫기(반영됐을 때만). 바로 반영했으면
+    ``applied``, 막혔으면 ``auto_blocked``, 바로 반영이 꺼져 있으면 ``None``. 카드 닫기는 부르는 쪽이 커밋한다."""
+    row = held.held_row(session, held.held_key(waited)) if waited is not None else None
+    if row is not None:  # 기다리던 말이 지식(제안)으로 올라갔다
+        held.finish(session, row, held.PROMOTED)
+        session.commit()
+    extra = "applied" if auto is not None else None
+    extra = apply_now(session, change, auto, now) or extra
+    if extra == "applied":  # 같은 말을 모아 둔 앞 카드는 이 고침 · 새 지식 · 더함에 합쳐졌다
+        close_cards(session, merged, now)
+    return extra
+
+
 def _embed_applied(session: Any, keys: Sequence[str], now: datetime.datetime) -> None:
     """바로 반영한 항목의 뜻 찾기 벡터(모듈 설명) — 꺼짐 · 상한 · 실패면 넣지 않고 배우기는 계속(수 · 코드만 적는다)."""
     if not keys:
@@ -296,14 +315,8 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                 change = make()
                 session.commit()
                 seen = [(CHANGE_OPEN, None, title, text), *seen]  # 한 번에 비슷한 안 둘이 들어가지 않게
-                row = held.held_row(session, held.held_key(waited)) if waited is not None else None
-                if row is not None:  # 기다리던 말이 지식(제안)으로 올라갔다
-                    held.finish(session, row, held.PROMOTED)
-                    session.commit()
-                extra = "applied" if auto is not None else None
-                extra = apply_now(session, change, auto, now) or extra
-                if extra == "applied":  # 같은 말을 모아 둔 앞 카드는 이 고침 · 새 지식 · 더함에 합쳐졌다
-                    close_cards(session, merged, now)
+                extra = after_filed(session, change, waited=waited, merged=merged, auto=auto, now=now)
+                if extra == "applied":
                     applied.append(change.item_key)
                 if done is not None and (extra == "applied" or done != "differs_fixed"):
                     counts[done] = counts.get(done, 0) + 1

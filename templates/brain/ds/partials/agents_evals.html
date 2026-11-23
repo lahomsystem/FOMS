@@ -4,6 +4,8 @@
     (T10 의 '최근 실패' 목록 끝에 — 차례 번호 · 까닭만, 글 없음)를 textContent 로 그린다.
     [시험 다시 돌리기](머리 단추 자리 [data-ds-agents-actions])와 돈 상한 · 묶음 크기 칸은 ADMIN 에게만 — 주소(data-run-url)가 없으면
     스크립트가 만들지 않는다. 쓴 돈도 ADMIN 답에만 있다. 목업의 '기준 밑이면 배포를 막아요'는 없는 문지기라 쓰지 않는다.
+    사장님 채점(설계서 docs/specs/2026-11-23-brain-learning-upgrade_SPEC.md 4.1)도 ADMIN 에게만 — [data-ds-evals-marks] 자리를
+    static/js/brain/ds/ds-agents-marks.js 가 GET · POST data-marks-url 로 채운다(한 줄에 손님 글 · 직원 답 · AI 초안 · 단추 둘).
     인라인 스크립트 · 스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
 <link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-agents-evals.css') }}">
@@ -13,6 +15,10 @@
   <div class="f-col f-gap12" data-ds-evals-rows hidden></div>
   <p class="f-row-nw f-top f-small f-muted fb-evals-last" data-ds-evals-last hidden></p>
   {%- if is_admin %}
+  <div class="f-col fb-evals-marks" data-ds-evals-marks data-marks-url="{{ url_for('ai_staff_api.ai_staff_evals_marks') }}" hidden>
+    <p class="f-small fb-evals-marks-count" data-ds-evals-marks-count role="status" aria-live="polite"></p>
+    <ol class="fb-evals-marks-list" data-ds-evals-marks-list aria-label="채점할 차례"></ol>
+  </div>
   <form class="fb-evals-form" data-ds-evals-form hidden novalidate aria-label="시험 설정">
     <label class="f-field"><span class="f-label">한 번 돈 상한(달러)</span><input class="f-input" name="cap_usd" inputmode="decimal" autocomplete="off"></label>
     <label class="f-field"><span class="f-label">지난 상담 수</span><input class="f-input" name="past_size" type="number" min="0" step="1"></label>
@@ -24,3 +30,6 @@
   <hr class="f-divider">
 </div>
 <script src="{{ asset_url('js/brain/ds/ds-agents-evals.js') }}" defer></script>
+{%- if is_admin %}
+<script src="{{ asset_url('js/brain/ds/ds-agents-marks.js') }}" defer></script>
+{%- endif %}
