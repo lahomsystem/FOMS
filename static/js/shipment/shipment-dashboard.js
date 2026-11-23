@@ -127,7 +127,17 @@ function __shipDashCompareRowKeys(a, b) {
         return '';
       }
 
+      // PC 카드 모양(설계서 2026-11-23-pc-shipment-card-table): 줄 순서 · 사람 색은 서버(pc_card_rows)가 정하고
+      // 시공자는 이름판(tablet-ship-assign.js)이 고친 뒤 화면을 다시 받는다 — 여기서 줄을 옮기거나 칸을 칠하지 않는다.
+      // 문지기는 static/css/contexts/shipment/pc-card-table.css 와 같은 식이다.
+      function isPcCardTable() {
+        var table = document.getElementById('shipment-dashboard-table');
+        return !!(table && table.hasAttribute('data-ship-card') && window.matchMedia &&
+          window.matchMedia('(min-width: 992px) and (pointer: fine)').matches);
+      }
+
       function applyShipmentWorkerSortAndColors() {
+        if (isPcCardTable()) return;
         var tbody = document.querySelector('.shipment-table tbody');
         if (!tbody) return;
         var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.shipment-row'));

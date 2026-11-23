@@ -1,0 +1,357 @@
+/* =============================================================
+   PC 출고 탭 — 표 안쪽 카드 모양 · 사람 색 덩어리 · 이름판
+   설계서 docs/specs/2026-11-23-pc-shipment-card-table_SPEC.md §4.1 (목업 docs/design/mockups/pc-shipment-tablet-interface.html)
+   ------------------------------------------------------------
+   PC 표(#shipment-dashboard-table)를 그대로 두고 모양만 바꾼다 — 표에 붙은 기능(바로 쓰기 · 칸 너비 · 이미지 저장 ·
+   AS 추천)은 그대로다. 마크업 = templates/shipment/partials/dashboard_main.html(줄의 data-card · 시공자 칸 단추),
+   줄 순서 · 번호 · 사람 색 = foms/services/shipment/tablet_day_sheet.py pc_card_rows(태블릿 하루치 출고표와 같은 값).
+   이 파일의 모든 규칙은 PC 문지기(마우스 · 992px 이상) 안에만 둔다 — 태블릿 가로(터치) · 폰 · 좁은 창은 무영향.
+   글자 크기는 지금 PC 표 값을 건드리지 않는다(PC 는 화면 크기 80% 로 본다 — 줄이지 않는다).
+   이름판 글자 = calc(Npx * var(--foms-fs, 1)), 가장 작은 글자 13px.
+   ============================================================= */
+@media (min-width: 992px) and (pointer: fine) {
+
+  /* --- 바탕: 카드가 떠 보이게 표 둘레에 옅은 판 --- */
+  .shipment-table-wrapper[data-ship-people] {
+    --ship-line: var(--foms-border-subtle, #dde1e6);
+    --ship-rowline: #e8ebf0;
+    --ship-text: var(--foms-text-primary, #14171c);
+    --ship-text3: var(--foms-text-tertiary, #6b7380);
+    --ship-danger: var(--foms-color-danger-600, #dc2626);
+    --ship-danger-50: var(--foms-color-danger-50, #fef2f2);
+    --ship-miss-line: #f5c2c2;
+    padding: 2px 10px 10px;
+    border-radius: 12px;
+    background: var(--foms-surface-sunken, #f1f3f6);
+  }
+  /* 전역 .table 은 줄마다 떨어진 판(border-spacing 0 4px !important · 줄 그림자 · 줄 끝 둥글기)이다 — 카드 안 줄은 붙인다. */
+  #shipment-dashboard-table[data-ship-card] {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    margin-bottom: 0;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr {
+    box-shadow: none;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /* --- 머리 줄: 칠 없이 한 줄, 세로 선 없음(칸 너비 손잡이는 그대로) --- */
+  #shipment-dashboard-table[data-ship-card] > thead > tr > th,
+  #shipment-dashboard-table[data-ship-card] > thead > tr > th:not(:last-child) {
+    border: 0 !important;
+    border-bottom: 1px solid var(--foms-border-default, #c1c7d0) !important;
+    background: transparent;
+    box-shadow: none;
+    color: var(--ship-text3);
+  }
+  #shipment-dashboard-table[data-ship-card] .shipment-th-detail { display: none; }
+  #shipment-dashboard-table[data-ship-card] .shipment-th-no { display: inline; }
+
+  /* --- 카드 사이 틈 줄(+ 시공자 없음 n건) --- */
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-card-gap { display: table-row; }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-card-gap > td {
+    height: 10px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    line-height: 1;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-card-gap.is-miss > td {
+    padding: 10px 10px 4px;
+    text-align: left;
+  }
+  #shipment-dashboard-table[data-ship-card] .shipment-card-gap__lbl {
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 700;
+    color: var(--ship-danger);
+  }
+
+  /* --- 줄 · 칸: 세로 선 없음 · 가는 가로 선 · 카드 테두리 --- */
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td,
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td:not(:last-child) {
+    border: 0;
+    border-radius: 0;
+    border-bottom: 1px solid var(--ship-rowline);
+    background-color: var(--foms-surface-base, #fff);
+    box-shadow: none;
+    vertical-align: middle;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td.shipment-customer-done {
+    background-color: #cfe2ff;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td:first-child { border-left: 1px solid var(--ship-line); }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td:last-child { border-right: 1px solid var(--ship-line); }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="first"] > td { border-top: 1px solid var(--ship-line); }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="last"] > td { border-bottom: 1px solid var(--ship-line); }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="first"] > td:first-child { border-top-left-radius: 12px; }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="first"] > td:last-child { border-top-right-radius: 12px; }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="last"] > td:first-child { border-bottom-left-radius: 12px; }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="last"] > td:last-child { border-bottom-right-radius: 12px; }
+  /* 시공자 없음 카드 = 옅은 빨간 테두리 */
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="miss"] > td:first-child { border-left-color: var(--ship-miss-line); }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="miss"] > td:last-child { border-right-color: var(--ship-miss-line); }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="miss"][data-card~="first"] > td { border-top-color: var(--ship-miss-line); }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="miss"][data-card~="last"] > td { border-bottom-color: var(--ship-miss-line); }
+
+  /* 마우스 올린 줄 · 세부 창이 열린 줄 */
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row:hover > td:not(.shipment-customer-done) { background-color: #f3f5f9; }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row.is-sheet-open > td:not(.shipment-customer-done) { background-color: #eceff5; }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row.is-sheet-open > td:first-child { box-shadow: inset 4px 0 0 var(--ship-text); }
+
+  /* --- 첫 칸: 번호 + 연필 --- */
+  #shipment-dashboard-table[data-ship-card] .shipment-card-no {
+    display: inline-block;
+    min-width: 1.3em;
+    margin-right: 2px;
+    text-align: center;
+    color: var(--ship-text3);
+    font-variant-numeric: tabular-nums;
+    vertical-align: middle;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td[data-col-key="detail"] {
+    padding-left: 6px;
+    padding-right: 2px;
+    white-space: nowrap;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td[data-col-key="detail"] > .d-flex {
+    display: inline-flex !important;
+    vertical-align: middle;
+  }
+
+  /* --- 제품 · 규격은 굵게(크기는 그대로) --- */
+  #shipment-dashboard-table[data-ship-card] .shipment-product-line,
+  #shipment-dashboard-table[data-ship-card] .shipment-spec-line { font-weight: 700; }
+
+  /* --- 시공자 칸: 사람 색 덩어리. 같은 구성의 이어지는 줄은 위아래로 붙는다(is-top · is-bottom 만 둥글게). --- */
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td.shipment-worker-cell.has-wk-btn {
+    position: relative;
+    padding: 0;
+    border-bottom-color: transparent;
+    background-color: var(--foms-surface-base, #fff) !important;
+    background: var(--foms-surface-base, #fff) !important;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row:hover > td.shipment-worker-cell.has-wk-btn {
+    background-color: #f3f5f9 !important;
+    background: #f3f5f9 !important;
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="last"] > td.shipment-worker-cell.has-wk-btn {
+    border-bottom-color: var(--ship-line);
+  }
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row[data-card~="miss"][data-card~="last"] > td.shipment-worker-cell.has-wk-btn {
+    border-bottom-color: var(--ship-miss-line);
+  }
+  #shipment-dashboard-table[data-ship-card] td.shipment-worker-cell.has-wk-btn > .shipment-workers-list { display: none; }
+  #shipment-dashboard-table[data-ship-card] .shipment-wk-btn {
+    position: absolute;
+    top: 0;
+    right: 8px;
+    bottom: 0;
+    left: 8px;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ship-text);
+    font: inherit;
+    overflow: hidden;
+    opacity: 1;
+  }
+  #shipment-dashboard-table[data-ship-card] button.shipment-wk-btn[data-ship-worker-cell] { cursor: pointer; }
+  #shipment-dashboard-table[data-ship-card] .shipment-wk-btn.is-top { top: 5px; border-top-left-radius: 10px; border-top-right-radius: 10px; }
+  #shipment-dashboard-table[data-ship-card] .shipment-wk-btn.is-bottom { bottom: 5px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; }
+  #shipment-dashboard-table[data-ship-card] .shipment-wk-btn.is-empty { top: 5px; bottom: 5px; border-radius: 10px; }
+  #shipment-dashboard-table[data-ship-card] .shipment-wk-btn[data-ship-worker-cell]:hover,
+  #shipment-dashboard-table[data-ship-card] .shipment-wk-btn[data-ship-worker-cell]:focus-visible,
+  #shipment-dashboard-table[data-ship-card] .shipment-wk-btn.is-open { box-shadow: inset 0 0 0 2px var(--ship-text); outline: 0; }
+  #shipment-dashboard-table[data-ship-card] .foms-tablet-shipgrid__who {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 0 4px;
+    background: var(--ship-pc, #e9ecef);
+    font-weight: 800;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #shipment-dashboard-table[data-ship-card] .foms-tablet-shipgrid__add {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    border: 1.5px dashed var(--ship-danger);
+    border-radius: 10px;
+    background: var(--ship-danger-50);
+    color: var(--ship-danger);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  /* 시공자 칸이 있는 줄은 덩어리가 보이도록 최소 높이 */
+  #shipment-dashboard-table[data-ship-card] > tbody > tr.shipment-row > td.shipment-worker-cell.has-wk-btn { height: 46px; }
+
+  /* 사람 색 1~10 — 태블릿(foms-tablet-day-strip.css) · PC 표 PASTEL_COLORS 와 같은 값 · 같은 순서. */
+  #shipment-dashboard-table [data-ship-color="1"], .foms-ship-names [data-ship-color="1"] { --ship-pc: #B8D4E3; }
+  #shipment-dashboard-table [data-ship-color="2"], .foms-ship-names [data-ship-color="2"] { --ship-pc: #FFE5CC; }
+  #shipment-dashboard-table [data-ship-color="3"], .foms-ship-names [data-ship-color="3"] { --ship-pc: #E8D5E9; }
+  #shipment-dashboard-table [data-ship-color="4"], .foms-ship-names [data-ship-color="4"] { --ship-pc: #D5E9D5; }
+  #shipment-dashboard-table [data-ship-color="5"], .foms-ship-names [data-ship-color="5"] { --ship-pc: #F0D5D5; }
+  #shipment-dashboard-table [data-ship-color="6"], .foms-ship-names [data-ship-color="6"] { --ship-pc: #D5D5E9; }
+  #shipment-dashboard-table [data-ship-color="7"], .foms-ship-names [data-ship-color="7"] { --ship-pc: #FFF0D5; }
+  #shipment-dashboard-table [data-ship-color="8"], .foms-ship-names [data-ship-color="8"] { --ship-pc: #D5E9E5; }
+  #shipment-dashboard-table [data-ship-color="9"], .foms-ship-names [data-ship-color="9"] { --ship-pc: #F5D5E5; }
+  #shipment-dashboard-table [data-ship-color="10"], .foms-ship-names [data-ship-color="10"] { --ship-pc: #E9E5D5; }
+
+  /* --- 이름판(문서 끝에 붙는 떠 있는 판) — 태블릿 이름판(tablet-day-sheet.css)과 같은 모양, 마우스 크기.
+     PC 는 글자 입력 칸이 늘 열려 있다(사장님 2026-11-23 "이름판에 글자입력 가능하게") — [직접 쓰기] 단추는 숨긴다. --- */
+  .foms-ship-names {
+    position: absolute;
+    z-index: 1080;
+    width: 460px;
+    max-width: calc(100vw - 16px);
+    padding: 14px 16px 16px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 16px;
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 12px 32px rgba(20, 23, 28, 0.18), 0 2px 6px rgba(20, 23, 28, 0.08);
+    color: var(--foms-text-primary, #14171c);
+  }
+  .foms-ship-names__top { display: flex; align-items: flex-start; gap: 8px; }
+  .foms-ship-names__head { flex: 1 1 auto; min-width: 0; }
+  .foms-ship-names__title {
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-text-tertiary, #6b7380);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .foms-ship-names__hint {
+    margin: 2px 0 12px;
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 600;
+  }
+  .foms-ship-names__close {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    margin: -6px -6px 0 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    font-size: calc(18px * var(--foms-fs, 1));
+    color: var(--foms-text-secondary, #4b525d);
+    cursor: pointer;
+  }
+  .foms-ship-names__close:hover { background: var(--foms-surface-raised, #f7f8fa); }
+  .foms-ship-names__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    max-height: calc(100dvh - 300px);
+    overflow-y: auto;
+  }
+  .foms-ship-names__nb {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 1px;
+    min-width: 0;
+    height: 54px;
+    padding: 0 10px 0 16px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 10px;
+    background: var(--foms-surface-base, #fff);
+    color: inherit;
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .foms-ship-names__nb::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 6px;
+    background: var(--ship-pc, #e8ebf0);
+  }
+  .foms-ship-names__nb:hover { background: var(--foms-surface-raised, #f7f8fa); }
+  .foms-ship-names__nb.is-on {
+    border: 2px solid var(--foms-text-primary, #14171c);
+    background: var(--foms-surface-raised, #f7f8fa);
+  }
+  .foms-ship-names__nb.is-off { opacity: 0.4; cursor: default; }
+  .foms-ship-names__nb b {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: calc(16px * var(--foms-fs, 1));
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  .foms-ship-names__nb small {
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  .foms-ship-names__nb small.is-over { color: var(--foms-color-danger-600, #dc2626); }
+  .foms-ship-names__write,
+  .foms-ship-names__write[hidden] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .foms-ship-names__input {
+    height: 40px;
+    min-width: 0;
+    padding: 0 12px;
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: 10px;
+    font-size: calc(16px * var(--foms-fs, 1));
+  }
+  .foms-ship-names__foot {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e8ebf0;
+  }
+  .foms-ship-names__foot [data-ship-act="write"] { display: none; }
+  .foms-ship-names__btn {
+    height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: 10px;
+    background: var(--foms-surface-base, #fff);
+    color: inherit;
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .foms-ship-names__btn:hover { background: var(--foms-surface-raised, #f7f8fa); }
+  .foms-ship-names.is-busy .foms-ship-names__grid,
+  .foms-ship-names.is-busy .foms-ship-names__foot,
+  .foms-ship-names.is-busy .foms-ship-names__write { opacity: 0.55; pointer-events: none; }
+  .foms-ship-names__msg {
+    margin-top: 8px;
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  .foms-ship-names__msg:empty { display: none; }
+}

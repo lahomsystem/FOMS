@@ -184,3 +184,40 @@ def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str |
         'total': len(prepared),
         'unassigned': len(buckets.get('', [])),
     }
+
+
+def pc_card_rows(sheet: dict | None) -> list:
+    """PC 출고 표가 그릴 줄을 하루치 출고표 순서로 펴고, 줄마다 카드 정보를 붙인다(추가 쿼리 없음).
+
+    PC 표(dashboard_main.html)는 태블릿 하루치 출고표와 같은 묶음 순서 · 번호 · 사람 색을 쓴다
+    (설계서 2026-11-23-pc-shipment-card-table §4.1). 묶음(시공자) 하나가 카드 하나다.
+
+    Args:
+        sheet: build_tablet_day_sheet 결과. None · 빈 값이면 빈 목록.
+
+    Returns:
+        Order 목록(묶음 순서). 각 Order 에 ``pc_card`` dict 가 붙는다:
+        {'no', 'first', 'last', 'miss', 'count', 'workers', 'units', 'is_as', 'blob_top', 'blob_bottom'}.
+        blob_top · blob_bottom = 같은 카드에서 시공자 구성이 같은 이웃 줄과 사람 색 덩어리를 잇는지.
+    """
+    out: list = []
+    for group in (sheet or {}).get('groups') or []:
+        rows = group.get('rows') or []
+        sigs = ['|'.join(w['name'] for w in row['workers']) for row in rows]
+        last = len(rows) - 1
+        for i, row in enumerate(rows):
+            order = row['order']
+            order.pc_card = {
+                'no': row['no'],
+                'first': i == 0,
+                'last': i == last,
+                'miss': bool(group.get('unassigned')),
+                'count': len(rows),
+                'workers': row['workers'],
+                'units': row['units'],
+                'is_as': row['is_as'],
+                'blob_top': i == 0 or sigs[i - 1] != sigs[i],
+                'blob_bottom': i == last or sigs[i + 1] != sigs[i],
+            }
+            out.append(order)
+    return out
