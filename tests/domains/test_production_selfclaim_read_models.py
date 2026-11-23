@@ -226,7 +226,7 @@ def test_기록_글은_새_기록만_새_글() -> None:
                                                                                "holder_name": "박재단"}) \
         == "재단 맡기를 취소했습니다 (박재단 담당)"
     assert generate_change_description("PRODUCTION_STEP_CHECKED", "", "", "", {"key": "cut", "done": True, "via": "sheet"}) \
-        == "작업 시트에서 재단 칸을 체크했습니다"
+        == "재단 칸을 손으로 체크했습니다"  # 작업 시트 · '내 공정' [끝] · PC [고치기] 모두 같은 길 — 자리 말 없음
     # 대조군: 지금 기록(맡기 · 옛 칸 체크)은 지금 글 그대로
     assert generate_change_description("PRODUCTION_PART_MARKED", "공정", "", "", {"part": "cut", "action": "take"}) == "공정 변경"
     assert generate_change_description("PRODUCTION_STEP_CHECKED", "", "", "", {"key": "cut", "done": True}) == "변경 이력"

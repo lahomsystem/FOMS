@@ -62,8 +62,9 @@
     {% endif %}
     {% if is_cut %}
     <div class="pp-bulk">
-      <span class="pp-unseen" data-pp-unseen-text>{% if pp.counts.unseen %}안 본 도면 <b>{{ pp.counts.unseen }}</b>장{% else %}안 본 도면 없어요{% endif %}</span>
-      {% if pb.writable %}<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"{% if not pp.counts.unseen %} hidden{% endif %}><span>남은 <span data-pp-count="unseen">{{ pp.counts.unseen }}</span>장 모두 기본</span></button>{% endif %}
+      <span class="pp-unseen" data-pp-unseen-text="{{ pp.counts.unseen }}">{% if pp.counts.unseen %}안 본 도면 <b>{{ pp.counts.unseen }}</b>장{% else %}안 본 도면 없어요{% endif %}</span>
+      {# [남은 N장 모두 기본]: 막힌(보류 · 도면 고치는 중) 안 본 장은 빼고 센다 — 창이 여는 목록과 같은 기준. 안 본 도면 글은 모두 센다 #}
+      {% if pb.writable %}<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"{% if not pp.bulk %} hidden{% endif %}><span>남은 <span data-pp-count="unseen">{{ pp.bulk }}</span>장 모두 기본</span></button>{% endif %}
     </div>
     {% endif %}
     <div class="foms-prod-home__tabs pp-tabs" role="group" aria-label="칸">
@@ -86,7 +87,7 @@
                data-in-need="{{ '1' if c.in_need else '0' }}" data-in-done="{{ '1' if c.in_done else '0' }}" data-view-url="{{ c.view_url }}"
                data-picked-id="{{ c.picked_by_user_id if c.picked_by_user_id is not none else '' }}" data-picked-day="{{ c.picked_day or '' }}" data-picked-at="{{ c.picked_at or '' }}"
                data-handed-from="{{ c.handed_from_name or '' }}" data-handed-at="{{ c.handed_at or '' }}" data-pp-hands="{{ c.hand_parts | join(' ') }}"{% if c.first_card %} data-pp-first="1"{% endif %}
-               {%- if c.block and c.block.kind != 'pre' %} data-pp-block="{{ c.block.kind }}" data-pp-block-text="{{ c.block.text }}" data-pp-block-why="{{ c.block.why }}"{% endif %}
+               {%- if c.order_block %} data-pp-block="{{ c.order_block.kind }}" data-pp-block-text="{{ c.order_block.text }}" data-pp-block-why="{{ c.order_block.why }}"{% endif %}
                {%- if c.block and c.block.kind == 'pre' %} data-pp-pre="{{ c.block.text }}" data-pp-pre-why="{{ c.block.why }}"{% endif %}
                {%- if c.hand %} data-pp-hand="{{ c.hand.text }}" data-pp-hand-why="{{ c.hand.why }}"{% endif %}>
         {% if c.is_image %}

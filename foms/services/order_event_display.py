@@ -565,7 +565,7 @@ def _toward(name: str) -> str:
 
 
 def _describe_part_claim(event_type: str, payload: dict[str, Any]) -> str:
-    """파트 카드 3판에 새로 생긴 기록만 글로(설계서 2026-11-23 §4-11) — 담당 바꾸기 · 맡기 취소 · 작업 시트 손 체크.
+    """파트 카드 3판에 새로 생긴 기록만 글로(설계서 2026-11-23 §4-11) — 담당 바꾸기 · 맡기 취소 · 공정 칸 손 체크.
 
     지금 있던 기록(맡기 · 기본 · 완료 · 되돌리기 · 옛 공정 칸 체크)은 빈 글을 돌려 지금 글 그대로 둔다.
     """
@@ -581,8 +581,9 @@ def _describe_part_claim(event_type: str, payload: dict[str, Any]) -> str:
             return f"{part} 맡기를 취소했습니다" + (f" ({holder} 담당)" if holder else "")
         return ""
     if event_type == "PRODUCTION_STEP_CHECKED" and payload.get("via") == "sheet":
+        # 'sheet' = 사람이 공정 칸을 손으로 바꿈(작업 시트 · '내 공정' [끝] · PC [고치기] 모두 같은 공정 API) — 자리 말은 쓰지 않는다
         part = _PRODUCTION_PART_KR.get(str(payload.get("key") or ""), "")
-        return f"작업 시트에서 {part} 칸을 " + ("체크했습니다" if payload.get("done") else "체크 해제했습니다")
+        return f"{part} 칸을 손으로 " + ("체크했습니다" if payload.get("done") else "체크 해제했습니다")
     return ""
 
 

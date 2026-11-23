@@ -127,7 +127,8 @@
     var who = item.by_name || '';
     var t = d ? ' ' + stamp(d, prev) : '';
     if (item.kind === 'takeover') { return (who ? toward(who) + ' ' : '') + '바뀜' + t; }
-    if ((item.kind === 'step_on' || item.kind === 'step_off') && item.via === 'part_marks') { return '카드로 ' + KIND[item.kind] + t; }
+    if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료로 체크' + t; } // 카드 동기화(사람 이름 없음)
+    if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료로 체크 풀림' + t; }
     var holderName = item.holder_name && item.holder_name !== who ? '(' + item.holder_name + ' 대신)' : '';
     return [who, holderName, KIND[item.kind] || item.kind].filter(Boolean).join(' ') + t;
   }

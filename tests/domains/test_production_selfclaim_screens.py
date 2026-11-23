@@ -147,6 +147,61 @@ def test_손_체크한_파트_카드는_완료_칸이고_단추가_없다(client
     assert 'data-pp-act="' not in card and "안 본 도면 없어요" in html  # 미정 수 · 일괄 기본에서 빠짐
 
 
+def test_보류_주문은_완료_기본_카드에도_막힘을_싣고_되돌린_뒤_그림_규칙이_서버와_같다(client, cohort) -> None:
+    """완료 · 기본 카드에도 data-pp-block — 되돌리면(완료 → 담당 · 기본 → 안 봄) JS 가 그 값으로 그린다. 서버는 같은 상태를
+    [맡기 취소][보류 칸] · 보류 칸으로 그린다. JS 규칙(claim.special 은 상태와 상관없이 카드의 data-pp-block 을 읽음)은 아래 정적 단언."""
+    me = _user("김재단", "cut")
+    held = _order("보류집", 4, hold=True)
+    _mark(held, 0, "cut", "DONE", me)
+    _mark(held, 1, "cut", "BASIC", me)
+    _mark(held, 2, "cut", "NEED", me)  # = 완료 카드를 되돌린 뒤 상태(내 담당)
+    _login(client, me)
+    html = _get(client, HOME)
+    for j in range(4):  # 완료 · 기본 · 담당 · 안 본 장 모두 같은 막힘 값
+        card = _card(html, "보류집", j)
+        assert 'data-pp-block="hold" data-pp-block-text="보류 · 자재 기다림"' in card, j
+    done, basic = _card(html, "보류집", 0), _card(html, "보류집", 1)
+    assert "재단 끝 · 김재단" in done and 'data-pp-act="undo"' in done  # 완료 취소는 보류에도 된다(§4-6)
+    assert 'data-pp-act="undo"' in basic
+    # 되돌린 뒤 상태의 서버 그림 = 내 담당 [맡기 취소][보류 칸] · 안 본 장 = 보류 칸(단추 없음)
+    mine = _card(html, "보류집", 2)
+    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">맡기 취소</button><button type="button" class="fph-wi pp-act pp-st-hold"' in mine
+    fresh = _card(html, "보류집", 3)
+    assert 'class="fph-wi pp-act pp-st-hold"' in fresh and 'data-pp-act=' not in fresh
+    claim = (JS / "foms-production-parts-claim.js").read_text(encoding="utf-8")
+    block = claim[claim.index("function block(card)"):claim.index("function whyId(")]
+    assert block.index("attr(card, 'data-pp-block')") < block.index("preLeft(card)")  # 주문 막힘이 먼저(상태 무관)
+    special = claim[claim.index("function special("):claim.index("function renderTag(")]
+    assert "var b = block(card);" in special and "if (st === 'none') { if (b) { box.appendChild(blockChip(card, b)); } return !!b; }" in special
+    assert "two.appendChild(b ? blockChip(card, b) : actBtn(" in special
+
+
+def test_남은_N장_모두_기본은_막힌_안_본_장을_빼고_창_목록과_같다(client, cohort) -> None:
+    me = _user("김재단", "cut")
+    _order("보통집", 2)
+    _order("보류한집", 3, hold=True)
+    _login(client, me)
+    html = _get(client, HOME)
+    assert '<span class="pp-unseen" data-pp-unseen-text="5">안 본 도면 <b>5</b>장</span>' in html  # 안 본 도면 글은 모두(지금 글)
+    assert '<span>남은 <span data-pp-count="unseen">2</span>장 모두 기본</span>' in html  # 단추 = 막히지 않은 2장
+    bulk = re.search(r'<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"[^>]*>', html).group(0)
+    assert "hidden" not in bulk
+    parts = (JS / "foms-production-parts.js").read_text(encoding="utf-8")
+    assert "function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block'); }" in parts
+    assert "unseen: bulkable(card) ? 1 : 0, look: st === 'none' ? 1 : 0" in parts  # 단추 숫자 · 글 숫자 따로
+    assert "openModal('bulk', board.cardsOf(pane).filter(bulkable), btn);" in parts  # 창 목록 = 단추 숫자 기준
+
+
+def test_모두_막힌_날은_모두_기본_단추가_숨는다(client, cohort) -> None:
+    me = _user("김재단", "cut")
+    _order("보류만집", 2, hold=True)
+    _login(client, me)
+    html = _get(client, HOME)
+    bulk = re.search(r'<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"[^>]*>', html).group(0)
+    assert bulk.endswith(" hidden>") and '<span data-pp-count="unseen">0</span>' in html
+    assert "안 본 도면 <b>2</b>장" in html
+
+
 def test_관리자_남의_담당은_고르기_창_단추_지금_완료_단추_그대로_읽기_전용은_지금_꼴(client, cohort) -> None:
     kim, admin, cs = _user("김재단", "cut"), _user("관리", role="ADMIN", team="CS"), _user("상담", team="CS")
     order = _order("한빛", 1)
@@ -190,7 +245,7 @@ def test_작업_시트_카드_진행_글_막힘_글_바뀐_기록_까닭_손_체
     plain_id, order_id = _order("빈시트", 2).id, order.id
     _login(client, _user("반장"))
     html = _get(client, f"/erp/production/sheet/{order_id}")
-    assert '<small class="fpp-note is-miss" data-foms-sheet-step-meta data-foms-sheet-cardnote>카드 3/5 · 2장 미완료 · 바뀜 1</small>' in html
+    assert '<small class="fpp-note is-miss" data-foms-sheet-step-meta data-foms-sheet-cardnote>도면 3/5 · 2장 미완료 · 바뀜 1</small>' in html
     assert '<p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>' in html
     assert 'data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>' in html
     assert 'data-foms-sheet-complete-why="아직 미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"' in html
@@ -233,7 +288,7 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "", "-sync")]
     assert order == sorted(order)
-    assert len(re.findall(r"foms-production-parts(?:-claim|-modal)?\.js'\) \}\}\?v=20261123u\" defer", tpl)) == 3
+    assert len(re.findall(r"foms-production-parts(?:-claim|-modal)?\.js'\) \}\}\?v=20261123v\" defer", tpl)) == 3
 
 
 def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> None:
@@ -243,6 +298,13 @@ def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> 
     assert "n.inert = true" in modal and "n.inert = false" in modal  # 창 밖 판은 inert
     assert "e.key !== 'Tab'" in modal and "last.focus()" in modal and "first.focus()" in modal  # 초점 가두기
     assert "cards.find(o.key[0], o.key[1])" in modal  # 연 단추가 다시 그려졌으면 같은 카드로 초점
+    # 연 단추가 문서에 있어도 숨었으면 가지 않고, 다 숨었으면 늘 보이는 판 머리 거르개(고른 칸)로
+    assert "n.offsetParent !== null && !n.closest('[hidden]')" in modal and "[data-pp-view].is-on" in modal
+    assert "var next = pick.filter(shown)[0];" in modal
+    # 목록 없는 창(제작 완료 물음)은 빈 줄을 안 남긴다
+    assert "list.hidden = !items.length;" in modal
+    css = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
+    assert ".foms-prod-home .pp-modal .foms-prod-change-modal__list[hidden] { display: none; }" in css
     assert "var LOCK_MS = 800;" in modal and "run.setAttribute('aria-disabled', 'true');" in modal
     assert "pending.busy || pending.locked" in parts  # 두 번 누름 · 잠금 중 누름은 버린다
     assert "data.order_ready && p.action === 'done'" in parts and "'/production/complete'" in parts
@@ -261,3 +323,14 @@ def test_작업_시트_JS_는_새_파일이_없으면_지금_그대로() -> None
     assert "' 완료로 체크할까요?'" in sheet and "'이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.'" in sheet
     assert "if (!done) { go(); return; }" in sheet  # 끌 때는 묻지 않는다
     assert "part.uses_cards" in sheet and "/api/production/part-history?order_id=" in sheet
+
+
+def test_PC_완료_칸_날짜는_아주_넓은_화면에서만() -> None:
+    """2026-11-23 지휘: 칸 아래 이름(has-hd)을 늘 보이게 한 뒤에도 아주 넓은 화면(줄 칸 1,500px 이상)의 "김재단 11/21" 글은 그대로."""
+    css = (ROOT / "static/css/contexts/production/pc.css").read_text(encoding="utf-8")
+    base, wide = css.split("@container fpc (min-width: 1500px) {", 1)
+    assert ".fpc-s__m > .fpc-s__at { display: none;" in base
+    block = wide[:wide.index("/* ── 작업 시트(PC)")]  # 아주 넓은 덩이(다음 절 앞까지)
+    assert ".fpc-s__m > .fpc-s__at { display: inline; }" in block
+    tpl = (ROOT / "templates/production/partials/home_pc_macros.html").read_text(encoding="utf-8")
+    assert "<small class=\"fpc-s__at\">{{ _day or '기록 없음' }}</small>" in tpl

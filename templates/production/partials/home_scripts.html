@@ -4,9 +4,9 @@
 {% if part_board %}{# 도면 카드(설계서 §15.6): 크게 보기 · 칸 단추 · 카드 고치기 · 30초 받아 오기(P15-7)는 누구나. 쓰기(누름 · 확인 창 · 저장)는
    확인 창이 있는 사람(쓸 수 있는 사람, D55)에게만 묶인다 — 읽기 전용은 창이 없어 parts.js 가 카드 고치기만 내보낸다.
    순서 = 보기(viewer) → 새 카드 칸(claim) → 창 글(modal) → 쓰기 · 고치기(parts) → 받아 오기(sync) — 뒤 파일이 앞 파일의 window.* 를 쓴다. #}
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-viewer.js') }}?v=20261123u" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-claim.js') }}?v=20261123u" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-modal.js') }}?v=20261123u" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261123u" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-sync.js') }}?v=20261123u" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-viewer.js') }}?v=20261123v" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-claim.js') }}?v=20261123v" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-modal.js') }}?v=20261123v" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261123v" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-sync.js') }}?v=20261123v" defer></script>
 {% endif %}{% if edit_toggle %}{# PC [고치기] — 쿠키 foms_prod_edit 심기 · 지우기 + 다시 받기(설계서 2026-11-21-production-pc-viewer §7) #}<script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}

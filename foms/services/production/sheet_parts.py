@@ -24,8 +24,9 @@ def _last_finisher(rows: list[Any]) -> tuple[str, str]:
 
 
 def step_note(sd: Any, marks: list[Any], part: str) -> dict[str, str] | None:
-    """공정 칸 옆 글 하나 — 카드를 쓴 파트만. 미완료 "카드 3/5 · 2장 미완료"(is-miss) · 모두 완료 "카드로 완료 · 김재단 11/24 15:02"(is-ok),
-    담당이 바뀐 장이 있으면 끝에 " · 바뀜 n". 카드를 안 쓴 파트 · 확정 도면 0장은 None(지금 글 그대로).
+    """공정 칸 옆 글 하나 — 카드를 쓴 파트만. 미완료 "도면 3/5 · 2장 미완료"(is-miss) · 모두 완료 "도면 5/5 완료 · 김재단 11/24 15:02"
+    (is-ok), 담당이 바뀐 장이 있으면 끝에 " · 바뀜 n". 카드를 안 쓴 파트 · 확정 도면 0장은 None(지금 글 그대로).
+    화면 글에는 '카드'를 쓰지 않는다(판 거르개가 '전체 도면' — 사람이 보는 낱말은 도면).
     """
     progress = part_progress(sd, marks, part)
     if not progress["uses_cards"] or not progress["total_n"]:
@@ -37,9 +38,10 @@ def step_note(sd: Any, marks: list[Any], part: str) -> dict[str, str] | None:
     if progress["done"]:
         name, at = _last_finisher(rows)
         who = " ".join(p for p in (name, at) if p)
-        return {"text": "카드로 완료" + (f" · {who}" if who else "") + tail, "cls": "is-ok"}
+        done = f"도면 {progress['total_n']}/{progress['total_n']} 완료"
+        return {"text": done + (f" · {who}" if who else "") + tail, "cls": "is-ok"}
     left = len(progress["left_keys"])
-    return {"text": f"카드 {progress['done_n']}/{progress['total_n']} · {left}장 미완료{tail}", "cls": "is-miss"}
+    return {"text": f"도면 {progress['done_n']}/{progress['total_n']} · {left}장 미완료{tail}", "cls": "is-miss"}
 
 
 def sheet_part_extras(sd: Any, marks: list[Any]) -> dict[str, Any]:
