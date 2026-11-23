@@ -145,5 +145,14 @@ whitenoise==6.12.0
 # FOMS Brain AI provider (PG-B0A)
 google-genai==2.8.0
 
+# 회사 지식 한글 낱말 찾기(설계서 2026-11-23-brain-learning-upgrade 5.2 · 설치 전 사장님께 보고 · 허락). 우리 서버 안에서만 돌고
+# 바깥으로 글이 나가지 않는다. kiwipiepy(형태소 나누기 · Apache-2.0, 모델 묶음 약 105 MB · torch 없음) · bm25s(낱말 점수 ·
+# MIT, numpy 만 · scipy 필요 없음). numpy 1.26.4 를 올리지 않음 · 새로 생긴 pip check 어긋남 없음 — 설치 시험 2026-11-23
+# (Windows · Python 3.12). 형태소 모델은 읽으면 메모리를 약 0.3 GB 쓴다(다중 낱말 · 오타 사전 없이 — 학습 바퀴 프로세스만, 바퀴가 끝나면 놓는다).
+# import 는 함수 안에서만(foms/services/brain/word_search.py) — web · gevent 프로세스는 모델을 읽지 않는다.
+kiwipiepy==0.25.1
+kiwipiepy_model==0.25.0
+bm25s==0.3.16
+
 # 외부 오류 관측 (AUDIT-LOG T10). SENTRY_DSN env 가 없으면 import 조차 하지 않는다.
 sentry-sdk[flask]==2.72.0

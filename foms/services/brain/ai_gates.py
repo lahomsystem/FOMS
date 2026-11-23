@@ -25,15 +25,20 @@ import json
 import logging
 from typing import Any, Callable, Iterable, Iterator, Mapping, Optional
 
+from sqlalchemy import select
+
+from foms.persistence.brain.models import BrainObject
+from foms.services.brain import word_search
 from foms.services.brain.chat_model import build_params, call_model
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.chat_tools import score_values, search_objects, terms
 from foms.services.brain.constants import (
     AGENT_WORK_TYPES, BRAND_COMMON, CONFIRMED, EVIDENCED, OP_CREATE, OP_DELETE, OP_RETIRE, OP_UPDATE, STATUS_ACTIVE,
 )
-from foms.services.brain.embeddings import HELD_SCOPES, account_like
+from foms.services.brain.embeddings import HELD_SCOPES, account_like, nearest
 from foms.services.brain.eval_set import stored_questions
 from foms.services.brain.labels import aliases_of, norm
+from foms.services.brain.read import effective_clauses
 from foms.services.brain.scope import SYSTEM
 from foms.services.brain.store import current_object
 from foms.services.cs_agent.brain_spend import BrainError
@@ -177,29 +182,70 @@ def _close_enough(hit: dict[str, Any]) -> bool:
     return lexical >= MIN_RELATED_SCORE or (hit.get("similarity") or 0.0) >= MEANING_MIN
 
 
+def _placeable(row: Any) -> bool:
+    """놓을 자리 후보가 될 수 있는 줄인가 — 반영 · 글 있음 · 빈 설명 칸 유형 아님 · 판정자에게 보낼 수 있는 글."""
+    return (row is not None and row.status == STATUS_ACTIVE and bool(row.text) and row.item_type not in STUB_TYPES
+            and _sendable(row.visibility, row.text))
+
+
+#: 낱말 찾기로 한 번에 읽는 후보 줄 상한 · 질의 글자 상한 · 뜻 찾기 쪽에서 받는 줄 수.
+WORD_ROWS, WORD_QUERY_CHARS, WORD_VECTOR_POOL = 5000, 2000, 20
+
+
+def _word_ranked(session: Any, *, key: Optional[str], texts: list[str], today: datetime.date, brand: Optional[str],
+                 limit: int, vector: Optional[list[float]]) -> list[Any]:
+    """낱말(BM25 — :mod:`.word_search`) 순과 뜻(벡터) 순을 번갈아 고른 후보 줄(낱말 먼저 · 설계서 2026-11-23 5.2 — 운영 실측
+    짝이 앞 6 안에 드는 비율 50.7% → 67.5%, 작은 묶음 62.9% → 87.1%). 후보 모음은 글자 찾기 길과 같다 — 시스템 보기 범위 ·
+    유효 기간 · 반영 · 지금 판(:func:`foms.services.brain.read.effective_clauses`) + 확신 :data:`_PLACED` · 같은 브랜드 ·
+    :func:`_placeable` · 짚은 항목 뺌. 뜻 쪽은 ``vector`` 가 있을 때만, 낱말 점수가 없는 줄은 비슷함 :data:`MEANING_MIN` 이상만.
+    둘 다 비면 빈 목록. 낱말 찾기를 쓸 수 없으면 :class:`.word_search.WordSearchUnavailable`."""
+    query = " ".join(t for t in texts if t)[:WORD_QUERY_CHARS]
+    rows = session.execute(select(BrainObject).where(
+        *effective_clauses(SYSTEM, today), BrainObject.confidence.in_(sorted(_PLACED)),
+        BrainObject.item_type.not_in(sorted(STUB_TYPES))).order_by(BrainObject.item_key).limit(WORD_ROWS)).scalars()
+    pool = {row.item_key: row for row in rows
+            if row.item_key != key and same_brand(brand, row.brand) and _placeable(row)}
+    words = word_search.rank(query, [(k, f"{row.name or ''} {row.text or ''}") for k, row in pool.items()],
+                             limit=limit * 3, versions={k: row.version for k, row in pool.items()})
+    meant: list[str] = []
+    if vector is not None:
+        scored = set(words)
+        meant = [k for k, sim in nearest(session, SYSTEM, vector, today=today, limit=WORD_VECTOR_POOL)
+                 if k in pool and (k in scored or sim >= MEANING_MIN)]
+    return [pool[k] for k in word_search.interleave(words, meant, limit)]
+
+
 def related_items(session: Any, *, key: Optional[str], texts: list[str], today: datetime.date,
                   brand: Optional[str] = None, limit: int = RELATED_LIMIT + 1,
-                  vector: Optional[list[float]] = None) -> list[dict[str, str]]:
+                  vector: Optional[list[float]] = None, words: bool = False) -> list[dict[str, str]]:
     """:func:`related_knowledge` 와 같은 거름으로 고른 항목 — 짚은 항목(``key``) + 찾기 앞 ``limit`` 개, 저마다 키 · 이름 · 유형 ·
     지금 글 전체. 빈 설명 칸 유형(:data:`STUB_TYPES`)은 뺀다(넘긴 상담 배우기의 놓을 자리 판정 — 사장님 11-22). ``vector`` 는
-    그 글의 뜻 찾기 벡터(:func:`foms.services.brain.chat_tools.search_objects` 에 넘긴다 — 없으면 글자 찾기만, 예전 그대로)."""
-    def keep(row: Any) -> bool:
-        return (row is not None and row.status == STATUS_ACTIVE and bool(row.text) and row.item_type not in STUB_TYPES
-                and _sendable(row.visibility, row.text))
-
+    그 글의 뜻 찾기 벡터(없으면 뜻 찾기 없이). ``words`` 면 한글 낱말 찾기 + 뜻 찾기 번갈아(:func:`_word_ranked` — 놓을 자리
+    판정만 켠다). 낱말 찾기를 쓸 수 없거나 아무것도 못 찾으면, 또 ``words`` 를 안 주면 예전 그대로 글자 찾기(+ ``vector`` 면
+    뜻 섞기 — :func:`foms.services.brain.chat_tools.search_objects`)."""
     current = current_object(session, key) if key else None
-    rows = [current] if keep(current) else []
-    found = 0
-    for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=limit * 3, vector=vector):
-        if found >= limit:
-            break
-        if (hit["key"] == key or hit["confidence"] not in _PLACED or not _close_enough(hit)
-                or not same_brand(brand, hit.get("brand")) or hit.get("type") in STUB_TYPES):
-            continue
-        row = current_object(session, hit["key"])
-        if keep(row):
-            rows.append(row)
-            found += 1
+    rows = [current] if _placeable(current) else []
+    ranked: list[Any] = []
+    if words:
+        try:
+            ranked = _word_ranked(session, key=key, texts=texts, today=today, brand=brand, limit=limit, vector=vector)
+        except word_search.WordSearchUnavailable:
+            ranked = []  # 까닭 코드는 word_search 가 적었다 — 예전 찾기로
+    if ranked:
+        rows.extend(ranked)
+    else:
+        found = 0
+        for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=limit * 3,
+                                  vector=vector):
+            if found >= limit:
+                break
+            if (hit["key"] == key or hit["confidence"] not in _PLACED or not _close_enough(hit)
+                    or not same_brand(brand, hit.get("brand")) or hit.get("type") in STUB_TYPES):
+                continue
+            row = current_object(session, hit["key"])
+            if _placeable(row):
+                rows.append(row)
+                found += 1
     return [{"key": row.item_key, "name": row.name or "", "type": row.item_type, "text": row.text} for row in rows]
 
 
