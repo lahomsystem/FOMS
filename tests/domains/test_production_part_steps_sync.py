@@ -21,7 +21,7 @@ import foms.api.drawing.erp_orders_drawing as drawing_routes
 from db import db_session, engine
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.production.part_steps_sync import part_steps_after, plan_part_step_changes
-from models import Order, OrderEvent, ProductionPartMark, User
+from models import Order, OrderEvent, ProductionPartMark, ProductionRun, User
 
 ONE = "/api/production/part-marks"
 BULK = "/api/production/part-marks/basic"
@@ -62,7 +62,10 @@ def _login(client, user: Person) -> None:
     client.set_cookie("foms_ptr", "coarse", domain="localhost")
 
 
-def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None = None) -> int:
+def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None = None, run: bool = True) -> int:
+    """제작 중(지금 회차 있음) 가짜 주문 — 회차 없는 제작대기 주문은 첫 카드가 제작을 시작해 버전이 오르므로(2026-11-23
+    §4-8 B6), 공정 칸 동기화의 버전 계약을 보는 이 파일은 제작 중 주문으로 본다. 첫 카드 제작 시작은
+    ``test_production_part_claim_rules.py``."""
     prefix = f"s{next(_seq)}"
     files = [{"key": f"{prefix}/d{j}.png", "filename": f"d{j}.png", "sheet_id": f"{prefix}-s{j}"} for j in range(n)]
     steps = [{"key": k, "label": k, "done": k in steps_done, "at": None, "by_name": "손" if k in steps_done else None}
@@ -74,6 +77,9 @@ def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None =
                   structured_data=sd)
     db_session.add(order)
     db_session.commit()
+    if run:
+        db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
+        db_session.commit()
     return order.id
 
 
@@ -120,7 +126,9 @@ def test_pure_rules_only_parts_with_rows_and_never_on_zero_drawings():
     row = lambda key, part, state: SimpleNamespace(drawing_key=key, part=part, state=state, done_by_name="x",
                                                    done_at=None)
     assert part_steps_after(sd, []) == {}  # 카드로 안 일한 주문은 건드리지 않는다
-    assert part_steps_after(sd, [row("old", "edge", "NONE")]) == {"edge": False}  # 옛 key · NONE 줄도 표지
+    # 2026-11-23 §4-2 B5′: NONE 줄만 있는 파트(맡았다 취소)는 카드를 안 쓴 것 — 건드리지 않는다. 옛 key 라도 NONE 이 아니면 표지
+    assert part_steps_after(sd, [row("old", "edge", "NONE")]) == {}
+    assert part_steps_after(sd, [row("old", "edge", "NEED")]) == {"edge": False}
     assert part_steps_after(sd, [row("a", "cut", "BASIC"), row("b", "cut", "DONE")]) == {"cut": True}
     assert part_steps_after(sd, [row("a", "edge", "BASIC"), row("b", "edge", "DONE")]) == {"edge": False}
     assert part_steps_after({"drawing_current_files": []}, [row("a", "cut", "DONE")]) == {}
@@ -176,15 +184,29 @@ def test_bulk_turns_on_only_orders_whose_all_drawings_finished(client):
 
 
 def test_edge_unpicked_drawing_keeps_step_off_d57(client):
-    oid = _order(3, steps_done=("edge",))  # 사무실이 손으로 켜 둔 칸
+    """카드를 쓴 파트에서 아무도 안 고른 장 = '아직'(D57) — 1/3 · 2/3 끝이면 칸은 꺼진 채(바꿈 없음)."""
+    oid = _order(3)
     _login(client, _user("최엣지", part="edge"))
-    take = _mark(client, oid, 0, "edge", "take", "none")  # 첫 줄 = 카드로 일한 파트 · 2장은 아무도 안 고름 = '아직'
-    assert take.get_json()["data"]["order_step"] == {"order_id": oid, "key": "edge", "done": False}
-    assert _step(oid, "edge")["done"] is False
+    assert _mark(client, oid, 0, "edge", "take", "none").get_json()["data"]["order_step"] is None  # 꺼진 칸 그대로
     assert _mark(client, oid, 0, "edge", "done", "need").get_json()["data"]["order_step"] is None  # 1/3 끝 — 그대로
     _finish(client, oid, 1, "edge")
     assert _step(oid, "edge")["done"] is False  # 아직 1장 남음 — 바꿈 없음
-    assert len(_step_events(oid)) == 1
+    assert _step_events(oid) == []
+
+
+def test_hand_checked_step_blocks_card_of_that_part(client):
+    """2026-11-23 §4-2 B5′(칸 먼저 → 카드): 카드를 안 쓴 파트에 손으로 켠 칸이 있으면 그 파트 카드 쓰기는 409
+    ``STEP_SET_BY_HAND`` — 2026-11-13 판은 맡기만 해도 손으로 켠 칸이 꺼졌다. 대조군: 다른 파트 카드는 그대로 된다."""
+    oid = _order(3, steps_done=("edge",))  # 사무실이 손으로 켜 둔 칸(by_name "손")
+    _login(client, _user("최엣지", part="edge"))
+    take = _mark(client, oid, 0, "edge", "take", "none")
+    body = take.get_json()
+    assert take.status_code == 409 and body["data"]["code"] == "STEP_SET_BY_HAND"
+    assert body["error"] == "손이 작업 시트에서 엣지 칸을 체크했어요. 다시 해야 하면 손에게 말해 주세요."
+    assert _step(oid, "edge")["done"] is True and _step_events(oid) == []
+    assert db_session.query(ProductionPartMark).filter_by(order_id=oid).count() == 0
+    _login(client, _user("김재단", part="cut"))
+    assert _mark(client, oid, 0, "cut", "take", "none").status_code == 200  # 대조군
 
 
 def test_control_no_marks_manual_step_stays_and_version_unchanged(client):
@@ -398,10 +420,10 @@ def test_step_changing_write_query_counts(client):
 
 def test_same_clock_tick_last_person_is_the_one_who_just_finished(client, monkeypatch):
     """시계 눈금이 같아도(모든 쓰기가 같은 시각) 마지막 장을 끝낸 사람이 칸에 적힌다 — 흔들리던 시험의 원인 고정."""
-    import foms.api.production.part_marks as part_marks_api
+    import foms.services.production.part_mark_write as part_mark_write  # 쓰기 몸통이 옮겨 간 곳(2026-11-23 §7)
 
     frozen = now_utc_naive()
-    monkeypatch.setattr(part_marks_api, "now_utc_naive", lambda: frozen)
+    monkeypatch.setattr(part_mark_write, "now_utc_naive", lambda: frozen)
     oid = _order(3)
     _login(client, _user("박재단", part="cut"))
     for j in range(2):

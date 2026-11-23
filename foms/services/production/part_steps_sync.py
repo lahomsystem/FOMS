@@ -2,8 +2,10 @@
 
 규칙: 한 주문 · 한 파트에서 지금 확정 도면(:func:`resolve_final_drawing_files`)의 **모든 장**이 끝이면 그 공정 칸을
 켜고, 하나라도 끝이 아니면(되돌리기 · 새 도면 · 아무도 안 고른 장 — D57 '아직') 끈다. 끝 = 재단은 DONE 또는 BASIC,
-그 밖 파트는 DONE. 확정 도면이 0장이면 건드리지 않는다. **카드로 일한 파트만** — 그 주문 · 그 파트에 표시 줄이
-하나라도 있을 때(옛 key · NONE 포함)만 맞춘다. 카드를 안 쓴 주문은 손으로 켠 값을 그대로 둔다.
+그 밖 파트는 DONE. 확정 도면이 0장이면 건드리지 않는다. **카드를 쓴 파트만** — 그 주문 · 그 파트에 상태가 NONE 이
+아닌 표시 줄이 하나라도 있을 때(옛 key 포함)만 맞춘다(설계서 2026-11-23 §4-2 B5′ — 2026-11-13 판은 NONE 줄만 있어도
+맞춰서 맡기만 해도 손으로 켠 칸이 꺼졌다). 카드를 안 쓴 파트는 손으로 켠 값을 그대로 둔다. 켤 때 칸 ``via`` =
+``'part_marks'``.
 
 * 순수 계산: :func:`part_steps_after` · :func:`plan_part_step_changes` · :func:`apply_part_step_changes` ·
   :func:`step_event_rows` — DB · commit 없이 sd dict 와 표시 줄 모습만 본다. 칸 바꾸기는 지금 공정 API 와 같은
@@ -23,18 +25,14 @@ from sqlalchemy import insert
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
-from foms.services.production.part_constants import (
-    BASIC_ALLOWED_PART,
-    MARK_STATE_BASIC,
-    MARK_STATE_DONE,
-    PRODUCTION_PART_KEYS,
-)
-from foms.services.production.steps import set_production_step, step_done_map
+from foms.services.production.part_constants import PRODUCTION_PART_KEYS
+from foms.services.production.part_progress import cards_used, mark_finished, marks_by_part
+from foms.services.production.steps import STEP_VIA_PART_MARKS, set_production_step, step_done_map
 from models import OrderEvent, ProductionPartMark
 
 STEP_EVENT = "PRODUCTION_STEP_CHECKED"
-#: 이벤트 payload ``via`` — 공정 칸을 사람이 아니라 파트 카드 동기화가 바꿨다는 표지.
-VIA_PART_MARKS = "part_marks"
+#: 이벤트 payload · 공정 칸 ``via`` — 공정 칸을 사람이 아니라 파트 카드 동기화가 바꿨다는 표지.
+VIA_PART_MARKS = STEP_VIA_PART_MARKS
 #: 도면 쓰기 셋의 ``trigger``(표시 API 길은 trigger 없음).
 TRIGGER_TRANSFER = "drawing_transfer"
 TRIGGER_TRANSFER_CANCEL = "drawing_transfer_cancel"
@@ -50,39 +48,27 @@ class StepChange:
     by_name: Optional[str] = None
 
 
-def _finished(part: str, state: Optional[str]) -> bool:
-    if part == BASIC_ALLOWED_PART:
-        return state in (MARK_STATE_DONE, MARK_STATE_BASIC)
-    return state == MARK_STATE_DONE
-
-
-def _marks_by_part(marks: Iterable[Any]) -> dict[str, dict[str, Any]]:
-    """파트 → (장 key → 표시 줄). 모르는 파트는 버린다."""
-    out: dict[str, dict[str, Any]] = {}
-    for mark in marks:
-        part = getattr(mark, "part", None)
-        if part in PRODUCTION_PART_KEYS:
-            out.setdefault(part, {})[str(getattr(mark, "drawing_key", "") or "")] = mark
-    return out
-
-
-def part_steps_after(sd: Any, marks: Iterable[Any]) -> dict[str, bool]:
-    """카드로 일한 파트마다 공정 칸이 있어야 할 값.
+def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str]] = None) -> dict[str, bool]:
+    """카드를 쓴 파트마다 공정 칸이 있어야 할 값.
 
     Args:
         sd: 주문 ``structured_data``(읽기만).
         marks: 그 주문의 표시 줄들(``part`` · ``drawing_key`` · ``state`` 를 읽는다 — ORM 줄 또는 같은 모양).
+        parts: 맞출 파트만(None = 네 파트). 표시 쓰기는 누른 파트만 맞춘다 — 옛 칸은 그 파트의 다음 카드 쓰기 때(§4-2).
 
     Returns:
-        ``{파트 key: done}`` — 표시 줄이 있는 파트만. 확정 도면이 0장이면 빈 dict(건드리지 않음).
+        ``{파트 key: done}`` — 카드를 쓴 파트만. 확정 도면이 0장이면 빈 dict(건드리지 않음).
     """
     keys = [entry["key"] for entry in resolve_final_drawing_files(sd)]
     if not keys:
         return {}
-    by_part = _marks_by_part(marks)
+    marks = list(marks)
+    used = cards_used(marks)
+    wanted = set(PRODUCTION_PART_KEYS if parts is None else parts)
+    by_part = marks_by_part(marks)
     return {
-        part: all(_finished(part, getattr(by_part[part].get(key), "state", None)) for key in keys)
-        for part in PRODUCTION_PART_KEYS if part in by_part
+        part: all(mark_finished(part, getattr(by_part[part].get(key), "state", None)) for key in keys)
+        for part in PRODUCTION_PART_KEYS if part in used and part in wanted
     }
 
 
@@ -106,14 +92,15 @@ def _finish_order(row: Any) -> tuple[datetime.datetime, bool, int]:
     return (getattr(row, "done_at", None) or datetime.datetime.min, row_id is None, row_id or 0)
 
 
-def plan_part_step_changes(sd: Any, marks: Iterable[Any]) -> list[StepChange]:
-    """지금 칸과 다른 것만 — 바꿀 칸이 없으면 빈 목록(부르는 쪽은 쓰지 않는다 · 버전 그대로)."""
+def plan_part_step_changes(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str]] = None) -> list[StepChange]:
+    """지금 칸과 다른 것만 — 바꿀 칸이 없으면 빈 목록(부르는 쪽은 쓰지 않는다 · 버전 그대로). ``parts`` 는
+    :func:`part_steps_after` 와 같다."""
     marks = list(marks)
-    wanted = part_steps_after(sd, marks)
+    wanted = part_steps_after(sd, marks, parts)
     if not wanted:
         return []
     current = step_done_map(sd)
-    by_part = _marks_by_part(marks)
+    by_part = marks_by_part(marks)
     return [
         StepChange(part, done, _last_finisher(sd, by_part[part]) if done else None)
         for part, done in wanted.items() if current.get(part, False) != done
@@ -123,17 +110,21 @@ def plan_part_step_changes(sd: Any, marks: Iterable[Any]) -> list[StepChange]:
 def apply_part_step_changes(sd: dict[str, Any], changes: Iterable[StepChange], *, at_iso: str) -> None:
     """바뀜을 sd 에 제자리 적용(호출자가 deepcopy 한 dict) — 지금 공정 API 와 같은 칸 바꾸기 함수."""
     for change in changes:
-        set_production_step(sd, change.key, change.done, by_name=change.by_name, at_iso=at_iso)
+        set_production_step(sd, change.key, change.done, by_name=change.by_name, at_iso=at_iso, via=VIA_PART_MARKS)
 
 
 def step_event_rows(order_id: int, changes: Iterable[StepChange], *, actor_user_id: Optional[int],
-                    trigger: Optional[str] = None) -> list[dict[str, Any]]:
-    """``PRODUCTION_STEP_CHECKED`` 이벤트 줄(칸마다 하나, payload ``via: 'part_marks'``)."""
+                    trigger: Optional[str] = None, actor_name: Optional[str] = None) -> list[dict[str, Any]]:
+    """``PRODUCTION_STEP_CHECKED`` 이벤트 줄(칸마다 하나, payload ``via: 'part_marks'``).
+
+    ``actor_name`` 을 주면 payload ``by_name``(누른 사람 이름 스냅샷 — 바뀐 기록 목록이 사용자 표를 다시 읽지 않게)."""
     now = now_utc_naive()
     rows = []
     for change in changes:
         payload = {"key": change.key, "done": change.done, "domain": "PRODUCTION_DOMAIN", "action": STEP_EVENT,
                    "via": VIA_PART_MARKS}
+        if actor_name:
+            payload["by_name"] = actor_name
         if trigger:
             payload["trigger"] = trigger
         rows.append({"order_id": int(order_id), "event_type": STEP_EVENT, "payload": payload,

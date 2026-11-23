@@ -106,7 +106,11 @@ def fetch_marks_since(db: Any, order_ids: list[int], since: datetime.datetime) -
 
 
 def sync_mark_body(row: ProductionPartMark) -> dict[str, Any]:
-    """카드가 쓰는 표시 한 장 — 쓰기 응답과 같은 꼴(``mark_payload``) + 다른 파트 한 줄 낱말(``word`` · ``tone``)."""
+    """카드가 쓰는 표시 한 장 — 쓰기 응답과 같은 꼴(``mark_payload``) + 다른 파트 한 줄 낱말(``word`` · ``tone``).
+
+    2026-11-23(§7)부터 ``mark_payload`` 가 ``picked_at`` · ``picked_day`` · ``handed_from_name`` · ``handed_at`` 을 더 싣는다
+    (같은 줄에 실려 가므로 쿼리는 그대로 1). 지금 칸의 이름 · 값은 그대로다.
+    """
     payload = mark_payload(row)
     word = other_part_word(str(row.part), payload["state"])
     return {**payload, "order_id": int(row.order_id), "drawing_key": str(row.drawing_key), "part": str(row.part),

@@ -74,11 +74,20 @@ from foms.services.production.write_access import (
 from foms.services.production.steps import (
     PRODUCTION_STEP_DEFS,
     PRODUCTION_STEP_KEYS,
+    STEP_VIA_SHEET,
     ensure_production_steps,
     normalize_production_steps,
-    production_complete_block_body,
-    production_complete_ready,
     set_production_step,
+)
+from foms.services.production.part_mark_gates import GateRefusal, step_cell_gate
+from foms.services.production.part_marks_query import order_marks
+from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras
+from foms.services.production.start_run import (
+    START_NOTE,
+    append_stage_history,
+    mint_current_production_run,
+    start_run_in_sd,
+    started_event,
 )
 
 erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_prefix="/api/orders")
@@ -448,12 +457,12 @@ def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *,
     )
 
 
-def _steps_incomplete_block(sd: dict[str, Any]):
-    """검수까지(공정 4칸) 안 끝났으면 409 STEPS_INCOMPLETE 튜플, 끝났으면 None(read-only).
+def _steps_incomplete_block(sd: dict[str, Any], marks: list[Any]):
+    """검수까지(공정 4칸 · 카드를 쓴 주문은 네 파트 실제 완료) 안 끝났으면 409 STEPS_INCOMPLETE 튜플, 끝났으면 None.
 
-    판정 · 글은 :func:`production_complete_block_body` 한 곳(작업 시트 단추 · 일반 단계 쓰기와 같은 함수).
+    판정 · 글은 :func:`complete_block_body` 한 곳(작업 시트 단추 · 일반 단계 쓰기와 같은 함수, §4-3).
     """
-    body = production_complete_block_body(sd)
+    body = complete_block_body(sd, marks)
     return None if body is None else (jsonify(body), 409)
 
 
@@ -506,22 +515,9 @@ def _release_hold_in_sd(sd: dict[str, Any], db: Any, order_id: int, user_id: Any
     ))
 
 
-def _mint_current_production_run(db: Any, order_id: int, sd: dict[str, Any]) -> None:
-    """current IN_PROGRESS production run 이 없으면 발급(있으면 멱등 skip). flat steps/defects 복제."""
-    exists = (
-        db.query(ProductionRun.id)
-        .filter(ProductionRun.order_id == order_id, ProductionRun.is_current.is_(True))
-        .first()
-    )
-    if exists is not None:
-        return
-    production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
-    steps = production.get("steps") if isinstance(production.get("steps"), list) else []
-    defects = production.get("defects") if isinstance(production.get("defects"), list) else []
-    db.add(ProductionRun(
-        order_id=order_id, status="IN_PROGRESS", started_at=now_utc_naive(),
-        steps=copy.deepcopy(steps), defects=copy.deepcopy(defects), is_current=True,
-    ))
+# 회차 열기 · 단계 기록은 첫 카드 맡기(§4-8)와 같이 쓰려고 ``foms/services/production/start_run.py`` 로 옮겼다 — 옛 이름은 남긴다.
+_mint_current_production_run = mint_current_production_run
+_append_stage_history = append_stage_history
 
 
 def _current_production_run(db: Any, order_id: int) -> ProductionRun | None:
@@ -563,17 +559,6 @@ def _reopen_last_production_run(db: Any, order_id: int, sd: dict[str, Any]) -> N
     _mint_current_production_run(db, order_id, sd)
 
 
-def _append_stage_history(sd: dict[str, Any], stage: str, note: str, user: Any) -> None:
-    """workflow.history 에 단계 이력 1건 append + stage_updated_by 갱신."""
-    wf = sd.setdefault("workflow", {})
-    wf["stage_updated_by"] = user.name if user else "Unknown"
-    updated_at = wf.get("stage_updated_at") or now_utc_naive().isoformat()
-    history = wf.get("history") or []
-    history.append({"stage": stage, "updated_at": updated_at,
-                    "updated_by": wf["stage_updated_by"], "note": note})
-    wf["history"] = history
-
-
 def _audit_production(
     order: Order,
     action: str,
@@ -603,16 +588,12 @@ def _audit_production(
 
 def _apply_start_side_effects(db: Any, order: Order, user: Any, user_id: Any,
                               release_hold: bool, hold_was_active: bool) -> None:
-    """PRODUCTION_START 전이 후 same-tx side-effect: history·보류해제·run 발급·감사 기록."""
+    """PRODUCTION_START 전이 후 same-tx side-effect: 보류해제 · history · run 발급(``start_run_in_sd``) · 감사 기록."""
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
-    _append_stage_history(sd, "PRODUCTION", "제작 시작", user)
     if release_hold and hold_was_active:
         _release_hold_in_sd(sd, db, order.id, user_id, "release_on_start",
                             user.name if user else None)
-    order.structured_data = sd
-    flag_modified(order, "structured_data")
-    sync_erp_flat_columns(order, sd)
-    _mint_current_production_run(db, order.id, sd)
+    start_run_in_sd(db, order, sd, user, note=START_NOTE)
     _audit_production(order, "PRODUCTION_STARTED", user_id,
                       extra={"hold_released": bool(release_hold and hold_was_active)})
 
@@ -859,15 +840,7 @@ def api_production_start(order_id):
             def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
                 target = orders[0]
                 _apply_start_side_effects(sess, target, user, user_id, release_hold, hold_was_active)
-                sess.add(OrderEvent(
-                    order_id=order_id, event_type="PRODUCTION_STARTED",
-                    payload={
-                        "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_STARTED",
-                        "target": "production_run", "from": "PRODUCTION", "to": "PRODUCTION",
-                        "run_started": True, "change_method": "API",
-                    },
-                    created_by_user_id=user_id,
-                ))
+                sess.add(started_event(order_id, user_id))
                 return {order_id: [f"ORDER_DETAIL:{order_id}", "ORDERS_INDEX"]}
 
             try:
@@ -928,7 +901,8 @@ def api_production_complete(order_id):
     → 보류(HOLD_ACTIVE 409, release_hold 예외) → 현재 stage quest 완료(QUEST_INCOMPLETE 409)
     → **검수까지 끝남**(STEPS_INCOMPLETE 409 — 공정 4칸 재단 · 엣지 · 조립 · 검수가 모두 켜져야 한다.
     사용자 결정 2026-11-21 "검수까지 끝나기 전엔 막는다 — 서버도 막기, 모든 화면 같은 규칙").
-    판정은 :func:`foms.services.production.steps.production_complete_ready` 하나 — 작업 시트 회색 단추와 같은 함수다.
+    판정은 :func:`foms.services.production.part_progress.complete_ready` 하나 — 작업 시트 회색 단추와 같은 함수다
+    (카드를 쓴 주문은 표시 줄로, 2026-11-23 §4-3).
     칸이 없는 옛 주문도 막힌다(4칸 모두 꺼짐). 비상구: 공정 칸 켜기(작업 시트 · 옆 시트 · 폰 공정 시트 · 첫 화면
     내 공정 탭), ADMIN ``admin_override``(사유) 로 이 게이트 뚫기, ADMIN/MANAGER 단계 강제 변경(이 규칙을 타지 않음).
     same-key 재요청은 전이/side-effect 없이 replay. 전이 후 same-tx 로 history·재제작 표식 해제·
@@ -937,7 +911,8 @@ def api_production_complete(order_id):
     """
     db = get_db()
     try:
-        order = db.get(Order, order_id)
+        # 첫 조회부터 행 잠금 — 카드 쓰기(같은 행을 잠근다)와 줄 세워 표시 줄 판정이 낡지 않게(§4-3).
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
@@ -975,8 +950,9 @@ def api_production_complete(order_id):
                 _stage_quest_block(sd, "PRODUCTION", "생산"), "QUEST_INCOMPLETE", override, punched)
             if blocked is not None:
                 return blocked
+            marks = order_marks(db, order_id)  # 카드를 쓴 주문은 표시 줄로(§4-3, +1)
             blocked = _punch_or_return(
-                _steps_incomplete_block(sd), GATE_STEPS_INCOMPLETE, override, punched)
+                _steps_incomplete_block(sd, marks), GATE_STEPS_INCOMPLETE, override, punched)
             if blocked is not None:
                 return blocked
 
@@ -1441,6 +1417,7 @@ def api_production_steps_get(order_id: int):
     latest_defect = defects[-1] if defects else None
     # 파트 계정은 공정을 도면 카드에서만 체크한다(설계서 §15.4) — 세로 바텀시트가 단추를 읽기 전용으로 그린다.
     locked = steps_locked_for(getattr(g, "current_user", None))
+    marks = order_marks(db, order_id)  # 카드를 쓴 주문의 완료 판정 · 파트 진행(§4-3, +1)
     return jsonify(
         {
             "success": True,
@@ -1449,10 +1426,11 @@ def api_production_steps_get(order_id: int):
                 "done_count": done_count,
                 "total": len(steps),
                 # [제작 완료] 를 누를 수 있는지 — 제작 완료 API 와 같은 한 함수(검수까지 끝남)
-                "complete_ready": production_complete_ready(sd),
+                "complete_ready": complete_ready(sd, marks),
                 "latest_defect": latest_defect,
                 "locked": locked,
                 "locked_note": PART_ACCOUNT_STEPS_MESSAGE if locked else None,
+                **step_api_extras(sd, marks),  # sheets(손 체크 확인 창 장 수) · parts(카드 3/5)
             },
         }
     )
@@ -1492,25 +1470,21 @@ def api_production_steps(order_id: int):
         def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
             o = orders[0]
             sd = copy.deepcopy(_ensure_dict(o.structured_data))
+            marks = order_marks(sess, o.id)  # 잠금 아래 — 카드를 쓴 파트는 카드가 기준(§4-2 B5′, +1)
+            gate = step_cell_gate(sd, marks, key, done)
+            if gate is not None:
+                raise GateRefusal(gate)  # 쓰기 · 이벤트 없음(부르는 쪽이 되감는다)
             now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            steps = set_production_step(sd, key, done, by_name=user.name if user else None, at_iso=now_iso)
+            name = user.name if user else None
+            steps = set_production_step(sd, key, done, by_name=name, at_iso=now_iso, via=STEP_VIA_SHEET)
             o.structured_data = sd
             flag_modified(o, "structured_data")
-            sess.add(
-                OrderEvent(
-                    order_id=o.id,
-                    event_type="PRODUCTION_STEP_CHECKED",
-                    payload={
-                        "key": key,
-                        "done": done,
-                        "domain": "PRODUCTION_DOMAIN",
-                        "action": "PRODUCTION_STEP_CHECKED",
-                    },
-                    created_by_user_id=user_id,
-                )
-            )
+            sess.add(OrderEvent(order_id=o.id, event_type="PRODUCTION_STEP_CHECKED", created_by_user_id=user_id,
+                                payload={"key": key, "done": done, "domain": "PRODUCTION_DOMAIN",
+                                         "action": "PRODUCTION_STEP_CHECKED", "via": STEP_VIA_SHEET, "by_name": name}))
             captured["steps"] = steps
-            captured["complete_ready"] = production_complete_ready(sd)
+            captured["complete_ready"] = complete_ready(sd, marks)
+            captured["extras"] = step_api_extras(sd, marks)
             return {o.id: []}
 
         try:
@@ -1527,6 +1501,9 @@ def api_production_steps(order_id: int):
         except RevisionError as exc:
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
+        except GateRefusal as refusal:  # PART_USES_CARDS(+left) · STEP_SET_BY_CARDS
+            db.rollback()
+            return jsonify(refusal.gate.body()), refusal.gate.status
 
         _audit_production(order, "PRODUCTION_STEP_CHECKED", user_id,
                           note=f"{key}: {'완료' if done else '해제'}",
@@ -1537,7 +1514,7 @@ def api_production_steps(order_id: int):
         # complete_ready = 제작 완료 API 와 같은 한 함수 — 작업 시트 JS 가 [제작 완료] 단추 색을 이 값으로 바꾼다.
         return jsonify(
             {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps),
-                                       "complete_ready": captured["complete_ready"]}}
+                                       "complete_ready": captured["complete_ready"], **captured["extras"]}}
         )
     except Exception as exc:
         db.rollback()

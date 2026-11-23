@@ -50,10 +50,10 @@ from foms.services.orders.stage_override import (
     as_overlay_status,
     current_stage_for_order,
     normalize_main_stage,
-    production_complete_move_block,
     requires_dedicated_command,
     requires_privileged_override,
 )
+from foms.services.production.complete_move import production_complete_move_block
 from foms.services.orders.order_transition_service import (
     COMMAND_REGISTRY,
     StageConflictError,
@@ -77,6 +77,7 @@ from foms.services.orders.trash_mirror import (
     soft_delete_with_trash_mirror,
 )
 from foms.services.orders.order_mutation_policy import user_can
+from foms.services.production.part_marks_query import marks_by_order
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage, read_state_axes
 from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
@@ -654,6 +655,9 @@ def bulk_update_order_status_response(
 
         include_as = data.get("include_as") is True
         orders = db.query(Order).filter(Order.id.in_(valid_ids)).all()  # perf-ok: request bulk order id batch
+        # 생산 → 시공 판정이 볼 표시 줄 — 시공으로 옮기는 일괄만 한 번(order_id IN, 주문 수와 무관 · N+1 없음, §4-3)
+        to_construction = normalize_main_stage(new_status) == "CONSTRUCTION"
+        bulk_marks = marks_by_order(db, [o.id for o in orders]) if to_construction else {}
         for order in orders:
             if is_unpromoted_draft(order):
                 blocked_unpromoted_draft.append(int(order.id))
@@ -680,7 +684,8 @@ def bulk_update_order_status_response(
                     blocked_command_required.append(int(order.id))
                     continue
                 punched.append("COMMAND_REQUIRED")
-            if production_complete_move_block(order, from_stage, new_status) is not None:
+            if production_complete_move_block(order, from_stage, new_status,
+                                              marks=bulk_marks.get(order.id)) is not None:
                 if override is None:
                     blocked_steps_incomplete.append(int(order.id))
                     continue

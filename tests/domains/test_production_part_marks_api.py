@@ -17,7 +17,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session, engine
 from foms.services.datetime_kst import get_today_kst
 from foms.services.sales_commission.settings import load_settings, save_freelancer
-from models import Order, OrderEvent, PartnerOrg, ProductionPartMark, SecurityLog, User
+from models import Order, OrderEvent, PartnerOrg, ProductionPartMark, ProductionRun, SecurityLog, User
 
 ONE = "/api/production/part-marks"
 BULK = "/api/production/part-marks/basic"
@@ -72,7 +72,9 @@ class Seed:
     sd: dict
 
 
-def _order(n: int = 3, *, stage: str = "PRODUCTION", prefix: str | None = None) -> Seed:
+def _order(n: int = 3, *, stage: str = "PRODUCTION", prefix: str | None = None, run: bool = True) -> Seed:
+    """생산 단계 가짜 주문. ``run`` = 지금 생산 회차(제작 중) — 2026-11-23 부터 회차 없는 주문(제작대기)은 첫 카드가 제작을
+    저절로 시작해 버전이 오르므로(§4-8 B6), 표시 쓰기 자체를 보는 이 파일의 시험은 제작 중 주문으로 본다."""
     prefix = prefix or f"m{next(_seq)}"
     files = [{"key": f"{prefix}/d{j}.png", "filename": f"d{j}.png", "sheet_id": f"{prefix}-s{j}"} for j in range(n)]
     sd = {"workflow": {"stage": stage}, "parties": {"customer": {"name": "파트고객"}}, "drawing_current_files": files,
@@ -82,6 +84,9 @@ def _order(n: int = 3, *, stage: str = "PRODUCTION", prefix: str | None = None) 
                   structured_data=sd)
     db_session.add(order)
     db_session.commit()
+    if run and stage == "PRODUCTION":
+        db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
+        db_session.commit()
     return Seed(order.id, tuple(f["key"] for f in files), order.mutation_version, copy.deepcopy(sd))
 
 
@@ -145,10 +150,17 @@ def test_admin_marks_any_part_and_overrides_someone_elses(client):
     park = _user("박재단", part="cut")
     admin = _user("관리자", team="CS", role="ADMIN", part="edge")  # 계정 파트가 있어도 무시(D55)
     _login(client, admin)
-    for part in ("cut", "edge", "assemble", "inspect"):
+    for part in ("cut", "edge", "assemble"):
         resp = _one(client, order, 1, part, "take", "none")
         assert resp.status_code == 200, (part, resp.get_json())
         assert _row(order, 1, part).picked_by_name == "관리자"
+    # 검수는 그 장의 재단 · 엣지 · 조립이 완료돼야 맡는다 — 관리자도 똑같이 막힌다(2026-11-23 §4-7 B11)
+    early = _one(client, order, 1, "inspect", "take", "none")
+    assert early.status_code == 409 and _code(early) == "INSPECT_NOT_READY"
+    for part in ("cut", "edge", "assemble"):
+        assert _one(client, order, 1, part, "done", "need").status_code == 200
+    assert _one(client, order, 1, "inspect", "take", "none").status_code == 200
+    assert _row(order, 1, "inspect").picked_by_name == "관리자"
 
     _login(client, park)
     assert _one(client, order, 0, "cut", "take", "none").status_code == 200
@@ -162,7 +174,8 @@ def test_admin_marks_any_part_and_overrides_someone_elses(client):
     assert _one(client, order, 2, "cut", "undo", "done").status_code == 200  # 박재단이 끝낸 장 되돌리기
     row = _row(order, 2, "cut")
     assert (row.state, row.picked_by_name, row.done_by_name) == ("NEED", "박재단", None)
-    overrides = {(e.payload["key"], e.payload["action"]): e.payload["override"] for e in _events(order)}
+    overrides = {(e.payload["key"], e.payload["action"]): e.payload["override"] for e in _events(order)
+                 if e.payload["part"] == "cut"}
     assert overrides[(_key(order, 0), "done")] is True and overrides[(_key(order, 2), "undo")] is True
     assert overrides[(_key(order, 0), "take")] is False  # 대조군: 박재단 자신의 맡기
     log = db_session.query(SecurityLog).filter(SecurityLog.message.like("%관리자 덮어쓰기%")).count()
@@ -377,6 +390,7 @@ def _count(fn):
 #: 칸이 바뀌는 쓰기의 상한은 ``test_production_part_steps_sync.py`` 의 ``STEP_CHANGE_*``.
 ONE_WRITE_CAP = 7
 #: 실측: 일괄 5장 = 6, 50장(주문 10) = 6 — 주문 잠금 · 표시 줄 읽기 한 번씩, 표시 · 이벤트 · 감사 INSERT 는 표마다 한 번.
+#: 2026-11-23(§4-8 B6): 첫 기본이 제작을 시작하는지 회차 찾기 한 번(``order_id IN``)이 더해져 7 · 7 — 상한은 그대로.
 BULK_DELTA_CAP = 2
 BULK_ABS_CAP = 8
 
