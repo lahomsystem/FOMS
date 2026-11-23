@@ -71,6 +71,15 @@
 .pp-head--switch .pp-tabs .foms-prod-home__tab { padding: 0 12px; }
 .pp-head--switch .pp-part { min-width: 56px; padding: 0 10px; }
 .pp-tabs .foms-prod-home__tab { min-width: 0; padding: 0 16px; }
+/* 여러 파트 고르기(설계서 2026-11-23 §4-12 · §8-1, P2) — 파트가 둘 이상인 계정의 판 머리 첫 자리. 거르개(채운 칸)와 다른 꼴:
+   큰 글 탭 + 고른 파트 밑줄(비평 ③ K6). 파트 하나인 계정 · 관리자 · 대신에게는 없다(지금 그대로). 누름 칸 44px 는 아래 태블릿 덩이 */
+.pp-picks { display: flex; align-items: stretch; gap: 8px; margin: 0; padding: 0; }
+.pp-pick { position: relative; min-height: 44px; min-width: 80px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px 10px 0 0; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); text-decoration: none; white-space: nowrap; }
+.pp-pick:hover, .pp-pick:focus { color: var(--fph-brand-dark); text-decoration: none; }
+.pp-pick.is-on { color: var(--fph-brand-dark); background: var(--fph-brand-50); }
+.pp-pick.is-on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; border-radius: 3px; background: var(--fph-brand); }
+.pp-pick:active { background: var(--fph-brand-50); }
+.pp-pick:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
 
 /* ── 카드(확정 도면 한 장) ── */
 .pp-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -110,6 +119,8 @@
 .fph-by.pp-w-done { color: var(--fph-done-700); font-weight: 800; }
 .fph-by.pp-w-basic { color: var(--fph-basic-700); font-weight: 800; }
 .fph-by.pp-w-need { color: var(--fph-mid-700); font-weight: 800; }
+/* 여러 파트 계정의 다른 파트 줄 "엣지 내 담당"(§4-12) — 꼬리 "내 담당"(.pp-tag)과 같은 색 */
+.fph-by.pp-w-mine { color: var(--fph-need-700); font-weight: 800; }
 .fph-by.pp-w-none { color: var(--fph-text3); font-weight: 600; }
 /* ── 파트 맡기 고침(설계서 2026-11-23 §8-1 · §10) — 이름 줄 링크 · 시공 줄 · 다른 파트 줄 끝 꼬리 ── */
 /* 이름 줄 = 작업 시트 링크(a.pp-ln.pp-sheetlink). 키는 그대로 두고 누름 칸만 ::after 로 아래로 넓힌다(태블릿 덩이, F3). 꺾쇠 › 하나(F11) */
@@ -297,4 +308,7 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
      않는다(흰 글 위 .8 → 1, 대비 3.71 → 4.81 — 비평 ② 막힘 2). 판 머리 거르개에만(.pp-tabs) — 위 화면 탭은 home.css 그대로 */
   .pp-tabs .foms-prod-home__tab { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
   .pp-tabs .foms-prod-home__tab.is-on small { opacity: 1; }
+  /* 여러 파트 고르기(P2) — 보이는 44px · 이웃 틈 8px */
+  .pp-pick { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+  .pp-picks { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
 }

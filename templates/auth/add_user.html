@@ -62,16 +62,18 @@
                         </select>
                         <div class="form-text">사용자의 소속 팀을 선택합니다.</div>
                     </div>
-                    <div class="mb-3">
-                        <label for="production_part" class="form-label">생산 파트 (선택)</label>
-                        <select class="form-select" id="production_part" name="production_part">
-                            <option value="">없음</option>
-                            {% for part_key, part_name in production_parts %}
-                            <option value="{{ part_key }}">{{ part_name }}</option>
-                            {% endfor %}
-                        </select>
+                    {# 생산 파트 여럿(설계서 2026-11-23 §8-6, P2) — 체크칸 넷. 지금 글(칸 이름 · 아래 안내)은 그대로, 둘째 안내만 새 글 #}
+                    <fieldset class="mb-3">
+                        <legend class="form-label fs-6 mb-2">생산 파트 (선택)</legend>
+                        {% for part_key, part_name in production_parts %}
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="production_parts_{{ part_key }}" name="production_parts" value="{{ part_key }}">
+                            <label class="form-check-label" for="production_parts_{{ part_key }}">{{ part_name }}</label>
+                        </div>
+                        {% endfor %}
                         <div class="form-text">생산팀일 때만 쓰여요. 다른 팀이면 저장할 때 비워져요.</div>
-                    </div>
+                        <div class="form-text" data-production-parts-note>여럿 골라도 돼요. 하나도 안 고르면 모든 파트 도면을 대신 처리할 수 있어요.</div>
+                    </fieldset>
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('auth.user_list') }}" class="btn btn-secondary">취소</a>
                         <button type="submit" class="btn btn-primary">사용자 추가</button>

@@ -15,7 +15,7 @@
     <div class="fph-strip__h">시공일 2주<small>만들 것 / 전체</small></div>
     {% for d in days.strip %}
     <a class="fph-sd{% if d.key == days.selected %} is-on{% endif %}{% if d.is_weekend %} is-wk{% endif %}{% if not d.total %} is-zero{% endif %}"
-       href="{{ home_href(tab, part_board.part if part_board else None, d.key) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>
+       href="{{ home_href(tab, part_board.url_part if part_board else None, d.key) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>
       {%- set sub = d.sub ~ (' · 없음' if not d.total and not d.show_day else '') %}
       <span class="fph-sd__d"><b>{{ d.label }}</b><small>{{ sub }}</small></span>
       {%- set _bar %}<svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">{% for s in d.segs %}<rect class="is-{{ s.k }}" x="{{ s.x }}" y="0" width="{{ s.w }}" height="10"/>{% endfor %}</svg>{% endset %}
@@ -25,7 +25,7 @@
     {% endfor %}
     <div class="fph-strip__f">
       {% for d in days.footer %}
-      <a class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" href="{{ home_href(tab, part_board.part if part_board else None, d.key) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>{{ d.label }} {{ d.total }}건{% if d.hidden %}<small>{{ d.hidden }}건 더</small>{% endif %}</a>
+      <a class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" href="{{ home_href(tab, part_board.url_part if part_board else None, d.key) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>{{ d.label }} {{ d.total }}건{% if d.hidden %}<small>{{ d.hidden }}건 더</small>{% endif %}</a>
       {% endfor %}
     </div>
   </aside>

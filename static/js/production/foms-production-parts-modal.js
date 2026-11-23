@@ -70,9 +70,9 @@
     return { title: holder + ' 담당 도면이에요', line: '담당 ' + holder, run: '', tone: 'taken', note: heldSince(card),
       choices: [['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done'], ['release', '맡기 취소', 'release']] };
   }
-  // 관리자가 남이 맡거나 끝낸 장을 누를 때 한 줄 더(D55 — 지금 글)
+  // 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12)이 남이 맡거나 끝낸 장을 누를 때 한 줄 더(D55 — 지금 글)
   function ownerNote(card) {
-    if (cfg.mode !== 'admin' || !card) { return ''; }
+    if ((cfg.mode !== 'admin' && cfg.mode !== 'sub') || !card) { return ''; }
     var st = attr(card, 'data-state');
     var picked = attr(card, 'data-picked-name');
     var done = attr(card, 'data-done-name');
