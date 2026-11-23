@@ -292,4 +292,8 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
   .pp-mchip, .pp-mpop a { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
   .pp-mpop { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
   .foms-prod-home .pp-modal .foms-prod-change-modal__foot, .foms-prod-home .pp-modal .pp-mchoices { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+  /* 판 머리 거르개(전체 도면 · 작업 필요 · 완료) — 키를 보이는 44px 로(80% 55 · 100% 44, 지휘 판정 2026-11-23), 고른 칸 숫자는 흐리지
+     않는다(흰 글 위 .8 → 1, 대비 3.71 → 4.81 — 비평 ② 막힘 2). 판 머리 거르개에만(.pp-tabs) — 위 화면 탭은 home.css 그대로 */
+  .pp-tabs .foms-prod-home__tab { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+  .pp-tabs .foms-prod-home__tab.is-on small { opacity: 1; }
 }

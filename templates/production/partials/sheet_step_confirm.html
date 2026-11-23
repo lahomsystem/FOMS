@@ -1,0 +1,15 @@
+{# 반장 · 관리자 손 체크 확인 창(설계서 2026-11-23 '승인 때 고친 것' 3) — 카드를 한 장도 안 쓴 파트의 공정 칸을 **켤 때**, 확정 도면이
+   1장 이상이면 먼저 묻는다. 글(제목 · 본문)은 foms-production-sheet-parts.js 가 채운다("재단을 완료로 체크할까요?" ·
+   "이 주문의 도면 5장이 모두 재단 완료로 처리돼요."). 겉모양 = 공용 사유 시트(foms-reason-sheet.css) — 새 CSS 는 본문 한 줄(.fpp-confirm-body).
+   작업 시트 · 옆 시트에 한 번씩(쓰기 단추가 있을 때만). 인라인 style · script 없음. #}
+<div class="foms-reason-sheet fpp-confirm" data-foms-sheet-confirm hidden aria-hidden="true">
+  <div class="foms-reason-sheet__backdrop" data-foms-sheet-confirm-no></div>
+  <div class="foms-reason-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="foms-sheet-confirm-title" aria-describedby="foms-sheet-confirm-body">
+    <div class="foms-reason-sheet__head"><h2 class="foms-reason-sheet__title" id="foms-sheet-confirm-title" data-foms-sheet-confirm-title>확인</h2></div>
+    <p class="fpp-confirm-body" id="foms-sheet-confirm-body" data-foms-sheet-confirm-body></p>
+    <div class="foms-reason-sheet__actions">
+      <button type="button" class="foms-btn foms-btn--secondary foms-reason-sheet__cancel" data-foms-sheet-confirm-no>취소</button>
+      <button type="button" class="foms-btn foms-btn--primary foms-reason-sheet__submit" data-foms-sheet-confirm-yes>체크</button>
+    </div>
+  </div>
+</div>

@@ -17,7 +17,7 @@ from tests.support.color_contrast import contrast_ratio, hex_rgb, pair_distances
 
 ROOT = Path(__file__).resolve().parents[2]
 CSS_DIR = ROOT / "static/css/contexts/production"
-PIN = "20261123s"
+PIN = "20261123u"
 
 
 def _css(name: str) -> str:

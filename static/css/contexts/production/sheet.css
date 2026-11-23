@@ -362,3 +362,12 @@
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
   .fpp-loglink { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
 }
+
+/* 반장 손 체크 확인 창(설계서 2026-11-23 '승인 때 고친 것' 3, templates/production/partials/sheet_step_confirm.html) — 겉모양은 공용 사유
+   시트(foms-reason-sheet.css), 여기는 본문 한 줄과 태블릿 누름 칸(보이는 44px · 틈 8px)만. 작업 시트 · 옆 시트 같은 꼴 */
+.fpp-confirm .foms-reason-sheet__actions > .foms-btn { font-size: calc(17px * var(--foms-fs, 1)); }
+.fpp-confirm-body { margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fpp-text); word-break: keep-all; }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .fpp-confirm .foms-reason-sheet__actions { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+  .fpp-confirm .foms-reason-sheet__actions > .foms-btn { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+}

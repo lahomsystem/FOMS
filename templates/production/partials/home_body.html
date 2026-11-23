@@ -51,7 +51,7 @@
      [불량] 칩 · 최근 불량 = 작업 시트 JS — 문서 리스너를 달므로 data-foms-run-once(셸 교체로 온 새 판은 그 파일이 foms:erp-shell-fragment-swapped 로 묶는다). #}
   {% include 'partials/shared/foms_reason_sheet.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">
-  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261122t" defer data-foms-run-once="prod-sheet-page"></script>
+  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer data-foms-run-once="prod-sheet-page"></script>
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   {% endif %}{% if step_panel_omitted %}{# 터치인데 좁은 창(세로)이라 판을 뺐다 — 가로로 돌리면 화면을 다시 받는다(wide_surface_omitted_marker 계약) #}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if write_omitted and tab == 'steps' %}{# 쿠키 없는 첫 요청이라 [끝]을 뺐다 — 터치 기기면 다시 받는다(write_omitted_marker.html) #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
 </div>

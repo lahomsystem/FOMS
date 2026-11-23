@@ -13,16 +13,22 @@
 {%- set _none = _lb == '시공일 없음' -%}
 <span class="fph-due{% if r.day_is_today %} is-today{% elif _none %} is-none{% elif r.day_sub and r.day_sub.endswith('지남') %} is-past{% endif %}" data-foms-home-due>{% if not _none %}<i>시공</i>{% endif %}<b>{{ _lb }}</b>{% if sub and r.day_sub %}<small>{{ r.day_sub }}</small>{% endif %}</span>
 {%- endmacro %}
+{# 공정 칸 아래 이름 한 줄(설계서 2026-11-23 §4-10 B8 · B12) — h = foms/services/production/part_holders.part_holder.
+   완료 = 완료한 사람(파랑) · 하는 중 = 담당(밤 넘김 호박) · 없음 = '미정'(회색 글). 이름 b 만 말줄임, 꼬리 span(외 n · 바뀜)은 안 줄임.
+   다 푼 글은 칸 title 과 숨은 글(읽기 프로그램) — 태블릿 글에는 시각이 없다(시각 · 마우스 글은 PC). 좁은 폭에서는 CSS 가 숨긴다. #}
+{% macro fph_hd(h) -%}
+<span class="visually-hidden">, {{ h.aria }}</span>{% if h.name %}<small class="fph-dr__hd{% if h.kind == 'done' %} is-done{% elif h.kind == 'none' %} is-none{% elif h.old %} is-old{% endif %}" aria-hidden="true"><b>{{ h.name }}</b>{% if h.tail %}<span>{{ h.tail }}</span>{% endif %}</small>{% endif %}
+{%- endmacro %}
 {% macro fph_row(r) %}
 <a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}"
    href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
-  <span class="fph-dr__sg">{{ r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% endif %}</span>
+  <span class="fph-dr__sg">{{ r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% endif %}{% if r.part_miss %}<small class="is-miss">{{ r.part_miss }}</small>{% endif %}</span>
   <span class="fph-dr__who">
     <span class="fph-dr__ln"><span class="fph-dr__nm"><b>{{ r.customer_name }}</b> <small>#{{ r.id }}</small>{{ fph_due(r) }}</span>{% if r.by_parts %}<span class="fph-dr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</span>
     <span class="fph-dr__pr">{% if r.has_changes %}<em>{{ r.change_line }}</em> · {% endif %}{{ r.v3_product_label or '품목 없음' }}{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
   </span>
-  <span class="fph-dr__steps" aria-label="공정">
-    {% for s in r.home_steps %}<span class="fph-dr__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"><i></i>{{ s.label }}</span>{% endfor %}
+  <span class="fph-dr__steps{% if r.part_holders %} has-hd{% endif %}" aria-label="공정">
+    {% for s in r.home_steps %}{% set h = r.part_holders[loop.index0] if r.part_holders else none %}<span class="fph-dr__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"{% if h %} title="{{ h.aria }}"{% endif %}><i></i>{{ h.label if h else s.label }}{% if h %}{{ fph_hd(h) }}{% endif %}</span>{% endfor %}
   </span>
   <span class="fph-dr__dw">{{ r.drawing_label }}</span>
 </a>
