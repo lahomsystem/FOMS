@@ -6012,6 +6012,42 @@ function fomsMountErpOrderSurface() {
         instance.calendarContainer.appendChild(bar);
     }
 
+    /** 시공일 달력 칸마다 그날 시공 건수(협력사 달력처럼) — /erp/dashboard/construction-day-counts. */
+    function erpConstructionCountOptions() {
+        var days = {};
+        var loaded = {};
+        function load(fp) {
+            var month = fp.currentYear + '-' + String(fp.currentMonth + 1).padStart(2, '0');
+            if (loaded[month]) return;
+            loaded[month] = true;
+            fetch('/erp/dashboard/construction-day-counts?month=' + month, { credentials: 'same-origin' })
+                .then(function (resp) { return resp.json(); })
+                .then(function (data) {
+                    if (!data || !data.success) { loaded[month] = false; return; }
+                    Object.assign(days, (data.data && data.data.days) || {});
+                    fp.redraw();
+                })
+                .catch(function () { loaded[month] = false; });
+        }
+        return {
+            onReady: function (selectedDates, dateStr, instance) {
+                erpAddFlatpickrDoneButton(instance);
+                load(instance);
+            },
+            onOpen: function (_d, _s, fp) { load(fp); },
+            onMonthChange: function (_d, _s, fp) { load(fp); },
+            onYearChange: function (_d, _s, fp) { load(fp); },
+            onDayCreate: function (_d, _s, fp, el) {
+                var count = days[fp.formatDate(el.dateObj, 'Y-m-d')];
+                if (!count) return;
+                var tag = document.createElement('span');
+                tag.className = 'erp-fp-count';
+                tag.textContent = count + '건';
+                el.appendChild(tag);
+            }
+        };
+    }
+
     function initErpMainDatePickers() {
         const mEl = document.getElementById('erp-measurement-date');
         const cEl = document.getElementById('erp-construction-date');
@@ -6031,7 +6067,7 @@ function fomsMountErpOrderSurface() {
             });
         }
         if (cEl && !cEl._flatpickr) {
-            window._erpConstructionDatePicker = flatpickr(cEl, opts);
+            window._erpConstructionDatePicker = flatpickr(cEl, Object.assign({}, opts, erpConstructionCountOptions()));
         }
         var mOpen = document.getElementById('erp-measurement-date-open');
         var cOpen = document.getElementById('erp-construction-date-open');

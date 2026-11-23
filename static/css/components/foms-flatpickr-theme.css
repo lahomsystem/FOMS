@@ -49,3 +49,7 @@
   color: var(--foms-text-primary);
   background: var(--foms-surface-base);
 }
+
+/* 주문 화면 시공일 달력: 날짜 아래 그날 시공 건수(협력사 달력 .pp-fp-count 와 같은 모양) */
+.flatpickr-day .erp-fp-count { position: absolute; left: 0; right: 0; bottom: 1px; font-size: 9px; line-height: 1; color: var(--foms-primary, #2563eb); white-space: nowrap; overflow: hidden; pointer-events: none; }
+.flatpickr-day.selected .erp-fp-count { color: #fff; }
