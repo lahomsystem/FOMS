@@ -6,8 +6,10 @@
 묻는다(답대로 넣는 일은 :mod:`.handoff_learning_route`):
 
 - **견줄 글(후보)**: 두뇌가 짚은 항목 + 찾기 앞 :data:`MAX_CANDIDATES` 개(:func:`foms.services.brain.ai_gates.related_items` —
-  반영 · 확정 · 같은 브랜드 · 판정자에게 보낼 수 있는 글, 빈 설명 칸 유형은 뺀다). 찾기는 글자 + **뜻 찾기**(설계서 2026-11-23
-  2.2 — 배운 말(이름 · 글)의 Voyage 벡터, :func:`learned_vector`. 꺼짐 · 열쇠 없음 · 상한 · 실패면 ``None`` 이라 글자 찾기만).
+  반영 · 확정 · 같은 브랜드 · 판정자에게 보낼 수 있는 글, 빈 설명 칸 유형은 뺀다). 찾기는 **한글 낱말 찾기**(형태소 + BM25 —
+  :mod:`foms.services.brain.word_search` · 설계서 2026-11-23 5.2)와 **뜻 찾기**(2.2 — 배운 말(이름 · 글)의 Voyage 벡터,
+  :func:`learned_vector`. 꺼짐 · 열쇠 없음 · 상한 · 실패면 ``None`` 이라 낱말 찾기만)를 번갈아 고른다. 낱말 찾기를 쓸 수 없으면
+  예전 그대로 글자 + 뜻 섞기.
 - **기다리는 말**(2026-11-23 3절): 부르는 쪽이 넘긴 가까운 기다리는 말(:mod:`.handoff_learning_held` — 회사 지식이 아니다)을 따로
   묶어 보이고, 답 ``repeat``(그 기다리는 말과 같은 말 — 대상은 그 키)을 받는다. 이미 정함 · 부딪침 · 같음이 먼저다.
 - **사장님이 이미 정한 것**: 후보 항목에 대해 :data:`DECIDED_DAYS` 일 안에 답(:data:`ANSWER_WORDS`)으로 닫힌 엇갈림 카드의 말과
@@ -219,7 +221,7 @@ def place(session: Any, *, key: Optional[str], title: str, text: str, cfg: Any, 
     if vector is _COMPUTE:
         vector = learned_vector(session, title=title, text=text, now=now)
     items = related_items(session, key=key, texts=[title, text], today=now.astimezone(KST).date(), brand=SEND_BRAND,
-                          limit=MAX_CANDIDATES, vector=vector)
+                          limit=MAX_CANDIDATES, vector=vector, words=True)
     keys, waiting = [item["key"] for item in items], [item["key"] for item in held]
     decided = decided_lines(session, keys, now)
     request = {"candidates": items, "decided": decided, "held": list(held), "title": title, "text": text}
