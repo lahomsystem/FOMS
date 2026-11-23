@@ -109,6 +109,7 @@
 .fpc-steps.has-hd .fpc-s__m { display: flex; justify-content: center; max-width: 100%; margin-top: 3px; overflow: visible; text-overflow: clip; white-space: nowrap; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; }
 .fpc-s__m > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
 .fpc-s__m > span { flex-shrink: 0; margin-left: .25em; }
+.fpc-s__m > .fpc-s__at { display: none; flex-shrink: 0; margin-left: .25em; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; } /* 완료 날짜 — 아주 넓을 때만(아래) */
 .fpc-s.is-now .fpc-s__m.is-none { color: var(--fpc-text2); } /* '지금' 칸 연보라 위 "미정" 대비 4.37 → 7.21(F9) */
 .fpc-s.is-done .fpc-s__m.is-old { color: inherit; } /* 채운 칸(파랑) 위에는 호박 글자를 쓰지 않는다 — 밤 넘김은 하는 중 칸에만 */
 
@@ -212,6 +213,7 @@
     .fpc-r--mini { grid-template-columns: 9rem 8rem minmax(15rem, 1fr) minmax(8rem, .6fr); }
     .fpc-s { height: 62px; }
     .fpc-s__m { display: block; }
+    .fpc-s__m > .fpc-s__at { display: inline; } /* 완료 칸 "김재단 11/21" — 예전 아주 넓은 화면 글 그대로(2026-11-23 지휘) */
   }
 }
 

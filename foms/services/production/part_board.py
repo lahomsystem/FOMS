@@ -233,11 +233,13 @@ def _card_state(row: dict[str, Any], key: str, snap: MarkSnapshot, ctx: dict[str
     block = None
     if state in ("none", "need"):
         block = ctx["blocks"][order_id] or (inspect_block(sd, marks, key) if part == PART_INSPECT else None)
+    # 주문 막힘(보류 · 도면 고치는 중)은 상태와 상관없이 카드에 싣는다 — 완료 · 기본 카드를 되돌린 뒤 JS 가 그리는 칸이
+    # 서버가 그리는 칸(막힌 칸 · [맡기 취소][막힌 칸])과 같게(검수 전 막힘은 JS 가 다른 파트 줄로 다시 본다)
     notes = claim_notes(snap, ctx["today"], mine=picked_by_me and ctx["writable"])
     mark = mark_payload(snap) if snap.seen_key != "none" else {}
     notes.update(picked_day=mark.get("picked_day"), picked_at=mark.get("picked_at"), handed_from_name=snap.handed_from_name,
                  handed_at=mark.get("handed_at"))
-    return {"state": state, "hand": hand, "block": block, "picked_by_me": picked_by_me,
+    return {"state": state, "hand": hand, "block": block, "order_block": ctx["blocks"][order_id], "picked_by_me": picked_by_me,
             "mine_row": state == "need" and picked_by_me and ctx["writable"],
             "first_card": not row.get("home_has_run"), "hand_parts": sorted(p for p, h in hands.items() if h), **notes}
 
@@ -305,6 +307,11 @@ def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def bulk_count(cards: list[dict[str, Any]]) -> int:
+    """[남은 N장 모두 기본] 숫자 — 막힌(보류 · 도면 고치는 중) 안 본 장은 빼고 센다. 창이 여는 목록과 같은 기준(parts.js bulkable)."""
+    return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block"))
+
+
 def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]) -> dict[str, Any]:
     """날짜 한 장의 파트 판 — 카드 · 칸 숫자 · 캡 · 기다림 · 제작 완료 수.
 
@@ -332,6 +339,7 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
         "cards": cards[:PART_BOARD_CARD_CAP],
         "hidden": max(0, len(cards) - PART_BOARD_CARD_CAP),
         "counts": card_counts(cards),
+        "bulk": bulk_count(cards),
         "orders_total": int(pane.get("total") or 0),
         "drawn_orders": len(pane.get("make_rows") or []) - len(no_drawing),
         "wait_rows": wait_rows,

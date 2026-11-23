@@ -401,9 +401,10 @@ def test_공정_칸_누가_언제는_PC_에만(client, cohort) -> None:
     row = pane.split(f'data-foms-home-dayrow="{orders["edge"].id}"', 1)[1].split('<div class="fpc-r', 1)[0]
     # 시드: 재단 김재단 2026-11-21T00:12Z = KST 11/21 09:12, 회차 시작 2026-11-20 23:40Z = KST 11/21 08:40
     assert 'data-tip="재단 끝 · 김재단 · 11/21 09:12" tabindex="0" aria-label="재단 끝 · 김재단 · 11/21 09:12"' in row
-    # 칸 둘째 줄 = 날짜 줄 칸 아래와 같은 값(늘 보임 — 묶음에 has-hd): 완료한 사람 · 그 밖 칸 '미정'
+    # 칸 둘째 줄(has-hd, 늘 보임) = 날짜 줄 칸 아래 값 · 완료 칸 날짜는 아주 넓은 화면만(예전 "김재단 11/21", pc.css .fpc-s__at)
     assert '<span class="fpc-steps has-hd" aria-label="공정">' in row
-    assert '<span class="fpc-s__m"><b>김재단</b></span>' in row and row.count('<span class="fpc-s__m is-none"><b>미정</b></span>') == 3
+    assert '<span class="fpc-s__m"><b>김재단</b><small class="fpc-s__at">11/21</small></span>' in row
+    assert row.count('<span class="fpc-s__m is-none"><b>미정</b></span>') == 3
     assert 'data-tip="엣지 · 지금 여기(아직)"' in row and 'data-tip="조립 · 아직"' in row  # 카드를 안 쓴 칸의 마우스 글은 그대로
     assert 'data-tip="제작 시작 11/21 08:40"' in row
     set_cookies(client, TABLET)
@@ -495,4 +496,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261123u" in (ROOT / tpl).read_text(encoding="utf-8"), tpl
+        assert "pc.css') }}?v=20261123v" in (ROOT / tpl).read_text(encoding="utf-8"), tpl

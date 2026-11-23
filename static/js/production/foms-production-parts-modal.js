@@ -84,7 +84,7 @@
   }
   function firstLine(action, cards) {
     var first = cards.some(function (c) { return attr(c, 'data-pp-first') === '1'; });
-    return first && (action === 'take' || action === 'basic' || action === 'bulk') ? '이 집 첫 카드라 제작 시작도 같이 돼요.' : '';
+    return first && (action === 'take' || action === 'basic' || action === 'bulk') ? '이 집 첫 도면이라 제작 시작도 같이 돼요.' : '';
   }
 
   // ── 창 그리기 ──
@@ -115,6 +115,7 @@
     var list = q('[data-pp-modal-list]');
     list.textContent = '';
     items.forEach(function (li) { list.appendChild(li); });
+    list.hidden = !items.length; // 제작 완료 물음처럼 목록이 없으면 빈 줄을 안 남긴다
     var run = runBtn();
     run.className = 'foms-prod-change-modal__btn pp-mbtn pp-mgo pp-mgo--' + p.tone;
     run.textContent = p.run || '';
@@ -143,15 +144,17 @@
     modal.classList.add('is-open');
     q('[data-pp-modal-close]').focus();
   }
+  // 보이는 칸인지 — 문서에 있어도 숨었으면(카드가 칸 단추로 숨음 · hidden · 보이는 크기 0) 초점을 주지 않는다
+  function shown(n) { return !!n && document.contains(n) && n.offsetParent !== null && !n.closest('[hidden]'); }
   function refocus() {
     var o = opened;
     if (!o) { return; }
-    if (o.opener && document.contains(o.opener) && typeof o.opener.focus === 'function') { o.opener.focus(); return; }
     var cards = window.FomsPartsCards;
     var card = o.key && cards ? cards.find(o.key[0], o.key[1])[0] : null;
-    var next = card && (card.querySelector('[data-pp-act="' + o.act + '"]') || card.querySelector('[data-pp-actbox] button') ||
-      card.querySelector('.pp-sheetlink'));
-    if (next) { next.focus(); }
+    var pick = [o.opener, card && card.querySelector('[data-pp-act="' + o.act + '"]'), card && card.querySelector('[data-pp-actbox] button'),
+      card && card.querySelector('.pp-sheetlink'), root.querySelector('.fph-parts:not([hidden]) [data-pp-view].is-on')];
+    var next = pick.filter(shown)[0]; // 다 숨었으면 늘 보이는 판 머리 거르개(고른 칸)
+    if (next && typeof next.focus === 'function') { next.focus(); }
   }
   function close() {
     modal.classList.remove('is-open', 'is-lost');

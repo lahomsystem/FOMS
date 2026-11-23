@@ -466,6 +466,11 @@ def test_파트_맡기_P1_새_누름_칸은_보이는_44_이웃_틈_8_지금_칸
     # 위 화면 탭(home.css .foms-prod-home__tab)은 그대로
     assert f"min-height: {TAP}" in _decl(t, ".pp-tabs .foms-prod-home__tab")
     assert "opacity: 1" in _decl(t, ".pp-tabs .foms-prod-home__tab.is-on small")
+    # 보호: 이 덩이의 거르개 규칙은 판 머리(.pp-tabs) 것뿐 — 위 화면 탭(.foms-prod-home__tab 혼자)을 바꾸는 규칙은 없다
+    for selectors in re.findall(r"([^{}]+)\{", t):
+        for sel in selectors.split(","):
+            if "foms-prod-home__tab" in sel:
+                assert sel.strip().startswith(".pp-tabs "), sel
     # 반장 손 체크 확인 창(작업 시트 · 옆 시트) — 단추 보이는 44 · 틈 8
     sheet = _tablet_text("psheet")
     assert f"min-height: {TAP}" in _decl(sheet, ".fpp-confirm .foms-reason-sheet__actions > .foms-btn")

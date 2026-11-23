@@ -252,6 +252,7 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
    묶음 foms-tablet-production-kanban.css 의 창 기본꼴(0,2,1)을 이기게 .foms-prod-home .pp-modal 아래(0,3,0)로 적는다. 토큰은 다시 적지 않는다. */
 .foms-prod-home .pp-modal .pp-mbody { margin: 6px 18px 4px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fph-text); word-break: keep-all; }
 .foms-prod-home .pp-modal .pp-mbody[hidden] { display: none; }
+.foms-prod-home .pp-modal .foms-prod-change-modal__list[hidden] { display: none; } /* 목록 없는 창(제작 완료 물음) — 빈 줄 · 여백 없음 */
 .foms-prod-home .pp-modal .pp-mbody b { font-weight: 800; }
 .foms-prod-home .pp-modal .pp-al--taken { border-left-color: var(--fph-taken-700); color: var(--fph-taken-700); }
 .foms-prod-home .pp-modal .pp-al--release { border-left-color: var(--fph-release-700); color: var(--fph-release-700); }
