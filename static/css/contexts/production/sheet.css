@@ -17,6 +17,12 @@
   --fpp-warn: #d97706;
   --fpp-warn-50: #fffbeb;
   --fpp-amber-text: #92400e;
+  /* 파트 맡기 고침(설계서 2026-11-23 §8-3) — 카드로 완료 글 · 바뀐 기록 줄 · 까닭 상자 테두리. 태블릿 --fph-* 와 같은 값 */
+  --fpp-ok-dark: #047857;
+  --fpp-warn-soft: #fcd34d;
+  --fpp-taken-10: #fdf2f8;
+  --fpp-taken-50: #eecbda;
+  --fpp-taken-700: #7a3f5c;
   --fpp-ok: #059669;
   --fpp-dwg: #2b2f36;
   /* 어두운 도면 칸 위 도면 마감 글 색(home.css --fph-dw-* 의 밝은 짝) — 늦음 · '담당 없음' 연빨강, 빠듯 호박색(2026-11-22:
@@ -329,3 +335,30 @@
 .foms-prod-sheet__drawing--strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .foms-prod-sheet__drawing--strip .foms-prod-sheet__drawing-thumb { flex: 0 0 auto; width: 112px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #dde1e6; cursor: zoom-in; }
 .foms-prod-sheet__drawing-file { flex: 0 0 auto; width: calc(112px * var(--foms-fs, 1)); min-height: 80px; overflow-wrap: anywhere; border: 1px dashed #c1c7d0; border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4a55b8; text-decoration: none; }
+
+/* ── 파트 맡기 고침(설계서 2026-11-23-production-self-claim-and-factory2 §8-3) — 공정 칸 옆 진행 글 · 막힘 글 · 바뀐 기록 · 제작 완료 까닭 ──
+   새 클래스에만 걸린다(지금 칸 옆 글 · 상태 줄은 그대로). 글자는 calc(Npx * 배율), 색은 시트 토큰(무채색 상태 없음). 옆 시트(.foms-prod-sheet)
+   규칙보다 뒤라 두 꼴 모두 같은 모양. */
+/* 칸 옆 글: 카드 쓴 파트 "카드 3/5 · 2장 미완료" · "카드로 완료 · 김재단 15:02" (· 바뀜 1), 손 체크는 지금 꼴("박반장 · 11/24 10:20") */
+.foms-prod-page__step small.fpp-note { display: block; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fpp-text2); white-space: normal; word-break: keep-all; }
+.foms-prod-page__step small.fpp-note.is-miss { color: var(--fpp-amber-text); }
+.foms-prod-page__step small.fpp-note.is-ok { color: var(--fpp-ok-dark); }
+/* 카드 쓴 파트 칸을 눌렀을 때 · 손 체크 확인 뒤 서버 글(공정 칸 묶음 아래) · [제작 완료] 까닭(상태 줄 안) — 호박 상자 */
+.fpp-stepmsg, .fpp-why { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--fpp-warn-soft); border-radius: 9px; background: var(--fpp-warn-50); color: var(--fpp-amber-text); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.4; text-align: left; word-break: keep-all; }
+.fpp-stepmsg[hidden], .fpp-why[hidden] { display: none; }
+.fpp-why { display: block; margin: 0; padding: 6px 10px; font-size: calc(16px * var(--foms-fs, 1)); }
+/* [바뀐 기록 보기] — 공정 칸 묶음 아래 링크(보이는 44px 는 아래 태블릿 덩이) */
+.fpp-loglink { display: inline-flex; align-items: center; min-height: 44px; margin-top: 6px; padding: 0 12px; border: 1px solid var(--fpp-line2); border-radius: 9px; background: var(--fpp-surface); color: var(--fpp-brand-dark); font: inherit; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; text-decoration: none; cursor: pointer; }
+.fpp-loglink:hover, .fpp-loglink:focus-visible { background: var(--fpp-brand-50); color: var(--fpp-brand-dark); text-decoration: none; }
+.fpp-loglink:focus-visible { outline: 3px solid var(--fpp-brand); outline-offset: 2px; }
+.fpp-loglink:active { background: var(--fpp-brand-50); }
+/* 바뀐 기록 목록 — 공정 · 장마다 한 줄 "엣지 도면 1/5: 박엣지 맡음 11/23 09:10 → 김민준으로 바뀜 14:20 → 김민준 완료 15:02" */
+.fpp-log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.fpp-log[hidden] { display: none; }
+.fpp-log li { padding: 6px 10px; border: 1px solid var(--fpp-taken-50); border-radius: 9px; background: var(--fpp-taken-10); color: var(--fpp-text); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; word-break: keep-all; }
+.fpp-log li b { font-weight: 800; color: var(--fpp-taken-700); }
+.fpp-log li.is-miss { border-color: var(--fpp-warn-soft); background: var(--fpp-warn-50); }
+.fpp-log li.is-miss b { color: var(--fpp-amber-text); }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .fpp-loglink { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+}

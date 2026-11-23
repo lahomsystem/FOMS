@@ -51,6 +51,9 @@ FILES = {
     "ship_cols": "static/css/contexts/shipment/shipment-dashboard-columns.css",
     # 4차(2026-11-23) — 출고 시공일 변경 배너 칩
     "ship_extras": "static/css/contexts/shipment/dashboard-table-extras.css",
+    # 파트 맡기 고침 P1(2026-11-23 설계서 production-self-claim-and-factory2 §10) — 도면 카드 판 · 작업 시트 새 칸
+    "parts": "static/css/contexts/production/parts.css",
+    "psheet": "static/css/contexts/production/sheet.css",
 }
 
 
@@ -443,3 +446,19 @@ def test_4차_바뀐_파일_핀은_20261123b() -> None:
         assert f + "') }}?v=20261123b" in ship, f
     # dashboard-table-extras.css 는 같은 날 PC 카드 모양(칸 세로 선을 인라인에서 옮김)으로 한 번 더 올랐다.
     assert "dashboard-table-extras.css') }}?v=20261123c" in ship
+
+
+def test_파트_맡기_P1_새_누름_칸은_보이는_44_이웃_틈_8_지금_칸은_그대로() -> None:
+    """설계서 2026-11-23 §10 M4 · F3 · F4 — 실화면 예측(1176×626 · 80%): 이름 줄 링크 44.0 · [맡기 취소] ↔ [엣지 완료] 8.0 ·
+    그림 ↔ 이름 줄 8.0 · 아침 칩 · 아침 창 [보기] 44.0 · 창 단추 사이 8.0. 거르개 · [기본][내가 자름] 짝은 손대지 않는다."""
+    t = _tablet_text("parts")
+    # 이름 줄 링크 — 줄 키는 그대로, 투명 누름 칸(::after)만 아래로
+    assert f"bottom: min(0px, calc(100% - 44px / var(--foms-ui-zoom, 1)))" in _decl(t, ".pp-sheetlink::after")
+    assert "margin-top: max(0px, calc(8px / var(--foms-ui-zoom, 1) - 7px))" in _decl(t, ".pp-card .pp-img + .pp-sheetlink")
+    assert f"gap: max(8px, {GAP})" in _decl(t, ".pp-two.is-mine")
+    assert f"min-height: {TAP}" in _decl(t, ".pp-mchip") and f"min-height: {TAP}" in _decl(t, ".pp-mpop a")
+    assert f"gap: max(8px, {GAP})" in _decl(t, ".foms-prod-home .pp-modal .foms-prod-change-modal__foot")
+    assert f"gap: max(8px, {GAP})" in _decl(t, ".foms-prod-home .pp-modal .pp-mchoices")
+    # 지금 칸: 짝 단추 틈 · 거르개 · 파트 고르기 규칙은 이 덩이에 없다(지금 화면 그대로 — 전 · 후 그림 같음)
+    assert ".pp-two {" not in t and ".pp-two," not in t and "foms-prod-home__tab" not in t and ".pp-part" not in t
+    assert f"min-height: {TAP}" in _decl(_tablet_text("psheet"), ".fpp-loglink")

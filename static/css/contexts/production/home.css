@@ -27,6 +27,15 @@
   --fph-dw-soon: #68550d;
   --fph-dw-ok: #047857;
   --fph-why: #92400e;
+  /* 파트 맡기 고침(설계서 2026-11-23-production-self-claim-and-factory2 §8-9 · §10) — 날짜 줄 칸 아래 이름 · 어제부터(호박) · 칸 폭.
+     어제부터 칩 · 아침 칩도 이 값을 쓴다(parts.css 는 이 파일 뒤에 실린다). 값은 시험이 못 박는다(test_production_selfclaim_css.py). */
+  --fph-old-50: #ffedd5;
+  --fph-old-300: #fdba74;
+  --fph-old-700: #9a3412;
+  --fph-holder: var(--fph-text2);
+  --fph-holder-done: var(--fph-brand-dark);
+  --fph-holder-none: var(--fph-text3);
+  --fph-step-w: calc(76px * var(--foms-fs, 1));
   background: var(--fph-bg);
   color: var(--fph-text);
   min-height: 60vh;
@@ -438,7 +447,8 @@
 .fph-pane__none { margin: 0; padding: 10px 4px; font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text3); }
 .fph-dr {
   content-visibility: auto; /* 화면 밖 줄은 그리기를 미룬다(11-14) — 크기는 한 번 그린 뒤 기억 */
-  contain-intrinsic-size: auto 96px;
+  /* 자리표시 키 = 한 줄 꼴 실측(글자 100% 74~88 · 120% 101 CSS px, 2026-11-23 §10 F2). 두 줄 꼴 · 폰은 아래 덩이에서 140px × 배율 */
+  contain-intrinsic-size: auto calc(84px * var(--foms-fs, 1));
   min-height: 74px;
   display: grid;
   grid-template-columns: 128px minmax(0, 1fr) auto calc(92px * var(--foms-fs, 1)); /* 도면 칸은 글자 배율 따라(R8) */
@@ -488,6 +498,19 @@
 .fph-dr__st.is-done i { background: var(--fph-brand); border-color: var(--fph-brand); }
 .fph-dr__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
 .fph-dr__dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+/* 공정 칸 아래 이름(설계서 2026-11-23 §4-10 · §10) — 하는 중이면 담당, 완료면 완료한 사람, 없으면 "미정". 줄에 이름이 있을 때만
+   공정 묶음이 .has-hd 를 단다(지금 줄은 그대로). 칸 폭 76px × 글자 배율, 글 15px × 배율(80% 에서 보이는 12px), 한 줄 · 줄바꿈 없음.
+   이름(b)만 말줄임, 꼬리(span — ' 외 n' · ' 바뀜')는 안 줄인다. 좁은 폭(폰 · 세로 · 두 줄 꼴 · 한 줄 꼴 문턱 아래)은 아래 덩이에서 숨긴다. */
+.fph-dr__steps.has-hd { gap: 0 4px; flex-wrap: wrap; max-width: calc(4 * var(--fph-step-w) + 12px); }
+.fph-dr__steps.has-hd .fph-dr__st { width: var(--fph-step-w); }
+.fph-dr__hd { display: flex; justify-content: center; max-width: 100%; min-height: calc(18px * var(--foms-fs, 1)); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; color: var(--fph-holder); white-space: nowrap; }
+.fph-dr__hd b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
+.fph-dr__hd span { flex-shrink: 0; margin-left: .25em; }
+.fph-dr__hd.is-done { color: var(--fph-holder-done); }
+.fph-dr__hd.is-none { color: var(--fph-holder-none); font-weight: 700; }
+.fph-dr__hd.is-old { color: var(--fph-old-700); }
+/* 단계 칸 둘째 줄: 카드 부분 완료 "2장 미완료"(§4-2) — 바뀐 줄(.is-chg)의 빨간 작은 글보다 뒤에 와서 이긴다 */
+.fph-dr .fph-dr__sg small.is-miss { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fph-why); }
 .fph-wg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 .fph-wi { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--fph-line); background: var(--fph-raised); color: var(--fph-text2); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; text-decoration: none; white-space: nowrap; overflow: hidden; }
 .fph-wi:hover, .fph-wi:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; outline: none; }
@@ -613,7 +636,7 @@
   /* 날짜 장(fph-dr): 단계 128 + 공정 4 × max(34, 글 2자 1.5rem) + 틈 18 + 도면 5.75rem(92px × 배율) + 칸 틈 36 + 여백 12 + 테두리 2
      + 이름 12 × 1.25rem(20px × 배율) */
   @container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 20.75rem - 0.02px)) {
-    .fph-dr { grid-template-columns: 128px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 8px; }
+    .fph-dr { grid-template-columns: 128px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 8px; contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1)); }
     .fph-dr__sg { grid-row: 1 / 3; }
     .fph-dr__who { grid-column: 2 / 4; padding-bottom: 2px; }
     .fph-dr__steps { grid-column: 2; grid-row: 2; }
@@ -634,6 +657,20 @@
     .fph-qr__who { grid-column: 2 / 4; }
     .fph-qr__due { grid-column: 2; grid-row: 2; flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
     .fph-qr__done, .fph-qr__hold { grid-column: 3; grid-row: 2; }
+  }
+}
+
+/* ── 날짜 장 공정 칸 아래 이름(.fph-dr__hd)은 한 줄 꼴에 들어갈 때만(설계서 2026-11-23 §10 '숨길 곳', 지휘 판정 11-23 이름 칸 16자) ──
+   단계 128 + 칸 틈 36 + 여백 12 + 테두리 2 + 공정 칸 틈 12 = 190px, 칸 넷 4 × 4.75rem(76px × 배율), 도면 5.75rem(92px × 배율)
+   + 이름 16 × 1.25rem(20px × 배율) = 25.75rem. 이보다 좁으면 이름 줄을 숨기고 칸 폭도 지금 꼴로. 이 문턱은 어느 글자 배율에서나
+   위 두 줄 꼴 문턱보다 넓어 두 줄 꼴에서도 늘 숨는다(두 줄 꼴 덩이는 자리만 바꾸고 아무것도 숨기지 않는다 — 11-14 규칙 그대로).
+   기본 규칙(.fph-dr__steps.has-hd)보다 뒤라 같은 특이도에서 이긴다. 1rem = 16px × 글자 배율일 때만 맞는 식이다
+   (2000px 넘는 화면은 뿌리 글자가 18px — foms-ui-zoom.css — 이라 조금 일찍 숨는다. 쿼리 조건에는 var() 를 못 쓴다). */
+@media (min-width: 992px) {
+  @container fph-pane (max-width: calc(190px + 4 * 4.75rem + 25.75rem - 0.02px)) {
+    .fph-dr__hd { display: none; }
+    .fph-dr__steps.has-hd { gap: 6px; }
+    .fph-dr__steps.has-hd .fph-dr__st { width: auto; }
   }
 }
 
@@ -684,11 +721,15 @@
   .fph-strip__f { margin-top: 0; display: flex; border-top: 0; }
   .fph-sf { flex: 0 0 calc(124px * var(--foms-fs, 1)); border-left: 1px solid var(--fph-line); }
   .fph-panes { padding: 4px 10px 90px; }
-  .fph-dr { grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto; padding: 0 10px 8px 0; }
+  .fph-dr { grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto; padding: 0 10px 8px 0; contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1)); }
   .fph-dr__sg { grid-row: 1 / 3; font-size: calc(16px * var(--foms-fs, 1)); }
   .fph-dr__who { padding: 8px 0 2px; }
   .fph-dr__steps { grid-column: 2; }
   .fph-dr__dw { display: none; }
+  /* 공정 칸 아래 이름은 폰 · 세로에서 숨긴다 — 칸 넷이 지금 꼴(226px)에 들어가 '검수' 칸이 안 잘린다(설계서 2026-11-23 §10 M1 안 나) */
+  .fph-dr__hd { display: none; }
+  .fph-dr__steps.has-hd { gap: 6px; }
+  .fph-dr__steps.has-hd .fph-dr__st { width: auto; }
   /* 시공일 표(11-21): 좁은 칸에서는 이름을 한 글자로 줄이지 않고 표를 다음 줄로 내린다(폰 390 실측 '바…') */
   .fph-dr__nm, .foms-prod-home__name { flex-wrap: wrap; row-gap: 2px; }
   .fph-wi { flex-wrap: wrap; row-gap: 2px; padding-block: 5px; }

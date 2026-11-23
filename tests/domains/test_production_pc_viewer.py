@@ -486,4 +486,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261122v" in (ROOT / tpl).read_text(encoding="utf-8"), tpl
+        assert "pc.css') }}?v=20261123s" in (ROOT / tpl).read_text(encoding="utf-8"), tpl
