@@ -2,7 +2,8 @@
  * 새 승인 대기 화면 — ③ 사장님이 정해 주실 것 질문 카드(설계서 2026-11-14-foms-graft 5.4 · 옛 brain-inbox-question.js 와 같은
  * 흐름 — D152). 엇갈림 · 질문 제안 하나를 "어느 쪽이 맞아요?" 로 묻고, 답마다 있는 동작만 쓴다(새 쓰기 길 없음):
  *  - 회사 지식이 맞아요 = 그 제안을 'knowledge_right' 까닭으로 닫는다(바깥 글은 고칠 일로 남음).
- *  - 바깥 글이 맞아요 = 다루는 지식 글을 적은 글로 고치는 제안 → 바로 승인 → 질문 제안을 'outside_right' 로 닫는다.
+ *  - 바깥 글이 맞아요 = 다루는 지식 글을 적은 글로 고치는 제안 → 바로 승인 → 질문 제안을 'outside_right' 로 닫는다. 칸에는
+ *    바깥 글이 미리 들어간다(ds-inbox-view.js outsideDraft — 지금 글을 품으면 바깥 글 그대로, 아니면 어긋난 문장을 빼고 붙임).
  *  - 둘 다 맞아요 = 경우를 적은 한 줄을 지식 글 끝에 덧붙이는 제안 → 바로 승인 → 'both_right' 로 닫는다.
  * 결정한 사람 · 등급 B 확인은 서버가 다시 본다. PC · 폰 모두 같은 카드(폰에서도 정한다). '나중에'는 data-ds-act="later".
  * 답한 바로 뒤 ds-inbox-undo.js 가 [되돌리기]를 보인다(닫은 질문 번호 + 그 답으로 넣은 고침 번호를 넘긴다).
@@ -13,7 +14,8 @@
 
   var dom = window.FOMS_BRAIN_DOM;
   var kit = window.FOMS_DS_INBOX_KIT;
-  if (!dom || !kit) return;
+  var iv = window.FOMS_DS_INBOX_VIEW;
+  if (!dom || !kit || !iv) return;
   var el = dom.el;
   var CODES = { knowledge: 'knowledge_right', 'outside-save': 'outside_right', 'both-save': 'both_right' };
   var SAID = { knowledge: '회사 지식이 맞아요', 'outside-save': '바깥 글이 맞아요', 'both-save': '둘 다 맞아요' };
@@ -29,16 +31,18 @@
                                                        el('p', { cls: 'f-quote', text: text || '' })] });
   }
 
-  function editor(kind, about) {
+  function editor(kind, about, sentence) {
     var box = el('div', { cls: 'f-col fb-edit', attrs: { 'data-ds-answer-box': kind } });
     box.hidden = true;
     var outside = kind === 'outside';
     var input = el(outside ? 'textarea' : 'input', { cls: 'f-input', attrs: {
       'data-ds-answer-text': kind, rows: outside ? 3 : null, type: outside ? null : 'text', maxlength: outside ? null : 200,
       'aria-label': outside ? '새 회사 지식 글' : '어떤 경우인지 한 줄' } });
-    input.value = outside ? about.text : '';
+    var draft = outside ? iv.outsideDraft(sentence, about.text) : { text: '', mixed: false };
+    input.value = draft.text;
     box.appendChild(el('label', { cls: 'f-field', children: [el('span', { cls: 'f-label', text: outside
       ? '새 글 — AI · 직원이 이 글로 안내해요' : '어떤 경우에 어느 쪽인지 한 줄 — 지식 글 끝에 붙어요' }), input] }));
+    if (draft.mixed) box.appendChild(el('p', { cls: 'f-help', text: '지금 글 뒤에 바깥 글을 붙였어요 — 틀린 옛 문장은 지워 주세요.' }));
     box.appendChild(el('div', { cls: 'f-actions', children: [
       answerButton(outside ? '이 글로 바꾸기' : '덧붙이기', kind + '-save', 'f-btn-primary')] }));
     return box;
@@ -64,7 +68,7 @@
     bar.appendChild(kit.button('나중에', 'later', 'f-btn-minimal', 'time'));
     box.appendChild(bar);
     if (about) {
-      box.appendChild(editor('outside', about));
+      box.appendChild(editor('outside', about, view.sentence));
       box.appendChild(editor('both', about));
     } else {
       box.appendChild(el('p', { cls: 'f-help', text: '다루는 지식을 못 찾아 「회사 지식이 맞아요」만 고를 수 있어요.' }));
