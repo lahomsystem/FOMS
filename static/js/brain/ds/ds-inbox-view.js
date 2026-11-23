@@ -188,7 +188,7 @@
 
   /**
    * ③ '바깥 글이 맞아요' 칸에 처음 넣는 글 — {text, mixed}. 바깥 글(카드 머리줄은 뺀다)이 지금 지식 글을 품으면 바깥 글 그대로.
-   * 아니면 지금 글에서 어긋난 구절이 든 문장만 빼고 바깥 글을 뒤에 붙인다(지금 글의 다른 내용을 잃지 않게). 어긋난 구절을 못
+   * 아니면 지금 글에서 어긋난 구절이 든 문장과 바깥 글에 이미 있는 문장을 빼고 바깥 글을 뒤에 붙인다(다른 내용은 잃지 않게). 어긋난 구절을 못
    * 찾으면 지금 글을 다 두고 붙인다 — mixed = 사람이 틀린 옛 문장을 지워야 한다.
    */
   function outsideDraft(sentence, current) {
@@ -199,13 +199,15 @@
     var hit = CLASH.exec(lines[0].trim());
     var phrase = hit ? flat(hit[1]) : '';
     var parts = now.split(/([.!?]\s+)/);
-    var kept = [];
+    var kept = [], found = false, said = flat(body);
     for (var i = 0; i < parts.length; i += 2) {
       var one = parts[i] + (parts[i + 1] || '');
-      if (!phrase || flat(one).indexOf(phrase) < 0) kept.push(one);
+      if (phrase && flat(one).indexOf(phrase) >= 0) { found = true; continue; }
+      if (flat(one) && said.indexOf(flat(one)) >= 0) continue;  // 바깥 글에 이미 있는 문장 — 두 번 넣지 않는다(11-23 운영에서 봄)
+      kept.push(one);
     }
     var rest = kept.join('').trim();
-    return { text: (rest ? rest + ' ' : '') + body, mixed: rest === now };
+    return { text: (rest ? rest + ' ' : '') + body, mixed: !found };
   }
 
   /** 바뀌는 곳 셈의 한도 — 앞뒤 같은 조각을 뗀 가운데가 이보다 길면 '통째로 바뀜'(빠짐 하나 + 들어감 하나)으로 본다. */
