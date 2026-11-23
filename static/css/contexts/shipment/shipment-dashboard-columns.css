@@ -519,3 +519,12 @@ body.col-resizing-active {
     gap: calc(8px / var(--foms-ui-zoom, 1));
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 4차(보이는 크기, 2026-11-23) ---
+   위 줄 [협력사 희망 N] 알약이 44px 고정이라 화면 크기 80% 에서 보이는 35px 였다(준비물엔 협력사 희망 건이 없어 2차가 못 봤다).
+   위 줄은 날짜 띠(보이는 44px 이상)가 높이를 정해 자리가 있다 — 알약 자체를 키운다. 100% 에선 지금 크기 그대로(max). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-ship-pcbar__prb {
+    min-height: max(var(--foms-touch-target-comfortable, 44px), calc(44px / var(--foms-ui-zoom, 1)));
+  }
+}

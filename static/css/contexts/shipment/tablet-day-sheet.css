@@ -442,4 +442,19 @@
   body.erp-mobile-v2-layout:is(html[data-foms-ui-zoom^="0."] > body) .foms-ship-names__foot {
     gap: calc(8px / var(--foms-ui-zoom, 1));
   }
+
+  /* --- 터치 태블릿 누름 칸 44px 4차(보이는 크기, 2026-11-23) ---
+     고객 칸 시공일 변경 [확인](.erp-ship-change__ack)이 화면 크기 80% 에서 보이는 33 × 21px 였다(실데이터 측정이 잡음).
+     칸이 overflow: hidden 이라 투명 누름 칸(::after)은 잘리고, 위는 변경 배지 · 아래는 바로 줄 끝이라 투명 칸을 늘릴 자리가 없다 —
+     [확인] 자체를 '44px ÷ 배율'로 키운다. 그 줄(미확인 변경이 있는 줄만, 이미 기본 줄 높이보다 높다)만 그만큼 길어지고,
+     확인하면 배지와 함께 사라져 줄 높이도 돌아온다. 글자 크기는 그대로. 키운 [확인]이 줄 바닥에 닿아 마지막 줄이면
+     표 아래 [＋ 날짜 없는 AS] 와 보이는 7px 로 붙어서, 아래에 보이는 4px 를 띄운다(이웃 누름 칸 사이 보이는 8px 이상). */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__ack {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+    margin-bottom: calc(4px / var(--foms-ui-zoom, 1));
+  }
 }
