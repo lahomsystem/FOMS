@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from typing import Any
+import re
 
 MAX_DISCOUNT_ITEMS = 20
 MAX_DISCOUNT_LABEL_LEN = 64
@@ -25,6 +26,34 @@ def _coerce_amount(value: Any) -> int:
     return int(digits) if digits else 0
 
 
+_EXPR_ALLOWED = re.compile(r"^[0-9,+\-\s원]+$")
+_EXPR_TOKEN = re.compile(r"([+-]?)\s*([0-9][0-9,]*)")
+
+
+def eval_discount_expr(value: Any) -> int | None:
+    """"50,000-10,000" 같은 덧셈·뺄셈 식을 계산한다. 식이 아니면 None.
+
+    숫자 하나만 있으면(연산자 없음) 식이 아니다. 결과는 0 이상으로 자른다.
+    """
+    text = str(value or "").strip()
+    if not text or len(text) > MAX_DISCOUNT_LABEL_LEN or not _EXPR_ALLOWED.match(text):
+        return None
+    body = text.replace("원", "").replace(" ", "")
+    if not re.search(r"[0-9][+-]", body):
+        return None
+    pos = 0
+    total = 0
+    for match in _EXPR_TOKEN.finditer(body):
+        if match.start() != pos:
+            return None
+        num = int(match.group(2).replace(",", ""))
+        total += -num if match.group(1) == "-" else num
+        pos = match.end()
+    if pos != len(body):
+        return None
+    return max(0, total)
+
+
 def clean_discount_items(raw: Any) -> list[dict[str, Any]]:
     """할인 줄 목록을 정리한다. 금액 0 이하 줄은 버리고 최대 20줄만 남긴다.
 
@@ -32,7 +61,8 @@ def clean_discount_items(raw: Any) -> list[dict[str, Any]]:
         raw: 클라이언트가 보낸 ``payment.discounts`` 값.
 
     Returns:
-        ``[{"label": str, "amount": int}, ...]`` — 이름이 비면 "할인".
+        ``[{"label": str, "amount": int, "expr"?: str}, ...]`` — 이름이 비면 "할인".
+        ``expr`` 가 덧셈·뺄셈 식이면 금액은 그 식의 결과다.
     """
     if not isinstance(raw, list):
         return []
@@ -40,11 +70,16 @@ def clean_discount_items(raw: Any) -> list[dict[str, Any]]:
     for row in raw:
         if not isinstance(row, dict):
             continue
-        amount = _coerce_amount(row.get("amount"))
+        expr_amount = eval_discount_expr(row.get("expr"))
+        amount = expr_amount if expr_amount is not None else _coerce_amount(row.get("amount"))
         if amount <= 0:
             continue
         label = str(row.get("label") or "").strip()[:MAX_DISCOUNT_LABEL_LEN]
-        cleaned.append({"label": label or DEFAULT_DISCOUNT_LABEL, "amount": amount})
+        item: dict[str, Any] = {"label": label or DEFAULT_DISCOUNT_LABEL, "amount": amount}
+        if expr_amount is not None:
+            # 식은 화면 표기용으로 남기고, 금액은 서버가 식으로 다시 계산한 값이다.
+            item["expr"] = str(row.get("expr")).strip()
+        cleaned.append(item)
         if len(cleaned) >= MAX_DISCOUNT_ITEMS:
             break
     return cleaned
@@ -83,5 +118,6 @@ def normalize_payment_discounts(structured_data: dict, old_sd: Any = None) -> No
 __all__ = [
     "MAX_DISCOUNT_ITEMS",
     "clean_discount_items",
+    "eval_discount_expr",
     "normalize_payment_discounts",
 ]
