@@ -89,7 +89,7 @@ __all__ = [
     "_connect", "_rows", "_snapshot_rows", "apply_one", "assert_env_fingerprint", "build_plan",
     "classify_row", "completed_workflow", "cutoff_iso", "fetch_candidates",
     "fetch_no_construction", "rollback_one", "today_kst", "main", "build_parser",
-    "later_construction_date", "text_dates", "items_construction_open",
+    "later_construction_date", "text_dates", "items_construction_open", "snapshot_rows_from_events",
 ]
 
 
@@ -183,11 +183,42 @@ def cmd_apply(args: argparse.Namespace) -> int:
     return 0
 
 
+def snapshot_rows_from_events(conn, batch: str) -> list[dict[str, Any]]:
+    """``batch`` 로 적용한 이벤트의 ``before`` 를 스냅샷 행 모양으로 모은다(매일 자동 실행용).
+
+    같은 주문에 이벤트가 여럿이면 가장 이른 것(그 배치 적용 직전 값)을 쓴다.
+    """
+    events = _rows(conn, """
+        SELECT order_id, payload->'before' AS before
+          FROM order_events
+         WHERE event_type = 'STAGE_OVERRIDE' AND payload->>'batch' = %(batch)s
+           AND payload->>'mode' = 'skip' AND payload ? 'before'
+         ORDER BY created_at, id
+    """, {"batch": batch})
+    rows: dict[int, dict[str, Any]] = {}
+    for ev in events:
+        before = ev.get("before")
+        if isinstance(before, dict) and int(ev["order_id"]) not in rows:
+            rows[int(ev["order_id"])] = before
+    return [rows[k] for k in sorted(rows)]
+
+
 def cmd_rollback(args: argparse.Namespace) -> int:
-    """스냅샷 파일 상태로 되돌린다(--yes 필수)."""
-    with open(args.snapshot, encoding="utf-8") as fh:
-        snapshot = json.load(fh)
-    rows: list[dict[str, Any]] = snapshot.get("rows") or []
+    """스냅샷 파일(또는 ``--from-events`` 배치 이벤트) 상태로 되돌린다(--yes 필수)."""
+    if bool(args.snapshot) == bool(args.from_events):
+        print("--snapshot 과 --from-events 중 하나만 주어라.")
+        return 2
+    batch = args.from_events or BATCH_ID
+    if args.from_events:
+        conn = _connect(args.dsn, readonly=True)
+        try:
+            assert_env_fingerprint(conn, args.expect_env)
+            rows = snapshot_rows_from_events(conn, batch)
+        finally:
+            conn.close()
+    else:
+        with open(args.snapshot, encoding="utf-8") as fh:
+            rows = json.load(fh).get("rows") or []
     if args.only_ids:
         keep = {int(x) for x in args.only_ids.split(",") if x.strip()}
         rows = [r for r in rows if int(r["id"]) in keep]
@@ -203,7 +234,7 @@ def cmd_rollback(args: argparse.Namespace) -> int:
             chunk = rows[start:start + CHUNK_SIZE]
             with conn.cursor(row_factory=dict_row) as cur:
                 for row in chunk:
-                    outcome = rollback_one(cur, row, actor_user_id=args.actor, now=now)
+                    outcome = rollback_one(cur, row, actor_user_id=args.actor, now=now, batch=batch)
                     key = outcome.split(":", 1)[0]
                     results[key] = results.get(key, 0) + 1
                     if outcome != "applied":
@@ -244,7 +275,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_rb = sub.add_parser("rollback", help="스냅샷으로 되돌리기(--yes 필수)")
     _common(p_rb)
-    p_rb.add_argument("--snapshot", required=True)
+    p_rb.add_argument("--snapshot", default=None)
+    p_rb.add_argument("--from-events", default=None, metavar="BATCH",
+                      help="매일 자동 실행 배치(예 auto-2026-11-24)의 이벤트 이전값으로 되돌린다 — "
+                           "stage·status·workflow dict 를 되돌린다(스냅샷 파일 대신)")
     p_rb.add_argument("--actor", type=int, required=True)
     p_rb.add_argument("--only-ids", default=None, help="쉼표 구분 주문 id — 일부만 되돌릴 때")
     p_rb.add_argument("--yes", action="store_true")

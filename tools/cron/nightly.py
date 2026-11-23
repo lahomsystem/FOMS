@@ -78,6 +78,9 @@ NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     # (처음 값) 아무것도 안 하고 exit 0. 기간 끝남 닫기 뒤에 돈다 — 훑기 제안의 7일은 7일째 0시(한국)에 끝나 그 밤 닫기가 닫고 이 단계가
     # 같은 밤 다시 만든다.
     NightlyStep("ai_staff_sweep", "tools/cron/ai_staff_sweep.py", ("--apply",)),
+    # 시공일이 어제까지인 미완료 ERP 주문 완료(설계서 2026-11-23-daily-backlog-auto-complete). 대상이 200건을 넘거나
+    # FOMS_AUTO_COMPLETE_ACTOR_ID 가 없으면 아무것도 안 바꾸고 exit 3. AS 주문은 stage 만.
+    NightlyStep("auto_complete_past_construction", "tools/cron/auto_complete_past_construction.py", ("--apply",)),
 )
 
 Runner = Callable[..., subprocess.CompletedProcess]
