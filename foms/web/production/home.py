@@ -63,7 +63,10 @@ from foms.web.production.dashboard import erp_production_page_bp
 _KST = datetime.timezone(datetime.timedelta(hours=9))
 #: 셸 조각 ETag 에서 뺄 값 — 파트 판의 첫 받아 오기 기준 시각(그릴 때마다 바뀐다, home_parts_overlays.html).
 #: 받은 시각('방금 받음')은 본문에 두지 않는다 — 셸이 받거나 304 로 확인한 때를 #main-content 에 적고 JS 가 읽는다(11-22).
-_ETAG_VOLATILE = re.compile(rb' data-pp-since="[^"]*"')
+#: PC [고치기] 단추의 서버 시각(``data-foms-prod-edit-now`` · 초 단위, home_pc_tools.html)도 뺀다(11-23) — 쓰기 팀 PC 가 늘 200 이라
+#: 운영 올림 perf-gate 의 조건부 304 확인이 초 경계에 따라 떨어졌다. 본문 값은 그대로 둔다: foms-production-edit.js 가 단추마다
+#: 처음 본 때부터 흐른 시간을 더하므로, 304 로 옛 단추가 남아도 켠 시각이 맞는다.
+_ETAG_VOLATILE = re.compile(rb' data-(?:pp-since|foms-prod-edit-now)="[^"]*"')
 
 
 def _tablet_part_surface(user) -> bool:
