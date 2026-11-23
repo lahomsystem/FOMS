@@ -23,13 +23,16 @@ from foms.services.brain.store import current_object
 from foms.services.cs_agent import handoff_learning as hl
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD
 from foms.services.cs_agent.handoff_learning_gates import AGENT, UNDONE_ACTION
+from foms.services.cs_agent.handoff_learning_place import placer_source
 from foms.services.cs_agent.knowledge import load_approved
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture(승인 지식 · 두뇌 env · 진짜 SDK 막기)
 from tests.domains.test_cs_handoff_learning import (  # noqa: F401 — admin · two 는 fixture
     FACT, NOW, admin, ask, changes, handed, on, run, two,
 )
 from tests.support.brain_support import agent_judge, create
-from tests.support.cs_agent_fakes import FakeAnthropic, at, clash_placer, keys, naive  # noqa: F401 — keys 는 fixture
+from tests.support.cs_agent_fakes import (  # noqa: F401 — keys 는 fixture
+    FakeAnthropic, FakePlacer, at, clash_placer, keys, naive,
+)
 
 
 # ── 배운 것 바로 반영(사장님 11-19) ──────────────────────────────────────
@@ -118,10 +121,11 @@ def test_auto_update_of_confirmed_knowledge_keeps_it_confirmed_so_the_conflict_g
     """'근거 있음'으로 내리면 그 항목이 부딪침 판정의 견줄 지식에서 빠져 다음 밤 반대되는 말이 지나간다."""
     on(**{AUTO_FIELD: True})
     before = current_object(db_session, "lahom/shelf-depth")
-    text = "합성 선반 깊이는 350mm 이고 상판 두께는 18mm 입니다"
-    counts = run(FakeAnthropic({"proposals": [ask(two, op="update", key="lahom/shelf-depth", text=text)]}))
+    text, added = "합성 선반 깊이는 350mm 이고 상판 두께는 18mm 입니다", "상판 두께는 18mm 입니다"
+    placer = FakePlacer({"verdict": "adds", "target": "lahom/shelf-depth", "added": added})  # 고치기 안도 놓을 자리 판정(11-23)
+    counts = run(FakeAnthropic({"proposals": [ask(two, op="update", key="lahom/shelf-depth", text=text)]}), placer=placer)
     after = current_object(db_session, "lahom/shelf-depth")
-    assert (counts["applied"], after.text, after.version) == (1, text, before.version + 1)
+    assert (counts["applied"], after.text, after.version) == (1, f"{before.text} {added}", before.version + 1)
     assert (after.confidence, after.human_approver_id) == ("confirmed", before.human_approver_id)
     assert after.created_by == f"agent:{AGENT}"  # 누가 바꿨는지는 남는다(살펴보기 목록이 이 제안 줄을 보여 준다)
 
@@ -133,9 +137,9 @@ def test_a_judge_that_cannot_be_reached_never_becomes_a_differs_card(two, admin)
         raise JudgeUnavailable("down")
 
     raw = [ask(two, op="update", key="lahom/shelf-depth", text="합성 선반 깊이는 350mm 이고 상판 두께는 18mm 입니다")]
-    with judge_source(down):
+    with judge_source(down), placer_source(FakePlacer(down=True)):  # 고치기 안도 놓을 자리 판정자가 정한다(11-23)
         counts = hl.run_handoff_learning(db_session, now=NOW, client=FakeAnthropic({"proposals": raw}))
-    assert (counts["cards"], counts["applied"], counts["blocked"]) == (0, 0, {"judge_unavailable": 1}) and changes() == []
+    assert (counts["cards"], counts["applied"], counts["blocked"]) == (0, 0, {"place_unavailable": 1}) and changes() == []
 
 
 def test_knowledge_the_owner_removed_is_not_learned_again(two, admin):

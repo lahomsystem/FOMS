@@ -33,7 +33,7 @@ from foms.services.cs_agent.handoff_learning_prompt import (
 )
 from foms.services.cs_agent.send_view import EDIT_REASON_LABELS
 from foms.services.cs_agent.knowledge import load_approved
-from models import CsAgentImageRead, CsAgentTurn
+from models import CsAgentImageRead, CsAgentLearnHeld, CsAgentTurn
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture(승인 지식 · 두뇌 env · 진짜 SDK 막기)
 from tests.domains.test_cs_photo_cases import read_row
 from tests.domains.test_cs_photo_read import PHONE
@@ -190,22 +190,36 @@ def test_no_case_never_reaches_the_model(admin):
     assert (counts["sent"], client.params) == (0, [])
 
 
-def test_one_customer_case_reaches_the_model_and_a_fact_without_numbers_is_filed(admin):
-    """사장님 11-11 '넘긴 상담마다 배워 다음 상담에' — 한 손님 사례로도 안을 낸다(늘 사장님 승인)."""
+def held_rows():
+    """기다리는 말 줄(되풀이 문턱 — 사장님 11-23) 차례대로."""
+    db_session.expire_all()
+    return list(db_session.scalars(select(CsAgentLearnHeld).order_by(CsAgentLearnHeld.id)))
+
+
+def test_one_customer_case_reaches_the_model_and_waits_as_a_held_saying(admin):
+    """사장님 11-11 '넘긴 상담마다 배워 다음 상담에' — 한 손님 사례도 두뇌에 간다. 11-23 '여러 번 나온 것만 바로 반영' — 한
+    상담뿐인 말은 지식 · 승인 대기에 넣지 않고 기다리는 말로 모은다."""
     on()
     one = handed("uc-1", reply="합성 직원 답 — 양쪽으로 열 수 있어요")
     client = FakeAnthropic({"proposals": [ask([one], title="합성 열림 방향", text="합성 문은 양쪽으로 열 수 있어요")]})
     counts = run(client)
-    assert (counts["sent"], counts["filed"], len(client.params)) == (1, 1, 1), counts
-    assert [c.fields["payload"]["after"]["pref_label"] for c in changes()] == ["합성 열림 방향"]
-    assert changes()[0].evidence == [f"case:{one}", "staff:mgr-1"]  # 손님 한 명 + 답한 직원 한 명
+    assert (counts["sent"], counts["filed"], counts["held"], len(client.params)) == (1, 0, 1, 1), counts
+    assert changes() == []
+    (row,) = held_rows()
+    assert (row.title, row.state, row.chat_ids, row.turn_ids) == ("합성 열림 방향", "waiting", ["uc-1"], [one])
+    assert row.evidence == [f"case:{one}", "staff:mgr-1"]  # 올릴 때 합칠 근거 — 손님 한 명 + 답한 직원 한 명
 
 
-def test_one_customer_case_without_a_known_staff_is_held_by_the_knowledge_gate(admin):
+def test_one_customer_case_without_a_known_staff_waits_and_its_card_is_held_by_the_knowledge_gate(admin):
     on()
     one = handed("uc-1", reply="합성 직원 답 — 양쪽으로 열 수 있어요", staff=None)
     counts = run(FakeAnthropic({"proposals": [ask([one], title="합성 열림 방향", text="합성 문은 양쪽으로 열 수 있어요")]}))
-    assert counts["blocked"] == {"brain_evidence": 1} and changes() == []
+    assert (counts["held"], counts["blocked"]) == (1, {}) and changes() == []  # 되풀이 문턱이 먼저 — 기다리는 말
+    assert held_rows()[0].evidence == [f"case:{one}"]
+    other = handed("uc-2", reply="합성 직원 답 — 선반 깊이는 400mm 로 짜 드려요", staff=None)
+    clash = ask([other], op="differs", key="lahom/shelf-depth", title="합성 선반 깊이 다른 말", text="합성 선반 깊이는 400mm 로 안내했어요")
+    card = run(FakeAnthropic({"proposals": [clash]}), now=at(12, 1), placer=clash_placer("lahom/shelf-depth"))
+    assert card["blocked"] == {"brain_evidence": 1} and changes() == []  # 카드도 서로 다른 사람 둘의 근거가 있어야 — 손님 한 명뿐
 
 
 # ── 재료 ─────────────────────────────────────────────────────────────────
@@ -302,17 +316,24 @@ def test_a_policy_idea_is_a_knowledge_document_item_too(two, admin):
     assert rule in [item.text for item in load_approved(db_session, "LAHOM").items]
 
 
-def test_an_update_of_an_approved_fact_is_preferred_and_only_lahom_facts_are_targets(two):
+def test_an_update_goes_through_placement_and_only_lahom_facts_are_changed(two):
+    """11-23 2.1 — 두뇌의 고치기 안도 놓을 자리 판정을 거친다. 더함은 짚은 항목 끝에 더한 문장만 붙인다. 라홈 사실 · 정책이 아닌
+    항목(기준 답 — 주간 고침 안 몫)은 고치지 않고 새 지식으로, 없는 항목을 짚은 안은 판정 없이 ``target``."""
     on()
-    text = "합성 선반 깊이는 350mm 이고 상판 두께는 18mm 입니다"
+    added = "상판 두께는 18mm 입니다"
+    placer = FakePlacer(lambda request: {"verdict": "adds", "target": request["candidates"][0]["key"], "added": added})
     counts = run(FakeAnthropic({"proposals": [
-        ask(two, op="update", key="lahom/shelf-depth", text=text),
-        ask(two, op="update", key="lahom/hours-day", text=FACT),  # 기준 답은 주간 고침 안 몫
+        ask(two, op="update", key="lahom/shelf-depth", text="합성 선반 깊이는 350mm 이고 상판 두께는 18mm 입니다"),
+        ask(two, op="update", key="lahom/hours-day", text=FACT),
         ask(two, op="update", key="lahom/none", text=FACT),
-    ]}))
-    assert (counts["filed"], counts["blocked"]) == (1, {"target": 2})
-    (change,) = changes()
-    assert (change.op, change.item_key, change.fields["text"]["after"]) == ("update", "lahom/shelf-depth", text)
+    ]}), placer=placer)
+    assert (counts["filed"], counts["added"], counts["new"], counts["blocked"]) == (2, 1, 1, {"target": 1})
+    assert [request["candidates"][0]["key"] for request in placer.requests] == ["lahom/shelf-depth", "lahom/hours-day"]
+    fixed, made = changes()
+    assert (fixed.op, fixed.item_key, fixed.fields["text"]["after"]) == (
+        "update", "lahom/shelf-depth", f"합성 선반 깊이는 350mm 입니다 {added}")
+    assert (made.op, made.fields["text"]["after"]) == ("create", FACT)
+    assert current_object(db_session, "lahom/hours-day").text == "평일 낮에 상담을 도와 드립니다"  # 기준 답은 그대로
 
 
 @pytest.mark.parametrize("bad, code", [
@@ -336,11 +357,12 @@ def test_a_number_must_be_in_a_cited_staff_reply_or_the_knowledge(admin):
     on()
     ids = [handed("uc-1"), handed("uc-2", reply="합성 직원 답 — 상판은 두껍게 만들어요")]
     raw = [ask([ids[1]], title="합성 상판 하나"),  # 18 은 고른 직원 답에 없다
-           ask([ids[0]], title="합성 상판 둘"),  # 한 손님 답에 18 — 넣는다
+           ask([ids[0]], title="합성 상판 둘"),  # 한 손님 답에 18 — 숫자 관문은 지난다(한 상담뿐이라 기다리는 말 — 11-23)
            ask(ids[:2], title="합성 선반", text="합성 선반은 350mm 깊이 기준으로 짜 드려요")]  # 지식에 있는 숫자
     counts = run(FakeAnthropic({"proposals": raw}))
-    assert (counts["filed"], counts["blocked"]) == (2, {"numbers": 1})
-    assert [c.fields["payload"]["after"]["pref_label"] for c in changes()] == ["합성 상판 둘", "합성 선반"]
+    assert (counts["filed"], counts["held"], counts["blocked"]) == (1, 1, {"numbers": 1})
+    assert [c.fields["payload"]["after"]["pref_label"] for c in changes()] == ["합성 선반"]
+    assert [row.title for row in held_rows()] == ["합성 상판 둘"]
 
 
 def test_evidence_outside_this_run_is_blocked(admin):
@@ -374,7 +396,7 @@ def test_conflict_with_approved_knowledge_never_overwrites_and_becomes_a_card_fo
            ask(two, op="differs", key="lahom/shelf-depth", title="합성 선반 깊이 다른 말", text="합성 선반 깊이는 400mm 로 안내했어요"),
            ask(two, op="differs", key="lahom/none", title="합성 없는 항목", text="합성 다른 말 — 대상이 없다")]
     placer = clash_placer("lahom/shelf-depth", knowledge="350mm", staff="400mm")  # 놓을 자리: 그 항목과 부딪침
-    with judge_source(lambda _s, _a, _b: True), placer_source(placer):  # 고치기 안의 공용 판정자: 승인 지식과 부딪침
+    with judge_source(lambda _s, _a, _b: True), placer_source(placer):  # 공용 판정자는 늘 '부딪침' — 결과만 적힌다
         counts = hl.run_handoff_learning(db_session, now=NOW, client=FakeAnthropic({"proposals": raw}))
     assert (counts["cards"], counts["applied"], counts["filed"], counts["blocked"]) == (2, 0, 0, {"target": 1})
     cards = changes()
@@ -382,11 +404,11 @@ def test_conflict_with_approved_knowledge_never_overwrites_and_becomes_a_card_fo
     assert [c.item_key for c in cards] == ["conflict/lahom-handoff-20261111-h02m00-1",
                                            "conflict/lahom-handoff-20261111-h02m00-2"]
     assert all("about:lahom/shelf-depth" in c.evidence for c in cards)
-    assert cards[0].fields["text"]["after"] == f"승인된 규칙과 다름\n{said}"  # 두뇌의 고치기 안은 예전 그대로
-    assert cards[1].fields["text"]["after"] == (f"{CLASH_HEAD}회사 지식 「350mm」 ↔ 직원 「400mm」\n승인된 규칙과 다름\n"
-                                                "합성 선반 깊이는 400mm 로 안내했어요")  # 첫 줄에 어긋나는 두 구절
+    head = f"{CLASH_HEAD}회사 지식 「350mm」 ↔ 직원 「400mm」\n승인된 규칙과 다름\n"  # 첫 줄에 어긋나는 두 구절
+    assert cards[0].fields["text"]["after"] == f"{head}{said}"  # 두뇌의 고치기 안도 놓을 자리 판정이 부딪침이라 할 때만(11-23)
+    assert cards[1].fields["text"]["after"] == f"{head}합성 선반 깊이는 400mm 로 안내했어요"
     assert cards[1].fields["payload"]["after"]["target"] == "lahom/shelf-depth"  # 한 손님 숫자도 카드로는 올린다
-    assert len(placer.requests) == 1  # 없는 항목을 짚은 다른 말은 판정자를 부르지 않는다
+    assert len(placer.requests) == 2  # 고치기 · 다른 말 — 없는 항목을 짚은 다른 말은 판정자를 부르지 않는다
     after = current_object(db_session, "lahom/shelf-depth")
     assert (after.version, after.text) == (before.version, before.text)  # 승인 지식 글은 그대로
     assert {c.id for c in cards} <= {c.id for c, _row, _end in open_rows(db_session, viewer_of(admin), naive(NOW))}

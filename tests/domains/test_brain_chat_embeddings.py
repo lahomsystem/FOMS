@@ -212,7 +212,7 @@ def test_brain_02_chains_once_and_keeps_vectors_out_of_the_orm_base():
     assert "brain_embeddings" not in Base.metadata.tables and "brain_embeddings" in vector_metadata.tables
     assert [c.name for c in brain_embeddings.columns] == ["id", "source_kind", "source_key", "source_version", "model",
                                                            "dimension", "embedding", "text_hash", "created_at"]
-    assert module.EMBED_SOURCES == SOURCE_KINDS == ("brain_item", "chatbot_question", "cs_case")
+    assert module.EMBED_SOURCES == SOURCE_KINDS[:3] == ("brain_item", "chatbot_question", "cs_case")  # 넷째는 csagent_08
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
     heads = script.get_heads()
     assert len(heads) == 1 and "brain_02" in {rev.revision for rev in script.walk_revisions("base", heads[0])}

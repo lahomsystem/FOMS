@@ -124,7 +124,8 @@ def rrf(lists: list[list[str]], k: int = RRF_K) -> list[tuple[str, float]]:
 
 def _fuse(session: Any, viewer: Viewer, lexical: list[dict[str, Any]], hits: dict[str, str],
           vector: list[float], *, today: datetime.date) -> list[dict[str, Any]]:
-    """글자 · 다른 이름 · 벡터 세 줄 → RRF 순 항목들(벡터로만 닿은 항목도 보기 범위 · 반영 조건으로 다시 읽는다)."""
+    """글자 · 다른 이름 · 벡터 세 줄 → RRF 순 항목들(벡터로만 닿은 항목도 보기 범위 · 반영 조건으로 다시 읽는다). ``score`` 는 섞은
+    점수, ``lexical`` 은 글자 찾기 점수(벡터로만 닿으면 0 — 점수 하한으로 거르는 쪽이 쓴다), ``similarity`` 는 벡터 비슷함."""
     near = [(key, sim) for key, sim in nearest(session, viewer, vector, today=today, limit=VECTOR_K) if sim >= VECTOR_MIN]
     by_key = {r["key"]: r for r in lexical}
     missing = [key for key, _sim in near if key not in by_key]
@@ -137,7 +138,8 @@ def _fuse(session: Any, viewer: Viewer, lexical: list[dict[str, Any]], hits: dic
     out = []
     for key, score in fused:
         if key in by_key:
-            out.append({**by_key[key], "score": round(score, 5), "similarity": round(sims[key], 4) if key in sims else None})
+            out.append({**by_key[key], "score": round(score, 5), "lexical": by_key[key]["score"],
+                        "similarity": round(sims[key], 4) if key in sims else None})
     return out
 
 
