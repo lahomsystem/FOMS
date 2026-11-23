@@ -149,7 +149,8 @@
     if (o.opener && document.contains(o.opener) && typeof o.opener.focus === 'function') { o.opener.focus(); return; }
     var cards = window.FomsPartsCards;
     var card = o.key && cards ? cards.find(o.key[0], o.key[1])[0] : null;
-    var next = card && (card.querySelector('[data-pp-act="' + o.act + '"]') || card.querySelector('[data-pp-actbox] button, .pp-sheetlink'));
+    var next = card && (card.querySelector('[data-pp-act="' + o.act + '"]') || card.querySelector('[data-pp-actbox] button') ||
+      card.querySelector('.pp-sheetlink'));
     if (next) { next.focus(); }
   }
   function close() {

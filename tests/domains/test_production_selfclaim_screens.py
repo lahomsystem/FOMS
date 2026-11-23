@@ -248,6 +248,8 @@ def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> 
     assert "data.order_ready && p.action === 'done'" in parts and "'/production/complete'" in parts
     assert "M.lost(text, M.nowLine(data.mark));" in parts and "body.seen_by" in parts
     assert "claim.busy(card)" in parts and "window.FomsPartsClaim.recheck(card)" in sync  # 받아 오기가 열린 말풍선 · 창을 안 덮음
+    claim = (JS / "foms-production-parts-claim.js").read_text(encoding="utf-8")
+    assert "var WHY_MS = 6000;" in claim and "whyTimer = window.setTimeout(hideWhy, WHY_MS);" in claim  # 말풍선은 저절로 닫힌다
 
 
 def test_작업_시트_JS_는_새_파일이_없으면_지금_그대로() -> None:

@@ -162,7 +162,10 @@
 
   // ── 까닭 말풍선 ──
   var openWhy = null;
+  var whyTimer = 0;
+  var WHY_MS = 6000; // 말풍선은 6초 뒤 저절로 닫힌다(열린 채 두면 받아 오기가 그 카드를 계속 건너뛴다)
   function hideWhy() {
+    window.clearTimeout(whyTimer);
     if (!openWhy) { return; }
     openWhy.hidden = true;
     openWhy.textContent = '';
@@ -177,6 +180,7 @@
     bubble.textContent = btn.getAttribute('data-pp-why') || '';
     bubble.hidden = !bubble.textContent;
     openWhy = bubble.hidden ? null : bubble;
+    if (openWhy) { whyTimer = window.setTimeout(hideWhy, WHY_MS); }
   }
   // 받아 오기는 말풍선이 열린 카드를 건너뛴다(누른 칸이 사라지지 않게)
   function busy(card) { return !!openWhy && card.contains(openWhy); }
