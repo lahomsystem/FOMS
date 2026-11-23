@@ -1189,3 +1189,31 @@
     display: inline-flex;
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 4차(보이는 크기, 2026-11-23) ---
+   위 '시공일이 변경된 건' 배너의 점프 칩(.erp-ship-change-chip--tablet)이 화면 크기 80% 에서 보이는 23px 높이였다
+   (실데이터 측정이 잡음 — 준비물엔 시공일 변경 이벤트가 없었다). AS 배너 칩(3차)과 같은 처방:
+   알약 모양 · 배너 높이는 그대로 두고 투명 누름 칸(::after)만 위아래로 '44px ÷ 배율'까지 늘린다(배너가 커져 표가 밀리지 않게).
+   칩 사이는 100% 에서 8px · 100% 미만에서 보이는 8px(원래 6px — 80% 에서 4.8px 로 보였다). 줄이 꺾일 때 위아래 누름 칸이
+   겹치지 않게 줄 사이를 넓힌다(알약 높이 28px 안팎 → '52px ÷ 배율 − 27px' 이면 누름 칸 사이가 보이는 8px 넘는다). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-ship-change-banner__chips {
+    column-gap: 8px;
+    row-gap: calc(52px / var(--foms-ui-zoom, 1) - 27px);
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-ship-change-banner__chips {
+    column-gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout a.erp-ship-change-chip--tablet {
+    position: relative;
+  }
+  body.erp-mobile-v2-layout a.erp-ship-change-chip--tablet::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: calc(44px / var(--foms-ui-zoom, 1));
+    transform: translateY(-50%);
+  }
+}

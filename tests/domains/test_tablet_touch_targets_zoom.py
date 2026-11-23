@@ -11,6 +11,9 @@
 3차(2026-11-23): 준비물에 쪽 넘김 · 기준 일정 바뀜 칩이 없어 놓친 것 — 대시보드 · 이력 쪽 넘김, 완료 [이전] · [다음],
 AS 쪽 넘김, AS 배너 바로 가기 칩(알약은 그대로, 투명 누름 칸 ::after 만 44px). 원래 칸 사이가 100% 에서도 8px 미만이라
 100% 는 8px, 100% 미만은 '8px ÷ 배율'. 실측은 스크래치패드 touch_fix/targets3.
+4차(2026-11-23): 실데이터에만 뜨는 것 — 출고 시공일 변경 배너 칩(투명 누름 칸 ::after) · 고객 칸 [확인](칸 자체를 키움) ·
+위 줄 [협력사 희망 N], 실측 화면 네이버 발송처리 띠 머리 · 작은 단추. 띠 안 주문 링크는 줄 간격(보이는 17px)이 좁아
+44px 누름 칸이 이웃과 겹치므로 손대지 않았다. 실측은 스크래치패드 touch_fix/targets4.
 """
 
 from __future__ import annotations
@@ -46,6 +49,8 @@ FILES = {
     "strip": "static/css/components/foms-tablet-day-strip.css",
     "day_sheet": "static/css/contexts/shipment/tablet-day-sheet.css",
     "ship_cols": "static/css/contexts/shipment/shipment-dashboard-columns.css",
+    # 4차(2026-11-23) — 출고 시공일 변경 배너 칩
+    "ship_extras": "static/css/contexts/shipment/dashboard-table-extras.css",
 }
 
 
@@ -316,15 +321,15 @@ def test_2차_이웃_띄움_넓히기는_100퍼센트_미만에서만() -> None:
 
 def test_2차_바뀐_파일_핀은_20261122w() -> None:
     bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
-    # 랜드스케이프 · 완료 · AS 대조 셋은 3차가 다시 올렸다(아래 3차 핀 시험) — 나머지 넷은 2차 핀 그대로.
-    for f in ("../components/foms-tablet-side-sheet.css", "foms-tablet-measurement.css",
+    # 랜드스케이프 · 완료 · AS 대조 셋은 3차가, 실측은 4차가 다시 올렸다(아래 3 · 4차 핀 시험) — 나머지 셋은 2차 핀 그대로.
+    for f in ("../components/foms-tablet-side-sheet.css",
               "foms-tablet-drawing-gallery.css", "foms-tablet-construction.css"):
         assert f'@import url("{f}?v=20261122w")' in bundle, f
-    assert "foms-tablet-bundle.css') }}?v=20261123a" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert "foms-tablet-bundle.css') }}?v=20261123b" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     ship = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     cons = (ROOT / "templates/construction/partials/styles.html").read_text(encoding="utf-8")
-    for f in ("shipment-dashboard-columns.css", "foms-tablet-day-strip.css", "tablet-day-sheet.css"):
-        assert f + "') }}?v=20261122w" in ship, f
+    # 출고 열 · 하루치 출고표 시트는 4차가 다시 올렸다(아래 4차 핀 시험).
+    assert "foms-tablet-day-strip.css') }}?v=20261122w" in ship
     assert "foms-tablet-day-strip.css') }}?v=20261122w" in cons and "tablet-first.css') }}?v=20261122w" in cons
     hist = (ROOT / "templates/orders/partials/history_dashboard_body.html").read_text(encoding="utf-8")
     assert "history-tablet.css') }}?v=20261122w" in hist
@@ -383,4 +388,56 @@ def test_3차_바뀐_파일_핀은_20261123a() -> None:
     bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
     for f in ("foms-tablet-landscape.css", "foms-tablet-completion-grid.css", "foms-tablet-as-compare.css"):
         assert f'@import url("{f}?v=20261123a")' in bundle, f
-    assert "foms-tablet-bundle.css') }}?v=20261123a" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert "foms-tablet-bundle.css') }}?v=20261123b" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+
+
+# ── 4차 ────────────────────────────────────────────────────────────────────────────────────
+def test_4차_출고_시공일_변경_칩은_투명_누름_칸만_44_알약은_그대로() -> None:
+    t = _tablet_text("ship_extras")
+    hit = _decl(t, "body.erp-mobile-v2-layout a.erp-ship-change-chip--tablet::after")
+    assert "content: ''" in hit and "position: absolute" in hit and f"height: {TAP}" in hit
+    assert "left: 0" in hit and "right: 0" in hit and "translateY(-50%)" in hit
+    assert "position: relative" in _decl(t, "body.erp-mobile-v2-layout a.erp-ship-change-chip--tablet")
+    # 알약 자체(높이 · 여백)는 건드리지 않는다 — 배너가 커져 표가 밀리지 않게
+    for body in re.findall(r"erp-ship-change-chip--tablet\s*\{([^}]*)\}", t):
+        assert "height" not in body and "padding" not in body, body
+    chips = _decl(t, "body.erp-mobile-v2-layout .erp-ship-change-banner__chips")
+    assert "column-gap: 8px" in chips and "row-gap: calc(52px / var(--foms-ui-zoom, 1) - 27px)" in chips
+    assert f"column-gap: {GAP}" in _decl(t, f"{ZOOM_LT_100} body.erp-mobile-v2-layout .erp-ship-change-banner__chips")
+    # 태블릿에서 보이는 칩은 --tablet 갈래(PC 칩은 같은 블록에서 숨김) — 매크로가 두 갈래를 낸다
+    macro = (ROOT / "templates/shipment/partials/shipment_change_macros.html").read_text(encoding="utf-8")
+    assert "'erp-ship-change-chip--tablet'" in macro
+    assert "display: none" in _decl(t, "body.erp-mobile-v2-layout .erp-ship-change-chip--pc")
+
+
+def test_4차_출고_확인_단추와_협력사_희망_알약은_칸_자체를_키운다() -> None:
+    ack = _decl(_tablet_text("day_sheet"), "body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__ack")
+    assert f"min-width: {TAP}" in ack and f"min-height: {TAP}" in ack and "display: inline-flex" in ack
+    assert "margin-bottom: calc(4px / var(--foms-ui-zoom, 1))" in ack  # 마지막 줄 아래 [＋ 날짜 없는 AS] 와 보이는 8px 이상
+    # 고객 칸은 overflow: hidden — 투명 누름 칸은 잘리므로 쓰지 않는다
+    assert "overflow: hidden" in _decl(_tablet_text("day_sheet"), "body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td")
+    prb = _decl(_tablet_text("ship_cols"), "body.erp-mobile-v2-layout .foms-ship-pcbar__prb")
+    assert f"min-height: max(var(--foms-touch-target-comfortable, 44px), {TAP})" in prb
+
+
+def test_4차_실측_네이버_발송처리_띠_머리와_작은_단추() -> None:
+    m = _tablet_text("measure")
+    pre = "body.erp-mobile-v2-layout .erp-measurement-dashboard .erp-naver-dispatch"
+    assert f"min-height: {TAP}" in _decl(m, pre + " > summary")
+    btn = _decl(m, pre + " .btn-sm")
+    assert f"min-height: {TAP}" in btn and "display: inline-flex" in btn and "align-items: center" in btn
+    # 띠 마크업(실측 화면 · 태블릿에서도 보이는 데스크톱 래퍼 안)이 그 클래스를 그대로 쓴다
+    strip = (ROOT / "templates/measurement/partials/naver_dispatch_strip.html").read_text(encoding="utf-8")
+    assert '<details class="alert' in strip and "erp-naver-dispatch" in strip and '<summary class="fw-semibold">' in strip
+    assert 'class="btn btn-sm btn-primary"' in strip and 'class="btn btn-sm btn-outline-danger mt-1"' in strip
+    # 띠 안 주문 링크(li > a)는 줄 간격이 좁아 이번에 키우지 않았다 — 실수로 넓히는 규칙이 생기면 보고와 어긋난다
+    assert "erp-naver-dispatch li" not in m
+
+
+def test_4차_바뀐_파일_핀은_20261123b() -> None:
+    bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
+    assert '@import url("foms-tablet-measurement.css?v=20261123b")' in bundle
+    assert "foms-tablet-bundle.css') }}?v=20261123b" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    ship = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    for f in ("shipment-dashboard-columns.css", "tablet-day-sheet.css", "dashboard-table-extras.css"):
+        assert f + "') }}?v=20261123b" in ship, f

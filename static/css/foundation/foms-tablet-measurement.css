@@ -1219,3 +1219,22 @@
     gap: calc(8px / var(--foms-ui-zoom, 1));
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 4차(보이는 크기, 2026-11-23) ---
+   실측 화면 위 '오늘 실측한 네이버 건' 띠(measurement/partials/naver_dispatch_strip.html — 태블릿에서도 보인다)가 화면 크기 80% 에서
+   머리(summary) 보이는 39px · [오늘 N집 네이버 발송처리] · [이 집 다시 보내기](.btn-sm) 33px 였다(실데이터 측정이 잡음 — 준비물엔
+   네이버 건이 없었다). 둘 다 자리가 있어 칸 자체를 '44px ÷ 배율'로 키운다(.btn 여백은 전역 !important 라 높이만, 글은 가운데로).
+   띠 안 주문 링크(#번호 고객, 목록 한 줄에 하나)는 줄 간격이 보이는 17px 라 44px 누름 칸을 주면 이웃과 겹친다 — 줄을 벌려야 하므로
+   이번엔 손대지 않았다(보고서에 남김). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .erp-naver-dispatch > summary {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .erp-naver-dispatch .btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: .3em;
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+}
