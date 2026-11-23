@@ -56,7 +56,7 @@ from foms.services.production_home_read_model import (
 )
 
 _HOME_TABS = ('date', 'steps', 'changes', 'all', 'parts')
-#: '도면 카드' 화면(?tab=parts)을 여는 보기 모드 — 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12) · 읽기 전용(D55).
+#: '도면 카드' 화면(?tab=parts)을 여는 보기 모드 — 관리자 · 대신(반장, 2026-11-23 §4-12 · 승인 때 고친 것 5) · 읽기 전용(D55).
 #: 파트 계정은 날짜 탭에서 바로 카드를 본다(D50).
 _PARTS_TAB_MODES = (VIEW_ADMIN, VIEW_SUB, VIEW_READONLY)
 #: 날짜 한 장 조각(``?view=day&day=``) — 날을 누르면 JS 가 그 장만 받아 끼운다(설계서 §15.6 '날 고르기', 11-14).

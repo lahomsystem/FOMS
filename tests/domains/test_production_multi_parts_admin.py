@@ -148,7 +148,8 @@ def test_migration_chains_onto_handover_and_keeps_one_head():
     config = Config()
     config.set_main_option("script_location", str(ROOT / "migrations"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["prodparts_01"]
+    heads = script.get_heads()  # 뒤 마이그레이션(prodlead_01 · …)이 이 위에 이어도 머리는 하나
+    assert len(heads) == 1 and "prodparts_01" in {r.revision for r in script.iterate_revisions(heads[0], "base")}
 
 
 def test_model_column_and_pg_only_check_match_the_migration():

@@ -91,7 +91,7 @@ def test_옆_시트_제작_완료는_검수_전_회색_검수_끝_파랑(client)
 
 
 def test_공정_API_는_같은_함수의_답을_싣는다(client) -> None:
-    _login(client, _user(part=None))
+    _login(client, _user(part=None, lead=True))  # 반장
     oid = _order(production={"steps": inspected_steps(upto="assemble")})
     got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
     assert got["complete_ready"] is False
@@ -103,7 +103,7 @@ def test_공정_API_는_같은_함수의_답을_싣는다(client) -> None:
 
 def test_모두_켰다가_모두_끄면_규칙_밖으로_돌아간다(client) -> None:
     """칸을 하나 켜면 공정을 쓴 주문(막힘), 4칸 다 켜면 풀림, 모두 다시 끄면 안 쓴 주문으로 돌아가 그대로 완료된다."""
-    _login(client, _user(part=None))
+    _login(client, _user(part=None, lead=True))  # 반장
     oid = _order(production={"steps": _all_off()})
 
     def _toggle(key: str, done: bool) -> bool:

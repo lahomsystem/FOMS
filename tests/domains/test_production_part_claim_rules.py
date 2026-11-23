@@ -46,7 +46,7 @@ def _seed(oid: int, key: str, part: str, state: str, *, holder: str | None = Non
 # --------------------------------------------------------------------------- #
 def test_part_without_cards_hand_check_is_the_basis_and_blocks_its_cards(client):
     order = make_order(5)
-    login(client, make_user("박반장"))  # 파트 없는 생산팀(반장)
+    login(client, make_user("박반장", lead=True))  # 반장(관리자가 체크한 생산팀 — 승인 때 고친 것 5)
     on = check_step(client, order.id, "cut", True)
     assert on.status_code == 200, on.get_json()
     cut = step(order.id, "cut")
@@ -64,7 +64,7 @@ def test_part_without_cards_hand_check_is_the_basis_and_blocks_its_cards(client)
     assert [s["reason"] for s in bulk.get_json()["data"]["skipped"]] == ["STEP_SET_BY_HAND"] * 5
     assert db_session.query(ProductionPartMark).filter_by(order_id=order.id).count() == 0
 
-    login(client, make_user("박반장2"))
+    login(client, make_user("박반장2", lead=True))
     assert check_step(client, order.id, "cut", False).status_code == 200
     assert "via" not in step(order.id, "cut")
     login(client, make_user("김재단2", part="cut"))
@@ -77,7 +77,7 @@ def test_cards_all_released_turns_part_back_to_hand_check(client):
     login(client, make_user("김재단", part="cut"))
     assert mark(client, order, 0, "cut", "take", "none").status_code == 200
     assert mark(client, order, 0, "cut", "release", "need").status_code == 200
-    login(client, make_user("박반장"))
+    login(client, make_user("박반장", lead=True))
     assert check_step(client, order.id, "cut", True).status_code == 200
 
 
@@ -92,7 +92,7 @@ def test_card_part_three_of_five_hand_check_is_refused_without_writing(client):
         assert finish(client, order, j, "cut").status_code == 200
     version = fresh(order.id).mutation_version
     step_events = len(events(order.id, "PRODUCTION_STEP_CHECKED"))
-    login(client, make_user("박반장"))
+    login(client, make_user("박반장", lead=True))
     resp = check_step(client, order.id, "cut", True)
     body = resp.get_json()
     assert resp.status_code == 409 and body["success"] is False
@@ -114,7 +114,7 @@ def test_card_part_all_done_step_cannot_be_turned_off_by_hand(client):
     finish(client, order, 0, "cut")
     assert finish(client, order, 1, "cut").get_json()["data"]["order_step"]["done"] is True
     assert step(order.id, "cut")["via"] == "part_marks"
-    login(client, make_user("박반장"))
+    login(client, make_user("박반장", lead=True))
     resp = check_step(client, order.id, "cut", False)
     assert resp.status_code == 409 and code(resp) == "STEP_SET_BY_CARDS"
     assert step(order.id, "cut")["done"] is True
@@ -125,7 +125,7 @@ def test_old_step_without_via_on_card_part_is_judged_by_cards(client):
     order = make_order(3, steps_done=("cut", "edge", "assemble", "inspect"), by_name="옛사람")
     _seed(order.id, order.keys[0], "cut", "DONE", done_by="김재단")
     assert "via" not in step(order.id, "cut")
-    login(client, make_user("박반장"))
+    login(client, make_user("박반장", lead=True))
     got = client.get(f"/api/orders/{order.id}/production/steps").get_json()["data"]
     assert got["complete_ready"] is False and got["parts"]["cut"]["left_n"] == 2
     assert code(check_step(client, order.id, "cut", True)) == "PART_USES_CARDS"
@@ -135,7 +135,7 @@ def test_old_step_without_via_on_card_part_is_judged_by_cards(client):
 def test_control_order_without_cards_step_check_is_unchanged(client):
     """대조군: 카드를 안 쓴 주문 — 켜고 끌 때마다 200 · 버전 +1 · 이벤트 하나(지금 그대로)."""
     order = make_order(3)
-    login(client, make_user("박반장"))
+    login(client, make_user("박반장", lead=True))
     for done in (True, False, True):
         before = fresh(order.id).mutation_version
         assert check_step(client, order.id, "edge", done).status_code == 200

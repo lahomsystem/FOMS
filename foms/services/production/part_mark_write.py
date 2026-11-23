@@ -316,7 +316,7 @@ def order_ready(order: Order, views: list[Any], user: Any, req: MarkRequest, tar
 
 def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool, user: Any = None) -> str:
     """감사 글 — 지금 누름은 지금 글 그대로, 새 누름(맡기 취소 · 담당 바꾸기)은 새 글. 덮어쓰기 꼬리는 관리자 "(관리자 덮어쓰기)",
-    대신(파트 없는 생산팀, 2026-11-23 §4-12)은 "(대신 처리)"."""
+    대신(반장, 2026-11-23 §4-12 · 승인 때 고친 것 5)은 "(대신 처리)"."""
     label = PRODUCTION_PART_LABELS[req.part]
     if req.action == ACTION_TAKEOVER:
         return f"{label} 담당 바꿈 ({write.before.picked_by_name or '담당 없음'} → {write.values['picked_by_name']})"

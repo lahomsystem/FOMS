@@ -47,9 +47,10 @@ class Person:
     role: str
 
 
-def _user(name: str, *, team: str | None = "PRODUCTION", role: str = "STAFF", part: str | None = None) -> Person:
+def _user(name: str, *, team: str | None = "PRODUCTION", role: str = "STAFF", part: str | None = None,
+          lead: bool | None = None) -> Person:
     user = User(username=f"ps_{next(_seq)}", password=generate_password_hash("x"), role=role, team=team, name=name,
-                is_active=True, production_part=part)
+                is_active=True, production_part=part, production_lead=lead)
     db_session.add(user)
     db_session.commit()
     return Person(user.id, user.username, user.role)
@@ -334,15 +335,29 @@ def test_part_account_cannot_write_order_steps(client):
 
 
 # CS 직원은 2026-11-21 부터 생산을 보기만 한다(설계서 production-pc-viewer §13 결정 2) — 대조군은 파트 없는 생산 매니저로 바꿨다.
+# 2026-11-24(설계서 2026-11-23 '승인 때 고친 것' 5): 공정 칸 손 체크는 반장 · 관리자만 — 생산팀 대조군은 반장으로 체크한 계정.
 @pytest.mark.parametrize("team,role,part", [("PRODUCTION", "STAFF", None), ("CS", "ADMIN", "cut"),
                                             ("PRODUCTION", "ADMIN", "cut"), ("PRODUCTION", "MANAGER", None)])
 def test_control_non_part_accounts_still_write_steps(client, team, role, part):
     oid = _order(1)
-    _login(client, _user("대조", team=team, role=role, part=part))
+    _login(client, _user("대조", team=team, role=role, part=part, lead=role != "ADMIN"))
     resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     assert resp.status_code == 200, resp.get_json()
     assert _step(oid, "edge")["done"] is True
     assert client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]["locked"] is False
+
+
+@pytest.mark.parametrize("role", ["STAFF", "MANAGER"])
+def test_production_account_without_parts_or_lead_cannot_write_steps(client, role):
+    """파트도 반장도 아닌 생산팀 = 공정 칸 403 ``LEAD_REQUIRED`` · 새 글 하나 · 쓰기 0(설계서 2026-11-23 '승인 때 고친 것' 5)."""
+    oid = _order(1)
+    _login(client, _user("최보기", role=role))
+    resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
+    assert resp.status_code == 403 and resp.get_json() == {
+        "success": False, "data": {"code": "LEAD_REQUIRED"}, "error": "반장으로 지정된 계정만 체크할 수 있어요."}
+    assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
+    got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
+    assert got["locked"] is True and got["locked_note"] == "반장으로 지정된 계정만 체크할 수 있어요."
 
 
 # --------------------------------------------------------------------------- #
@@ -363,10 +378,22 @@ def test_sheet_step_buttons_read_only_for_part_account(client, url):
 
 
 @pytest.mark.parametrize("url", ["/erp/production/sheet/{oid}", "/erp/production/tablet-sheet/{oid}"])
+def test_sheet_step_buttons_read_only_for_production_account_without_lead(client, url):
+    oid = _order(1)
+    _login(client, _user("최보기"))
+    soup = BeautifulSoup(client.get(url.format(oid=oid)).get_data(as_text=True), "html.parser")
+    buttons = soup.select("[data-foms-sheet-step]")
+    assert len(buttons) == 4 and all(b.get("aria-disabled") == "true" and "is-locked" in b["class"] for b in buttons)
+    note = soup.select("[data-foms-sheet-steps-locked]")
+    assert len(note) == 1 and note[0].get_text(strip=True) == "반장으로 지정된 계정만 체크할 수 있어요."
+    assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 지금 그대로
+
+
+@pytest.mark.parametrize("url", ["/erp/production/sheet/{oid}", "/erp/production/tablet-sheet/{oid}"])
 @pytest.mark.parametrize("team,role", [("PRODUCTION", "STAFF"), ("CS", "ADMIN")])
 def test_control_sheet_step_buttons_unchanged(client, url, team, role):
     oid = _order(1)
-    _login(client, _user("대조", team=team, role=role, part="cut" if role == "ADMIN" else None))
+    _login(client, _user("대조", team=team, role=role, part="cut" if role == "ADMIN" else None, lead=role != "ADMIN"))
     soup = BeautifulSoup(client.get(url.format(oid=oid)).get_data(as_text=True), "html.parser")
     buttons = soup.select("[data-foms-sheet-step]")
     assert len(buttons) == 4 and not any(b.has_attr("disabled") or b.has_attr("aria-disabled") for b in buttons)

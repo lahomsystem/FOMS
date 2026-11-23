@@ -63,7 +63,7 @@ from foms.services.orders.order_mutation_policy import (
     evaluate_policy,
 )
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
-from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
+from foms.services.production.part_access import steps_lock
 from foms.services.production.write_access import (
     PRODUCTION_ACK_DENIED_MESSAGE,
     PRODUCTION_WRITE_DENIED_MESSAGE,
@@ -1415,8 +1415,8 @@ def api_production_steps_get(order_id: int):
     done_count = sum(1 for s in steps if isinstance(s, dict) and s.get("done"))
     defects = production.get("defects") if isinstance(production.get("defects"), list) else []
     latest_defect = defects[-1] if defects else None
-    # 파트 계정은 공정을 도면 카드에서만 체크한다(설계서 §15.4) — 세로 바텀시트가 단추를 읽기 전용으로 그린다.
-    locked = steps_locked_for(getattr(g, "current_user", None))
+    # 파트 계정은 도면 카드에서만 · 파트도 반장도 아닌 생산팀은 못 체크(설계서 §15.4 · '승인 때 고친 것' 5) — 바텀시트가 읽기 전용으로 그린다.
+    lock = steps_lock(getattr(g, "current_user", None))
     marks = order_marks(db, order_id)  # 카드를 쓴 주문의 완료 판정 · 파트 진행(§4-3, +1)
     return jsonify(
         {
@@ -1428,8 +1428,8 @@ def api_production_steps_get(order_id: int):
                 # [제작 완료] 를 누를 수 있는지 — 제작 완료 API 와 같은 한 함수(검수까지 끝남)
                 "complete_ready": complete_ready(sd, marks),
                 "latest_defect": latest_defect,
-                "locked": locked,
-                "locked_note": PART_ACCOUNT_STEPS_MESSAGE if locked else None,
+                "locked": lock is not None,
+                "locked_note": lock.message if lock else None,
                 **step_api_extras(sd, marks),  # sheets(손 체크 확인 창 장 수) · parts(카드 3/5)
             },
         }
@@ -1451,9 +1451,9 @@ def api_production_steps(order_id: int):
     db = get_db()
     try:
         user = get_user_by_id(session.get("user_id"))
-        if steps_locked_for(user):  # 파트 계정 = 도면 카드 동기화만(두 길이 서로 덮지 않게, 설계서 §15.4 · D53)
-            return jsonify({"success": False, "data": {"code": "PART_ACCOUNT_USE_CARDS"},
-                            "error": PART_ACCOUNT_STEPS_MESSAGE}), 403
+        lock = steps_lock(user)  # 파트 계정 = 도면 카드 동기화만(§15.4 · D53) · 반장 아닌 생산팀 = 못 체크('승인 때 고친 것' 5)
+        if lock is not None:
+            return jsonify({"success": False, "data": {"code": lock.code}, "error": lock.message}), 403
         payload = request.get_json(silent=True) or {}
         key = payload.get("key")
         done = payload.get("done")

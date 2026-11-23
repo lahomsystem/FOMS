@@ -35,7 +35,7 @@ def _run(tmp_path, html: str, want: dict) -> None:
 
 @pytest.mark.parametrize("done", [("cut",), ("cut", "edge")])
 def test_회색_제작_완료를_누르면_남은_공정을_알리고_요청은_없다_4칸이면_파랑_Node(client, tmp_path, done) -> None:
-    login(client)
+    login(client, lead=True)  # 공정 칸을 손으로 체크하는 반장(설계서 2026-11-23 '승인 때 고친 것' 5)
     order = add_order("가람집", 1, done=done)
     set_cookies(client, TABLET)
     html = get_html(client, f"/erp/production/sheet/{order.id}")

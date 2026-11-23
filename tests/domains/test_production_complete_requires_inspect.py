@@ -51,10 +51,10 @@ def _read(rel: str) -> str:
     return (_ROOT / rel).read_text(encoding="utf-8")
 
 
-def _user(*, role: str = "STAFF", team: str | None = "PRODUCTION", part: str | None = None) -> User:
+def _user(*, role: str = "STAFF", team: str | None = "PRODUCTION", part: str | None = None, lead: bool | None = None) -> User:
     n = next(_seq)
     user = User(username=f"inspect_gate_{n}", password=generate_password_hash("pw"), role=role, team=team,
-                name=f"가짜작업자{n}", is_active=True, production_part=part)
+                name=f"가짜작업자{n}", is_active=True, production_part=part, production_lead=lead)
     db_session.add(user)
     db_session.commit()
     return user
@@ -378,7 +378,7 @@ def test_카드를_안_쓴_파트가_있으면_막히고_파트_없는_계정이
     denied = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     assert denied.status_code == 403  # 파트 계정 = 카드로만
 
-    _login(client, _user(part=None))
+    _login(client, _user(part=None, lead=True))  # 반장(설계서 2026-11-23 '승인 때 고친 것' 5)
     ok = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     assert ok.status_code == 200 and ok.get_json()["data"]["complete_ready"] is False  # 검수가 아직
     _finish_part(client, oid, key, "inspect")  # 엣지 칸이 켜져 검수가 열린다

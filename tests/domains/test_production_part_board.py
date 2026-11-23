@@ -29,9 +29,9 @@ from models import Order, ProductionPartMark, User
 _seq = count(1)
 
 
-def _user(name: str, *, team: str = "PRODUCTION", role: str = "STAFF", part: str | None = None) -> User:
+def _user(name: str, *, team: str = "PRODUCTION", role: str = "STAFF", part: str | None = None, lead: bool | None = None) -> User:
     user = User(username=f"pb_{next(_seq)}", password=generate_password_hash("x"), role=role, team=team, name=name,
-                is_active=True, production_part=part)
+                is_active=True, production_part=part, production_lead=lead)
     db_session.add(user)
     db_session.commit()
     return user
@@ -161,7 +161,8 @@ def test_part_account_ignores_requested_part_admin_and_readonly_pick(app):
     assert _board(_user("관리자", team="PRODUCTION", role="ADMIN", part="cut"), part="inspect")["mode"] == "admin"
     assert _board(_user("영업", team="SALES"), part="edge")["part"] == "edge"
     assert _board(_user("영업2", team="SALES"), part="paint")["part"] == "cut"  # 모르는 파트 → 재단
-    assert _board(_user("반장", team="PRODUCTION"))["mode"] == "sub"  # 파트 없는 생산 = 대신(2026-11-23 §4-12, 예전 읽기 전용)
+    assert _board(_user("반장", team="PRODUCTION", lead=True))["mode"] == "sub"  # 반장 = 대신(2026-11-23 §4-12 · 승인 때 고친 것 5)
+    assert _board(_user("보기", team="PRODUCTION"))["mode"] == "readonly"  # 파트도 반장도 아닌 생산팀 = 보기만
     assert _board(_user("도면", team="DRAWING"))["mode"] == "readonly"  # 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1)
     assert _board(_user("팀없음", team=None)) is None  # 첫 화면을 못 보는 사람
 
