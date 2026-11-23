@@ -36,7 +36,7 @@ from foms.services.shipment_dashboard_helpers import (
     visible_items_for_dates,
     visible_spec_units,
 )
-from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
+from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet, pc_card_rows
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
     normalize_erp_shipment_workers,
@@ -720,9 +720,12 @@ def erp_shipment_dashboard():
     # 게이트 안이라 모바일 셸 폰(터치 + 992 미만 창)엔 안 만든다.
     tablet_day_sheet = (
         build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
-        if wants_wide_viewport_surfaces() or not mobile_v2_active
+        if wants_wide_viewport_surfaces() or not mobile_v2_active or not ship_omit_pc_table
         else None
     )
+    # PC 표 안쪽 카드 모양(설계서 2026-11-23-pc-shipment-card-table) — 같은 묶음 순서 · 번호 · 사람 색을 줄에 붙인다.
+    # 폰(PC 표 생략)엔 만들지 않는다. rows 순서는 그대로 둔다(배너 · 폰 AS 추천 키가 쓴다).
+    _pc_card_rows = [] if ship_omit_pc_table else pc_card_rows(tablet_day_sheet)
     # 팀 묶음 머리(합계 · 잔여)는 PC 표 줄 사이에만 그린다.
     shipment_team_group_meta = {} if ship_omit_pc_table else _compute_shipment_team_group_meta(rows, worker_settings)
     # 폰 [AS 추천](shipment-dashboard.js collectTargetOrderIds)은 PC 표 줄에서 주문 번호를 읽었다 — 표가 없으면 이 키로
@@ -783,6 +786,7 @@ def erp_shipment_dashboard():
         erp_mine_only=mine_only,
         is_construction_team=is_construction,
         tablet_day_sheet=tablet_day_sheet,
+        pc_card_rows=_pc_card_rows,
         shipment_team_group_meta=shipment_team_group_meta,
         # 상단 배너 요약({count, chips, overflow}). 행 배지는 r.shipment_change_alerts.
         shipment_change_banner=shipment_change_banner,

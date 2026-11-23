@@ -177,7 +177,7 @@
     pop.style.top = ((window.scrollY + top) / z) + 'px';
   }
   function open(btn) {
-    var wrap = btn.closest('.foms-tablet-shipgrid-wrap');
+    var wrap = btn.closest('[data-ship-people]'); // 태블릿 하루치 출고표 · PC 표(.shipment-table-wrapper) 둘 다 싣는다
     if (!wrap || wrap.getAttribute('data-ship-can-assign') !== 'true') return;
     var list = safeJsonParse(wrap.getAttribute('data-ship-people') || '[]', []);
     people = Array.isArray(list) ? list : [];
@@ -199,6 +199,8 @@
       '<div class="foms-ship-names__foot"><button type="button" class="foms-ship-names__btn" data-ship-act="write">직접 쓰기</button>' +
       '<button type="button" class="foms-ship-names__btn" data-ship-act="clear">비우기</button></div>' +
       '<div class="foms-ship-names__msg" role="status" aria-live="polite"></div>';
+    // PC(마우스)는 글자 입력 칸을 처음부터 열어 둔다(설계서 2026-11-23-pc-shipment-card-table — [직접 쓰기] 단추는 CSS 가 숨긴다).
+    if (window.matchMedia && window.matchMedia('(min-width: 992px) and (pointer: fine)').matches) pop.querySelector('.foms-ship-names__write').hidden = false;
     document.body.appendChild(pop);
     btn.classList.add('is-open');
     renderGrid();
