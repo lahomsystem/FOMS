@@ -17,9 +17,7 @@
   // pop = 열린 판, cell = 판을 연 시공자 칸 단추, people = 판 자료(data-ship-people), changed = 저장한 것이 있음
   var pop = null, cell = null, people = [], busy = false, changed = false;
 
-  function safeJsonParse(text, fallback) {
-    try { var v = JSON.parse(text); return v == null ? fallback : v; } catch (e) { return fallback; }
-  }
+  function safeJsonParse(text, fallback) { try { var v = JSON.parse(text); return v == null ? fallback : v; } catch (e) { return fallback; } }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -51,12 +49,16 @@
     if (p.off) return '쉼';
     return p.count + '건' + (p.units > 0.05 ? ' · ' + (Math.round(p.units * 10) / 10).toFixed(1) + '자' : '');
   }
-  function circled(n) {
-    return n >= 1 && n <= 20 ? String.fromCharCode(0x2460 + n - 1) : String(n);
+  function circled(n) { return n >= 1 && n <= 20 ? String.fromCharCode(0x2460 + n - 1) : String(n); }
+  // AS 줄은 AS 기사(출고 설정)를 먼저, 시공 줄은 AS 기사를 숨긴다(그 줄에 이미 들어 있는 이름은 보인다).
+  function shownPeople(on) {
+    var isAs = cell.getAttribute('data-is-as') === '1';
+    var list = people.filter(function (p) { return isAs || !p.as_tech || on.indexOf(String(p.name).trim()) >= 0; });
+    return isAs ? list.filter(function (p) { return p.as_tech; }).concat(list.filter(function (p) { return !p.as_tech; })) : list;
   }
   function renderGrid() {
     var on = cellNames(cell);
-    var html = people.map(function (p) {
+    var html = shownPeople(on).map(function (p) {
       var isOn = on.indexOf(String(p.name).trim()) >= 0;
       var off = p.off && !isOn;
       return '<button type="button" class="foms-ship-names__nb' + (isOn ? ' is-on' : '') + (off ? ' is-off' : '') +
@@ -100,10 +102,7 @@
     var el = pop && pop.querySelector('.foms-ship-names__msg');
     if (el) el.textContent = text || '';
   }
-  function setBusy(on) {
-    busy = on;
-    if (pop) pop.classList.toggle('is-busy', on);
-  }
+  function setBusy(on) { busy = on; if (pop) pop.classList.toggle('is-busy', on); }
   function save(names) {
     if (busy || !cell) return;
     var btn = cell;

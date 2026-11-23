@@ -279,8 +279,10 @@
       if (!data.success) {
         throw new Error(data.message || '저장된 시공자 목록을 불러오지 못했습니다.');
       }
+      // 고르기 목록 = 시공자 + AS 기사(출고 설정에 따로 둔 이름, 2026-11-23) — AS 는 둘 다 갈 수 있다.
       asConstructionWorkerOptions = normalizeAsConstructionWorkers(
-        (data.settings && data.settings.construction_workers) || []
+        ((data.settings && data.settings.construction_workers) || [])
+          .concat((data.settings && data.settings.as_technicians) || [])
       );
       asConstructionWorkerOptionsLoaded = true;
       updateConstructionWorkerDatalist();

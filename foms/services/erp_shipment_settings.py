@@ -22,6 +22,7 @@ __all__ = [
     "normalize_measurement_managers",
     "normalize_drawing_manager_en",
     "normalize_erp_shipment_workers",
+    "normalize_as_technicians",
     "is_order_assigned_to_user_for_construction",
     "is_order_mine_for_user",
     "load_erp_shipment_settings",
@@ -135,6 +136,27 @@ def normalize_erp_shipment_workers(workers):
     return normalized
 
 
+def normalize_as_technicians(names):
+    """출고 설정 AS 기사 목록 정규화 — 이름 문자열 목록(앞뒤 공백 제거 · 빈 값 · 중복 버림, 순서 유지).
+
+    Args:
+        names: 저장된 값(문자열 목록. ``{name}`` · ``{text}`` 사전도 받는다).
+
+    Returns:
+        이름 목록.
+    """
+    out: list[str] = []
+    if not isinstance(names, list):
+        return out
+    for item in names:
+        if isinstance(item, dict):
+            item = item.get('name') or item.get('text') or ''
+        text = str(item or '').strip()
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
 def is_order_assigned_to_user_for_construction(order, user_name):
     """주문의 시공/출고 배정(construction_workers)에 해당 사용자 이름이 포함되어 있는지 여부."""
     if not user_name or not order:
@@ -202,6 +224,8 @@ def _project_loaded_settings(data):
         'drawing_manager_en': normalize_drawing_manager_en(legacy.get('drawing_manager_en', {})),
         'measurement_manager': normalize_measurement_managers(legacy.get('measurement_manager', [])),
         'construction_workers': normalize_erp_shipment_workers(legacy.get('construction_workers', [])),
+        # AS 기사 — 출고 스케줄 AS 줄 이름판 · AS 탭 고르기 목록(시공자와 따로, 자수 · 인원 계산에는 안 든다).
+        'as_technicians': normalize_as_technicians(legacy.get('as_technicians', [])),
         'site_extra': legacy.get('site_extra', []),
     }
 
