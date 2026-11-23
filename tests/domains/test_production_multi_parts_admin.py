@@ -164,16 +164,21 @@ def test_model_column_and_pg_only_check_match_the_migration():
     assert "production_parts JSON" in lite and module.CHECK_NAME not in lite  # SQLite 는 앱 검사(normalize_production_parts)
 
 
-def test_migration_fills_from_old_column_and_downgrade_restores_first_part_on_sqlite():
+def test_migration_fills_from_old_column_and_downgrade_keeps_old_column_on_sqlite():
+    """downgrade 는 옛 칸을 건드리지 않는다 — 두 칸이 같은 행은 이미 첫 파트, 어긋난 행(코드만 되돌린 동안 옛 화면이 옛 칸을 고침)은
+    옛 칸이 나중 값이라 그대로 남아야 한다(옛 칸을 새 칸 첫 값으로 덮으면 뺏은 파트 권한이 돌아온다)."""
     module = _migration()
+    assert not hasattr(module, "_RESTORE_SQL")
     engine = create_engine("sqlite://")
     with engine.begin() as conn, Operations.context(MigrationContext.configure(conn)):
         conn.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, team VARCHAR(50), production_part VARCHAR(16))"))
-        conn.execute(text("INSERT INTO users VALUES (1, 'PRODUCTION', 'edge'), (2, 'PRODUCTION', NULL), (3, 'CS', 'cut')"))
+        conn.execute(text("INSERT INTO users VALUES (1, 'PRODUCTION', 'edge'), (2, 'PRODUCTION', NULL), (3, 'CS', 'cut'),"
+                          " (4, 'PRODUCTION', 'cut')"))
         module.upgrade()
         got = dict(conn.execute(text("SELECT id, production_parts FROM users")).all())
-        assert got == {1: '["edge"]', 2: None, 3: '["cut"]'}  # 옛 칸이 있는 행만(팀은 읽는 쪽이 본다)
+        assert got == {1: '["edge"]', 2: None, 3: '["cut"]', 4: '["cut"]'}  # 옛 칸이 있는 행만(팀은 읽는 쪽이 본다)
         conn.execute(text("UPDATE users SET production_parts = json_array('cut','assemble'), production_part = 'cut' WHERE id = 1"))
+        conn.execute(text("UPDATE users SET production_parts = json_array('cut','edge'), production_part = 'inspect' WHERE id = 4"))
         module.downgrade()
-        assert dict(conn.execute(text("SELECT id, production_part FROM users")).all()) == {1: "cut", 2: None, 3: "cut"}
+        assert dict(conn.execute(text("SELECT id, production_part FROM users")).all()) == {1: "cut", 2: None, 3: "cut", 4: "inspect"}
         assert {c["name"] for c in inspect(conn).get_columns("users")} == {"id", "team", "production_part"}
