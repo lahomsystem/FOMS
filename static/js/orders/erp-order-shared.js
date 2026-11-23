@@ -3385,6 +3385,19 @@ window.erpTogglePayment = async function(btn, pType) {
     });
     erpSyncRegionalConstructionTypeVisibility({ clear: false });
 
+    // 지방주문 구분을 '협력사'로 고르면 시공 담당자에 양산지사를 넣는다(이미 있으면 그대로).
+    document.getElementById('erp-regional-construction-type')?.addEventListener('change', function () {
+        if (this.value !== '협력사 시공') return;
+        const workersEl = document.getElementById('erp-construction-workers');
+        if (!workersEl) return;
+        const names = erpNormalizeConstructionWorkers(workersEl.value);
+        if (names.indexOf('양산지사') !== -1) return;
+        const current = (workersEl.value || '').trim();
+        workersEl.value = current ? `${current}\n양산지사` : '양산지사';
+        workersEl.dispatchEvent(new Event('input', { bubbles: true }));
+        workersEl.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
     // ERP Order: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
     const addrInput = document.getElementById('erp-address');
 
