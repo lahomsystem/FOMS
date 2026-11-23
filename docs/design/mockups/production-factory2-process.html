@@ -1,0 +1,1514 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2공장 일 흐름</title>
+<style>
+/* 생산 화면 7판 시안 — 2026-11-22. 사장님: "지금 구현된 메인 화면이 가장 나아 보인다 — 메인 탭 업그레이드 · 세부 탭 수정만".
+   틀 = 현장 태블릿 1176 × 626 · 화면 크기 80%. 이름 · 회사 · 숫자는 모두 지어낸 것. 바깥 글꼴 · 그림 파일 없음. */
+
+:root{color-scheme:light;--bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;--accent:#4a55b8;--mark:#db2777;--mark-ink:#ffffff;--th:#eef0f6}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610;--th:#1e222b}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610;--th:#1e222b}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+.wrap > h1{margin:0;font-size:28px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:86ch;color:var(--muted);margin:10px 0 0}
+.lead b{color:var(--fg)}
+.quote{margin:14px 0 0;padding:10px 14px;border-left:4px solid var(--accent);background:var(--card);border-radius:0 10px 10px 0;max-width:86ch;font-size:16px}
+.toc{margin:14px 0 0;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;padding:0;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:700}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:48px;scroll-margin-top:16px}
+.frame > h2{margin:0 0 4px;font-size:24px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.frame > h2 small{font-size:16px;font-weight:700;color:var(--muted);margin-left:8px}
+.frame > .idea{margin:0 0 12px;color:var(--muted);font-size:16px;max-width:90ch}
+.frame > .idea b{color:var(--fg)}
+.frame > h3.pairh{margin:22px 0 8px;font-size:18px;font-weight:800}
+.fit{width:100%;overflow:hidden}
+.stage{position:relative;width:1176px;height:626px;overflow:hidden;border-radius:12px;box-shadow:0 0 0 1px var(--line);background:#eef0f3;transform-origin:0 0}
+.notes{list-style:none;padding:0;margin:14px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:8px 22px}
+.notes li{display:flex;gap:10px;align-items:flex-start;font-size:16px;line-height:1.5;color:var(--muted)}
+.notes li b{color:var(--fg)}
+.num{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--mark);color:var(--mark-ink);font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.same{margin:10px 0 0;font-size:15px;color:var(--muted)}
+.same b{color:var(--fg)}
+.tblw{margin-top:14px;overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table.sum{border-collapse:collapse;width:100%;min-width:760px;font-size:15px}
+table.sum th,table.sum td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.sum thead th{background:var(--th);font-size:15px;font-weight:800}
+table.sum tbody th{font-weight:800;white-space:nowrap}
+table.sum tr:last-child > *{border-bottom:0}
+table.sum td{color:var(--muted)}
+table.sum td b{color:var(--fg)}
+table.sum ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.ask{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+.ask ol{margin:0;padding-left:22px;display:grid;gap:8px;font-size:16px;color:var(--muted)}
+.ask ol b{color:var(--fg)}
+details.dev{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:14px;color:var(--muted)}
+details.dev summary{cursor:pointer;font-weight:800;color:var(--fg);font-size:15px}
+details.dev ul{padding-left:20px;display:grid;gap:5px;margin:8px 0 0}
+details.dev code{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--fg);overflow-wrap:anywhere}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+/* 틀 안 — 1470 × 782.5 화면(1176 × 626 을 80% 로 줄여 본 것) */
+.art{position:absolute;left:0;top:0;width:1470px;height:782.5px;transform:scale(.8);transform-origin:0 0;display:flex;overflow:hidden;background:#eef0f3;color:#14171c;font-size:16px;line-height:1.5;color-scheme:light;--mk-vh:782.5px;--foms-ui-zoom:1;--fph-bar-h:73px}
+.art *{box-sizing:border-box}
+:where(.art) a{color:inherit;text-decoration:none}
+:where(.art) button{font:inherit;color:inherit}
+:where(.art) h1,:where(.art) h2,:where(.art) h3,:where(.art) p,:where(.art) ul,:where(.art) ol,:where(.art) dl{margin:0}
+:where(.art) small{font-size:.875em}
+.appm{flex:1;min-width:0;height:100%;overflow:hidden;position:relative}
+.appm .foms-prod-home{min-height:0;height:100%;overflow:hidden}
+.foms-prod-home svg.dwg,.foms-prod-page svg.dwg{width:100%;height:100%;stroke:#3b4250;stroke-width:1.4;padding:6px}
+.foms-prod-home svg.dwg text{fill:#3b4250;stroke:none;font-size:9px;font-weight:700}
+.fph-sp__pic svg.dwg{padding:12px 14px 46px}
+.art .ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.rail{width:72px;flex-shrink:0;height:100%;background:#fff;border-right:1px solid #dde1e6;display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:4px;position:relative;z-index:3}
+.rail .brand{height:28px;margin-bottom:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#4a55b8}
+.rail .zoom{width:44px;flex-shrink:0;margin:2px 0 8px;border:1px solid #ced4da;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;background:#fff}
+.rail .zoom span{height:30px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#495057}
+.rail .zoom span.v{height:20px;font-size:11px;border-top:1px solid #ced4da;border-bottom:1px solid #ced4da}
+.rail .menu{align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rail .it{flex-shrink:0;width:100%;min-height:50px;padding:6px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;line-height:1.1;color:#6b7280;position:relative;white-space:nowrap}
+.rail .it .ic{font-size:22px}
+.rail .it.on{color:#4a55b8;font-weight:600;background:#f3f4ff}
+.rail .it.on::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:#5a67d8;border-radius:0 4px 4px 0}
+.rail .sp{flex:1 1 auto;min-height:12px;align-self:stretch}
+.rail .ava{width:40px;height:40px;flex-shrink:0;margin:4px 0 8px;border-radius:50%;background:#f3f4ff;color:#4a55b8;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.mkh{position:relative}
+.scrolled{margin-top:-362px}
+.art .foms-prod-home__rows{position:relative}
+.art .mk{position:absolute;z-index:6;top:-16px;left:-16px;width:42px;height:42px;border-radius:50%;background:#db2777;color:#fff;border:4px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-size:21px;font-weight:800;display:flex;align-items:center;justify-content:center;font-style:normal;line-height:1;pointer-events:none;letter-spacing:0}
+
+/* ── 진짜 화면 모양(home.css) ── */
+.foms-prod-home {
+  --fph-bg: #eef0f3;
+  --fph-surface: #ffffff;
+  --fph-raised: #f7f8fa;
+  --fph-line: #dde1e6;
+  --fph-line2: #c1c7d0;
+  --fph-text: #14171c;
+  --fph-text2: #4b525d;
+  --fph-text3: #6b7380;
+  --fph-brand: #5a67d8;
+  --fph-brand-dark: #4a55b8;
+  --fph-brand-50: #f3f4ff;
+  --fph-danger: #dc2626;
+  --fph-danger-50: #fef2f2;
+  --fph-warn: #d97706;
+  --fph-ok: #059669;
+  background: var(--fph-bg);
+  color: var(--fph-text);
+  min-height: 60vh;
+  font-variant-numeric: tabular-nums;
+}
+.foms-prod-home * { box-sizing: border-box; }
+.foms-prod-home svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.foms-prod-home__bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  min-height: 64px;
+  padding: 8px 20px;
+  background: var(--fph-surface);
+  border-bottom: 1px solid var(--fph-line);
+}
+.foms-prod-home__title { margin: 0; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; }
+.foms-prod-home__date { font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; }
+.foms-prod-home__tabs { display: flex; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
+.foms-prod-home__tab {
+  min-width: 120px;
+  min-height: 56px;
+  padding: 0 18px;
+  border: 0;
+  border-right: 1px solid var(--fph-line2);
+  background: transparent;
+  color: var(--fph-text2);
+  font: inherit;
+  font-size: calc(16px * var(--foms-fs, 1));
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.foms-prod-home__tab:last-child { border-right: 0; }
+.foms-prod-home__tab small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; opacity: .8; }
+.foms-prod-home__tab.is-on { background: var(--fph-brand); color: #fff; }
+.foms-prod-home__tab:focus-visible { outline: 3px solid var(--fph-brand-dark); outline-offset: -3px; }
+.foms-prod-home__search { flex: 1 1 220px; min-width: 0; margin: 0; }
+.foms-prod-home__search input {
+  width: 100%;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 1px solid var(--fph-line2);
+  border-radius: 10px;
+  background: var(--fph-raised);
+  font: inherit;
+  font-size: calc(16px * var(--foms-fs, 1));
+  color: var(--fph-text);
+}
+.foms-prod-home__search input:focus { outline: 3px solid var(--fph-brand); outline-offset: -1px; background: var(--fph-surface); }
+.foms-prod-home__sync { display: inline-flex; align-items: center; gap: 8px; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); white-space: nowrap; }
+.foms-prod-home__sync::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--fph-ok); }
+.foms-prod-home__sync.is-stale::before { background: var(--fph-warn); }
+.foms-prod-home.is-offline .foms-prod-home__sync::before { background: var(--fph-danger); }
+.foms-prod-home__btn {
+  min-height: 56px;
+  padding: 0 18px;
+  border: 1px solid var(--fph-line2);
+  border-radius: 10px;
+  background: var(--fph-surface);
+  color: var(--fph-text);
+  font-size: calc(16px * var(--foms-fs, 1));
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.foms-prod-home__btn:hover, .foms-prod-home__btn:focus-visible { background: var(--fph-brand-50); color: var(--fph-brand-dark); text-decoration: none; }
+.foms-prod-home__btn-ic { display: none; } 
+.foms-prod-home__offline {
+  margin: 0;
+  padding: 10px 20px;
+  background: var(--fph-danger-50);
+  color: var(--fph-danger);
+  font-size: calc(16px * var(--foms-fs, 1));
+  font-weight: 700;
+  border-bottom: 1px solid var(--fph-line);
+}
+.foms-prod-home.is-offline .foms-prod-home__offline[hidden] { display: block !important; }
+.foms-prod-home__ctl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px 0;
+  font-size: calc(15px * var(--foms-fs, 1));
+  color: var(--fph-text3);
+}
+.foms-prod-home__ctl b { color: var(--fph-text); }
+.foms-prod-home__ctl-all {
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--fph-line2);
+  border-radius: 10px;
+  background: var(--fph-surface);
+  color: var(--fph-brand-dark);
+  font: inherit;
+  font-size: calc(15px * var(--foms-fs, 1));
+  font-weight: 700;
+  cursor: pointer;
+}
+.foms-prod-home__ctl-all:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: -1px; }
+.foms-prod-home__list { display: flex; flex-direction: column; gap: 8px; padding: 6px 16px 24px; }
+.foms-prod-home__grp { min-width: 0; }
+.foms-prod-home__grp[hidden] { display: none; }
+.foms-prod-home__day {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--fph-text2);
+  font: inherit;
+  font-size: calc(17px * var(--foms-fs, 1));
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.foms-prod-home__day:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: -3px; border-radius: 10px; }
+.foms-prod-home__grp.is-today .foms-prod-home__day b { color: var(--fph-brand-dark); }
+.foms-prod-home__day small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.foms-prod-home__gcount { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.foms-prod-home__gchg { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-danger); }
+.foms-prod-home__gchev { margin-left: auto; font-size: calc(22px * var(--foms-fs, 1)); color: var(--fph-brand-dark); transition: transform .15s; }
+.foms-prod-home__grp.is-closed .foms-prod-home__gchev { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) { .foms-prod-home__gchev { transition: none; } }
+.foms-prod-home__rows { display: flex; flex-direction: column; gap: 8px; }
+.foms-prod-home__grp.is-closed .foms-prod-home__rows { display: none; }
+.foms-prod-home__grp.is-closed .foms-prod-home__day { color: var(--fph-text3); }
+.foms-prod-home__job {
+  position: relative;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 290px 130px;
+  align-items: center;
+  min-height: 100px;
+  padding: 0 20px 0 0;
+  background: var(--fph-surface);
+  border: 1px solid var(--fph-line);
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+}
+.foms-prod-home__job:hover, .foms-prod-home__job:focus-visible { border-color: var(--fph-brand); color: inherit; text-decoration: none; outline: none; box-shadow: 0 0 0 2px var(--fph-brand-50); }
+.foms-prod-home__job.is-changed { border-color: var(--fph-danger); }
+.foms-prod-home__job.is-changed::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; background: var(--fph-danger); }
+.foms-prod-home__stage {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px;
+  border-right: 1px solid var(--fph-line);
+  text-align: center;
+}
+.foms-prod-home__stage b { font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.1; letter-spacing: -.02em; color: var(--fph-brand-dark); }
+.foms-prod-home__stage span { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.foms-prod-home__job.is-soon .foms-prod-home__stage b { color: var(--fph-text3); }
+.foms-prod-home__who { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 8px 22px; }
+.foms-prod-home__name { font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; display: flex; align-items: baseline; gap: 10px; min-width: 0; white-space: nowrap; }
+.foms-prod-home__name > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
+.foms-prod-home__name > small { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.foms-prod-home__pr { font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.foms-prod-home__pr b { color: var(--fph-text); font-weight: 700; }
+.foms-prod-home__chg { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.foms-prod-home__steps { display: flex; gap: 10px; }
+.foms-prod-home__st { width: 60px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.foms-prod-home__st i {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 2px solid var(--fph-line2);
+  background: var(--fph-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: calc(28px * var(--foms-fs, 1));
+}
+.foms-prod-home__st.is-done { color: var(--fph-brand-dark); }
+.foms-prod-home__st.is-done i { background: var(--fph-brand); border-color: var(--fph-brand); }
+.foms-prod-home__st.is-now { color: var(--fph-brand-dark); }
+.foms-prod-home__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
+.foms-prod-home__job.is-soon .foms-prod-home__st i { border-style: dashed; }
+.foms-prod-home__dw { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); }
+.foms-prod-home__dw b { font-size: calc(20px * var(--foms-fs, 1)); color: var(--fph-text); }
+.foms-prod-home__dw svg { font-size: calc(22px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.foms-prod-home__empty { margin: 0; padding: 40px 16px; text-align: center; font-size: calc(17px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.foms-prod-home__nav { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--fph-bg); }
+.foms-prod-home__navtab { min-height: 48px; padding: 0 18px; border-radius: 9px; display: inline-flex; align-items: center; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); text-decoration: none; white-space: nowrap; }
+.foms-prod-home__navtab:hover, .foms-prod-home__navtab:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
+.foms-prod-home__navtab.is-on { background: var(--fph-surface); color: var(--fph-brand-dark); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.foms-prod-home__navtab:active { background: var(--fph-brand-50); color: var(--fph-brand-dark); } 
+.foms-prod-home__sp { flex: 1; }
+.foms-prod-home__tools { margin-left: auto; display: flex; align-items: center; gap: 10px 14px; }
+.foms-prod-home__btn.foms-prod-home__bell { display: none; position: relative; width: 56px; padding: 0; }
+.foms-prod-home__bell i { font-size: calc(20px * var(--foms-fs, 1)); }
+.foms-prod-home__bell-badge { position: absolute; top: 7px; right: 9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--fph-danger); color: #fff; font-size: calc(10px * var(--foms-fs, 1)); font-weight: 700; line-height: 16px; text-align: center; }
+.foms-prod-home__bell-badge[hidden] { display: none; }
+.foms-prod-home__filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 10px 20px 0; }
+.foms-prod-home__filters .foms-prod-home__search { flex: 1 1 260px; }
+.foms-prod-home__filters .foms-prod-home__ctl { flex: 1 1 100%; padding: 0; }
+.foms-prod-home__status { margin: 0; padding: 0 20px; min-height: 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.foms-prod-home__status.is-bad { color: var(--fph-danger); font-weight: 700; padding-top: 6px; }
+.foms-prod-home__status:empty { display: none; }
+.foms-prod-home__btn--pri { background: var(--fph-brand); border-color: var(--fph-brand); color: #fff; }
+.foms-prod-home__btn--pri:hover, .foms-prod-home__btn--pri:focus-visible { background: var(--fph-brand-dark); border-color: var(--fph-brand-dark); color: #fff; }
+.foms-prod-home__btn--ghost { border-color: transparent; background: transparent; color: var(--fph-text2); }
+.foms-prod-home__btn svg { width: 1em; height: 1em; font-size: calc(22px * var(--foms-fs, 1)); }
+.fph-inbox { background: var(--fph-surface); border-left: 1px solid var(--fph-line); padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.fph-al { border: 1px solid var(--fph-line); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+.fph-al--cancel { border-color: var(--fph-warn); background: var(--fph-warn-50, #fffbeb); }
+.fph-al__body { min-width: 0; }
+.fph-al__name { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-al__name > .fph-due { margin-left: 8px; }
+.fph-al__name > small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); margin-left: 4px; }
+.fph-al__meta { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.fph-al__list { margin: 0 0 4px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.fph-al__list li { font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-danger); }
+.fph-al__list b { font-weight: 800; }
+.fph-al__d strong { font-weight: 800; }
+.fph-al__list li.is-drawing { color: #2563eb; }
+.fph-al__list li.is-cancelled { color: #92400e; }
+.fph-al__m { display: block; margin-top: 1px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 400; line-height: 1.35; color: var(--fph-text3); }
+.fph-al .foms-prod-home__btn { min-width: 128px; }
+.fph-inbox__h { margin: 0; display: flex; align-items: center; gap: 10px; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; }
+.fph-inbox__h b { min-width: calc(30px * var(--foms-fs, 1)); height: calc(30px * var(--foms-fs, 1)); padding: 0 8px; border-radius: 999px; background: var(--fph-danger); color: #fff; font-size: calc(16px * var(--foms-fs, 1)); display: inline-flex; align-items: center; justify-content: center; }
+.fph-inbox__h b.is-zero { background: var(--fph-ok); }
+.fph-inbox--page > .fph-inbox__h, .fph-inbox--page > .fph-inbox__more { grid-column: 1 / -1; }
+.fph-al.is-done { opacity: .55; }
+.fph-al__ok { min-width: 128px; text-align: center; font-size: calc(15px * var(--foms-fs, 1)); line-height: 1.4; color: var(--fph-text3); }
+.fph-inbox__more { margin: 0; text-align: center; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.fph-inbox__more a { min-height: 56px; padding: 0 24px; display: inline-flex; align-items: center; color: var(--fph-brand); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.fph-inbox__more a:hover, .fph-inbox__more a:focus-visible { color: var(--fph-brand-dark); }
+.fph-steptabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--fph-surface); border-bottom: 1px solid var(--fph-line); }
+.fph-steptab { min-height: 72px; border: 0; border-right: 1px solid var(--fph-line); background: transparent; color: var(--fph-text3); font: inherit; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 12px; position: relative; cursor: pointer; }
+.fph-steptab:last-child { border-right: 0; }
+.fph-steptab small { font-size: calc(18px * var(--foms-fs, 1)); min-width: 34px; height: 34px; padding: 0 8px; border-radius: 17px; background: var(--fph-bg); color: var(--fph-text2); display: inline-flex; align-items: center; justify-content: center; }
+.fph-steptab.is-on { color: var(--fph-brand-dark); background: var(--fph-brand-50); }
+.fph-steptab.is-on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: var(--fph-brand); }
+.fph-steptab.is-on small { background: var(--fph-brand); color: #fff; }
+.fph-steptab:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: -3px; }
+.fph-stepnote { margin: 0; padding: 10px 20px 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.fph-stepnote b { color: var(--fph-text); }
+.fph-q { padding: 10px 16px 24px; display: flex; flex-direction: column; gap: 8px; }
+.fph-q[hidden] { display: none; }
+.fph-qr { min-height: 96px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr) calc(150px * var(--foms-fs, 1)) 190px; align-items: center; padding-right: 16px; gap: 0 10px; }
+.fph-qr.is-chg { border-color: var(--fph-danger); }
+.fph-qr.is-hold { opacity: .7; }
+.fph-qr__n { font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); text-align: center; }
+.fph-qr__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: inherit; text-decoration: none; padding: 8px 0; }
+.fph-qr__who:hover, .fph-qr__who:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
+.fph-qr__who b { font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; }
+.fph-qr__who b small { font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); font-weight: 700; }
+.fph-qr__who span { font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fph-qr__ln { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; min-width: 0; }
+.fph-qr__ln b { min-width: 0; }
+.fph-qr__who .fph-qr__by { max-width: 100%; display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; white-space: normal; overflow: visible; }
+.fph-qr__who .fph-by { font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text); white-space: normal; overflow: visible; }
+.fph-qr__who .fph-by.is-m { color: var(--fph-brand-dark); }
+.fph-qr__who em { font-style: normal; color: var(--fph-danger); font-weight: 700; }
+.fph-qr__due { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text2); font-weight: 700; display: flex; flex-direction: column; }
+.fph-qr__due b { font-size: calc(20px * var(--foms-fs, 1)); color: var(--fph-text); }
+.fph-qr__done { min-height: 72px; border: 1px solid var(--fph-ok); border-radius: 12px; background: var(--fph-ok); color: #fff; font: inherit; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
+.fph-qr__done svg { width: 1em; height: 1em; font-size: calc(30px * var(--foms-fs, 1)); stroke-width: 2.6; }
+.fph-qr__done:hover, .fph-qr__done:focus-visible { background: #047857; border-color: #047857; outline: none; }
+.fph-qr__done:disabled { opacity: .6; cursor: wait; }
+.fph-qr__hold { justify-self: end; padding: 8px 16px; border-radius: 999px; background: var(--fph-warn-50, #fffbeb); color: #92400e; font-weight: 800; font-size: calc(16px * var(--foms-fs, 1)); }
+.foms-prod-home__navtab small { margin-left: 6px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); }
+.foms-prod-home__navtab small.is-hot { color: var(--fph-danger); }
+.foms-prod-home__bar .foms-fs { margin-right: 0; }
+.fph-inbox--page { border-left: 0; background: transparent; padding: 12px 16px 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.fph-inbox--page .fph-al { background: var(--fph-surface); }
+.fph-inbox--page > .foms-prod-home__empty { grid-column: 1 / -1; }
+.fph-date { display: grid; grid-template-columns: min(42%, calc(316px * var(--foms-fs, 1))) minmax(0, 1fr); align-items: start; }
+.fph-strip {
+  position: sticky;
+  top: var(--fph-bar-h, 73px);
+  max-height: calc(var(--mk-vh) / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  background: var(--fph-surface);
+  border-right: 1px solid var(--fph-line);
+}
+.fph-strip__h { min-height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--fph-line); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-strip__h small { margin-left: auto; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-sd {
+  width: 100%;
+  min-height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: calc(88px * var(--foms-fs, 1)) minmax(0, 1fr) calc(62px * var(--foms-fs, 1));
+  align-items: center;
+  gap: 8px;
+  padding: 2px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--fph-line);
+  background: transparent;
+  color: var(--fph-text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.fph-sd:hover, .fph-sf:hover { color: inherit; text-decoration: none; }
+.fph-sd:active, .fph-sf:active { background: var(--fph-brand-50); } 
+.fph-sd:focus-visible, .fph-sf:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: -3px; }
+.fph-sd.is-on { background: var(--fph-brand-50); box-shadow: inset 4px 0 0 var(--fph-brand); }
+.fph-sd__d { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.fph-sd__d b { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.fph-sd__d small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); white-space: nowrap; }
+.fph-sd.is-wk .fph-sd__d b { color: var(--fph-danger); }
+.fph-sd.is-zero .fph-sd__d b, .fph-sd.is-zero .fph-sd__n b { color: var(--fph-text3); }
+.foms-prod-home .fph-sd__bar { width: 100%; height: 16px; border-radius: 5px; background: var(--fph-raised); border: 1px solid var(--fph-line); stroke: none; }
+.fph-sd__bar rect.is-f { fill: var(--fph-ok); }
+.fph-sd__bar rect.is-p { fill: var(--fph-brand); }
+.fph-sd__bar rect.is-w { fill: #f59e0b; }
+.fph-sd__bar rect.is-x { fill: var(--fph-line2); }
+.fph-sd__n { text-align: right; white-space: nowrap; }
+.fph-sd__n b { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-sd__n small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-strip__f { margin-top: auto; flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--fph-line); }
+.fph-sf { min-height: 48px; padding: 0 8px; border: 0; background: transparent; color: var(--fph-text2); font: inherit; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; text-decoration: none; }
+.fph-sf small { display: block; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); } 
+.fph-sf + .fph-sf { border-left: 1px solid var(--fph-line); }
+.fph-sf.is-on { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
+.fph-panes { min-width: 0; padding: 4px 16px 24px 12px; }
+.fph-pane { display: flex; flex-direction: column; gap: 6px; }
+.fph-pane[hidden] { display: none; }
+.fph-panes.is-loading .fph-pane:not([hidden]) { opacity: .45; }
+.fph-pane__load, .fph-pane__err { margin: 8px 0 0; padding: 10px 12px; border-radius: 9px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; }
+.fph-pane__load { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
+.fph-pane__err { background: var(--fph-danger-50); color: var(--fph-danger); }
+.fph-pane__load[hidden], .fph-pane__err[hidden] { display: none; }
+.fph-pane__h { margin: 0; min-height: 44px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; padding-top: 10px; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); }
+.fph-pane__h small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-pane__cards { margin-left: auto; align-self: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); display: inline-flex; align-items: center; gap: 6px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); text-decoration: none; white-space: nowrap; }
+.fph-pane__cards svg { font-size: calc(14px * var(--foms-fs, 1)); stroke-width: 2.6; }
+.fph-pane__cards:hover, .fph-pane__cards:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; }
+.fph-pane__cards:active { background: var(--fph-brand-50); }
+.fph-pane__g { margin: 4px 0 0; min-height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); }
+.fph-pane__g small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-pane__g--next { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--fph-line2); }
+.fph-pane__none { margin: 0; padding: 10px 4px; font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.fph-dr {
+  content-visibility: auto; 
+  contain-intrinsic-size: auto 96px;
+  min-height: 74px;
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) auto calc(92px * var(--foms-fs, 1)); 
+  align-items: center;
+  gap: 0 12px;
+  padding-right: 12px;
+  background: var(--fph-surface);
+  border: 1px solid var(--fph-line);
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+}
+.fph-dr:nth-of-type(-n+10) { content-visibility: visible; }
+.fph-dr:hover, .fph-dr:focus-visible { border-color: var(--fph-brand); color: inherit; text-decoration: none; outline: none; box-shadow: 0 0 0 2px var(--fph-brand-50); }
+.fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.fph-dr.is-chg { border-color: var(--fph-danger); }
+.fph-dr__sg { align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 6px; border-right: 1px solid var(--fph-line); text-align: center; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.15; color: var(--fph-brand-dark); }
+.fph-dr__sg small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-dr.is-w .fph-dr__sg { color: #92400e; }
+.fph-dr.is-f .fph-dr__sg { color: #047857; }
+.fph-dr.is-chg .fph-dr__sg small { color: var(--fph-danger); }
+.fph-dr__who { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
+.fph-dr__ln { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; min-width: 0; }
+.fph-dr__nm { font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; min-width: 0; max-width: 100%; }
+.fph-dr__by { min-width: 0; max-width: 100%; display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; } 
+.fph-by { min-width: 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text); word-break: keep-all; overflow-wrap: anywhere; }
+.fph-by.is-m { color: var(--fph-brand-dark); }
+.fph-by i { font-style: normal; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-dr__nm > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
+.fph-dr__nm > small { flex-shrink: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-dr__pr { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.fph-dr__pr em { font-style: normal; font-weight: 800; color: var(--fph-danger); }
+.fph-dr__steps { display: flex; gap: 6px; }
+.fph-dr__st { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-dr__st i { width: 34px; height: 34px; border-radius: 8px; border: 2px solid var(--fph-line2); background: var(--fph-surface); }
+.fph-dr__st.is-done, .fph-dr__st.is-now { color: var(--fph-brand-dark); }
+.fph-dr__st.is-done i { background: var(--fph-brand); border-color: var(--fph-brand); }
+.fph-dr__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
+.fph-dr__dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.fph-wg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.fph-wi { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--fph-line); background: var(--fph-raised); color: var(--fph-text2); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; text-decoration: none; white-space: nowrap; overflow: hidden; }
+.fph-wi:hover, .fph-wi:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; outline: none; }
+.fph-wi > small { min-width: 0; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); overflow: hidden; text-overflow: ellipsis; }
+.fph-wi.is-chg { border-color: var(--fph-danger); }
+.fph-wi.is-done { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.fph-wi__nm { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
+.fph-wi > small { flex: 1 1 0; }
+.fph-due { flex-shrink: 0; display: inline-flex; align-items: baseline; gap: 4px; margin-left: 2px; padding: 1px 7px; border: 1px solid #c7cdf7; border-radius: 7px; background: #e8ebff; color: var(--fph-brand-dark); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; letter-spacing: -.01em; white-space: nowrap; }
+.fph-due i { font-style: normal; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; }
+.fph-due b { font-weight: 800; }
+.fph-due small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: inherit; }
+.fph-due.is-today { border-color: var(--fph-brand); background: var(--fph-brand); color: #fff; }
+.fph-due.is-past { border-color: #fecaca; background: var(--fph-danger-50); color: #b91c1c; }
+.fph-due.is-none { border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; }
+.fph-wi .fph-due { font-size: calc(13px * var(--foms-fs, 1)); padding: 0 5px; }
+.fph-wi > .fph-due { margin: 0; }
+.pp-card > .fph-due { align-self: flex-start; margin: 1px 0; } 
+.fph-sp__nm > .fph-due { align-self: center; font-size: calc(17px * var(--foms-fs, 1)); padding: 2px 9px; }
+.fph-q .foms-prod-home__empty { padding: 14px 4px; text-align: left; }
+.fph-q__next { margin: 10px 0 0; padding: 10px 4px 0; border-top: 1px dashed var(--fph-line2); display: flex; align-items: baseline; gap: 8px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); }
+.fph-q__next b { color: var(--fph-text); }
+.fph-q__next small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-q__nextlist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.fph-nx { min-height: 56px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 10px; padding: 6px 12px; border: 1px dashed var(--fph-line2); border-radius: 10px; background: var(--fph-raised); color: inherit; text-decoration: none; }
+.fph-nx:hover, .fph-nx:focus-visible { border-color: var(--fph-brand); color: inherit; text-decoration: none; outline: none; }
+.fph-nx.is-chg { border-color: var(--fph-danger); }
+.fph-nx b { min-width: 0; display: flex; align-items: baseline; gap: 6px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; overflow: hidden; }
+.fph-nx b i { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; }
+.fph-nx b small { flex-shrink: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-nx span { grid-column: 1; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fph-nx em { grid-column: 2; grid-row: 1 / 3; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); white-space: nowrap; }
+@media all {
+  .foms-prod-home__bar { flex-wrap: nowrap; }
+  .foms-prod-home__title, .foms-prod-home__tools { flex-shrink: 0; }
+  .foms-prod-home__date { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .foms-prod-home__nav { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .foms-prod-home__nav::-webkit-scrollbar { display: none; }
+}
+.fph-stripbox { display: contents; }
+@media all {
+  .fph-stripbox {
+    display: block;
+    position: sticky;
+    top: var(--fph-bar-h, 73px);
+    height: calc(var(--mk-vh) / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px));
+    container: fph-strip / size;
+  }
+  .fph-stripbox > .fph-strip { position: static; height: 100%; max-height: none; }
+  .fph-sd { flex-grow: 1; }
+}
+@container fph-strip (min-height: calc(max(40px, 1.375rem + 2px) + 13 * max(44px, 2.0125rem + 5px) + max(49px, 2.34rem))) {
+  .fph-sd { flex-shrink: 1; min-height: max(44px, 2.0125rem + 5px); }
+}
+@media all {
+  .fph-panes { container: fph-pane / inline-size; }
+  .foms-prod-home__list { container: fph-list / inline-size; }
+  .fph-q { container: fph-q / inline-size; }
+  .fph-inbox--page { container: fph-inbox / inline-size; }
+  @container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 20.75rem - 0.02px)) {
+    .fph-dr { grid-template-columns: 128px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 8px; }
+    .fph-dr__sg { grid-row: 1 / 3; }
+    .fph-dr__who { grid-column: 2 / 4; padding-bottom: 2px; }
+    .fph-dr__steps { grid-column: 2; grid-row: 2; }
+    .fph-dr__dw { grid-column: 3; grid-row: 2; }
+  }
+  @container fph-list (max-width: calc(636px + 16.5rem - 0.02px)) {
+    .foms-prod-home__job { grid-template-columns: 150px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 10px; }
+    .foms-prod-home__stage { grid-row: 1 / 3; }
+    .foms-prod-home__who { grid-column: 2 / 4; padding-bottom: 4px; }
+    .foms-prod-home__steps { grid-column: 2; grid-row: 2; padding-left: 22px; }
+    .foms-prod-home__dw { grid-column: 3; grid-row: 2; }
+  }
+  @container fph-q (max-width: calc(302px + 25.875rem - 0.02px)) {
+    .fph-qr { grid-template-columns: 64px minmax(0, 1fr) 190px; grid-template-rows: auto auto; padding-bottom: 10px; }
+    .fph-qr__n { grid-row: 1 / 3; }
+    .fph-qr__who { grid-column: 2 / 4; }
+    .fph-qr__due { grid-column: 2; grid-row: 2; flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
+    .fph-qr__done, .fph-qr__hold { grid-column: 3; grid-row: 2; }
+  }
+  @container fph-inbox (max-width: calc(94px + 2 * max(128px, 5rem + 38px) + 28.5rem - 0.02px)) {
+    .fph-inbox--page > .fph-al { grid-column: 1 / -1; }
+  }
+}
+.fph-q__list { display: contents; }
+.fph-q__list > .fph-stepnote { padding: 0 4px; }
+.fph-q__panes, .fph-qr__holdtag { display: none; }
+.fph-qr__holdtag { align-self: center; padding: 2px 10px; border-radius: 999px; background: #fffbeb; color: #92400e; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.fph-sp { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 14px; background: var(--fph-surface); border-left: 1px solid var(--fph-line); line-height: 1.35; }
+.fph-sp[hidden] { display: none; }
+.fph-sp__top { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior: contain; }
+.fph-sp__bot { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+.fph-sp__nm { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; }
+.fph-sp__nm a { margin: -6px 0; padding: 6px 0; color: inherit; text-decoration: underline; text-decoration-color: var(--fph-line2); text-underline-offset: 5px; } 
+.fph-sp__nm a:hover, .fph-sp__nm a:focus-visible { color: var(--fph-brand-dark); }
+.fph-sp__nm > small { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fph-sp__sub { margin: -6px 0 0; font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text2); }
+.fph-sp__pic { flex: 1 1 auto; min-height: 96px; position: relative; display: flex; align-items: center; justify-content: center; width: 100%; padding: 0; overflow: hidden; border: 1px solid var(--fph-line); border-radius: 12px; background: #fff; color: var(--fph-text2); font: inherit; text-decoration: none; cursor: zoom-in; }
+.fph-sp__pic img { display: block; flex: 1 1 auto; align-self: stretch; width: 100%; min-width: 0; min-height: 0; padding: 8px 10px 42px; object-fit: contain; }
+.fph-sp__pic.is-none { cursor: default; }
+.fph-sp__pic.is-file { cursor: pointer; }
+.fph-sp__pic b { font-size: calc(18px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-sp__cap { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: rgba(20, 23, 28, .78); color: #fff; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; }
+.fph-sp__cap span { display: inline-flex; align-items: center; gap: 6px; }
+.fph-sp__spec { margin: 0; flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; font-size: calc(16px * var(--foms-fs, 1)); }
+.fph-sp__spec dt { font-weight: 400; color: var(--fph-text3); }
+.fph-sp__spec dd { margin: 0; font-weight: 700; }
+.fph-sp__done { min-height: 96px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; border-radius: 14px; background: var(--fph-ok); color: #fff; font: inherit; font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
+.fph-sp__done svg { font-size: calc(40px * var(--foms-fs, 1)); stroke-width: 2.6; }
+.fph-sp__done:hover, .fph-sp__done:focus-visible { background: #047857; outline: none; }
+.fph-sp__done:active { background: #065f46; }
+.fph-sp__hold { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 2px solid #f59e0b; border-radius: 14px; background: #fffbeb; color: #92400e; text-align: center; }
+.fph-sp__hold b { display: inline-flex; align-items: center; gap: 8px; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-sp__hold span { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; }
+.fph-sp__acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fph-sp__act { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); color: var(--fph-text); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
+.fph-sp__act svg { font-size: calc(20px * var(--foms-fs, 1)); }
+.fph-sp__act.is-bad { border-color: var(--fph-danger); background: var(--fph-danger-50); color: var(--fph-danger); }
+.fph-sp__act.is-on { border-color: #f59e0b; background: #fffbeb; color: #92400e; }
+.fph-sp__act:focus-visible, .fph-sp__chip:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: -3px; }
+.fph-sp__chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.fph-sp__chips[hidden] { display: none; }
+.fph-sp__chip { min-height: 48px; padding: 0 6px; border: 1px solid var(--fph-danger); border-radius: 10px; background: var(--fph-surface); color: var(--fph-danger); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
+.fph-sp__chip:disabled { opacity: .6; cursor: wait; }
+.fph-sp__recent, .fph-sp__status { margin: 0; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text3); text-align: center; }
+.fph-sp__recent[hidden], .fph-sp__status:empty { display: none; }
+.fph-sp__status.is-bad { color: var(--fph-danger); font-weight: 700; }
+.fph-sp__status.is-ok { color: var(--fph-ok); font-weight: 700; }
+.fph-sp__next { margin: 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); text-align: center; }
+.fph-sp__next b { color: var(--fph-text2); }
+@media all {
+  .foms-prod-home.fph-has-sp { height: calc(var(--mk-vh) / var(--foms-ui-zoom, 1)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .fph-has-sp > * { flex-shrink: 0; }
+  .fph-has-sp > .fph-q { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0; padding: 0; }
+  .fph-has-sp > .fph-q[hidden] { display: none; }
+  .fph-has-sp > .fph-q.has-sp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .fph-q--sp .fph-q__list { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 0 16px 16px; overflow-y: auto; overscroll-behavior: contain; container: fph-ql / inline-size; line-height: 1.35; }
+  .fph-q--sp .fph-q__list > * { flex-shrink: 0; } 
+  .fph-q--sp .fph-q__list > .fph-stepnote { padding: 10px 4px 0; }
+  .fph-q--sp .fph-q__panes { display: block; min-height: 0; container: fph-sp / size; }
+  .fph-q--sp .fph-qr { grid-template-columns: 64px minmax(0, 1fr) calc(150px * var(--foms-fs, 1)); grid-template-rows: auto; padding: 0 18px 0 0; cursor: pointer; }
+  .fph-q--sp .fph-qr__n { grid-row: auto; }
+  .fph-q--sp .fph-qr__who { grid-column: auto; }
+  .fph-q--sp .fph-qr__due { grid-column: auto; grid-row: auto; flex-direction: column; align-items: stretch; gap: 0; text-align: right; }
+  .fph-q--sp .fph-qr__done, .fph-q--sp .fph-qr__hold { display: none; }
+  .fph-q--sp .fph-qr__holdtag { display: inline-flex; }
+  .fph-q--sp .fph-qr.is-on { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
+  .fph-q--sp .fph-qr.is-on .fph-qr__n { color: var(--fph-brand-dark); }
+  .fph-has-sp .pp-mimg img { padding: 6px; }
+  @container fph-ql (max-width: calc(108px + 20.375rem - 0.02px)) {
+    .fph-q--sp .fph-qr { grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: auto auto; padding-bottom: 10px; }
+    .fph-q--sp .fph-qr__n { grid-row: 1 / 3; }
+    .fph-q--sp .fph-qr__due { grid-column: 2; grid-row: 2; flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
+  }
+  @container fph-ql (max-width: calc(22rem - 0.02px)) {
+    .fph-q--sp .fph-q__nextlist { grid-template-columns: minmax(0, 1fr); }
+  }
+  @container fph-sp (max-height: 559.98px) {
+    .fph-sp, .fph-sp__top, .fph-sp__bot { gap: 8px; }
+    .fph-sp { padding-top: 12px; padding-bottom: 12px; }
+    .fph-sp__sub { margin-top: -4px; }
+    .fph-sp__done, .fph-sp__hold { min-height: 72px; }
+  }
+  @container fph-sp (max-width: calc(26rem + 36px)) {
+    .fph-sp__spec { grid-template-columns: auto minmax(0, 1fr); }
+  }
+}
+@media all {
+  .foms-prod-home__nav { gap: 0; padding: 0; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); }
+  .foms-prod-home__navtab { justify-content: center; padding: 0 14px; border-radius: 0; border-right: 1px solid var(--fph-line2); }
+  .foms-prod-home__navtab:last-child { border-right: 0; }
+  .foms-prod-home__navtab.is-on, .foms-prod-home__navtab.is-on:hover, .foms-prod-home__navtab.is-on:focus-visible { background: var(--fph-brand); color: #fff; box-shadow: none; }
+  .foms-prod-home__navtab.is-on small, .foms-prod-home__navtab.is-on small.is-hot { color: inherit; opacity: .85; }
+  .foms-prod-home .foms-fs { gap: 0; height: 44px; margin-right: 0; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
+  .foms-prod-home .foms-fs__label { margin: 0; padding: 0 10px; align-self: stretch; display: inline-flex; align-items: center; border-right: 1px solid var(--fph-line2); color: var(--fph-text3); }
+  .foms-prod-home .foms-fs__btn, .foms-prod-home .foms-fs__now { height: 44px; min-width: 44px; border: 0; border-right: 1px solid var(--fph-line2); border-radius: 0; background: var(--fph-surface); color: var(--fph-text2); }
+  .foms-prod-home .foms-fs__btn { width: 44px; }
+  .foms-prod-home .foms-fs__now { min-width: 60px; }
+  .foms-prod-home .foms-fs > :last-child { border-right: 0; }
+  .foms-prod-home .foms-fs__btn:hover:not(:disabled), .foms-prod-home .foms-fs__now:hover { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
+  .foms-prod-home .foms-fs__btn:focus-visible, .foms-prod-home .foms-fs__now:focus-visible { outline-offset: -3px; }
+  .foms-prod-home__btn-ic { display: block; margin-right: 8px; font-size: calc(22px * var(--foms-fs, 1)); }
+  .foms-prod-home__btn[data-foms-home-reload] { padding: 0 14px; } 
+  .foms-prod-home__btn.foms-prod-home__bell { display: inline-flex; }
+}
+/* ── 진짜 화면 모양(parts.css) ── */
+.foms-prod-home {
+  --fph-need-50: #c5c9ff;
+  --fph-need-700: #3a4490;
+  --fph-taken-50: #eecbda;
+  --fph-taken-300: #dca3bb;
+  --fph-taken-700: #7a3f5c;
+  --fph-done-50: #a7f3d0;
+  --fph-done-300: #6ee7b7;
+  --fph-done-700: #047857;
+  --fph-done-800: #065f46;
+  --fph-basic-50: #ccedff;
+  --fph-basic-300: #7dd3fc;
+  --fph-basic-700: #075985;
+  --fph-wait-50: #eeebb2;
+  --fph-wait-300: #d6d38a;
+  --fph-wait-700: #57571f;
+  --fph-mid-700: #7c3aed;
+}
+.foms-prod-home__me { margin-left: 4px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 600; color: var(--fph-text2); }
+.fph-parts { display: none; }
+.pp-rotate { margin: 0; padding: 24px 8px; font-size: calc(17px * var(--foms-fs, 1)); color: var(--fph-text3); text-align: center; }
+@media all {
+  .fph-parts { display: flex; flex-direction: column; gap: 6px; }
+  .fph-date.has-parts .fph-pane__now { display: none; }
+  .pp-rotate { display: none; }
+}
+.fph-parts [hidden], .pp-view [hidden] { display: none; }
+.pp-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 6px 0 8px; }
+.pp-head .fph-pane__h { padding-top: 0; min-height: 0; align-items: center; }
+.pp-parts { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--fph-surface); border: 1px solid var(--fph-line); }
+.pp-part { min-height: 48px; min-width: 64px; padding: 0 14px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); text-decoration: none; white-space: nowrap; }
+.pp-part:hover, .pp-part:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
+.pp-part.is-on { background: var(--fph-brand); color: #fff; }
+.pp-part:active { background: var(--fph-brand-50); color: var(--fph-brand-dark); } 
+.pp-bulk { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pp-unseen { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); white-space: nowrap; }
+.pp-unseen b { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text); }
+.pp-tabs { margin-left: auto; }
+.pp-head--switch { gap: 8px 10px; }
+.pp-head--switch .pp-bulk:has([data-pp-act="bulk"]:not([hidden])) .pp-unseen { display: none; }
+.pp-head--switch .pp-tabs .foms-prod-home__tab { padding: 0 12px; }
+.pp-head--switch .pp-part { min-width: 56px; padding: 0 10px; }
+.pp-tabs .foms-prod-home__tab { min-width: 0; padding: 0 16px; }
+.pp-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pp-card { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 8px 10px 10px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; }
+.pp-card { content-visibility: auto; contain-intrinsic-size: auto 312px; }
+.pp-card[hidden] { display: none; }
+.pp-card.is-mine { border: 2px solid var(--fph-brand); padding: 7px 9px 9px; }
+.pp-img { width: 100%; height: 148px; margin: 0 0 4px; padding: 0; background: #fff; border: 1px solid var(--fph-line); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: zoom-in; color: inherit; text-decoration: none; font: inherit; }
+.pp-img:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.pp-thumb { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.pp-card.is-done .pp-thumb, .pp-card.is-other .pp-thumb { opacity: .55; }
+.pp-img.is-broken, .pp-vimg.is-broken { background: var(--fph-wait-50); border-color: var(--fph-wait-300); }
+.pp-img.is-broken .pp-thumb, .pp-vimg.is-broken img { display: none; }
+.pp-broken { padding: 0 8px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-wait-700); text-align: center; }
+.pp-vimg .pp-broken { font-size: calc(20px * var(--foms-fs, 1)); }
+.pp-file { flex-direction: column; gap: 4px; cursor: pointer; }
+.pp-file b { font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); }
+.pp-file span { max-width: 92%; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-ln { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.pp-card .pp-ln { flex-wrap: wrap; row-gap: 0; }
+.pp-card .pp-ln .fph-dr__nm { flex: 0 1 auto; }
+.pp-no { flex-shrink: 0; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); white-space: nowrap; }
+.pp-chg { flex-shrink: 0; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-danger); }
+.pp-card .fph-dr__pr { -webkit-line-clamp: 1; line-clamp: 1; }
+.pp-replaced { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: #92400e; }
+.pp-by { margin: 1px 0 2px; }
+.fph-parts .fph-by i, .pp-view .fph-by i { font-size: calc(13px * var(--foms-fs, 1)); }
+.fph-parts .fph-wi small { font-size: calc(13px * var(--foms-fs, 1)); }
+.pp-by, .pp-by .fph-by { border: 0; box-shadow: none; background: transparent; cursor: default; user-select: none; }
+.fph-by.pp-w-done { color: var(--fph-done-700); font-weight: 800; }
+.fph-by.pp-w-basic { color: var(--fph-basic-700); font-weight: 800; }
+.fph-by.pp-w-need { color: var(--fph-mid-700); font-weight: 800; }
+.fph-by.pp-w-none { color: var(--fph-text3); font-weight: 600; }
+.pp-actbox { margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.pp-act { width: 100%; min-height: 56px; justify-content: center; font-size: calc(17px * var(--foms-fs, 1)); }
+.pp-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; }
+.pp-two .foms-prod-home__btn { min-height: 56px; padding: 0 8px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-wi.pp-st-need { background: var(--fph-need-50); border-color: var(--fph-brand); color: var(--fph-need-700); }
+.fph-wi.pp-st-taken { background: var(--fph-taken-50); border-color: var(--fph-taken-300); color: var(--fph-taken-700); }
+.fph-wi.pp-st-done { background: var(--fph-done-50); border-color: var(--fph-done-300); color: var(--fph-done-800); }
+.fph-wi.pp-st-basic { background: var(--fph-basic-50); border-color: var(--fph-basic-300); color: var(--fph-basic-700); }
+.fph-wi.pp-act:hover { color: inherit; }
+.fph-wi.pp-st-need:hover { color: var(--fph-need-700); border-color: var(--fph-brand); }
+.fph-wi.pp-st-taken:hover { color: var(--fph-taken-700); border-color: var(--fph-taken-300); }
+.fph-wi.pp-st-done:hover { color: var(--fph-done-800); border-color: var(--fph-done-300); }
+.fph-wi.pp-st-basic:hover { color: var(--fph-basic-700); border-color: var(--fph-basic-300); }
+.foms-prod-home .pp-fin.fph-qr__done { min-height: 72px; background: var(--fph-done-700); border-color: var(--fph-done-700); }
+.pp-undo-row { justify-content: space-between; gap: 6px; padding: 4px 4px 4px 12px; }
+.pp-undo-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pp-undo { flex-shrink: 0; min-height: 48px; padding: 0 12px; border: 1px solid var(--fph-line2); background: var(--fph-surface); font-size: calc(15px * var(--foms-fs, 1)); }
+.pp-grid:not(.is-need) .pp-only-need, .pp-grid.is-need .pp-not-need,
+.pp-grid:not(.is-done) .pp-only-done, .pp-grid.is-done .pp-not-done { display: none; }
+.pp-grid.is-need { grid-template-columns: minmax(0, 1fr); }
+.pp-grid.is-need .pp-card { display: grid; grid-template-columns: 56% minmax(0, 1fr); grid-template-rows: repeat(4, min-content) 1fr; column-gap: 14px; padding: 9px; }
+.pp-grid.is-need .pp-card > * { grid-column: 2; }
+.pp-grid.is-need .pp-img { grid-column: 1; grid-row: 1 / -1; height: 280px; margin: 0; }
+.pp-grid.is-need .pp-ln { flex-direction: column; gap: 2px; }
+.pp-grid.is-need .fph-dr__nm { white-space: normal; }
+.pp-grid.is-need .pp-actbox { grid-row: 5; align-self: end; }
+.pp-empty { margin: 0; padding: 28px 8px; text-align: center; font-size: calc(17px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.pp-cap { margin: 0; padding: 8px 4px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: #92400e; }
+.pp-wait-g { margin-top: 10px; }
+.fph-wi.pp-wait { background: var(--fph-wait-50); border-color: var(--fph-wait-300); color: var(--fph-wait-700); }
+.fph-wi.pp-wait small { color: var(--fph-wait-700); }
+.pp-view { position: fixed; inset: 0; z-index: 1065; display: flex; flex-direction: column; background: var(--fph-bg); }
+.pp-view[hidden] { display: none; }
+.foms-prod-home .pp-vtop { position: static; }
+.pp-vimg { flex: 1; min-height: 0; margin: 12px 16px; padding: 0; background: #fff; border: 1px solid var(--fph-line); border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: zoom-in; }
+.pp-vimg img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.pp-vbot { min-height: 92px; display: flex; align-items: center; gap: 10px 14px; padding: 0 16px; background: var(--fph-surface); border-top: 1px solid var(--fph-line); }
+.pp-nav { min-width: 64px; font-size: calc(20px * var(--foms-fs, 1)); }
+.pp-nav:disabled { opacity: .4; }
+.pp-page { min-width: 80px; text-align: center; font-size: calc(24px * var(--foms-fs, 1)); font-weight: 800; }
+.pp-vbot .pp-by { margin-left: 8px; }
+.pp-vbot .fph-by { font-size: calc(15px * var(--foms-fs, 1)); }
+.pp-vsp { flex: 1; }
+.pp-close { min-width: 130px; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; }
+.pp-vact { display: flex; align-items: center; gap: 10px; }
+.pp-vact .pp-two { display: flex; }
+.pp-vact .foms-prod-home__btn, .pp-vact .fph-qr__done { width: auto; min-width: 170px; min-height: 56px; padding: 0 22px; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; }
+.pp-vact .foms-prod-home__btn--pri { min-width: 250px; }
+.pp-vact .fph-qr__done { min-height: 56px; }
+.pp-vact .fph-wi { width: auto; min-width: 200px; min-height: 56px; padding: 0 18px; }
+.foms-prod-home .pp-modal .foms-prod-change-modal__dialog { max-width: 640px; }
+.foms-prod-home .pp-modal .foms-prod-change-modal__title { font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; }
+.foms-prod-home .pp-modal .foms-prod-change-modal__count { font-size: calc(16px * var(--foms-fs, 1)); }
+.foms-prod-home .pp-modal .pp-mitem { align-items: center; gap: 14px; padding: 10px; }
+.pp-mimg { flex: 0 0 auto; width: 220px; height: 132px; background: #fff; border: 1px solid var(--fph-line); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.pp-mimg img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.pp-mimg b { font-size: calc(20px * var(--foms-fs, 1)); color: var(--fph-brand-dark); }
+.pp-modal.is-many .pp-mimg { width: 180px; height: 124px; }
+.foms-prod-home .pp-modal .foms-prod-change-modal__item-customer { font-size: calc(19px * var(--foms-fs, 1)); }
+.foms-prod-home .pp-modal .foms-prod-change-modal__item-customer small { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.foms-prod-home .pp-modal .foms-prod-change-modal__item-id { font-size: calc(16px * var(--foms-fs, 1)); }
+.foms-prod-home .pp-modal .foms-prod-change-modal__alert-detail { font-size: calc(15px * var(--foms-fs, 1)); }
+.foms-prod-home .pp-modal .foms-prod-change-modal__alert { font-size: calc(16px * var(--foms-fs, 1)); border-left-width: 4px; }
+.foms-prod-home .pp-modal .pp-al--need { border-left-color: var(--fph-brand-dark); color: var(--fph-need-700); }
+.foms-prod-home .pp-modal .pp-al--done { border-left-color: var(--fph-done-700); color: var(--fph-done-800); }
+.foms-prod-home .pp-modal .pp-al--basic { border-left-color: var(--fph-basic-700); color: var(--fph-basic-700); }
+.foms-prod-home .pp-modal .pp-al--unbasic { border-left-color: var(--fph-brand); color: var(--fph-need-700); }
+.pp-mnote { margin: 10px 16px 0; padding: 8px 12px; border-radius: 9px; background: var(--fph-taken-50); color: var(--fph-taken-700); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; }
+.pp-merr { margin: 0 16px 10px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-danger); }
+.foms-prod-home .pp-modal .pp-mbtn { min-height: 60px; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; }
+.foms-prod-home .pp-modal .pp-mbtn:disabled { opacity: .6; cursor: wait; }
+.foms-prod-home .pp-modal .pp-mgo { flex: 1.4; color: #fff; }
+.foms-prod-home .pp-modal .pp-mgo--need { background: var(--fph-brand-dark); border-color: var(--fph-brand-dark); }
+.foms-prod-home .pp-modal .pp-mgo--done { background: var(--fph-done-700); border-color: var(--fph-done-700); }
+.foms-prod-home .pp-modal .pp-mgo--basic { background: var(--fph-basic-700); border-color: var(--fph-basic-700); }
+.foms-prod-home .pp-modal .pp-mgo--unbasic { background: var(--fph-brand); border-color: var(--fph-brand); }
+/* ── 진짜 화면 모양(sheet.css) ── */
+.foms-prod-page {
+  --fpp-bg: #eef0f3;
+  --fpp-surface: #ffffff;
+  --fpp-raised: #f7f8fa;
+  --fpp-line: #dde1e6;
+  --fpp-line2: #c1c7d0;
+  --fpp-text: #14171c;
+  --fpp-text2: #4b525d;
+  --fpp-text3: #6b7380;
+  --fpp-brand: #5a67d8;
+  --fpp-brand-dark: #4a55b8;
+  --fpp-brand-50: #f3f4ff;
+  --fpp-danger: #dc2626;
+  --fpp-danger-50: #fef2f2;
+  --fpp-warn: #d97706;
+  --fpp-warn-50: #fffbeb;
+  --fpp-amber-text: #92400e;
+  --fpp-ok: #059669;
+  --fpp-dwg: #2b2f36;
+  --fpp-dwg-dim: rgba(0, 0, 0, .35);
+  background: var(--fpp-bg);
+  color: var(--fpp-text);
+  font-variant-numeric: tabular-nums;
+}
+.foms-prod-page * { box-sizing: border-box; }
+.foms-prod-page svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.foms-prod-page__bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-height: 64px;
+  padding: 8px 16px;
+  background: var(--fpp-surface);
+  border-bottom: 1px solid var(--fpp-line);
+}
+.foms-prod-page__back { display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 10px 0 4px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text2); text-decoration: none; white-space: nowrap; }
+.foms-prod-page__back svg { font-size: calc(22px * var(--foms-fs, 1)); }
+.foms-prod-page__back:hover, .foms-prod-page__back:focus-visible { color: var(--fpp-brand-dark); text-decoration: none; }
+.foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-prod-page__title small { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); }
+.foms-prod-page__title-prod { font-weight: 700; color: var(--fpp-text2); }
+.foms-prod-page__due { padding: 6px 12px; border-radius: 8px; background: var(--fpp-brand-50); color: var(--fpp-brand-dark); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.foms-prod-page__badge { padding: 4px 10px; border-radius: 999px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; color: #fff; background: var(--fpp-text3); white-space: nowrap; }
+.foms-prod-page__badge--hold { background: var(--fpp-warn); }
+.foms-prod-page__badge--rework { background: var(--fpp-danger); }
+.foms-prod-page__badge--drawing { background: var(--fpp-brand); }
+.foms-prod-page__sp { flex: 1; }
+.foms-prod-page__btn {
+  min-height: 56px;
+  padding: 0 18px;
+  border: 1px solid var(--fpp-line2);
+  border-radius: 10px;
+  background: var(--fpp-surface);
+  color: var(--fpp-text);
+  font: inherit;
+  font-size: calc(16px * var(--foms-fs, 1));
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.foms-prod-page__btn svg { font-size: calc(20px * var(--foms-fs, 1)); }
+.foms-prod-page__btn.foms-prod-page__bell { display: none; position: relative; width: 56px; padding: 0; }
+.foms-prod-page__bell i { font-size: calc(20px * var(--foms-fs, 1)); }
+.foms-prod-page__bell-badge { position: absolute; top: 7px; right: 9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--fpp-danger); color: #fff; font-size: calc(10px * var(--foms-fs, 1)); font-weight: 700; line-height: 16px; text-align: center; }
+.foms-prod-page__bell-badge[hidden] { display: none; }
+.foms-prod-page__btn:hover, .foms-prod-page__btn:focus-visible { background: var(--fpp-brand-50); color: var(--fpp-brand-dark); text-decoration: none; outline: none; }
+.foms-prod-page__btn--pri { background: var(--fpp-brand); border-color: var(--fpp-brand); color: #fff; }
+.foms-prod-page__btn--pri:hover, .foms-prod-page__btn--pri:focus-visible { background: var(--fpp-brand-dark); border-color: var(--fpp-brand-dark); color: #fff; }
+.foms-prod-page__btn--big { min-height: 64px; font-size: calc(20px * var(--foms-fs, 1)); border-radius: 12px; flex: 1; }
+.foms-prod-page__btn--ghost { border-color: transparent; background: transparent; color: var(--fpp-text2); }
+.foms-prod-page__btn--bad { border-color: var(--fpp-danger); color: var(--fpp-danger); background: var(--fpp-danger-50); }
+.foms-prod-page__btn--bad:hover, .foms-prod-page__btn--bad:focus-visible { background: var(--fpp-danger); color: #fff; }
+.foms-prod-page__btn--warn { background: var(--fpp-warn); border-color: var(--fpp-warn); }
+.foms-prod-page__btn.is-active { background: var(--fpp-warn-50); border-color: var(--fpp-warn); color: var(--fpp-amber-text); }
+.foms-prod-page__btn:disabled { opacity: .55; cursor: default; }
+.foms-prod-page__btn--off, .foms-prod-page__btn--off:disabled, .foms-prod-page__btn--off:hover { opacity: 1; background: var(--fpp-raised); border-color: var(--fpp-line); color: var(--fpp-text3); }
+.foms-prod-page__btn:disabled > * { pointer-events: none; } 
+.foms-prod-page__btn b { font-weight: inherit; }
+.foms-prod-page__off-hint { font-weight: 700; white-space: normal; word-break: keep-all; }
+.foms-prod-page__off-hint[hidden] { display: none; }
+.foms-prod-page__body { display: grid; grid-template-columns: minmax(0, 1fr) 500px; min-height: calc(var(--mk-vh) / var(--foms-ui-zoom, 1) - 64px); }
+.foms-prod-page__dwg { position: relative; background: var(--fpp-dwg); color: #fff; min-height: 420px; display: flex; flex-direction: column; overflow: hidden; }
+.foms-prod-page__cap { margin: 0; padding: 12px 16px 0; text-align: center; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 700; }
+.foms-prod-page__main-btn { flex: 1; min-height: 0; border: 0; background: transparent; padding: 12px 90px; cursor: zoom-in; display: flex; align-items: center; justify-content: center; }
+.foms-prod-page__main { max-width: 100%; max-height: calc(var(--mk-vh) / var(--foms-ui-zoom, 1) - 64px - 160px); object-fit: contain; background: #fff; border-radius: 4px; }
+.foms-prod-page__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .35);
+  background: rgba(255, 255, 255, .14);
+  color: #fff;
+  font-size: calc(40px * var(--foms-fs, 1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.foms-prod-page__nav:hover, .foms-prod-page__nav:focus-visible { background: rgba(255, 255, 255, .3); outline: none; }
+.foms-prod-page__nav--prev { left: 12px; }
+.foms-prod-page__nav--next { right: 12px; }
+.foms-prod-page__nodwg { flex: 1; margin: 0; display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--foms-fs, 1)); color: rgba(255, 255, 255, .7); }
+.foms-prod-page__thumbs { display: flex; gap: 12px; justify-content: center; align-items: center; padding: 10px 12px; background: var(--fpp-dwg-dim); overflow-x: auto; }
+.foms-prod-page__th {
+  position: relative;
+  flex: 0 0 auto;
+  width: 112px;
+  height: 76px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: #3a3f48;
+  color: #cfd4dc;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+.foms-prod-page__th img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.foms-prod-page__th span { position: relative; z-index: 1; padding: 2px 8px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; background: rgba(0, 0, 0, .55); color: #fff; border-radius: 0 6px 0 0; }
+.foms-prod-page__th.is-on { border-color: #9ea4ff; }
+.foms-prod-page__th--file { flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-style: dashed; border-color: #8b929e; }
+.foms-prod-page__th--file span { position: static; background: transparent; padding: 0; font-size: calc(15px * var(--foms-fs, 1)); }
+.foms-prod-page__th--file small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; }
+.foms-prod-page__side { background: var(--fpp-surface); border-left: 1px solid var(--fpp-line); padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.foms-prod-page__box { border: 1px solid var(--fpp-line); border-radius: 12px; padding: 10px 14px 12px; }
+.foms-prod-page__box--alert { border-color: var(--fpp-danger); background: var(--fpp-danger-50); }
+.foms-prod-page__h { margin: 0 0 6px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpp-text3); letter-spacing: .02em; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.foms-prod-page__h small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text2); }
+.foms-prod-page__row { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+.foms-prod-page__row + .foms-prod-page__row { border-top: 1px solid var(--fpp-line); padding-top: 6px; margin-top: 6px; }
+.foms-prod-page__v { flex: 1; min-width: 0; font-size: calc(18px * var(--foms-fs, 1)); font-weight: 800; }
+.foms-prod-page__v small { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 500; color: var(--fpp-text2); white-space: normal; }
+.foms-prod-page__v--addr { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 600; color: var(--fpp-text); }
+.foms-prod-page__items { margin: 0; padding: 0; list-style: none; }
+.foms-prod-page__item { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 12px; padding: 4px 0; font-size: calc(16px * var(--foms-fs, 1)); }
+.foms-prod-page__item span:first-child { font-weight: 700; }
+.foms-prod-page__item span:last-child { margin-left: auto; color: var(--fpp-text2); text-align: right; }
+.foms-prod-page__clr { margin: 6px 0 0; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); }
+.foms-prod-page__muted { margin: 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fpp-text3); align-self: center; }
+.foms-prod-page__notes { margin: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-danger); white-space: pre-wrap; }
+.foms-prod-page__changes { margin: 0 0 10px; padding-left: 18px; font-size: calc(16px * var(--foms-fs, 1)); display: grid; gap: 4px; }
+.foms-prod-page__changes b { color: var(--fpp-danger); }
+.foms-prod-page__callout { margin: 0; padding: 10px 14px; border-left: 4px solid var(--fpp-warn); background: var(--fpp-warn-50); color: var(--fpp-amber-text); border-radius: 6px; font-size: calc(15px * var(--foms-fs, 1)); }
+.foms-prod-page__callout--rework { border-left-color: var(--fpp-danger); background: var(--fpp-danger-50); color: var(--fpp-danger); }
+.foms-prod-page__steps { display: flex; flex-direction: column; }
+.foms-prod-page__step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 0 4px;
+  border: 0;
+  border-top: 1px solid var(--fpp-line);
+  background: transparent;
+  color: var(--fpp-text);
+  font: inherit;
+  font-size: calc(18px * var(--foms-fs, 1));
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.foms-prod-page__step:first-child { border-top: 0; }
+.foms-prod-page__step:focus-visible { outline: 3px solid var(--fpp-brand); outline-offset: -3px; border-radius: 8px; }
+.foms-prod-page__step i { width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--fpp-line2); display: flex; align-items: center; justify-content: center; color: transparent; font-size: calc(24px * var(--foms-fs, 1)); flex-shrink: 0; }
+.foms-prod-page__step span { flex: 1; }
+.foms-prod-page__step small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 500; color: var(--fpp-text3); white-space: nowrap; }
+.foms-prod-page__step.is-done i { background: var(--fpp-brand); border-color: var(--fpp-brand); color: #fff; }
+.foms-prod-page__step.is-now { color: var(--fpp-brand-dark); }
+.foms-prod-page__step.is-now i { border: 3px solid var(--fpp-brand); background: var(--fpp-brand-50); }
+.foms-prod-page__step:disabled { opacity: .6; cursor: wait; }
+.foms-prod-page__step.is-locked:disabled { opacity: 1; cursor: default; }
+.foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); }
+.foms-prod-page__defect-recent { margin: 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-danger); }
+.foms-prod-page__box > .foms-prod-page__defect-recent { margin-top: 8px; }
+.foms-prod-page__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.foms-prod-page__chip { min-height: 48px; padding: 0 16px; border: 1px solid var(--fpp-danger); border-radius: 999px; background: var(--fpp-surface); color: var(--fpp-danger); font: inherit; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
+.foms-prod-page__chip:hover, .foms-prod-page__chip:focus-visible { background: var(--fpp-danger); color: #fff; outline: none; }
+.foms-prod-page__chip:disabled { opacity: .5; cursor: wait; }
+.foms-prod-page__side-scroll { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.foms-prod-page__foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.foms-prod-page__pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.foms-prod-page__foot .foms-prod-page__chips[hidden] { display: none; }
+.foms-prod-page__acts { display: flex; gap: 10px; align-items: stretch; }
+.foms-prod-page__statusrow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 20px; }
+.foms-prod-page__status { margin: 0; min-height: 20px; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); text-align: right; }
+.foms-prod-page__statusrow .foms-prod-page__status { text-align: left; }
+.foms-prod-page__status.is-bad { color: var(--fpp-danger); font-weight: 700; }
+.foms-prod-page__status.is-ok { color: var(--fpp-ok); font-weight: 700; }
+.foms-prod-page__net { flex-shrink: 0; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); white-space: nowrap; }
+.foms-prod-page__net.is-bad { color: var(--fpp-danger); font-weight: 700; }
+@media all {
+  .foms-prod-page { height: calc(var(--mk-vh) / var(--foms-ui-zoom, 1)); display: flex; flex-direction: column; }
+  .foms-prod-page__bar { flex-wrap: nowrap; flex-shrink: 0; }
+  .foms-prod-page__body { flex: 1 1 auto; height: auto; min-height: 0; }
+  .foms-prod-page__dwg { min-height: 0; }
+  .foms-prod-page__side { overflow: hidden; padding-bottom: 12px; }
+  .foms-prod-page__side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px 4px; }
+  .foms-prod-page__foot { flex-shrink: 0; margin-top: 0; padding-top: 10px; border-top: 1px solid var(--fpp-line); }
+  .foms-prod-page__main-btn { padding: 12px 86px; }
+  .foms-prod-page__btn.foms-prod-page__bell { display: inline-flex; }
+}
+.foms-prod-sheet__foot { flex-wrap: wrap; }
+.foms-prod-sheet__btn--off, .foms-prod-sheet__btn--off:disabled, .foms-prod-sheet__btn--off:hover { flex: 2; opacity: 1; background: #f7f8fa; border-color: #dde1e6; color: #6b7380; cursor: default; white-space: normal; }
+.foms-prod-sheet__btn:disabled > * { pointer-events: none; }
+.foms-prod-sheet__btn b { font-weight: inherit; }
+.foms-prod-sheet__off-hint { display: block; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; word-break: keep-all; }
+.foms-prod-sheet__off-hint[hidden] { display: none; }
+.foms-tablet-sheet--headless .foms-prod-sheet__titlebar { padding-right: 36px; }
+.foms-prod-sheet__contact { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin: 0 0 10px; border: 1px solid #dde1e6; border-radius: 10px; background: #fff; }
+.foms-prod-sheet__contact-row { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+.foms-prod-sheet__contact-text { flex: 1; min-width: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: #14171c; word-break: keep-all; overflow-wrap: anywhere; }
+.foms-prod-sheet__contact-btn { min-height: 48px; min-width: 64px; padding: 0 14px; border: 1px solid #c1c7d0; border-radius: 10px; background: #fff; color: #14171c; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; white-space: nowrap; }
+.foms-prod-sheet__contact-btn:hover, .foms-prod-sheet__contact-btn:focus-visible { background: #f3f4ff; color: #4a55b8; text-decoration: none; }
+.foms-prod-sheet__contact-meta { font-size: calc(13px * var(--foms-fs, 1)); color: #4b525d; }
+.foms-prod-sheet__contact-meta a { color: #4a55b8; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.foms-prod-sheet__card-count { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4b525d; margin-left: 6px; }
+.foms-prod-sheet .foms-prod-page__steps { display: flex; flex-direction: column; }
+.foms-prod-sheet .foms-prod-page__step { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 2px; border: 0; border-top: 1px solid #dde1e6; background: transparent; color: #14171c; font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; text-align: left; cursor: pointer; }
+.foms-prod-sheet .foms-prod-page__step:first-child { border-top: 0; }
+.foms-prod-sheet .foms-prod-page__step i { width: 40px; height: 40px; border-radius: 10px; border: 2px solid #c1c7d0; display: flex; align-items: center; justify-content: center; color: transparent; flex-shrink: 0; }
+.foms-prod-sheet .foms-prod-page__step i svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.foms-prod-sheet .foms-prod-page__step span { flex: 1; }
+.foms-prod-sheet .foms-prod-page__step small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 500; color: #6b7380; white-space: nowrap; }
+.foms-prod-sheet .foms-prod-page__step.is-done i { background: #5a67d8; border-color: #5a67d8; color: #fff; }
+.foms-prod-sheet .foms-prod-page__step.is-now { color: #4a55b8; }
+.foms-prod-sheet .foms-prod-page__step.is-now i { border: 3px solid #5a67d8; background: #f3f4ff; }
+.foms-prod-sheet .foms-prod-page__step:disabled { opacity: .6; cursor: wait; }
+.foms-prod-sheet .foms-prod-page__step.is-locked:disabled { opacity: 1; cursor: default; }
+.foms-prod-sheet .foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4b525d; }
+.foms-prod-sheet .foms-prod-page__defect { margin-top: 8px; padding-top: 8px; border-top: 1px solid #dde1e6; display: flex; flex-direction: column; gap: 8px; }
+.foms-prod-sheet .foms-prod-page__defect-recent { margin: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #dc2626; }
+.foms-prod-sheet .foms-prod-page__btn--bad { min-height: 48px; padding: 0 14px; border: 1px solid #dc2626; border-radius: 10px; background: #fef2f2; color: #dc2626; font: inherit; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
+.foms-prod-sheet .foms-prod-page__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.foms-prod-sheet .foms-prod-page__chips[hidden] { display: none; }
+.foms-prod-sheet .foms-prod-page__chip { min-height: 44px; padding: 0 14px; border: 1px solid #dc2626; border-radius: 999px; background: #fff; color: #dc2626; font: inherit; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
+.foms-prod-sheet .foms-prod-page__chip:disabled { opacity: .5; cursor: wait; }
+.foms-prod-sheet .foms-prod-page__status { margin: 4px 0 0; min-height: 0; font-size: calc(13px * var(--foms-fs, 1)); color: #6b7380; text-align: right; }
+.foms-prod-sheet .foms-prod-page__status.is-bad { color: #dc2626; font-weight: 700; }
+.foms-prod-sheet .foms-prod-page__status.is-ok { color: #059669; font-weight: 700; }
+.foms-prod-sheet .foms-prod-page__status:empty { display: none; }
+.foms-prod-sheet__drawing--strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.foms-prod-sheet__drawing--strip .foms-prod-sheet__drawing-thumb { flex: 0 0 auto; width: 112px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #dde1e6; cursor: zoom-in; }
+.foms-prod-sheet__drawing-file { flex: 0 0 auto; width: calc(112px * var(--foms-fs, 1)); min-height: 80px; overflow-wrap: anywhere; border: 1px dashed #c1c7d0; border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4a55b8; text-decoration: none; }
+/* ── 글자 손잡이(foms-ui-zoom.css) ── */
+.foms-fs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.foms-fs__label {
+  margin-right: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6c757d;
+}
+
+.foms-fs__btn,
+.foms-fs__now {
+  height: 30px;
+  padding: 0;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: #fff;
+  color: #343a40;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.foms-fs__btn {
+  width: 30px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.foms-fs__now {
+  min-width: 50px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.foms-fs__btn:hover:not(:disabled),
+.foms-fs__now:hover {
+  background: #f1f3f5;
+}
+
+.foms-fs__btn:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.foms-fs__btn:focus-visible,
+.foms-fs__now:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 1px;
+}
+/* ── 7판에서 더한 것 ── */
+
+/* ① 날 줄 막대 밑 작은 글 한 줄(줄 높이 그대로 — 날짜 칸이 이미 두 줄이라) */
+.fph-sd__mid{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0}
+.fph-sd__dw{min-width:0;font-size:calc(13px * var(--foms-fs,1));font-weight:800;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fph-brand-dark)}
+.fph-sd__dw.is-late,.fph-dwst.is-late{color:#b91c1c}
+.fph-sd__dw.is-soon,.fph-dwst.is-soon{color:#b45309}
+.fph-sd__dw.is-ok,.fph-dwst.is-ok{color:#047857}
+.fph-dwst{font-weight:800;color:var(--fph-brand-dark)}
+/* ⑦ 기다림 칩 둘째 줄: 막힌 까닭 · 도면 담당 · 영업 담당 */
+.fph-wi.has-why{flex-wrap:wrap;row-gap:1px;align-content:center;padding-block:5px}
+.fph-wi__why{flex:1 1 100%;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:calc(13px * var(--foms-fs,1));font-weight:700;color:var(--fph-text2)}
+.fph-wi__why b{font-weight:800;color:#92400e}
+.fph-wi__why b.is-none{color:var(--fph-danger)}
+.fph-pane__g small .is-late{color:#b91c1c;font-weight:800}
+/* 내 공정 줄의 시공 칸 — 날짜 탭과 같은 색(지난 집 빨강 · 오늘 남색) */
+.fph-qr__due.is-past,.fph-qr__due.is-past b{color:#b91c1c}
+.fph-qr__due small{font-size:calc(14px * var(--foms-fs,1));font-weight:800}
+/* 찾기: 막힌 까닭 줄 */
+.foms-prod-home__pr.is-why b{color:#92400e}
+.foms-prod-home__day .fph-dwst{font-size:calc(14px * var(--foms-fs,1))}
+/* 작업 시트: 도면 칸 빈 자리 글 */
+.foms-prod-page__nodwg.is-wait{flex-direction:column;gap:10px;text-align:center;color:#fff}
+.foms-prod-page__nodwg.is-wait b{font-size:calc(24px * var(--foms-fs,1));font-weight:800}
+.foms-prod-page__nodwg.is-wait span{font-size:calc(18px * var(--foms-fs,1));font-weight:700;color:rgba(255,255,255,.85)}
+.foms-prod-page__nodwg.is-wait .is-late{color:#fca5a5}
+.foms-prod-page__nodwg.is-wait small{margin-top:4px;padding:6px 14px;border-radius:999px;background:rgba(255,255,255,.12);font-size:calc(16px * var(--foms-fs,1));font-weight:700;color:rgba(255,255,255,.9)}
+
+
+
+/* ── 2공장 흐름 목업에서 더한 것 ── */
+:root{--f1:#3a4490;--f1-bg:#e3e6ff;--f1-line:#b9c0f5;--f2:#0f6b63;--f2-bg:#cdf3ec;--f2-line:#7fd6c6;--est:#a16207;--est-bg:#fffbeb;--qbg:#db2777}
+.wrap{max-width:1400px}
+.sec{margin-top:52px;scroll-margin-top:16px}
+.sec > h2{margin:0 0 6px;font-size:26px;font-weight:800;letter-spacing:-.01em}
+.sec > h2 .no{display:inline-flex;width:34px;height:34px;border-radius:10px;background:var(--accent);color:#fff;align-items:center;justify-content:center;font-size:18px;margin-right:10px;vertical-align:2px}
+.sec > p.idea{margin:0 0 14px;color:var(--muted);max-width:92ch;font-size:16px}
+.sec > p.idea b{color:var(--fg)}
+.sec h3.sub{margin:26px 0 8px;font-size:19px;font-weight:800}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:14px 0 0;padding:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;font-size:15px;color:var(--muted)}
+.legend > span{display:inline-flex;align-items:center;gap:6px}
+.q{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:24px;height:24px;margin:0 2px;border-radius:50%;background:var(--qbg);color:#fff;font-style:normal;font-size:13px;font-weight:800;line-height:1;vertical-align:1px;box-shadow:0 0 0 2px #fff}
+.art .q{width:30px;height:30px;font-size:16px}
+.art .fph-dr__steps .q{align-self:center;margin-left:2px}
+.gap{height:12px}
+.art .q-strip{position:absolute;right:6px;top:4px}
+.art .fph-sd{position:relative}
+.est{position:relative;border:2px dashed var(--est);border-radius:10px;background:var(--est-bg)}
+.est-tag{display:inline-block;margin-right:6px;padding:0 6px;border-radius:6px;background:var(--est);color:#fff;font-size:12px;font-weight:800;line-height:20px;vertical-align:1px}
+.art .est-tag{font-size:13px;line-height:22px}
+.art .est-in{margin-top:8px;padding:2px 8px 8px}
+.art .est-in .fph-pane__g{margin-top:0}
+.art .est-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:14px;font-weight:700;color:#713f12}
+.fz{display:inline-flex;align-items:center;padding:0 7px;border-radius:6px;font-size:13px;font-weight:800;line-height:20px;white-space:nowrap;border:1px solid}
+.fz1{background:var(--f1-bg);color:var(--f1);border-color:var(--f1-line)}
+.fz2{background:var(--f2-bg);color:var(--f2);border-color:var(--f2-line)}
+.fz0{background:#fff7ed;color:#9a3412;border-color:#fdba74;border-style:dashed}
+.art .fx-fac{display:inline-flex;align-items:center;margin-left:6px;padding:0 10px;border-radius:8px;font-size:calc(16px * var(--foms-fs,1));font-weight:800;line-height:28px;vertical-align:2px}
+.art .fx-f1{background:var(--f1-bg);color:var(--f1)}
+.art .fx-f2{background:var(--f2-bg);color:var(--f2)}
+.art .fx-row{border-color:var(--f1-line)}
+.art .fx-dw,.snip .fx-dw{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;color:var(--f1)}
+.art .fx-dw small,.snip .fx-dw small{font-size:calc(13px * var(--foms-fs,1));font-weight:800;color:var(--f2)}
+.art .fx-other{color:#713f12}
+.art .fx-wi2{background:var(--f2-bg);border-color:var(--f2-line);color:var(--f2)}
+.art .fx-wi1{background:var(--f1-bg);border-color:var(--f1-line);color:var(--f1)}
+.art .fx-tag{font-style:normal;flex-shrink:0;padding:0 6px;border-radius:6px;background:var(--f2-bg);color:var(--f2);font-size:calc(12px * var(--foms-fs,1));font-weight:800}
+.art .is-soon-t,.is-soon-t{color:#b45309;font-weight:800}
+/* 흐름도 */
+.fl{display:grid;grid-template-columns:150px repeat(3,minmax(0,1fr));gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px}
+.fl-corner{padding:8px;font-size:14px;font-weight:800;color:var(--muted);align-self:end}
+.fl-head{padding:10px 12px;border-radius:10px;background:var(--th);display:flex;flex-direction:column;gap:2px}
+.fl-head b{font-size:18px}
+.fl-head small{font-size:14px;color:var(--muted);font-weight:700}
+.fl-lane{padding:10px;border-radius:10px;display:flex;flex-direction:column;justify-content:center;gap:2px;background:#f1f3f7}
+.fl-lane b{font-size:16px}
+.fl-lane small{font-size:13px;color:var(--muted);font-weight:700}
+.fl-lane.fl-lane2{background:var(--f1-bg)}
+.fl-lane.fl-lane3{background:var(--f2-bg)}
+.fl-cell{padding:8px;border-radius:10px;border:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.fl-cell.fl-lane2{border-color:var(--f1-line)}
+.fl-cell.fl-lane3{border-color:var(--f2-line)}
+.fl-box{position:relative;padding:7px 10px;border-radius:8px;background:#f7f8fa;border:1px solid var(--line);font-size:15px;line-height:1.45}
+.fl-box + .fl-box::before{content:"";position:absolute;left:50%;top:-7px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #9aa3b2;transform:translateX(-50%)}
+.fl-box.est{background:var(--est-bg);border:2px dashed var(--est)}
+.fl-box.fl-none{background:transparent;border-style:dashed;color:var(--muted);text-align:center}
+.fl-box.fl-quiet{color:var(--muted)}
+.fl-gate{grid-column:1 / -1;padding:9px 14px;border-radius:10px;background:#eef2ff;border:1px solid #c7cdf7;font-size:15px;color:#1e2a6b}
+/* 도면 마법사 그림 */
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.pair > div{min-width:0}
+.stack{display:grid;gap:14px}
+.stack .wz-body{min-height:0;grid-template-columns:200px minmax(0,1fr)}
+.stack .wz-canvas svg{max-width:300px}
+.tag{display:inline-block;margin:0 0 6px;padding:2px 10px;border-radius:999px;font-size:14px;font-weight:800}
+.tag.now{background:#eef0f3;color:#374151;border:1px solid var(--line)}
+.tag.after{background:#ecfdf3;color:#067647;border:1px solid #75e0a7}
+.wz{border:1px solid #d2d6dc;border-radius:12px;overflow:hidden;background:#fff;color:#1d1d1f;font-size:13px}
+.wz-bar{display:flex;align-items:center;gap:8px;height:46px;padding:0 12px;border-bottom:1px solid rgba(0,0,0,.07)}
+.wz-title{font-size:15px}
+.wz-ord{color:#6e6e73;font-weight:600}
+.wz-sp{flex:1}
+.wz-btn{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;border:1px solid #d2d2d7;background:#fff;font-weight:600}
+.wz-btn.is-pri{background:#0071e3;border-color:#0071e3;color:#fff}
+.wz-tabrow{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 10px;background:#f5f5f7;border-bottom:1px solid rgba(0,0,0,.07)}
+.wz-tabs{display:flex;flex-wrap:wrap;gap:4px;min-width:0;flex:1}
+.wz-tab{display:inline-flex;align-items:center;gap:5px;padding:5px 8px 5px 10px;border-radius:8px;color:#6e6e73;font-weight:500;white-space:nowrap}
+.wz-tab.is-on{background:#fff;color:#1d1d1f;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.wz-tx{color:#9a9aa0;font-size:12px}
+.wz-add{padding:5px 10px;color:#0071e3;font-weight:600}
+.wz-side{display:inline-flex;align-items:center;gap:6px;flex-shrink:0}
+.wz-chipok{padding:2px 8px;border-radius:999px;background:#e8f5e9;color:#1b5e20;font-weight:600}
+.wz-swl{font-weight:700;color:#3a3a3c}
+.wz-seg{display:inline-flex;border:1px solid #c7c7cc;border-radius:8px;overflow:hidden;background:#fff}
+.wz-seg b{padding:4px 12px;font-weight:700;color:#6e6e73}
+.wz-seg b + b{border-left:1px solid #c7c7cc}
+.wz-seg b.is-on{background:var(--f1-bg);color:var(--f1)}
+.wz-body{display:grid;grid-template-columns:150px minmax(0,1fr);min-height:170px}
+.wz-prod{display:flex;flex-direction:column;gap:4px;padding:10px;border-right:1px solid rgba(0,0,0,.07);background:#fbfbfd}
+.wz-pi{padding:5px 8px;border-radius:6px;color:#3a3a3c}
+.wz-pi.is-on{background:#e8f0fe;color:#0b57d0;font-weight:600}
+.wz-canvas{padding:12px;display:flex;align-items:center;justify-content:center;background:#e9ebee}
+.wz-canvas svg{width:100%;max-width:420px;background:#fff;stroke:#3b4250;stroke-width:1.4;fill:none}
+.wz-canvas svg text{fill:#3b4250;stroke:none;font-size:11px;font-weight:700}
+.ss{width:100%;max-width:400px;border:1px solid #d2d6dc;border-radius:12px;background:#fff;padding:14px;box-shadow:0 6px 20px rgba(0,0,0,.08);font-size:14px;color:#1d1d1f}
+.ss-h{font-size:16px;font-weight:800}
+.ss-s{color:#6e6e73;margin-bottom:8px}
+.ss-o{display:flex;gap:8px;padding:6px 0;align-items:flex-start}
+.ss-o b{display:block}
+.ss-o small{color:#6e6e73}
+.ss-box{width:18px;height:18px;margin-top:2px;flex-shrink:0;border-radius:4px;border:2px solid #8e8e93}
+.ss-box.is-on{background:#0071e3;border-color:#0071e3}
+.ss-sum{margin:6px 0 4px;padding:8px 10px;border-radius:8px;background:#f5f5f7;font-weight:700;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.ss-f{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+.gl{border:1px solid #d2d6dc;border-radius:12px;background:#fff;padding:12px;font-size:14px}
+.gl-h{font-weight:800;margin-bottom:8px}
+.gl-h small{font-weight:600;color:#6e6e73;margin-left:6px}
+.gl-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.gl-it{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.gl-pic{width:100%;height:58px;border-radius:6px;border:1px solid #dde1e6;background:repeating-linear-gradient(90deg,#fff 0 22px,#eef0f3 22px 23px)}
+.gl-pic.is-file{display:flex;align-items:center;justify-content:center;background:#f7f8fa;color:#6b7380;font-weight:800}
+.gl-up{margin-top:12px;padding-top:10px;border-top:1px dashed #c1c7d0}
+.gl-q{display:inline-flex;align-items:center;gap:2px}
+.gl-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.mix-note{margin-top:10px;font-size:15px;color:var(--muted)}
+.mix-note b{color:var(--fg)}
+/* A/B */
+.ab{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:6px}
+.ab-col{min-width:0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.ab-h{font-size:18px;font-weight:800;display:flex;gap:8px;align-items:flex-start}
+.ab-k{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--accent);color:#fff;font-size:16px}
+.ab-p{margin:0;color:var(--muted);font-size:15px}
+.ab-p b{color:var(--fg)}
+.ab-step{font-size:15px;font-weight:700}
+.ab-t{display:inline-block;margin-right:8px;padding:0 8px;border-radius:6px;background:var(--th);font-size:13px;color:var(--muted)}
+.ab-l{margin:4px 0 0;padding-left:18px;font-size:15px;color:var(--muted);display:grid;gap:4px}
+.ab-l b{color:var(--fg);margin-right:4px}
+.snip .foms-prod-home{min-height:0}
+.pp-card,.fph-dr{content-visibility:visible}
+.snip{background:#eef0f3;color:#14171c;border-radius:12px;padding:8px;font-size:16px;line-height:1.5;--foms-ui-zoom:1}
+.snip *{box-sizing:border-box}
+.snip a{color:inherit;text-decoration:none}
+.snip h1,.snip h2,.snip h3,.snip p{margin:0}
+.snip .fph-dr{grid-template-columns:118px minmax(0,1fr) auto 100px}
+.snip .fph-wg1{grid-template-columns:minmax(0,1fr)}
+.xn-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.xn{display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:10px;background:#f7f8fa;border:1px solid var(--line)}
+.xn .fz{align-self:flex-start}
+.xn b{font-size:17px}
+.xn small{font-size:13px;color:var(--muted);font-weight:700}
+.ship{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.ship-h{font-size:18px;font-weight:800;margin-bottom:8px}
+.ship-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ship-c{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#f7f8fa;font-size:15px;color:var(--muted)}
+.ship-c b{color:var(--fg);font-size:16px}
+.ship-c.est{border:2px dashed var(--est);background:var(--est-bg)}
+.ship-c .est-tag{align-self:flex-start}
+/* 기존 칸 */
+.flag{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+.flag-c{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;font-size:16px;color:var(--muted)}
+.flag-c h3{margin:0 0 8px;font-size:18px;color:var(--fg)}
+.flag-c ul{margin:0;padding-left:20px;display:grid;gap:6px}
+.flag-c b{color:var(--fg)}
+.flag-opts{display:grid;gap:8px;margin-top:4px}
+.flag-o{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#f7f8fa}
+.flag-o b{display:block;color:var(--fg)}
+.flag-o i{font-style:normal;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-right:6px;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:800}
+/* 질문 */
+.qs{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,560px),1fr));gap:10px}
+.qs li{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.qn{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--qbg);color:#fff;font-weight:800;font-size:16px}
+.qs b{font-size:17px}
+.qas{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.qa{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid #c7cdf7;background:#f3f4ff;color:#2b3480;font-size:15px;font-weight:700}
+.qa i{font-style:normal;font-size:12px;font-weight:800;color:#fff;background:#4a55b8;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center}
+.qs small{display:block;margin-top:6px;font-size:14px;color:var(--muted)}
+@media (max-width:900px){.pair,.ab,.flag,.ship-g,.xn-g{grid-template-columns:minmax(0,1fr)}.fl{grid-template-columns:90px repeat(3,minmax(160px,1fr));overflow-x:auto}}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--f1-bg:#232a5c;--f1:#c7ccff;--f1-line:#4a55b8;--f2-bg:#0f3b36;--f2:#9ff0e0;--f2-line:#1f8a7a;--est-bg:#2a2210;--est:#f59e0b}
+:root:not([data-theme="light"]) .fl-box,:root:not([data-theme="light"]) .fl-lane,:root:not([data-theme="light"]) .xn,:root:not([data-theme="light"]) .ship-c,:root:not([data-theme="light"]) .flag-o{background:#1e222b}
+:root:not([data-theme="light"]) .fl-gate{background:#1e2440;color:#dfe3ff;border-color:#4a55b8}
+:root:not([data-theme="light"]) .qa{background:#1e2440;color:#dfe3ff;border-color:#4a55b8}}
+:root[data-theme="dark"]{--f1-bg:#232a5c;--f1:#c7ccff;--f1-line:#4a55b8;--f2-bg:#0f3b36;--f2:#9ff0e0;--f2-line:#1f8a7a;--est-bg:#2a2210;--est:#f59e0b}
+
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+<symbol id="r-dash" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17 9 5 9-5"/></symbol>
+<symbol id="r-ruler" viewBox="0 0 24 24"><path d="M4 3v18h16v-6H10V3H4Z"/><path d="M4 8h3M4 13h3M14 18v-3M18 18v-3"/></symbol>
+<symbol id="r-draw" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="m11 7-6 14M13 7l6 14M7 15h10"/></symbol>
+<symbol id="r-fac" viewBox="0 0 24 24"><path d="M3 21V10l6 4V10l6 4V4h6v17H3Z"/></symbol>
+<symbol id="r-truck" viewBox="0 0 24 24"><path d="M2 6h11v10H2zM13 10h5l4 4v2h-9"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+<symbol id="r-wrench" viewBox="0 0 24 24"><path d="M15 4a5 5 0 0 0-5 6l-7 7 4 4 7-7a5 5 0 0 0 6-5l-3 3-3-1-1-3 3-3a5 5 0 0 0-1-1Z"/></symbol>
+<symbol id="r-hammer" viewBox="0 0 24 24"><path d="M14 4h6l-2 5-4-1-9 9-2-2 9-9-1-2h3Z"/></symbol>
+<symbol id="r-clip" viewBox="0 0 24 24"><path d="M8 4h8v3H8zM6 5H5v16h14V5h-1"/><path d="m9 14 2 2 4-5"/></symbol>
+<symbol id="r-hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4M12 7v5l3 3"/></symbol>
+</svg>
+
+<main class="wrap">
+<h1>2공장 — 이렇게 일하시나요?</h1>
+<p class="quote">“2공장도 있어. 도면팀이 도면별로 2공장 것을 분류해. 한 주문에 1공장 · 2공장이 섞일 수 있어.”<br>“파트별로 알아서 자기 일을 맡는 방식이야.”</p>
+<p class="lead">설계서를 쓰기 전에 <b>일 흐름부터 맞는지</b> 여쭙는 그림이에요. 화면은 지금 생산 화면을 그대로 두고 조금만 더했어요. 모르는 곳은 짐작하지 않고 <b>분홍 번호</b>로 남겼어요 — 맨 아래 ‘여쭐 것’ 번호와 같아요. 그림을 그리려고 어쩔 수 없이 짐작한 곳은 <b>점선 테두리 + ‘추정’</b>이에요. 이름 · 번호는 모두 지어낸 것이에요.</p>
+<div class="legend"><span><em class="q" title="여쭐 것 ①">1</em> 여쭐 것 번호</span><span><span class="est-tag">추정</span> 짐작해서 그린 곳</span><span><span class="fz fz1">1공장</span> <span class="fz fz2">2공장</span> 공장 표시 색</span></div>
+<ul class="toc"><li><a href="#flow">1 한 장으로 보는 흐름</a></li><li><a href="#drawing">2 도면팀이 나누는 곳</a></li><li><a href="#factory">3 공장 화면</a></li><li><a href="#done">4 섞인 주문이 끝나는 순간</a></li><li><a href="#flag">5 지금 있는 ‘2공장 발주’ 칸</a></li><li><a href="#ask">6 여쭐 것</a></li></ul>
+
+<section class="sec" id="flow"><h2><span class="no">1</span>한 장으로 보는 흐름</h2>
+<p class="idea">주문 세 개를 나란히 놓았어요. 위에서 아래로 일이 흘러요. <b>ⓐ 모두 1공장 · ⓑ 모두 2공장 · ⓒ 섞임</b>.</p>
+<div class="fl" role="table" aria-label="세 주문의 흐름"><div class="fl-corner" role="columnheader">맡는 곳</div><div class="fl-head fl-a" role="columnheader"><b>ⓐ 모두 1공장</b><small>정민호 #4190 · 붙박이장 · 도면 3장</small></div><div class="fl-head fl-b" role="columnheader"><b>ⓑ 모두 2공장</b><small>한지우 #4195 · 도면 2장 · 제품은 <em class="q" title="여쭐 것 ①">1</em></small></div><div class="fl-head fl-c" role="columnheader"><b>ⓒ 섞임</b><small>박서연 #4182 · 도면 5장 = 1공장 3장 + 2공장 2장</small></div><div class="fl-lane fl-lane0" role="rowheader"><b>영업 · CS</b><small>주문 · 계약 · 실측</small></div><div class="fl-cell fl-lane0"><div class="fl-box ">주문 받음 · 시공일 12/3 (목)</div><div class="fl-box fl-quiet">주문 화면 ‘2공장 발주’ 칸 <b>꺼짐</b></div></div><div class="fl-cell fl-lane0"><div class="fl-box ">주문 받음 · 시공일 12/3 (목)</div><div class="fl-box est"><span class="est-tag">추정</span>‘2공장 발주’ 칸을 켬? <em class="q" title="여쭐 것 ⑦">7</em></div></div><div class="fl-cell fl-lane0"><div class="fl-box ">주문 받음 · 시공일 12/3 (목)</div><div class="fl-box est"><span class="est-tag">추정</span>‘2공장 발주’ 칸은 켬? 끔? <em class="q" title="여쭐 것 ⑦">7</em></div></div><div class="fl-lane fl-lane1" role="rowheader"><b>도면팀</b><small>그리기 · 공장 나누기</small></div><div class="fl-cell fl-lane1"><div class="fl-box ">도면 3장을 그림</div><div class="fl-box ">장마다 공장 고르기 — 처음 값 그대로 <span class="fz fz1">1공장</span> 3장</div><div class="fl-box ">영업 확인 → 고객 컨펌</div></div><div class="fl-cell fl-lane1"><div class="fl-box ">도면 2장을 그림</div><div class="fl-box ">2장 모두 <span class="fz fz2">2공장</span> 으로 바꿈 <em class="q" title="여쭐 것 ③">3</em></div><div class="fl-box ">영업 확인 → 고객 컨펌</div></div><div class="fl-cell fl-lane1"><div class="fl-box ">도면 5장을 그림</div><div class="fl-box ">1 · 2 · 3장 <span class="fz fz1">1공장</span> · 4 · 5장 <span class="fz fz2">2공장</span> <em class="q" title="여쭐 것 ②">2</em><em class="q" title="여쭐 것 ③">3</em></div><div class="fl-box ">영업 확인 → 고객 컨펌</div></div><div class="fl-gate"><b>도면 내려옴</b> — 고객 컨펌이 끝나 주문이 생산으로 넘어가는 때. 지금 규칙에서는 <b>주문 하나에 한 번</b>이라 두 공장에 같은 때 내려와요. 마감도 주문 하나에 하나(시공 2영업일 전 = 12/1 (화)) <em class="q" title="여쭐 것 ⑧">8</em></div><div class="fl-lane fl-lane2" role="rowheader"><b>1공장</b><small>네 파트가 알아서 맡음</small></div><div class="fl-cell fl-lane2"><div class="fl-box ">도면 카드 3장 · 파트별로 알아서 맡음</div><div class="fl-box ">공정 4칸 다 켜짐 → <b>제작 완료</b></div></div><div class="fl-cell fl-lane2"><div class="fl-box est"><span class="est-tag">추정</span>만들 것에 안 나옴 · 아래 ‘2공장에서 만드는 집’ 한 줄 <em class="q" title="여쭐 것 ⑥">6</em></div></div><div class="fl-cell fl-lane2"><div class="fl-box ">도면 카드 3장(1 · 2 · 3장)만</div><div class="fl-box ">1공장 몫 끝</div><div class="fl-box est"><span class="est-tag">추정</span>2공장이 끝날 때까지 줄이 남음? <em class="q" title="여쭐 것 ⑨">9</em></div></div><div class="fl-lane fl-lane3" role="rowheader"><b>2공장</b><small>어디서 · 무엇을 <em class="q" title="여쭐 것 ①">1</em></small></div><div class="fl-cell fl-lane3"><div class="fl-box fl-none">할 일 없음</div></div><div class="fl-cell fl-lane3"><div class="fl-box est"><span class="est-tag">추정</span>도면 카드 2장 · 같은 네 파트? <em class="q" title="여쭐 것 ④">4</em></div><div class="fl-box "><b>제작 완료</b></div></div><div class="fl-cell fl-lane3"><div class="fl-box est"><span class="est-tag">추정</span>도면 카드 2장(4 · 5장)만 · 같은 네 파트? <em class="q" title="여쭐 것 ④">4</em></div><div class="fl-box ">2공장 몫 끝</div></div><div class="fl-lane fl-lane4" role="rowheader"><b>출고 · 시공</b><small>싣기 · 시공일</small></div><div class="fl-cell fl-lane4"><div class="fl-box ">1공장에서 실어 12/3 시공</div></div><div class="fl-cell fl-lane4"><div class="fl-box est"><span class="est-tag">추정</span>2공장에서 바로 현장? 1공장으로 먼저? <em class="q" title="여쭐 것 ⑤">5</em></div><div class="fl-box ">12/3 시공</div></div><div class="fl-cell fl-lane4"><div class="fl-box est"><span class="est-tag">추정</span>두 곳 것을 모아 한 번에 12/3 시공? <em class="q" title="여쭐 것 ⑤">5</em></div><div class="fl-box fl-quiet">두 공장이 다 끝나야 시공 <em class="q" title="여쭐 것 ⑨">9</em></div></div></div>
+</section>
+
+<section class="sec" id="drawing"><h2><span class="no">2</span>도면팀이 나누는 곳</h2>
+<p class="idea">도면팀은 도면 마법사에서 시트(도면 한 장)를 탭으로 만들어요. 가장 작은 바꿈은 <b>탭마다 1공장 · 2공장 중 하나를 고르는 것</b>이에요. 처음 값은 1공장이에요. 섞인 주문 박서연 #4182(5장)로 그렸어요.</p>
+<h3 class="sub">도면 마법사 — 시트 탭</h3>
+<div class="stack"><div><span class="tag now">지금</span><div class="wz"><div class="wz-bar"><b class="wz-title">도면 마법사</b><span class="wz-ord">박서연 #4182 · 시공 11/26 (목)</span><span class="wz-sp"></span><span class="wz-btn is-pri">저장</span><span class="wz-btn">PNG</span><span class="wz-btn">⋯</span></div><div class="wz-tabrow"><div class="wz-tabs"><span class="wz-tab is-on">붙박이장 1<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab">붙박이장 2<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab">드레스룸 1<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab">드레스룸 2<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab">드레스룸 3<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-add">+ 시트</span></div><span class="wz-side"><span class="wz-chipok">자동 저장됨 10:42</span></span></div><div class="wz-body"><div class="wz-prod"><b>제품</b><span class="wz-pi is-on">붙박이장 · W2400</span><span class="wz-pi">드레스룸 ㄱ자 · W2000</span></div><div class="wz-canvas"><svg viewBox="0 0 400 170" aria-hidden="true"><rect x="40" y="18" width="320" height="120"/><line x1="120" y1="18" x2="120" y2="138"/><line x1="200" y1="18" x2="200" y2="138"/><line x1="280" y1="18" x2="280" y2="138"/><line x1="40" y1="44" x2="360" y2="44"/><line x1="40" y1="154" x2="360" y2="154"/><text x="200" y="168" text-anchor="middle">W2400</text></svg></div></div></div></div><div><span class="tag after">바꿈</span><div class="wz"><div class="wz-bar"><b class="wz-title">도면 마법사</b><span class="wz-ord">박서연 #4182 · 시공 11/26 (목)</span><span class="wz-sp"></span><span class="wz-btn is-pri">저장</span><span class="wz-btn">PNG</span><span class="wz-btn">⋯</span></div><div class="wz-tabrow"><div class="wz-tabs"><span class="wz-tab is-on"><span class="fz fz1">1공장</span>붙박이장 1<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab"><span class="fz fz1">1공장</span>붙박이장 2<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab"><span class="fz fz1">1공장</span>드레스룸 1<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab"><span class="fz fz2">2공장</span>드레스룸 2<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-tab"><span class="fz fz2">2공장</span>드레스룸 3<span class="wz-tx">⧉</span><span class="wz-tx">×</span></span><span class="wz-add">+ 시트</span></div><span class="wz-side"><span class="wz-swl">이 장 만드는 곳</span><span class="wz-seg"><b class="is-on">1공장</b><b>2공장</b></span><em class="q" title="여쭐 것 ②">2</em></span></div><div class="wz-body"><div class="wz-prod"><b>제품</b><span class="wz-pi is-on">붙박이장 · W2400</span><span class="wz-pi">드레스룸 ㄱ자 · W2000</span></div><div class="wz-canvas"><svg viewBox="0 0 400 170" aria-hidden="true"><rect x="40" y="18" width="320" height="120"/><line x1="120" y1="18" x2="120" y2="138"/><line x1="200" y1="18" x2="200" y2="138"/><line x1="280" y1="18" x2="280" y2="138"/><line x1="40" y1="44" x2="360" y2="44"/><line x1="40" y1="154" x2="360" y2="154"/><text x="200" y="168" text-anchor="middle">W2400</text></svg></div></div></div></div></div>
+<p class="mix-note">탭 이름 앞에 공장 딱지가 붙어요. 지금 보고 있는 장은 오른쪽 위 두 칸 단추로 바꿔요. 완료 주문 AS 도면이 이미 탭에 딱지를 붙이고 있어서 같은 모양으로 붙여요. <em class="q" title="여쭐 것 ②">2</em> <em class="q" title="여쭐 것 ③">3</em></p>
+<h3 class="sub">보낼 때 확인 창 · 작업실 ‘현재 버전’</h3>
+<div class="pair">
+<div><span class="tag now">지금</span><div class="ss"><div class="ss-h">모든 시트 저장</div><div class="ss-s">저장하면서 같이 할 일을 골라요</div><div class="ss-o"><span class="ss-box is-on"></span><span><b>도면 발송</b><small>영업에게 전달해요 (전달본으로 올려요)</small></span></div><div class="ss-o"><span class="ss-box"></span><span><b>도면방 PUSH</b><small>채널톡 도면방에도 올려요</small></span></div><div class="ss-f"><span class="wz-btn">취소</span><span class="wz-btn is-pri">저장 + 발송</span></div></div><div class="gap"></div><div class="gl"><div class="gl-h">현재 버전 <small>최신 전달본(번호순)</small></div><div class="gl-g"><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">1. 붙박이장 1</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">2. 붙박이장 2</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">3. 드레스룸 1</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">4. 드레스룸 2</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">5. 드레스룸 3</span></span></div></div></div>
+<div><span class="tag after">바꿈</span><div class="ss"><div class="ss-h">모든 시트 저장</div><div class="ss-s">저장하면서 같이 할 일을 골라요</div><div class="ss-o"><span class="ss-box is-on"></span><span><b>도면 발송</b><small>영업에게 전달해요 (전달본으로 올려요)</small></span></div><div class="ss-o"><span class="ss-box"></span><span><b>도면방 PUSH</b><small>채널톡 도면방에도 올려요</small></span></div><div class="ss-sum">보낼 도면 5장 — <span class="fz fz1">1공장</span> 3장 · <span class="fz fz2">2공장</span> 2장</div><div class="ss-f"><span class="wz-btn">취소</span><span class="wz-btn is-pri">저장 + 발송</span></div></div><div class="gap"></div><div class="gl"><div class="gl-h">현재 버전 <small>최신 전달본(번호순)</small></div><div class="gl-g"><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">1. 붙박이장 1</span><span class="fz fz1">1공장</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">2. 붙박이장 2</span><span class="fz fz1">1공장</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">3. 드레스룸 1</span><span class="fz fz1">1공장</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">4. 드레스룸 2</span><span class="fz fz2">2공장</span></span><span class="gl-it"><span class="gl-pic"></span><span class="gl-n">5. 드레스룸 3</span><span class="fz fz2">2공장</span></span></div><div class="gl-up"><div class="gl-h">다른 주문 예 <small>마법사 없이 직접 올린 파일</small></div><div class="gl-g"><span class="gl-it"><span class="gl-pic is-file">PDF</span><span class="gl-n">1. 신발장 도면.pdf</span><span class="gl-q"><span class="fz fz0">공장 ?</span><em class="q" title="여쭐 것 ②">2</em></span></span></div></div></div></div>
+</div>
+<p class="mix-note"><b>보낼 때</b> 몇 장이 어느 공장인지 한 줄로 보여 줘요. <b>작업실</b>의 전달본 목록에도 같은 딱지가 붙어요. 마법사로 그리지 않고 <b>직접 올린 파일</b>은 시트가 없어서, 작업실 목록에서 공장을 따로 골라야 해요. <em class="q" title="여쭐 것 ②">2</em> <em class="q" title="여쭐 것 ③">3</em></p>
+</section>
+
+<section class="sec" id="factory"><h2><span class="no">3</span>공장 화면 — 지금 날짜 탭에 조금만 더하기</h2>
+<p class="idea">새 판은 없어요. 지금 날짜 탭(왼쪽 띠 + 오른쪽 그날 장) 그대로예요. 바뀌는 곳은 셋이에요. <b>위 제목에 공장 이름</b>, 섞인 집 줄의 <b>도면 장 수 칸 → ‘우리 것 3장 / 2공장 2장’</b>, 남의 공장만 하는 집은 <b>맨 아래 한 줄</b>. 모레 11/26 (목)을 고른 모습이에요. 띠 숫자는 아래 A 셈으로 그렸어요. <em class="q" title="여쭐 것 ⑧">8</em> 제목의 공장 이름은 공장마다 계정이 따로 있다고 보고 그린 것이에요. <em class="q" title="여쭐 것 ④">4</em></p>
+<h3 class="sub">ⓐ 1공장 반장이 보는 날짜 탭</h3>
+<div id="t-f1-date"><div class="fit"><div class="stage"><div class="art"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">이철</span></nav><div class="appm"><div class="foms-prod-home-page"><section class="foms-prod-home"><header class="foms-prod-home__bar"><h1 class="foms-prod-home__title">생산 <span class="fx-fac fx-f1">1공장</span></h1><span class="foms-prod-home__date">11월 24일 (화) · 1공장 34건</span><nav class="foms-prod-home__nav" aria-label="화면"><a class="foms-prod-home__navtab is-on">날짜</a><a class="foms-prod-home__navtab">내 공정 <small>5</small></a><a class="foms-prod-home__navtab">바뀐 것 <small class="is-hot">2</small></a><a class="foms-prod-home__navtab">찾기</a></nav><div class="foms-prod-home__tools"><span class="foms-prod-home__sync">14:05 에 받음</span><button type="button" class="foms-prod-home__btn foms-prod-home__bell" aria-label="알림"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z"/><path d="M10 21h4"/></svg><span class="foms-prod-home__bell-badge">2</span></button><span class="foms-fs" role="group" aria-label="글자 크기"><span class="foms-fs__label">글자</span><button type="button" class="foms-fs__btn">−</button><button type="button" class="foms-fs__now">100%</button><button type="button" class="foms-fs__btn">+</button></span><a class="foms-prod-home__btn"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a></div></header><div class="fph-date"><div class="fph-stripbox"><aside class="fph-strip" aria-label="시공일"><div class="fph-strip__h">시공일 2주 <em class="q" title="여쭐 것 ⑧">8</em><small>만들 것 / 전체</small></div><a class="fph-sd "><span class="fph-sd__d"><b>지난 7일</b><small>11/17~11/23</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw is-ok">도면 3/3 다 옴</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>오늘 11/24</b><small>화</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw is-ok">도면 2/2 다 옴</span></span><span class="fph-sd__n"><b>0</b><small> / 2</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/25</b><small>수 · 내일</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="20.00" height="10"/><rect class="is-p" x="20.00" y="0" width="40.00" height="10"/><rect class="is-w" x="60.00" y="0" width="20.00" height="10"/><rect class="is-x" x="80.00" y="0" width="20.00" height="10"/></svg><span class="fph-sd__dw is-late">도면 4/5 마감 지남</span></span><span class="fph-sd__n"><b>3</b><small> / 5</small></span></a><a class="fph-sd is-on mkh"><span class="fph-sd__d"><b>11/26</b><small>목 · D-2</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="20.00" height="10"/><rect class="is-p" x="20.00" y="0" width="40.00" height="10"/><rect class="is-w" x="60.00" y="0" width="20.00" height="10"/><rect class="is-x" x="80.00" y="0" width="20.00" height="10"/></svg><span class="fph-sd__dw is-soon">도면 4/5 마감 오늘</span></span><span class="fph-sd__n"><b>3</b><small> / 5</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/27</b><small>금 · D-3</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-w" x="0.00" y="0" width="33.33" height="10"/><rect class="is-x" x="33.33" y="0" width="66.67" height="10"/></svg><span class="fph-sd__dw is-soon">도면 2/6 마감 내일</span></span><span class="fph-sd__n"><b>2</b><small> / 6</small></span></a><a class="fph-sd is-wk"><span class="fph-sd__d"><b>11/28</b><small>토 · D-4</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/2</span></span><span class="fph-sd__n"><b>0</b><small> / 2</small></span></a><a class="fph-sd is-wk is-zero"><span class="fph-sd__d"><b>11/29</b><small>일 · D-5 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/30</b><small>월 · D-6</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/3</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/1</b><small>화 · D-7</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/3</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/2</b><small>수 · D-8</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/2</span></span><span class="fph-sd__n"><b>0</b><small> / 2</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/3</b><small>목 · D-9</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/4</b><small>금 · D-10 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>그 뒤</b><small>12/5~</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/3</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><div class="fph-strip__f"><a class="fph-sf">지난 시공일 0건</a><a class="fph-sf">시공일 없음 1건</a></div></aside></div><div class="fph-panes"><section class="fph-pane"><h2 class="fph-pane__h">11/26 (목) <small>시공 5건 · 만들 것 3 · <span class="fph-dwst is-soon">도면 4/5 내려옴</span></small><a class="fph-pane__cards">도면 카드로 보기<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a></h2><h3 class="fph-pane__g">도면·컨펌 기다림 1 <small><span class="is-soon-t">마감 11/24 (화) 오늘이에요</span> · 도면이 오면 아래로 내려가요</small></h3><div class="fph-wg"><a class="fph-wi has-why"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">김태윤</b><small>#4176 · 붙박이장</small><span class="fph-wi__why"><b>도면 고치는 중</b> · 도면 장미래 · 영업 이하늘</span></a></div><h3 class="fph-pane__g">만들 것 3</h3><a class="fph-dr is-p"><span class="fph-dr__sg">엣지 중</span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>정민호</b> <small>#4190</small><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span></span><span class="fph-dr__by"><span class="fph-by is-o"><i>발주</i> 솔빛 디자인</span> <span class="fph-by is-m"><i>담당</i> 최유나</span></span></span><span class="fph-dr__pr">붙박이장 · W1800 × H2400 · 그레이</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st is-done"><i></i>재단</span><span class="fph-dr__st is-now"><i></i>엣지</span><span class="fph-dr__st "><i></i>조립</span><span class="fph-dr__st "><i></i>검수</span></span><span class="fph-dr__dw">도면 3장</span></a><a class="fph-dr is-p fx-row"><span class="fph-dr__sg">조립 중</span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span></span><span class="fph-dr__by"><span class="fph-by is-o"><i>발주</i> 가나 인테리어</span> <span class="fph-by is-m"><i>담당</i> 이하늘</span></span></span><span class="fph-dr__pr">붙박이장 · W2400 × H2300 · 드레스룸 ㄱ자</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st is-done"><i></i>재단</span><span class="fph-dr__st is-done"><i></i>엣지</span><span class="fph-dr__st is-now"><i></i>조립</span><span class="fph-dr__st "><i></i>검수</span><em class="q" title="여쭐 것 ⑨">9</em></span><span class="fph-dr__dw"><span class="fx-dw">우리 것 3장<small>2공장 2장</small></span></span></a><a class="fph-dr is-w"><span class="fph-dr__sg">제작 대기</span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>오세린</b> <small>#4201</small><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span></span><span class="fph-dr__by"><span class="fph-by is-m"><i>담당</i> 최유나</span></span></span><span class="fph-dr__pr">화장대 · W1200 · 화이트</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st "><i></i>재단</span><span class="fph-dr__st "><i></i>엣지</span><span class="fph-dr__st "><i></i>조립</span><span class="fph-dr__st "><i></i>검수</span></span><span class="fph-dr__dw">도면 1장</span></a><h3 class="fph-pane__g">제작 완료 1 <small>시공 대기</small></h3><div class="fph-wg"><a class="fph-wi is-done"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">윤하린</b><small>#4170 · 신발장</small></a></div><div class="est est-in"><span class="est-tag">추정</span><h3 class="fph-pane__g fx-other">2공장에서 만드는 집 1 <small>우리 일은 없어요</small><em class="q" title="여쭐 것 ⑥">6</em></h3><div class="fph-wg"><a class="fph-wi fx-wi2"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">한지우</b><small>#4195 · 2공장 2장</small></a></div></div></section></div></div></section></div></div></div></div></div></div>
+<h3 class="sub">ⓑ 2공장이 보는 날짜 탭</h3>
+<div id="t-f2-date"><div class="fit"><div class="stage"><div class="art"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">강</span></nav><div class="appm"><div class="foms-prod-home-page"><section class="foms-prod-home"><header class="foms-prod-home__bar"><h1 class="foms-prod-home__title">생산 <span class="fx-fac fx-f2">2공장</span></h1><span class="foms-prod-home__date">11월 24일 (화) · 2공장 9건</span><nav class="foms-prod-home__nav" aria-label="화면"><a class="foms-prod-home__navtab is-on">날짜</a><a class="foms-prod-home__navtab">내 공정 <small>5</small></a><a class="foms-prod-home__navtab">바뀐 것 <small class="is-hot">2</small></a><a class="foms-prod-home__navtab">찾기</a></nav><div class="foms-prod-home__tools"><span class="foms-prod-home__sync">14:05 에 받음</span><button type="button" class="foms-prod-home__btn foms-prod-home__bell" aria-label="알림"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z"/><path d="M10 21h4"/></svg><span class="foms-prod-home__bell-badge">2</span></button><span class="foms-fs" role="group" aria-label="글자 크기"><span class="foms-fs__label">글자</span><button type="button" class="foms-fs__btn">−</button><button type="button" class="foms-fs__now">100%</button><button type="button" class="foms-fs__btn">+</button></span><a class="foms-prod-home__btn"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a></div></header><div class="fph-date"><div class="fph-stripbox"><aside class="fph-strip" aria-label="시공일"><div class="fph-strip__h">시공일 2주 <em class="q" title="여쭐 것 ⑧">8</em><small>만들 것 / 전체</small></div><a class="fph-sd "><span class="fph-sd__d"><b>지난 7일</b><small>11/17~11/23</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw is-ok">도면 1/1 다 옴</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>오늘 11/24</b><small>화</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/25</b><small>수 · 내일</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-p" x="0.00" y="0" width="50.00" height="10"/><rect class="is-x" x="50.00" y="0" width="50.00" height="10"/></svg><span class="fph-sd__dw is-late">도면 1/2 마감 지남</span></span><span class="fph-sd__n"><b>1</b><small> / 2</small></span></a><a class="fph-sd is-on mkh"><span class="fph-sd__d"><b>11/26</b><small>목 · D-2</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-p" x="0.00" y="0" width="33.33" height="10"/><rect class="is-w" x="33.33" y="0" width="33.33" height="10"/><rect class="is-x" x="66.67" y="0" width="33.33" height="10"/></svg><span class="fph-sd__dw is-soon">도면 2/3 마감 오늘</span></span><span class="fph-sd__n"><b>2</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/27</b><small>금 · D-3</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-w" x="0.00" y="0" width="50.00" height="10"/><rect class="is-x" x="50.00" y="0" width="50.00" height="10"/></svg><span class="fph-sd__dw is-soon">도면 1/2 마감 내일</span></span><span class="fph-sd__n"><b>1</b><small> / 2</small></span></a><a class="fph-sd is-wk"><span class="fph-sd__d"><b>11/28</b><small>토 · D-4</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-wk is-zero"><span class="fph-sd__d"><b>11/29</b><small>일 · D-5 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/30</b><small>월 · D-6</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/1</b><small>화 · D-7</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/2</b><small>수 · D-8</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/3</b><small>목 · D-9</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/4</b><small>금 · D-10 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>그 뒤</b><small>12/5~</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><div class="fph-strip__f"><a class="fph-sf">지난 시공일 0건</a><a class="fph-sf">시공일 없음 0건</a></div></aside></div><div class="fph-panes"><section class="fph-pane"><h2 class="fph-pane__h">11/26 (목) <small>시공 3건 · 만들 것 2 · <span class="fph-dwst is-soon">도면 2/3 내려옴</span></small><a class="fph-pane__cards">도면 카드로 보기<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a></h2><h3 class="fph-pane__g">도면·컨펌 기다림 1 <small><span class="is-soon-t">마감 11/24 (화) 오늘이에요</span> · 도면이 오면 아래로 내려가요</small></h3><div class="fph-wg"><a class="fph-wi has-why"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">김태윤</b><small>#4176 · 붙박이장</small><span class="fph-wi__why"><b>도면 고치는 중</b> · 도면 장미래 · 영업 이하늘</span></a></div><h3 class="fph-pane__g">만들 것 2</h3><a class="fph-dr is-p fx-row"><span class="fph-dr__sg">재단 중</span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span></span><span class="fph-dr__by"><span class="fph-by is-o"><i>발주</i> 가나 인테리어</span> <span class="fph-by is-m"><i>담당</i> 이하늘</span></span></span><span class="fph-dr__pr">붙박이장 · W2400 × H2300 · 드레스룸 ㄱ자</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st is-now"><i></i>재단</span><span class="fph-dr__st "><i></i>엣지</span><span class="fph-dr__st "><i></i>조립</span><span class="fph-dr__st "><i></i>검수</span><em class="q" title="여쭐 것 ⑨">9</em></span><span class="fph-dr__dw"><span class="fx-dw">우리 것 2장<small>1공장 3장</small></span></span></a><a class="fph-dr is-w"><span class="fph-dr__sg">제작 대기</span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>한지우</b> <small>#4195</small><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span></span><span class="fph-dr__by"><span class="fph-by is-m"><i>담당</i> 박준서</span></span></span><span class="fph-dr__pr">제품은 ① 에 따라 · W1500 × H2400</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st "><i></i>재단</span><span class="fph-dr__st "><i></i>엣지</span><span class="fph-dr__st "><i></i>조립</span><span class="fph-dr__st "><i></i>검수</span><em class="q" title="여쭐 것 ④">4</em></span><span class="fph-dr__dw">도면 2장</span></a><div class="est est-in"><span class="est-tag">추정</span><h3 class="fph-pane__g fx-other">1공장에서 만드는 집 3 <small>우리 일은 없어요</small><em class="q" title="여쭐 것 ⑥">6</em></h3><div class="fph-wg"><a class="fph-wi fx-wi1"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">정민호</b><small>#4190</small></a><a class="fph-wi fx-wi1"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">오세린</b><small>#4201</small></a><a class="fph-wi fx-wi1 is-done"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">윤하린</b><small>#4170</small></a></div></div></section></div></div></section></div></div></div></div></div></div>
+<p class="mix-note">섞인 집 박서연은 두 화면에 다 나와요. 1공장 화면은 <b>우리 것 3장 / 2공장 2장</b>, 2공장 화면은 <b>우리 것 2장 / 1공장 3장</b>. 사장님 · 관리자 화면은 ‘1공장 3장 · 2공장 2장’으로 보여요. 줄의 공정 4칸은 <b>그 공장 몫</b>으로 그렸어요(4번 B). 4번 A 로 하면 두 공장을 합친 칸이라 1공장 화면에서도 박서연이 ‘재단 중’으로 보여요. <em class="q" title="여쭐 것 ⑨">9</em></p>
+<h3 class="sub">ⓒ 띠의 ‘도면 x/n’ 을 어떻게 셀까요 <em class="q" title="여쭐 것 ⑧">8</em></h3>
+
+<div class="ab ab-xn">
+  <div class="ab-col">
+    <div class="ab-h"><span class="ab-k">A</span> 공장마다 셈 — 우리 몫이 있는 집만</div>
+    <div class="xn-g">
+      <div class="xn"><span class="fz fz1">1공장 띠</span><b class="is-soon-t">도면 4/5 마감 오늘</b><small>박서연 · 정민호 · 오세린 · 윤하린 · 김태윤(안 옴)</small></div>
+      <div class="xn"><span class="fz fz2">2공장 띠</span><b class="is-soon-t">도면 2/3 마감 오늘</b><small>박서연 · 한지우 · 김태윤(안 옴)</small></div>
+    </div>
+    <p class="ab-p">위 태블릿 그림이 이 셈이에요. 공장마다 자기 일 크기가 보여요. 섞인 집(박서연 · 김태윤)은 양쪽에서 다 세요.</p>
+  </div>
+  <div class="ab-col">
+    <div class="ab-h"><span class="ab-k">B</span> 주문 하나로 셈 — 두 공장이 같은 숫자</div>
+    <div class="xn-g">
+      <div class="xn"><span class="fz fz1">1공장 띠</span><b class="is-soon-t">도면 5/6 마감 오늘</b><small>그날 시공 6집 모두</small></div>
+      <div class="xn"><span class="fz fz2">2공장 띠</span><b class="is-soon-t">도면 5/6 마감 오늘</b><small>그날 시공 6집 모두</small></div>
+    </div>
+    <p class="ab-p">지금 띠와 같은 셈이에요. 그런데 2공장 띠에 2공장 일이 없는 집도 세어져요.</p>
+  </div>
+</div>
+
+<h3 class="sub">ⓓ 파트 화면 — 1공장 엣지</h3>
+<div id="t-f1-parts"><div class="fit"><div class="stage"><div class="art"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">김민</span></nav><div class="appm"><div class="foms-prod-home-page"><section class="foms-prod-home"><header class="foms-prod-home__bar"><h1 class="foms-prod-home__title">엣지 <span class="foms-prod-home__me">김민준</span> <span class="fx-fac fx-f1">1공장</span></h1><span class="foms-prod-home__date">11월 24일 (화) · 1공장 34건</span><nav class="foms-prod-home__nav" aria-label="화면"><a class="foms-prod-home__navtab is-on">날짜</a><a class="foms-prod-home__navtab">내 공정 <small>5</small></a><a class="foms-prod-home__navtab">바뀐 것 <small class="is-hot">2</small></a><a class="foms-prod-home__navtab">찾기</a></nav><div class="foms-prod-home__tools"><span class="foms-prod-home__sync">14:05 에 받음</span><button type="button" class="foms-prod-home__btn foms-prod-home__bell" aria-label="알림"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z"/><path d="M10 21h4"/></svg><span class="foms-prod-home__bell-badge">2</span></button><span class="foms-fs" role="group" aria-label="글자 크기"><span class="foms-fs__label">글자</span><button type="button" class="foms-fs__btn">−</button><button type="button" class="foms-fs__now">100%</button><button type="button" class="foms-fs__btn">+</button></span><a class="foms-prod-home__btn"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a></div></header><div class="fph-date has-parts"><div class="fph-stripbox"><aside class="fph-strip" aria-label="시공일"><div class="fph-strip__h">시공일 2주 <em class="q" title="여쭐 것 ⑧">8</em><small>만들 것 / 전체</small></div><a class="fph-sd "><span class="fph-sd__d"><b>지난 7일</b><small>11/17~11/23</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw is-ok">도면 3/3 다 옴</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>오늘 11/24</b><small>화</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw is-ok">도면 2/2 다 옴</span></span><span class="fph-sd__n"><b>0</b><small> / 2</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/25</b><small>수 · 내일</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="20.00" height="10"/><rect class="is-p" x="20.00" y="0" width="40.00" height="10"/><rect class="is-w" x="60.00" y="0" width="20.00" height="10"/><rect class="is-x" x="80.00" y="0" width="20.00" height="10"/></svg><span class="fph-sd__dw is-late">도면 4/5 마감 지남</span></span><span class="fph-sd__n"><b>3</b><small> / 5</small></span></a><a class="fph-sd is-on mkh"><span class="fph-sd__d"><b>11/26</b><small>목 · D-2</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="20.00" height="10"/><rect class="is-p" x="20.00" y="0" width="40.00" height="10"/><rect class="is-w" x="60.00" y="0" width="20.00" height="10"/><rect class="is-x" x="80.00" y="0" width="20.00" height="10"/></svg><span class="fph-sd__dw is-soon">도면 4/5 마감 오늘</span></span><span class="fph-sd__n"><b>3</b><small> / 5</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/27</b><small>금 · D-3</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-w" x="0.00" y="0" width="33.33" height="10"/><rect class="is-x" x="33.33" y="0" width="66.67" height="10"/></svg><span class="fph-sd__dw is-soon">도면 2/6 마감 내일</span></span><span class="fph-sd__n"><b>2</b><small> / 6</small></span></a><a class="fph-sd is-wk"><span class="fph-sd__d"><b>11/28</b><small>토 · D-4</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/2</span></span><span class="fph-sd__n"><b>0</b><small> / 2</small></span></a><a class="fph-sd is-wk is-zero"><span class="fph-sd__d"><b>11/29</b><small>일 · D-5 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/30</b><small>월 · D-6</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/3</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/1</b><small>화 · D-7</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/3</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/2</b><small>수 · D-8</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/2</span></span><span class="fph-sd__n"><b>0</b><small> / 2</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/3</b><small>목 · D-9</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/4</b><small>금 · D-10 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>그 뒤</b><small>12/5~</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/3</span></span><span class="fph-sd__n"><b>0</b><small> / 3</small></span></a><div class="fph-strip__f"><a class="fph-sf">지난 시공일 0건</a><a class="fph-sf">시공일 없음 1건</a></div></aside></div><div class="fph-panes"><section class="fph-pane"><div class="fph-parts"><div class="pp-head"><h2 class="fph-pane__h">11/26 (목) <small>시공 5건 · 도면 나온 4집</small></h2><div class="foms-prod-home__tabs pp-tabs" role="group"><button type="button" class="foms-prod-home__tab is-on">전체 도면 <small>7</small></button><button type="button" class="foms-prod-home__tab">작업 필요 <small>2</small></button><button type="button" class="foms-prod-home__tab">완료 <small>3</small></button></div><span class="est est-chip"><span class="est-tag">추정</span>2공장 몫 4장은 이 판에 안 나와요 <em class="q" title="여쭐 것 ⑥">6</em></span></div><div class="pp-main"><div class="pp-grid"><article class="pp-card is-mine"><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="90" y1="22" x2="90" y2="122"/><line x1="150" y1="22" x2="150" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W1800</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>정민호</b> <small>#4190</small></span><span class="pp-no">도면 1/3</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">붙박이장 · W1800 × H2400</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-done"><i>재단</i> 끝</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><span class="fph-wi pp-act pp-st-need">작업 필요 · 김민준</span></div></article><article class="pp-card is-mine"><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="120" y1="22" x2="120" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W1800</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>정민호</b> <small>#4190</small></span><span class="pp-no">도면 2/3</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">붙박이장 · W1800 × H2400</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-done"><i>재단</i> 끝</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><span class="fph-wi pp-act pp-st-need">작업 필요 · 김민준</span></div></article><article class="pp-card "><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="90" y1="22" x2="90" y2="122"/><line x1="150" y1="22" x2="150" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W1800</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>정민호</b> <small>#4190</small></span><span class="pp-no">도면 3/3</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">붙박이장 · W1800 × H2400</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-done"><i>재단</i> 끝</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><button type="button" class="foms-prod-home__btn pp-act">내가 엣지</button></div></article><article class="pp-card is-done"><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="90" y1="22" x2="90" y2="122"/><line x1="150" y1="22" x2="150" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W2400</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small><em class="fx-tag">2공장 2장 따로</em></span><span class="pp-no">도면 1/5</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">붙박이장 · W2400 × H2300</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-done"><i>재단</i> 끝</span><span class="fph-by pp-w-need"><i>조립</i> 하는 중</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><span class="fph-wi pp-act pp-st-done">엣지 끝 · 김민준</span></div></article><article class="pp-card is-done"><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="120" y1="22" x2="120" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W2400</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small><em class="fx-tag">2공장 2장 따로</em></span><span class="pp-no">도면 2/5</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">붙박이장 · W2400 × H2300</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-done"><i>재단</i> 끝</span><span class="fph-by pp-w-need"><i>조립</i> 하는 중</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><span class="fph-wi pp-act pp-st-done">엣지 끝 · 김민준</span></div></article><article class="pp-card is-done"><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="90" y1="22" x2="90" y2="122"/><line x1="150" y1="22" x2="150" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W2000</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small><em class="fx-tag">2공장 2장 따로</em></span><span class="pp-no">도면 3/5</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">드레스룸 ㄱ자 · W2000</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-done"><i>재단</i> 끝</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><span class="fph-wi pp-act pp-st-done">엣지 끝 · 김민준</span></div></article></div></div></div></section></div></div></section></div></div></div></div></div></div>
+<h3 class="sub">ⓔ 파트 화면 — 2공장 재단</h3>
+<div id="t-f2-parts"><div class="fit"><div class="stage"><div class="art"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">최가</span></nav><div class="appm"><div class="foms-prod-home-page"><section class="foms-prod-home"><header class="foms-prod-home__bar"><h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">최가은</span> <span class="fx-fac fx-f2">2공장</span></h1><span class="foms-prod-home__date">11월 24일 (화) · 2공장 9건</span><nav class="foms-prod-home__nav" aria-label="화면"><a class="foms-prod-home__navtab is-on">날짜</a><a class="foms-prod-home__navtab">내 공정 <small>5</small></a><a class="foms-prod-home__navtab">바뀐 것 <small class="is-hot">2</small></a><a class="foms-prod-home__navtab">찾기</a></nav><div class="foms-prod-home__tools"><span class="foms-prod-home__sync">14:05 에 받음</span><button type="button" class="foms-prod-home__btn foms-prod-home__bell" aria-label="알림"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z"/><path d="M10 21h4"/></svg><span class="foms-prod-home__bell-badge">2</span></button><span class="foms-fs" role="group" aria-label="글자 크기"><span class="foms-fs__label">글자</span><button type="button" class="foms-fs__btn">−</button><button type="button" class="foms-fs__now">100%</button><button type="button" class="foms-fs__btn">+</button></span><a class="foms-prod-home__btn"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a></div></header><div class="fph-date has-parts"><div class="fph-stripbox"><aside class="fph-strip" aria-label="시공일"><div class="fph-strip__h">시공일 2주 <em class="q" title="여쭐 것 ⑧">8</em><small>만들 것 / 전체</small></div><a class="fph-sd "><span class="fph-sd__d"><b>지난 7일</b><small>11/17~11/23</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-f" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw is-ok">도면 1/1 다 옴</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>오늘 11/24</b><small>화</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/25</b><small>수 · 내일</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-p" x="0.00" y="0" width="50.00" height="10"/><rect class="is-x" x="50.00" y="0" width="50.00" height="10"/></svg><span class="fph-sd__dw is-late">도면 1/2 마감 지남</span></span><span class="fph-sd__n"><b>1</b><small> / 2</small></span></a><a class="fph-sd is-on mkh"><span class="fph-sd__d"><b>11/26</b><small>목 · D-2</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-p" x="0.00" y="0" width="33.33" height="10"/><rect class="is-w" x="33.33" y="0" width="33.33" height="10"/><rect class="is-x" x="66.67" y="0" width="33.33" height="10"/></svg><span class="fph-sd__dw is-soon">도면 2/3 마감 오늘</span></span><span class="fph-sd__n"><b>2</b><small> / 3</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/27</b><small>금 · D-3</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-w" x="0.00" y="0" width="50.00" height="10"/><rect class="is-x" x="50.00" y="0" width="50.00" height="10"/></svg><span class="fph-sd__dw is-soon">도면 1/2 마감 내일</span></span><span class="fph-sd__n"><b>1</b><small> / 2</small></span></a><a class="fph-sd is-wk"><span class="fph-sd__d"><b>11/28</b><small>토 · D-4</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-wk is-zero"><span class="fph-sd__d"><b>11/29</b><small>일 · D-5 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>11/30</b><small>월 · D-6</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/1</b><small>화 · D-7</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>12/2</b><small>수 · D-8</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/3</b><small>목 · D-9</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd is-zero"><span class="fph-sd__d"><b>12/4</b><small>금 · D-10 · 없음</small></span><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"></svg><span class="fph-sd__n"><b>0</b><small> / 0</small></span></a><a class="fph-sd "><span class="fph-sd__d"><b>그 뒤</b><small>12/5~</small></span><span class="fph-sd__mid"><svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="is-x" x="0.00" y="0" width="100.00" height="10"/></svg><span class="fph-sd__dw ">도면 0/1</span></span><span class="fph-sd__n"><b>0</b><small> / 1</small></span></a><div class="fph-strip__f"><a class="fph-sf">지난 시공일 0건</a><a class="fph-sf">시공일 없음 0건</a></div></aside></div><div class="fph-panes"><section class="fph-pane"><div class="fph-parts"><div class="pp-head"><h2 class="fph-pane__h">11/26 (목) <small>시공 3건 · 도면 나온 2집</small></h2><div class="foms-prod-home__tabs pp-tabs" role="group"><button type="button" class="foms-prod-home__tab is-on">전체 도면 <small>4</small></button><button type="button" class="foms-prod-home__tab">작업 필요 <small>1</small></button><button type="button" class="foms-prod-home__tab">완료 <small>0</small></button></div><span class="est est-chip"><span class="est-tag">추정</span>파트가 1공장과 같은 넷이라고 보고 그렸어요 <em class="q" title="여쭐 것 ④">4</em></span></div><div class="pp-main"><div class="pp-grid"><article class="pp-card is-mine"><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="90" y1="22" x2="90" y2="122"/><line x1="150" y1="22" x2="150" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W2000</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small><em class="fx-tag">1공장 3장 따로</em></span><span class="pp-no">도면 4/5</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">드레스룸 ㄱ자 · W2000</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-none"><i>엣지</i> 아직</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><span class="fph-wi pp-act pp-st-need">작업 필요 · 최가은</span></div></article><article class="pp-card "><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="120" y1="22" x2="120" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W2000</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small><em class="fx-tag">1공장 3장 따로</em></span><span class="pp-no">도면 5/5</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">드레스룸 ㄱ자 · W2000</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-none"><i>엣지</i> 아직</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><button type="button" class="foms-prod-home__btn pp-act">내가 재단</button></div></article><article class="pp-card "><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="90" y1="22" x2="90" y2="122"/><line x1="150" y1="22" x2="150" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W1500</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>한지우</b> <small>#4195</small></span><span class="pp-no">도면 1/2</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">제품은 ① 에 따라 · W1500</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-none"><i>엣지</i> 아직</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><button type="button" class="foms-prod-home__btn pp-act">내가 재단</button></div></article><article class="pp-card "><button type="button" class="pp-img"><svg class="dwg" viewBox="0 0 240 150" aria-hidden="true"><rect x="30" y="22" width="180" height="100"/><line x1="120" y1="22" x2="120" y2="122"/><line x1="30" y1="44" x2="210" y2="44"/><line x1="30" y1="134" x2="210" y2="134"/><text x="120" y="146" text-anchor="middle">W1500</text></svg></button><div class="pp-ln"><span class="fph-dr__nm"><b>한지우</b> <small>#4195</small></span><span class="pp-no">도면 2/2</span></div><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><span class="fph-dr__pr pp-item">제품은 ① 에 따라 · W1500</span><span class="fph-dr__by pp-by"><span class="fph-by pp-w-none"><i>엣지</i> 아직</span><span class="fph-by pp-w-none"><i>조립</i> 아직</span><span class="fph-by pp-w-none"><i>검수</i> 아직</span></span><div class="pp-actbox"><button type="button" class="foms-prod-home__btn pp-act">내가 재단</button></div></article></div></div></div></section></div></div></section></div></div></div></div></div></div>
+<p class="mix-note">카드는 <b>자기 공장 장만</b> 나와요. 장 번호는 종이에 찍힌 번호 그대로예요(박서연 1 · 2 · 3 은 1공장, 4 · 5 는 2공장). 맡기 · 끝내기는 지금처럼 파트별로 알아서 해요. <em class="q" title="여쭐 것 ④">4</em> <em class="q" title="여쭐 것 ⑥">6</em></p>
+</section>
+
+<section class="sec" id="done"><h2><span class="no">4</span>섞인 주문이 끝나는 순간 <em class="q" title="여쭐 것 ⑨">9</em></h2>
+<p class="idea">지금은 한 파트의 모든 장이 끝나면 그 공정 칸이 켜지고, 4칸이 다 켜지면 작업 시트의 [제작 완료]로 시공에 넘겨요. 칸도 단계도 <b>주문에 하나</b>예요. 섞인 주문에서 둘 중 어느 쪽인지 골라 주세요.</p>
+
+<div class="ab">
+  <div class="ab-col">
+    <div class="ab-h"><span class="ab-k">A</span> 두 공장이 다 끝나야 주문이 ‘제작 완료’</div>
+    <p class="ab-p">공정 4칸은 지금처럼 <b>주문에 하나</b>예요. 한 파트의 칸은 두 공장 장이 모두 끝나야 켜져요. 그래서 1공장이 3장을 다 끝내도, 2공장이 아직 재단 중이면 <b>재단 칸부터 안 켜져요</b>.</p>
+    <div class="ab-step"><span class="ab-t">11/25 오후</span>1공장 3장 끝 — 1공장 화면</div>
+    <div class="snip"><div class="foms-prod-home"><a class="fph-dr is-p"><span class="fph-dr__sg">재단 중<small>2공장 남음</small></span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small></span></span><span class="fph-dr__pr">붙박이장 · 드레스룸 ㄱ자</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st is-now"><i></i>재단</span><span class="fph-dr__st "><i></i>엣지</span><span class="fph-dr__st "><i></i>조립</span><span class="fph-dr__st "><i></i>검수</span></span><span class="fph-dr__dw"><span class="fx-dw">우리 것 3장<small>2공장 2장</small></span></span></a></div></div>
+    <div class="ab-step"><span class="ab-t">11/26 아침</span>2공장 2장 끝 → 4칸 다 켜짐 → [제작 완료] 한 번</div>
+    <div class="snip"><div class="foms-prod-home"><a class="fph-dr is-f"><span class="fph-dr__sg">제작 완료</span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small></span></span><span class="fph-dr__pr">붙박이장 · 드레스룸 ㄱ자</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st is-done"><i></i>재단</span><span class="fph-dr__st is-done"><i></i>엣지</span><span class="fph-dr__st is-done"><i></i>조립</span><span class="fph-dr__st is-done"><i></i>검수</span></span><span class="fph-dr__dw">도면 5장</span></a></div></div>
+    <ul class="ab-l"><li><b>좋은 점</b> 지금 규칙 그대로예요. 출고는 ‘제작 완료’ 한 줄만 보면 돼요.</li>
+    <li><b>아쉬운 점</b> 1공장은 자기 일을 끝내도 줄이 ‘만들 것’에 남고, 칸만 보고는 1공장 몫이 끝났는지 몰라요.</li></ul>
+  </div>
+  <div class="ab-col">
+    <div class="ab-h"><span class="ab-k">B</span> 공장마다 자기 몫을 끝내고, 주문은 ‘1공장 끝 · 2공장 남음’</div>
+    <p class="ab-p">공장마다 <b>자기 몫 공정 4칸</b>을 따로 켜요. 주문 단계는 하나라서, 시공으로 넘어가는 것은 둘 다 끝난 뒤예요.</p>
+    <div class="ab-step"><span class="ab-t">11/25 오후</span>1공장 3장 끝 — 1공장 화면에서는 끝난 묶음으로</div>
+    <div class="snip"><div class="foms-prod-home"><div class="fph-wg fph-wg1"><a class="fph-wi is-done"><span class="fph-due"><i>시공</i><b>모레 11/26 (목)</b></span><b class="fph-wi__nm">박서연</b><small>#4182 · 1공장 끝 · 2공장 남음</small></a></div></div></div>
+    <div class="ab-step"><span class="ab-t">11/26 아침</span>2공장 2장 끝 → 주문 전체 ‘제작 완료’</div>
+    <div class="snip"><div class="foms-prod-home"><a class="fph-dr is-f"><span class="fph-dr__sg">제작 완료</span><span class="fph-dr__who"><span class="fph-dr__ln"><span class="fph-dr__nm"><b>박서연</b> <small>#4182</small></span></span><span class="fph-dr__pr">붙박이장 · 드레스룸 ㄱ자</span></span><span class="fph-dr__steps" aria-label="공정"><span class="fph-dr__st is-done"><i></i>재단</span><span class="fph-dr__st is-done"><i></i>엣지</span><span class="fph-dr__st is-done"><i></i>조립</span><span class="fph-dr__st is-done"><i></i>검수</span></span><span class="fph-dr__dw">도면 5장</span></a></div></div>
+    <ul class="ab-l"><li><b>좋은 점</b> 공장마다 자기 일이 끝난 것이 바로 보여요.</li>
+    <li><b>아쉬운 점</b> 공장마다 공정 칸을 새로 둬야 해요. 지금 칸은 주문에 하나뿐이에요.</li></ul>
+  </div>
+</div>
+<div class="ship">
+  <div class="ship-h">출고 · 시공이 보는 것 <em class="q" title="여쭐 것 ⑤">5</em></div>
+  <div class="ship-g">
+    <div class="ship-c"><b>시공일</b><span>주문에 하나 — 11/26 (목). 지금 화면도 주문마다 시공일 칸 하나로 줄을 나눠요.</span></div>
+    <div class="ship-c est"><span class="est-tag">추정</span><b>물건이 오는 곳</b><span>2공장 것을 1공장으로 가져와 함께 싣는다고 보고 그렸어요. 현장으로 따로 가면 출고 화면에 ‘2공장에서 따로’ 한 줄이 더 필요해요.</span></div>
+    <div class="ship-c"><b>출고 줄에 붙을 말</b><span>A 면 ‘제작 완료’ 하나. B 면 다 끝나기 전까지 ‘1공장 끝 · 2공장 남음’.</span></div>
+  </div>
+</div>
+
+</section>
+
+<section class="sec" id="flag"><h2><span class="no">5</span>지금 있는 ‘2공장 발주’ 칸과의 사이 <em class="q" title="여쭐 것 ⑦">7</em></h2>
+<div class="flag">
+<div class="flag-c"><h3>지금 있는 것</h3><ul>
+<li>주문 화면에 <b>‘라홈시스템(2공장)’ 칸</b>이 이미 있어요. 주문 하나에 하나예요.</li>
+<li>켜고 끄는 사람 = <b>CS · 영업 · 관리자</b>. 도면팀은 못 바꿔요.</li>
+<li>켜면 <b>견적서 · 계약서의 회사 이름과 입금 계좌</b>가 2공장 것으로 바뀌어요. 실측 글 맨 위에 ★★ 가 붙고, 주문 보드에 딱지가 보여요.</li>
+<li>옛 생산 칸반 보드에는 이 칸으로 거르는 ‘1공장 · 2공장’ 고르기가 있어요. <b>지금 생산 첫 화면(날짜 탭 · 파트 화면)은 이 칸을 안 봐요.</b></li>
+<li>9월 뒤 주문 넷 중 하나쯤(약 23%)이 켜져 있어요.</li>
+<li>이 칸이 바뀌면 도면팀에 바뀜 알림이 가요.</li>
+</ul></div>
+<div class="flag-c"><h3>새 ‘장마다 나누기’와는?</h3><div class="flag-opts">
+<div class="flag-o"><b><i>가</i>따로 둬요</b>주문 칸은 견적 · 계좌용 그대로, 공장 나누기는 도면팀이 장마다.</div>
+<div class="flag-o"><b><i>나</i>새 나누기로 바꿔요</b>2공장 장이 있으면 주문 칸이 저절로 켜져요. 다만 견적은 도면보다 먼저 나가서, 도면에서 거꾸로 정하기는 어려워요.</div>
+<div class="flag-o"><b><i>다</i>처음 값만 이어 줘요</b>주문 칸이 켜져 있으면 도면 장의 처음 값이 2공장. 도면팀이 장마다 바꿀 수 있어요.</div>
+</div><p class="ab-p">함께 여쭤요 — ‘라홈시스템’ 이 2공장 그 자체인가요, 아니면 2공장 물건을 파는 회사 이름인가요?</p></div>
+</div>
+</section>
+
+<section class="sec" id="ask"><h2><span class="no">6</span>여쭐 것 아홉</h2>
+<p class="idea">짧게 답해 주시면 돼요. 보기 중 하나를 골라도 되고, 다르면 말씀해 주세요.</p>
+<ol class="qs"><li><span class="qn">1</span><div><b>2공장은 무엇을 만들고, 어디에 있나요?</b><div class="qas"><span class="qa"><i>가</i>문짝 · 서랍 같은 한 가지 부품</span><span class="qa"><i>나</i>특정 자재(예: 유리 · 도장)</span><span class="qa"><i>다</i>1공장이 바쁠 때 넘치는 일</span></div><small>어디: 1공장 바로 옆 / 따로 떨어진 곳</small></div></li><li><span class="qn">2</span><div><b>나누는 단위는 무엇인가요?</b><div class="qas"><span class="qa"><i>가</i>도면 한 장씩</span><span class="qa"><i>나</i>제품(품목) 하나씩</span><span class="qa"><i>다</i>한 장 안에서도 반반</span></div><small>도면 한 장씩이면 2번 그림처럼 탭마다 고르면 돼요.</small></div></li><li><span class="qn">3</span><div><b>누가 · 언제 정하고, 바뀌면 누구에게 알리나요?</b><div class="qas"><span class="qa"><i>가</i>도면 담당이 그릴 때</span><span class="qa"><i>나</i>도면팀이 보낼 때</span><span class="qa"><i>다</i>영업 · CS 가 주문 받을 때</span></div><small>바뀌면: 두 공장 모두에 알림 / 바뀐 공장에만</small></div></li><li><span class="qn">4</span><div><b>2공장도 태블릿 · 자기 계정 · 같은 네 파트로 일하나요?</b><div class="qas"><span class="qa"><i>가</i>재단 · 엣지 · 조립 · 검수 똑같이</span><span class="qa"><i>나</i>공정이 더 적어요(예: 조립 · 검수만)</span><span class="qa"><i>다</i>앱은 안 씀 — 끝났다는 것만 누가 대신 눌러 줌</span></div></div></li><li><span class="qn">5</span><div><b>2공장 물건은 어디로 가나요? 시공일은 하나인가요?</b><div class="qas"><span class="qa"><i>가</i>1공장으로 와서 함께 실음</span><span class="qa"><i>나</i>현장으로 따로 감</span></div><small>시공일: 늘 하나 / 따로일 때도 있음</small></div></li><li><span class="qn">6</span><div><b>남의 공장 카드는 어떻게 보이나요? 두 곳을 다 보는 사람은 누구인가요?</b><div class="qas"><span class="qa"><i>가</i>안 보임</span><span class="qa"><i>나</i>보이지만 못 누름</span><span class="qa"><i>다</i>보고 누를 수도 있음</span></div><small>다 보는 사람: 사장님 · 관리자 · 생산 사무실 · 반장</small></div></li><li><span class="qn">7</span><div><b>주문 화면의 ‘2공장 발주’ 칸과는 어떤 사이인가요?</b><div class="qas"><span class="qa"><i>가</i>따로 둠(견적 · 계좌용 그대로)</span><span class="qa"><i>나</i>새 나누기로 바꿈</span><span class="qa"><i>다</i>칸이 켜져 있으면 처음 값만 2공장</span></div><small>5번 상자를 봐 주세요.</small></div></li><li><span class="qn">8</span><div><b>도면 마감과 ‘도면 x/n’ 은 공장마다 따로 보나요?</b><div class="qas"><span class="qa"><i>가</i>주문 하나로(그림 B)</span><span class="qa"><i>나</i>공장마다(그림 A)</span></div><small>2공장 마감: 1공장과 같음 / 더 일찍(며칠?)</small></div></li><li><span class="qn">9</span><div><b>섞인 주문은 언제 ‘제작 완료’ 인가요?</b><div class="qas"><span class="qa"><i>가</i>두 공장이 다 끝나야(그림 A)</span><span class="qa"><i>나</i>공장마다 자기 몫 끝(그림 B)</span></div></div></li></ol>
+
+<details class="dev"><summary>만드는 사람에게(사장님은 안 보셔도 돼요)</summary><ul>
+<li>‘도면 한 장’ = 주문 <code>structured_data.drawing_current_files[]</code> 한 항목(<code>key</code> · <code>filename</code> · <code>sheet_id</code> · <code>item_uids</code>). 확정본으로 옮길 때 <code>_normalize_file_entry</code>(<code>foms/services/drawing_confirm_cleanup.py:70-90</code>)가 <code>sheet_id</code> · <code>item_uids</code> 를 남긴다 — 장마다 공장 값도 이 자리에 같이 남기면 생산이 <code>resolve_final_drawing_files</code>(:93)로 그대로 읽는다.</li>
+<li>마법사 시트 = <code>structured_data.drawing_wizard.sheets[]</code>(<code>id</code> · <code>name</code> · <code>form</code> · <code>objects</code> · <code>product_index</code>, <code>static/js/drawing/wizard.js:330-334</code>). 시트 통째로 화면이 가진 값(<code>_CLIENT_OWNED_STATE_KEYS</code>, <code>foms/api/drawing/wizard.py:179</code>), 한 주문 최대 10장(:93). 탭 그리기 <code>renderTabs</code>(<code>wizard.js:4496-4535</code>) — 완료 주문 AS 도면이 탭에 딱지를 붙이는 전례(<code>wizard-as.js:43-56</code>, <code>wizard-as.css</code> <code>.dws-tab-asmark</code>).</li>
+<li>직접 올린 파일은 <code>sheet_id</code> 가 없다(<code>drawing_transfer.py:107-121</code>) — 마법사 탭에만 두면 이 파일들은 공장을 못 가진다(그림 Ⓑ ‘공장 ?’). 작업실 ‘현재 버전’ 목록 = <code>templates/drawing/partials/workbench_detail_body.html:1535-1538</code>.</li>
+<li>생산 카드 = 확정 도면 한 장(<code>foms/services/production/part_board.py:285-292</code> <code>build_pane_board</code>). 표시 줄은 <code>(order_id, drawing_key, part)</code> 하나(<code>models.py:578-605</code>) — 공장 칸은 없다. 계정은 <code>users.production_part</code> 하나뿐(<code>models.py:1625</code>), 공장 칸 없음.</li>
+<li>공정 4칸은 주문에 하나 — 한 파트의 <b>모든 장</b>이 끝이면 켠다(<code>part_steps_sync.py:3-6</code>). 그래서 지금 코드는 그림 A 와 같다. B 는 공장마다 칸이 새로 필요하다.</li>
+<li>내려옴 = 주문 단계가 생산 이상(<code>drawing_arrival.py</code>, 설계서 2026-11-22 §4-1), 마감 = 시공일 − 2영업일(<code>DRAWING_DEADLINE_WORKDAYS</code>, :23). 단계는 주문에 하나(설계서 2026-11-20 나눠 시공 §1).</li>
+<li>지금 ‘2공장 발주’ = <code>structured_data.flags.factory2</code>. 켜고 끄는 사람 = CS · 영업(2026-10-01부터) · 관리자(<code>foms/services/orders/order_flag_permissions.py:31-36</code>, <code>:58</code>). 쓰는 곳: 견적 · 계약 공급자와 계좌(<code>estimate_defaults.py:78-86</code>), 고객 공유 견적(<code>order_share.py:106-108</code>), 실측 글머리 ★★(<code>channel_measure_message.py:268</code>), 주문 · 실측 · 지방 보드 딱지, 옛 생산 칸반 공장 거르개(<code>tablet_kanban_body.html:103-106</code>, <code>:177</code>, <code>:247</code>), 도면팀 바뀜 알림(<code>drawing_order_change.py:207</code>, <code>:903</code>), 주문 복사(<code>order_copy.py:56</code>). 새 생산 첫 화면은 읽지 않는다.</li>
+</ul></details>
+
+</section>
+</main>
+<script>
+(function(){
+  var fits=[].slice.call(document.querySelectorAll('.fit'));
+  function fit(){fits.forEach(function(f){var s=f.firstElementChild;if(!s){return;}var w=s.offsetWidth,h=s.offsetHeight;var k=Math.min(1,f.clientWidth/w);s.style.transform=k<1?'scale('+k+')':'';f.style.height=Math.round(h*k)+'px';});}
+  fit();window.addEventListener('resize',fit);
+})();
+</script>
+</body>
+</html>
