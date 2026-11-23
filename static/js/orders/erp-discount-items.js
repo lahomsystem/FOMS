@@ -40,6 +40,59 @@
     if (typeof window.erpCalculateRemaining === "function") window.erpCalculateRemaining();
   }
 
+  /** "50000-10000" → 50,000-10,000 처럼 숫자마다 쉼표. 연산자가 없으면 null. */
+  function formatExpr(raw) {
+    if (!/[0-9][+-]/.test(raw)) return null;
+    return raw.replace(/[0-9]+/g, function (d) { return parseInt(d, 10).toLocaleString("ko-KR"); });
+  }
+
+  /** 덧셈·뺄셈 식 결과(0 이상). 서버 eval_discount_expr 와 같은 규칙. */
+  function evalExpr(text) {
+    var body = String(text || "").replace(/[^0-9+-]/g, "");
+    var total = 0;
+    var re = /([+-]?)([0-9]+)/g;
+    var m;
+    while ((m = re.exec(body)) !== null) {
+      var n = parseInt(m[2], 10);
+      total += m[1] === "-" ? -n : n;
+    }
+    return Math.max(0, total);
+  }
+
+  /** 할인 금액 칸: 숫자만이면 "40,000원", 식이면 "50,000-10,000" 그대로 두고 결과로 계산. */
+  function bindExprInput(el, row) {
+    function apply(raw) {
+      var expr = formatExpr(raw);
+      if (expr) {
+        el.value = expr;
+        row.expr = expr;
+        row.amount = evalExpr(raw);
+      } else {
+        var digits = raw.replace(/[^0-9]/g, "");
+        el.value = digits ? formatWon(parseInt(digits, 10)) : "";
+        row.expr = "";
+        row.amount = coerce(digits);
+        if (digits && typeof el.setSelectionRange === "function") {
+          try { el.setSelectionRange(el.value.length - 1, el.value.length - 1); } catch (_e) { /* 포커스 밖 */ }
+        }
+      }
+      syncTotal();
+    }
+    el.addEventListener("keydown", function (event) {
+      if (event.key !== "Backspace") return;
+      var v = String(el.value || "");
+      if (!v.endsWith("원") || el.selectionStart !== el.selectionEnd || el.selectionStart < v.length - 1) return;
+      event.preventDefault();
+      var digits = v.replace(/[^0-9]/g, "");
+      apply(digits.slice(0, -1));
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    el.addEventListener("input", function (event) {
+      if (event.isTrusted === false) return;
+      apply(String(el.value || "").replace(/[^0-9+-]/g, ""));
+    });
+  }
+
   function buildRow(row, index) {
     var wrap = document.createElement("div");
     wrap.className = "erp-discount-row";
@@ -61,13 +114,8 @@
     amount.className = "erp-amount-value erp-amount-value--discount erp-discount-row__amount";
     amount.value = row.amount > 0 ? formatWon(row.amount) : "";
     amount.setAttribute("aria-label", "할인 금액");
-    var parse = function () { return coerce(amount.value); };
-    var onRecalc = function () { row.amount = parse(); syncTotal(); };
-    if (typeof window.erpBindAmountInput === "function") {
-      window.erpBindAmountInput(amount, parse, onRecalc);
-    } else {
-      amount.addEventListener("input", onRecalc);
-    }
+    amount.value = row.expr ? row.expr : amount.value;
+    bindExprInput(amount, row);
 
     var remove = document.createElement("button");
     remove.type = "button";
@@ -104,7 +152,9 @@
   function getItems() {
     return rows
       .map(function (row) {
-        return { label: String(row.label || "").trim() || DEFAULT_LABEL, amount: coerce(row.amount) };
+        var item = { label: String(row.label || "").trim() || DEFAULT_LABEL, amount: coerce(row.amount) };
+        if (row.expr) item.expr = row.expr;
+        return item;
       })
       .filter(function (row) { return row.amount > 0; });
   }
@@ -118,7 +168,10 @@
     if (Array.isArray(items)) {
       rows = items
         .filter(function (row) { return row && typeof row === "object"; })
-        .map(function (row) { return { label: String(row.label || ""), amount: coerce(row.amount) }; })
+        .map(function (row) {
+          var expr = typeof row.expr === "string" ? row.expr : "";
+          return { label: String(row.label || ""), amount: coerce(row.amount), expr: expr };
+        })
         .filter(function (row) { return row.amount > 0; });
     } else {
       var legacy = coerce(legacyAmount);

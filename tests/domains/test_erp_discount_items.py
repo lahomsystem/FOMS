@@ -97,3 +97,17 @@ def test_shared_js_saves_and_loads_discount_list() -> None:
     assert "discounts: Array.isArray(pay.discounts) ? pay.discounts : null" in shared
     autosave = (ROOT / "static/js/orders/erp-order-autosave.js").read_text(encoding="utf-8")
     assert "window.erpSetDiscountItems(payment.discounts, payment.discount)" in autosave
+
+
+def test_expr_row_amount_is_server_computed() -> None:
+    """'50,000-10,000' 식으로 적은 할인은 식을 남기고 금액은 서버가 다시 계산한다."""
+    from foms.services.orders.discount_items import clean_discount_items, eval_discount_expr
+
+    assert eval_discount_expr("50,000-10,000") == 40000
+    assert eval_discount_expr("1000+200-50") == 1150
+    assert eval_discount_expr("30,000원") is None
+    assert eval_discount_expr("1-") is None
+    assert eval_discount_expr("10-x") is None
+    rows = clean_discount_items([{"label": "현장", "amount": 999, "expr": "50,000-10,000"}])
+    assert rows == [{"label": "현장", "amount": 40000, "expr": "50,000-10,000"}]
+    assert clean_discount_items([{"amount": 5000, "expr": "잘못"}]) == [{"label": "할인", "amount": 5000}]
