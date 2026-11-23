@@ -126,3 +126,14 @@ def test_requested_construction_day_listed_as_requested(app, world, priced):
     rows = cal["day_orders"]["2026-11-07"]
     assert [(r["id"], r["requested"], r["time"]) for r in rows] == [(order_id, True, "오후")]
     assert _cell(cal, "2026-11-07")["own"] == 1 and _cell(cal, "2026-11-07")["count"] == 1
+
+
+def test_staff_order_screen_construction_day_counts(app, world, priced):
+    """주문 화면 시공일 달력도 협력사처럼 날짜 아래 시공 건수(사용자 2026-11-23)."""
+    _order_on(app, world["partner_a"], ["2026-11-05"], 1)
+    _order_on(app, world["partner_b"], ["2026-11-05", "2026-11-06"], 1)
+    data = tower.construction_day_counts(db_session, db_session.get(User, world["staff"]), "2026-11", today=_TODAY)
+    assert data["month"] == "2026-11" and data["days"] == {"2026-11-05": 2, "2026-11-06": 1}
+    body = _client(app, db_session.get(User, world["staff"])).get(
+        "/erp/dashboard/construction-day-counts?month=2026-11").get_json()
+    assert body["success"] is True and set(body["data"]) == {"month", "days"}

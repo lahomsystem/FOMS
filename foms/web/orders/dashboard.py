@@ -60,6 +60,7 @@ from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
     build_month_calendar,
+    construction_day_counts,
     build_risk_frame,
     risk_row_cta_meta,
 )
@@ -826,6 +827,14 @@ def erp_dashboard_field_calendar():
         calendar_colors_editable=_can_edit_calendar_colors(current_user),
     )
     return {'success': True, 'data': {'html': html, 'month': calendar['month']}}
+
+
+@erp_dashboard_bp.route('/dashboard/construction-day-counts')
+@login_required
+def erp_dashboard_construction_day_counts():
+    """주문 화면 시공일 달력(flatpickr) 칸 숫자(?month=YYYY-MM) — 날짜별 시공 건수(협력사 달력과 같은 표기)."""
+    data = construction_day_counts(get_db(), getattr(g, 'current_user', None), request.args.get('month'))
+    return {'success': True, 'data': data, 'error': None}
 
 
 #: 달력 칸 색 기준을 바꿀 수 있는 역할(사용자 결정 2026-10-14: 관리자·팀장).
