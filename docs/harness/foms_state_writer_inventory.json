@@ -275,7 +275,7 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 304,
+      "lineno": 305,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -283,7 +283,7 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 315,
+      "lineno": 316,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -291,7 +291,7 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 345,
+      "lineno": 346,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -299,7 +299,7 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 354,
+      "lineno": 355,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",

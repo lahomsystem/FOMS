@@ -148,7 +148,11 @@ def test_as_register_clears_erp_draft_so_as_dashboard_lists_order(client, monkey
     assert visible == 1
 
 
-def test_as_register_matches_confirmed_construction_worker(client, monkeypatch):
+def test_as_register_blanks_the_installer_and_never_writes_the_filer(client, monkeypatch):
+    """시공이 끝난 주문에 AS 를 접수하면 시공자 칸을 비운다 — 접수한 시공자 이름을 넣지 않는다(사장님 2026-11-23).
+
+    AS 는 원래 시공자가 갈 수도, 다른 시공자 · AS 기사가 갈 수도 있어 출고 담당이 스케줄에서 정한다.
+    """
     _login_as_construction(client)
     order = _create_order(
         status="AS",
@@ -173,12 +177,12 @@ def test_as_register_matches_confirmed_construction_worker(client, monkeypatch):
     assert response.status_code == 200
     data = response.get_json()
     assert data["success"] is True
-    assert data["construction_workers"] == ["확정시공자"]
+    assert data["construction_workers"] == []
 
     db_session.expire_all()
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
-    assert saved_order.structured_data["shipment"]["construction_workers"] == ["확정시공자"]
+    assert saved_order.structured_data["shipment"]["construction_workers"] == []
 
 
 def test_construction_dashboard_as_register_marks_source_screen():

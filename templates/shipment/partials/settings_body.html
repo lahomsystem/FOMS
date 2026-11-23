@@ -132,6 +132,24 @@
             </div>
           </div>
         </div>
+        {# AS 기사 — 시공자와 따로(이름만). 출고 스케줄 AS 줄의 이름판 · AS 탭 고르기 목록에 나온다. 자수 · 잔여 인원에는 안 든다. #}
+        <div class="col-12 col-lg-6 mb-4">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold"><i class="fas fa-tools me-2"></i>AS 기사</div>
+            <div class="card-body">
+              <p class="text-muted small mb-2">AS 줄에서 고를 수 있어요. 시공자도 AS 줄에서 고를 수 있어서 여기엔 AS 만 가는 분만 적으면 돼요.</p>
+              <ul id="list-as_technicians" class="list-group list-group-flush mb-2">
+                {% for v in (settings.as_technicians or []) %}
+                <li class="list-group-item d-flex gap-2 align-items-center px-0">
+                  <input type="text" class="form-control form-control-sm setting-input" data-key="as_technicians" value="{{ v }}" placeholder="AS 기사 이름">
+                  <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
+                </li>
+                {% endfor %}
+              </ul>
+              <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="as_technicians"><i class="fas fa-plus me-1"></i>추가</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -214,6 +232,15 @@
         });
       });
     }
+    // AS 기사도 같은 규칙 — 목록이 렌더됐을 때만 key 를 보낸다.
+    var asUl = document.getElementById('list-as_technicians');
+    if (asUl) {
+      out.as_technicians = [];
+      asUl.querySelectorAll('input.setting-input').forEach(function(inp) {
+        var v = inp.value.trim();
+        if (v && out.as_technicians.indexOf(v) === -1) out.as_technicians.push(v);
+      });
+    }
     return out;
   }
 
@@ -255,7 +282,7 @@
           '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       } else {
         li.className = 'list-group-item d-flex gap-2 align-items-center px-0';
-        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : '추가 주소') + '">' +
+        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'as_technicians' ? 'AS 기사 이름' : '추가 주소')) + '">' +
           '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       }
       ul.appendChild(li);

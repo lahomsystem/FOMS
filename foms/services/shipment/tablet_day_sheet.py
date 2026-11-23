@@ -54,19 +54,23 @@ def _color_for(position: int) -> int:
     return position % COLOR_COUNT + 1
 
 
-def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str | None) -> dict:
+def build_tablet_day_sheet(
+    rows: list, worker_settings: list, target_date: str | None, as_technicians: list | None = None,
+) -> dict:
     """하루치 출고표의 시공자 묶음 · 사람별 집계를 만든다(추가 쿼리 없음).
 
     Args:
         rows: 그날(또는 기간) 출고 줄 Order 리스트. 들어온 순서를 묶음 안 순서로 쓴다.
         worker_settings: normalize_erp_shipment_workers 결과([{name, capacity, off_dates}]).
         target_date: 'YYYY-MM-DD'. None 이면(기간 보기) 쉬는 날 판정을 하지 않는다.
+        as_technicians: 출고 설정의 AS 기사 이름 목록. 이름판 자료(people)에 ``as_tech`` 표식으로 싣는다 —
+            AS 줄의 이름판은 AS 기사를 먼저 보이고, 시공 줄의 이름판은 AS 기사를 숨긴다(tablet-ship-assign.js).
 
     Returns:
         {'groups': [{'key', 'unassigned', 'color_index', 'rows': [
                         {'order', 'no', 'is_as', 'as_visit_too', 'units', 'workers': [{'name', 'color_index'}]}]}],
          'people': [{'name', 'count', 'units', 'capacity', 'over', 'off',
-                     'color_index', 'in_settings'}],
+                     'color_index', 'in_settings', 'as_tech'}],
          'total': 줄 수, 'unassigned': 시공자 없는 줄 수}.
     """
     # 설정 시공자(정규화 이름 중복 제거, 설정 순서)
@@ -124,6 +128,16 @@ def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str |
                 _assign(_normalize_worker_name(n))
     for norm in settings_order:
         _assign(norm)
+    # AS 기사(설정) — 시공자 설정 · 그날 줄에 없는 이름만 뒤에 붙인다. 같은 이름이 시공자 설정에도 있으면 시공자다.
+    tech_name: dict[str, str] = {}
+    for raw_name in as_technicians or []:
+        text = str(raw_name or '').strip()
+        norm = _normalize_worker_name(text)
+        if norm and norm not in tech_name:
+            tech_name[norm] = text
+            display_name.setdefault(norm, text)
+            _assign(norm)
+    tech_only = [n for n in tech_name if n not in settings_by_norm and n not in extra_norms]
 
     # 묶음 · 줄 · 사람별 합
     count_by_norm: dict[str, int] = {}
@@ -158,7 +172,7 @@ def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str |
         })
 
     people: list[dict] = []
-    for norm in settings_order + extra_norms:
+    for norm in settings_order + extra_norms + tech_only:
         setting = settings_by_norm.get(norm)
         units = round(units_by_norm.get(norm, 0.0), 4)
         capacity = None
@@ -176,6 +190,7 @@ def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str |
             'off': off,
             'color_index': color_by_norm[norm],
             'in_settings': setting is not None,
+            'as_tech': setting is None and norm in tech_name,
         })
 
     return {

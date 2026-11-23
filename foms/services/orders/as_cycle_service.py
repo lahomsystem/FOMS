@@ -39,6 +39,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.as_log import append_system_log
 from foms.services.orders.as_schedule_link import clear_link, read_link
 from foms.services.orders.revision import MutationResult, execute_order_mutation
+from foms.services.orders.schedule_row_kind import is_main_flow_open
 from foms.services.orders.sales_delivery_link import LINK_PATH as _SALES_DELIVERY_LINK_PATH
 from foms.services.orders.sales_delivery_link import METHOD_KEY as _SALES_DELIVERY_METHOD_KEY
 from foms.services.orders.sales_delivery_link import PARCEL_KEY as _SALES_DELIVERY_PARCEL_KEY
@@ -542,6 +543,24 @@ def _stamp_visit_cleared(cycle: Dict[str, Any]) -> None:
             break
 
 
+def clears_workers_on_register(order: Any, shipment: Any) -> bool:
+    """새 AS 건 접수가 시공자 칸을 비우는가.
+
+    시공이 아직 남은 주문(본 흐름 열림 — 생산 · 시공 진행 중 접수)은 남은 시공일의 시공자를 지우면 안 되므로
+    건드리지 않는다. 이미 빈 칸도 건드리지 않는다(되돌릴 것이 없다).
+
+    Args:
+        order: ``erp_stage_code`` 를 가진 주문.
+        shipment: ``structured_data['shipment']`` (dict 가 아니면 False).
+
+    Returns:
+        비워야 하면 True.
+    """
+    if not isinstance(shipment, dict) or not shipment.get("construction_workers"):
+        return False
+    return not is_main_flow_open(order)
+
+
 # --------------------------------------------------------------------------- #
 # canonical AS command
 # --------------------------------------------------------------------------- #
@@ -559,7 +578,8 @@ def register_as_cycle(
     current cycle 이 열려 있으면(RECEIVED/IN_PROGRESS) 중복 접수로 거부(409). 완료된 이전
     cycle 은 이력으로 남고 새 cycle 이 append 된다. main stage 는 건드리지 않는다.
     ``received_date`` 는 endpoint 가 KST 로 계산해 넘긴다(get_today_kst monkeypatch 존중);
-    ``construction_worker_name`` 이 있으면 shipment 담당자 projection 에 반영한다.
+    ``construction_worker_name`` 은 더 쓰지 않는다(2026-11-23 — 접수는 시공자 칸에 이름을 넣지 않고,
+    시공이 끝난 주문이면 비운다: :func:`clears_workers_on_register`). 호출부 호환을 위해 인자만 남긴다.
     ``recurrence`` 는 "같은 하자의 재발"이라는 접수 표식으로 cycle core 에 봉인된다.
 
     새 cycle 발급은 ``sd_hook`` **보다 먼저** 돈다 — endpoint 부수 기록(접수 reception·
@@ -601,12 +621,15 @@ def register_as_cycle(
             as_completed_date=_text_or_none(order.as_completed_date),
         )
         shipment["as_content"] = content
-        if construction_worker_name:
+        # AS 줄의 시공자 칸은 비워서 시작한다(사장님 2026-11-23 — AS 는 원래 시공자가 갈 수도, 다른 시공자 · AS 기사가
+        # 갈 수도 있다. 설계서 2026-11-23-as-worker-blank-and-as-technicians §2.1). 비우기 전 값은 prior 에 남겨
+        # 접수 취소(as_cycle_cancel)가 되돌린다.
+        if clears_workers_on_register(order, shipment):
             prior["construction_workers"] = {
                 "before": copy.deepcopy(shipment.get("construction_workers")),
-                "after": [construction_worker_name],
+                "after": [],
             }
-            shipment["construction_workers"] = [construction_worker_name]
+            shipment["construction_workers"] = []
         _apply_classification_projection(sd, cycle)
         order.as_received_date = cycle.get("received_date")
         # 새 RECEIVED cycle 은 이전 완료일의 잔존을 허용하지 않는다. 남기면 AS 대시보드
