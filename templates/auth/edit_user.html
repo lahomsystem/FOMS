@@ -88,8 +88,14 @@
                 </div>
                 {% endfor %}
                 <div class="form-text">생산팀일 때만 쓰여요. 다른 팀이면 저장할 때 비워져요.</div>
-                <div class="form-text" data-production-parts-note>여럿 골라도 돼요. 하나도 안 고르면 모든 파트 도면을 대신 처리할 수 있어요.</div>
+                <div class="form-text" data-production-parts-note>여럿 골라도 돼요.</div>
             </fieldset>
+            {# 반장(설계서 2026-11-23 '승인 때 고친 것' 5) — 생산팀일 때만 뜻이 있다(다른 팀이면 저장할 때 비운다). #}
+            <div class="mb-3 form-check" data-production-lead-field>
+                <input class="form-check-input" type="checkbox" id="production_lead" name="production_lead"{% if user.production_lead %} checked{% endif %}>
+                <label class="form-check-label" for="production_lead">반장</label>
+                <div class="form-text">반장은 모든 파트 도면을 대신 처리하고 공정을 직접 체크할 수 있어요.</div>
+            </div>
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if user.is_active
                     %}checked{% endif %} autocomplete="off">

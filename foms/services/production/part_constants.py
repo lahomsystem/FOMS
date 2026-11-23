@@ -11,6 +11,8 @@ D49 재단 상태 넷 · D51/D52 배지 색).
   순환이 생긴다. 같은 값인지는 같은 시험이 본다.
 * 계정 파트는 생산팀일 때만 뜻이 있다. 팀이 바뀌어도 칸 값이 남을 수 있으니 읽는 쪽은 늘
   :func:`account_production_parts` 를 거친다(생산팀이 아니면 빈 것).
+* 반장(설계서 2026-11-23 '승인 때 고친 것' 5) = 생산팀 계정에서 관리자가 체크한 사람(``users.production_lead``) —
+  :func:`account_production_lead`. 파트와 따로다(반장이 파트를 가져도 된다).
 * 계정마다 파트 0 ~ 4개(설계서 ``docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md`` §4-12 · §6-1, P2).
   새 칸 ``users.production_parts``(목록)가 기준이고, 옛 칸 ``production_part`` 는 한 판 동안 첫 파트를 같이 적는다
   (:func:`production_part_columns` — 되돌린 옛 코드가 맞는 파트를 읽게). 둘이 어긋나면 옛 코드가 나중에 고친 것이라
@@ -184,6 +186,36 @@ def account_production_part(user: Any) -> Optional[str]:
     """
     parts = account_production_parts(user)
     return parts[0] if parts else None
+
+
+def production_lead_for_team(team: Optional[str], checked: bool) -> Optional[bool]:
+    """저장할 반장 칸(설계서 2026-11-23 '승인 때 고친 것' 5) — 생산팀이고 체크했으면 참, 아니면 None(NULL = 반장 아님).
+
+    Args:
+        team: 같이 저장할 팀 글.
+        checked: 관리자 화면의 '반장' 체크칸이 켜졌는지.
+
+    Returns:
+        ``True`` 또는 None — 다른 팀이면 체크했어도 비운다(팀을 바꾸면 같이 비워진다).
+    """
+    return True if checked and team_can_hold_production_part(team) else None
+
+
+def stored_production_lead(user: Any) -> bool:
+    """행에 적힌 반장 칸이 참인지(팀은 안 본다 — 감사 스냅샷용). NULL · 거짓 = 아님."""
+    return getattr(user, "production_lead", None) is True
+
+
+def account_production_lead(user: Any) -> bool:
+    """계정이 반장인지 — 생산팀이고 반장 칸이 참(이미 읽은 행, 쿼리 0). 활성 · 역할은 :mod:`part_access` 가 같이 본다.
+
+    Args:
+        user: 사용자 객체(``team`` · ``production_lead`` 를 읽는다). None 허용.
+
+    Returns:
+        생산팀 + 반장 칸 참이면 True.
+    """
+    return user is not None and team_can_hold_production_part(getattr(user, "team", None)) and stored_production_lead(user)
 
 
 def production_part_label(part: Optional[str]) -> Optional[str]:

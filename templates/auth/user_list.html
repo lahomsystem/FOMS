@@ -94,6 +94,13 @@
                                         <option value="{{ key }}" {{ 'selected' if key == p.team else '' }}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
+                                    {# 생산팀으로 승인할 때 파트 · 반장(설계서 2026-11-23 '승인 때 고친 것' 5 — 다른 팀이면 저장할 때 비운다) #}
+                                    <span class="d-inline-flex flex-wrap gap-1 align-items-center" role="group" aria-label="생산팀 파트 · 반장" data-approve-production-fields>
+                                        {% for part_key, part_name in production_parts %}
+                                        <label class="form-check form-check-inline mb-0 small"><input class="form-check-input" type="checkbox" name="production_parts" value="{{ part_key }}"> {{ part_name }}</label>
+                                        {% endfor %}
+                                        <label class="form-check form-check-inline mb-0 small"><input class="form-check-input" type="checkbox" name="production_lead"> 반장</label>
+                                    </span>
                                     <button type="submit" class="btn btn-sm btn-success">승인</button>
                                 </form>
                                 <form method="post" action="{{ url_for('auth.reject_user', user_id=p.id) }}" class="d-inline">

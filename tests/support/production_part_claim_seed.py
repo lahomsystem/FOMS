@@ -34,10 +34,10 @@ class Person:
 
 
 def make_user(name: str, *, team: str | None = "PRODUCTION", role: str = "STAFF", part: str | None = None,
-              partner_org_id: int | None = None) -> Person:
-    """가짜 계정 하나(파트 계정이면 ``part``)."""
+              partner_org_id: int | None = None, lead: bool | None = None) -> Person:
+    """가짜 계정 하나(파트 계정이면 ``part``, 반장이면 ``lead=True`` — 설계서 2026-11-23 '승인 때 고친 것' 5)."""
     user = User(username=f"sc_{next(_seq)}", password=generate_password_hash("x"), role=role, team=team, name=name,
-                is_active=True, production_part=part, partner_org_id=partner_org_id)
+                is_active=True, production_part=part, partner_org_id=partner_org_id, production_lead=lead)
     db_session.add(user)
     db_session.commit()
     return Person(user.id, user.username, user.role, name)

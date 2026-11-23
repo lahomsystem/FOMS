@@ -41,7 +41,7 @@ from foms.services.production_home_read_model import (
     production_home_stage,
     production_home_steps,
 )
-from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
+from foms.services.production.part_access import steps_lock
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_ready, parts_progress
 from foms.services.production.sheet_parts import sheet_part_extras
@@ -301,7 +301,8 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
     sheet['has_change_history'] = bool(_sc['history'])
     if full:
         sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, order_marks(db, order.id)))
-        # 파트 계정 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 — 공정 API 403 과 같은 판정)
-        sheet.update(steps_locked=steps_locked_for(user), steps_locked_note=PART_ACCOUNT_STEPS_MESSAGE)
+        # 파트 계정 · 파트도 반장도 아닌 생산팀 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 · '승인 때 고친 것' 5 — 공정 API 403 과 같은 판정)
+        lock = steps_lock(user)
+        sheet.update(steps_locked=lock is not None, steps_locked_note=lock.message if lock else '')
         sheet['dw_wait'] = _drawing_wait(db, order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7 · 알림 켬이면 +1)
     return sheet

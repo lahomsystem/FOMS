@@ -49,9 +49,9 @@ def _session(pg_engine):
     return sessionmaker(bind=pg_engine)()
 
 
-def _user(s, name: str, part: str | None, tag: str) -> tuple[int, str, str]:
+def _user(s, name: str, part: str | None, tag: str, *, lead: bool | None = None) -> tuple[int, str, str]:
     user = User(username=f"race_{name}_{tag}", password=generate_password_hash("pw"), role="STAFF", team="PRODUCTION",
-                name=name, is_active=True, production_part=part)
+                name=name, is_active=True, production_part=part, production_lead=lead)
     s.add(user)
     s.flush()
     return user.id, user.username, user.role
@@ -64,7 +64,7 @@ def _seed(pg_engine, *, mark_state: str | None):
     s = _session(pg_engine)
     try:
         park, kim, choi = (_user(s, n, "edge", tag) for n in ("박엣지", "김민준", "최가은"))
-        foreman = _user(s, "박반장", None, tag)
+        foreman = _user(s, "박반장", None, tag, lead=True)  # 반장(설계서 2026-11-23 '승인 때 고친 것' 5 — 공정 칸 손 체크)
         files = [{"key": f"race{tag}/d{j}.png", "filename": f"d{j}.png", "sheet_id": f"race{tag}-s{j}"} for j in range(2)]
         order = Order(received_date="2026-11-23", customer_name="가짜고객", phone="010-0000-0000", address="가짜시",
                       product="가짜장", status="PRODUCTION", is_erp_order=True, erp_stage_code="PRODUCTION",

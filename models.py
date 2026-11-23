@@ -1642,6 +1642,10 @@ class User(Base):
     # none_as_null: 파이썬 None 을 JSON 'null' 이 아니라 SQL NULL 로 쓴다 — 기본 JSON 꼴은 None 을 'null' 로 써서 PG CHECK
     # (NULL 또는 배열)에 걸린다(PG 레인 tests/postgres/test_users_production_parts_pg.py 가 잡음). DDL 은 JSONColumn 과 같다.
     production_parts = Column(JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), 'postgresql'), nullable=True)
+    # PRODLEAD-01(설계서 2026-11-23 '승인 때 고친 것' 5): 반장 — 생산팀 계정에서 관리자가 체크한 사람만(네 파트 도면 대신 처리 ·
+    # 공정 체크칸 손 체크). NULL · 거짓 = 반장 아님, 생산팀이 아니면 저장 때 비운다. 읽는 쪽은 part_constants.account_production_lead.
+    # 마이그레이션 prodlead_01 이 그 전의 '파트 없는 생산팀'(STAFF · MANAGER)을 참으로 채웠다. 기본값 · 색인 없음.
+    production_lead = Column(Boolean, nullable=True)
     # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
     partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
     # SESSION-REVOKE-01: 세션 세대 번호(비밀번호·역할 변경 때 +1 → 모든 세션 끊김)와

@@ -1,12 +1,14 @@
-"""여러 파트(P2) — 계정 파트 0 ~ 4개 · 대신(파트 없는 생산팀) · 판 머리 고르기 · 다른 파트 줄 '내 담당'.
+"""여러 파트(P2) — 계정 파트 0 ~ 4개 · 대신(반장) · 판 머리 고르기 · 다른 파트 줄 '내 담당'.
 
-설계서 ``docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md`` §4-12 · §5 권한 표 · §6-1 · §8-1 '여러 파트(P2)' · §12.
+설계서 ``docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md`` §4-12 · §5 권한 표 · §6-1 · §8-1 '여러 파트(P2)' · §12 ·
+맨 위 '승인 때 고친 것' 5(반장 따로 지정 — 대신은 관리자가 반장으로 체크한 생산팀 계정만, 파트도 반장도 아니면 보기만).
 이름은 모두 지어낸 값이다.
 
 되돌리면 실패: 파트 둘 중 둘째 파트 쓰기 403 · 내 파트 밖 파트 쓰기 200 · 대신을 읽기 전용으로(카드 쓰기 403 · 창 없음) · 대신의 공정 칸
 잠금 · 고르기를 파트 하나인 계정에도 그림 · 주소 ``part`` 가 내 파트 밖인데 그 판 · '내 담당'을 파트 하나인 계정 · 관리자에게도 ·
 받아 오기 낱말이 판과 다름 · 새 칸이 옛 칸과 어긋날 때 새 칸만 믿음 · 쿼리 수 늘림.
-대조군: 파트 하나인 계정의 판 · 제목 · 주소는 지금 그대로 · 읽기 전용(CS · 도면 · 다른 팀 매니저)은 그대로 못 씀 · 관리자 감사 꼬리 그대로.
+대조군: 파트 하나인 계정의 판 · 제목 · 주소는 지금 그대로 · 읽기 전용(CS · 도면 · 다른 팀 매니저)은 그대로 못 씀 · 관리자 감사 꼬리 그대로 ·
+파트도 반장도 아닌 생산팀은 카드 · 공정 칸 403 이지만 [제작 시작] 같은 그 밖 생산 쓰기는 지금 그대로.
 """
 from __future__ import annotations
 
@@ -32,6 +34,7 @@ from foms.services.production.part_constants import (
     account_production_part,
     account_production_parts,
     normalize_production_parts,
+    production_lead_for_team,
     production_part_columns,
     production_parts_label,
 )
@@ -64,11 +67,13 @@ def policy_on(app):
         app.config["AUTH_POLICY_ENABLED"] = prev
 
 
-def _db_user(name: str, *, parts: list[str] | None = None, team: str | None = "PRODUCTION", role: str = "STAFF") -> User:
-    """새 칸(목록) + 옛 칸(첫 파트)을 관리자 저장처럼 같이 적은 가짜 계정(같은 두 함수를 거친다)."""
+def _db_user(name: str, *, parts: list[str] | None = None, team: str | None = "PRODUCTION", role: str = "STAFF",
+             lead: bool = False) -> User:
+    """새 칸(목록) + 옛 칸(첫 파트) · 반장 칸을 관리자 저장처럼 같이 적은 가짜 계정(같은 함수들을 거친다)."""
     stored, first = production_part_columns(team, normalize_production_parts(parts))
     user = User(username=f"mp_{next(_seq)}", password=generate_password_hash("x"), role=role, team=team, name=name,
-                is_active=True, production_parts=stored, production_part=first)
+                is_active=True, production_parts=stored, production_part=first,
+                production_lead=production_lead_for_team(team, lead))
     db_session.add(user)
     db_session.commit()
     return user
@@ -79,9 +84,9 @@ def _user(name: str, **kw) -> Person:
     return Person(user.id, user.username, user.role, name)
 
 
-def _ns(*, team: str | None = "PRODUCTION", role: str = "STAFF", parts=None, legacy=None) -> SimpleNamespace:
+def _ns(*, team: str | None = "PRODUCTION", role: str = "STAFF", parts=None, legacy=None, lead=None) -> SimpleNamespace:
     return SimpleNamespace(team=team, role=role, production_parts=parts, production_part=legacy, is_active=True,
-                           partner_org_id=None, id=7)
+                           partner_org_id=None, id=7, production_lead=lead)
 
 
 # --------------------------------------------------------------------------- #
@@ -130,8 +135,13 @@ ALL = PRODUCTION_PART_KEYS
     (dict(parts=["cut"], legacy="cut"), "part", ("cut",), False, True),
     (dict(parts=["cut", "edge"], legacy="cut"), "part", ("cut", "edge"), False, True),
     (dict(parts=list(ALL), legacy="cut"), "part", ALL, False, True),
-    (dict(), "sub", ALL, True, False),  # 파트 없는 생산팀 STAFF = 대신(예전 읽기 전용)
-    (dict(role="MANAGER"), "sub", ALL, True, False),
+    (dict(), "readonly", (), False, True),  # 파트도 반장도 아닌 생산팀 = 보기만 · 공정 칸 잠김('승인 때 고친 것' 5)
+    (dict(role="MANAGER", lead=False), "readonly", (), False, True),
+    (dict(lead=True), "sub", ALL, True, False),  # 반장(관리자가 체크) = 대신
+    (dict(role="MANAGER", lead=True), "sub", ALL, True, False),
+    (dict(parts=["cut", "edge"], legacy="cut", lead=True), "sub", ALL, True, False),  # 반장이 파트도 있으면 반장이 이긴다(네 파트)
+    (dict(team="CS", lead=True), "readonly", (), False, False),  # 생산팀이 아니면 반장 칸은 뜻이 없다
+    (dict(role="VIEWER", lead=True), "readonly", (), False, False),  # 조회 전용은 반장이어도 못 쓴다(생산 쓰기 문이 막음)
     (dict(role="ADMIN", team="CS"), "admin", ALL, True, False),
     (dict(role="ADMIN", parts=["cut"], legacy="cut"), "admin", ALL, True, False),  # 관리자는 계정 파트를 무시(D55)
     (dict(team="CS"), "readonly", (), False, False),
@@ -191,7 +201,7 @@ def test_sub_mode_writes_any_part_finishes_and_releases_others_and_hand_checks(c
     login(client, holder)
     assert mark(client, order, 0, "edge", "take", "none").status_code == 200
     assert mark(client, order, 1, "edge", "take", "none").status_code == 200
-    login(client, _user("박반장", role=role))  # 파트 없는 생산팀 = 대신
+    login(client, _user("박반장", role=role, lead=True))  # 반장 = 대신
     assert mark(client, order, 1, "assemble", "take", "none").status_code == 200  # 아무 파트나(앞문도 지남)
     done = mark(client, order, 0, "edge", "done", "need")  # 남이 맡은 장 대신 완료
     assert done.status_code == 200, done.get_json()
@@ -203,6 +213,19 @@ def test_sub_mode_writes_any_part_finishes_and_releases_others_and_hand_checks(c
     logs = [r.message for r in db_session.query(SecurityLog).filter(SecurityLog.message.like("%대신 처리%"))]
     assert len(logs) == 2 and not any("관리자 덮어쓰기" in m for m in logs), logs
     assert check_step(client, make_order(1).id, "cut", True).status_code == 200  # 공정 칸 손 체크(잠금 없음)
+
+
+def test_production_account_without_parts_or_lead_only_views_cards_and_steps(client):
+    """파트도 반장도 아닌 생산팀 = 도면 카드 · 공정 칸은 보기만(403 — 공정 칸 글은 새 글 하나). [제작 시작]은 지금 그대로 지난다."""
+    order = make_order(1, run=False)
+    login(client, _user("최보기"))
+    card = mark(client, order, 0, "cut", "take", "none")
+    assert card.status_code == 403 and code(card) == "PART_REQUIRED"
+    step = check_step(client, order.id, "cut", True)
+    assert step.status_code == 403 and code(step) == "LEAD_REQUIRED"
+    assert step.get_json()["error"] == "반장으로 지정된 계정만 체크할 수 있어요."
+    started = client.post(f"/api/orders/{order.id}/production/start", json={})
+    assert started.status_code != 403, started.get_json()  # 제작 시작 · 완료 · 보류 · 불량 권한은 바꾸지 않는다
 
 
 def test_readonly_staff_still_cannot_write(client):
@@ -228,9 +251,14 @@ def test_board_picks_only_my_parts_and_falls_back_to_my_first(app):
     assert _board(_db_user("이조검", parts=["inspect", "assemble"]))["part"] == "assemble"
     single = _board(_db_user("박재단", parts=["cut"]), part="edge")  # 대조군: 파트 하나 = 지금 그대로
     assert (single["part"], single["pick"], single["url_part"]) == ("cut", False, None)
-    sub = _board(_db_user("박반장"), part="edge")
+    sub = _board(_db_user("박반장", lead=True), part="edge")
     assert (sub["mode"], sub["part"], sub["writable"], sub["pick"], sub["url_part"]) == ("sub", "edge", True, False, "edge")
     assert len(sub["parts"]) == 4 and _today(sub)["cards"] and not _today(sub)["cards"][0]["badge"]
+    lead_two = _board(_db_user("반장두파", parts=["cut", "edge"], lead=True), part="inspect")  # 반장이 이긴다 — 네 파트 고르기
+    assert (lead_two["mode"], lead_two["part"], lead_two["writable"], lead_two["pick"]) == ("sub", "inspect", True, False)
+    assert [p["key"] for p in lead_two["parts"]] == list(ALL)
+    view = _board(_db_user("최보기"), part="edge")  # 파트도 반장도 아님 = 읽기 전용 판
+    assert (view["mode"], view["part"], view["writable"]) == ("readonly", "edge", False)
 
 
 def test_other_part_line_says_mine_only_for_my_second_part(app):
@@ -320,7 +348,7 @@ def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
     order = _order("한빛", _files("mu", 2))
     holder = _db_user("박재단", parts=["cut"])
     _mark(order, "mu/d0.png", "cut", "NEED", picked=holder)
-    _tablet(client, _user("박반장"))
+    _tablet(client, _user("박반장", lead=True))
     date = _get(client, HOME)
     assert "data-foms-home-partslink" in date and "data-pp-card" not in date  # 날짜 탭은 지금 그대로(줄 목록 + [도면 카드로 보기])
     html = _get(client, HOME + "?tab=parts&part=cut")
@@ -329,6 +357,9 @@ def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
     assert 'class="pp-parts"' in pane and 'data-pp-act="take"' in pane and "박재단 맡음" not in pane
     assert "작업 필요 · 박재단" in pane and 'data-pp-act="done"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료]
     assert "<h1 class=\"foms-prod-home__title\">생산</h1>" in html
+    _tablet(client, _user("최보기"))  # 파트도 반장도 아님 = 같은 판을 단추 없이(P1 읽기 전용 모습)
+    view = _get(client, HOME + "?tab=parts&part=cut")
+    assert '&#34;mode&#34;: &#34;readonly&#34;' in view and 'data-pp-act="' not in _pane(view) and "data-pp-card " in view
 
 
 def _old_claim(order, key: str, part: str, me: User) -> None:
@@ -392,7 +423,7 @@ def test_query_counts_stay_for_two_part_date_tab_and_sub_cards_tab(client, cohor
     _tablet(client, me)
     _small, big, html = _measure(client, HOME, me, (3000, 3100))
     assert "data-pp-pick" in html and big == MEASURED["date_part"], big  # 파트 하나인 계정과 같다(11)
-    boss = _user("박반장")
+    boss = _user("박반장", lead=True)
     _tablet(client, boss)
     url = HOME + "?tab=parts&part=edge"
     _small, sub, html = _measure(client, url, boss, (3200, 3300))

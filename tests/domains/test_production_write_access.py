@@ -75,8 +75,11 @@ def test_part_card_writers_are_inside_write_set(name, role, team, write, view):
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("name,role,team,write,view", PEOPLE)
 def test_write_api_matrix(client, name, role, team, write, view):
-    """쓰는 사람은 권한 문을 지난다(상태 때문에 400 · 409 는 될 수 있다), 그 밖은 여덟 모두 403."""
-    user = make_user(f"pw_{name}", role, team)
+    """쓰는 사람은 권한 문을 지난다(상태 때문에 400 · 409 는 될 수 있다), 그 밖은 여덟 모두 403.
+
+    생산팀 쓰는 사람은 반장으로 체크한 계정이다(공정 칸 손 체크는 반장 · 관리자만 — 설계서 2026-11-23 '승인 때 고친 것' 5).
+    파트도 반장도 아닌 생산팀은 아래 :func:`test_production_account_without_lead_keeps_other_writes`."""
+    user = make_user(f"pw_{name}", role, team, lead=True if team == "PRODUCTION" else None)
     login(client, user)
     order_id = make_order().id
     for path, body in WRITE_ENDPOINTS:
@@ -86,6 +89,19 @@ def test_write_api_matrix(client, name, role, team, write, view):
         else:
             assert resp.status_code == 403, (name, path, resp.status_code)
             assert resp.get_json()["success"] is False
+
+
+@pytest.mark.parametrize("role", ["STAFF", "MANAGER"])
+def test_production_account_without_lead_keeps_other_writes(client, role):
+    """파트도 반장도 아닌 생산팀 — 공정 칸(steps)만 403 ``LEAD_REQUIRED``, 그 밖 일곱은 지금 권한 그대로 문을 지난다."""
+    login(client, make_user(f"pw_nolead_{role}", role, "PRODUCTION"))
+    order_id = make_order().id
+    for path, body in WRITE_ENDPOINTS:
+        resp = client.post(f"/api/orders/{order_id}/production/{path}", json=body)
+        if path == "steps":
+            assert resp.status_code == 403 and resp.get_json()["data"] == {"code": "LEAD_REQUIRED"}, resp.get_json()
+        else:
+            assert resp.status_code != 403, (role, path, resp.get_json())
 
 
 def test_write_api_denied_by_route_decorator_message(app, client, monkeypatch):

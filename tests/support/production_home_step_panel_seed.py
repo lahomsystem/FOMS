@@ -18,9 +18,9 @@ SHELL = {"X-FOMS-ERP-SHELL": "1"}
 STEPS_JS = "js/production/foms-production-home-steps.js"
 
 
-def login(client, name="이철호", *, part=None, team="PRODUCTION", role="STAFF") -> User:
+def login(client, name="이철호", *, part=None, team="PRODUCTION", role="STAFF", lead=None) -> User:
     user = User(username=f"sp_{name}_{part or ''}_{role}", password=generate_password_hash("pw"), role=role, team=team,
-                name=name, is_active=True, production_part=part)
+                name=name, is_active=True, production_part=part, production_lead=lead)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:
