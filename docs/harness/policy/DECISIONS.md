@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-11-23] 생산 파트 '알아서 맡기' 고침 · 계정 여러 파트 · 2공장 — 3판 승인
+- **결정**: 설계서 `docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md` 3판을 사장님이 승인("이대로 만들기 시작"). 1단계(맡기 취소 · 담당 바꾸기 · 바뀐 기록 · 제작 완료 막기 · 검수 순서 · 칸 아래 이름) → 2단계(계정마다 파트 여러 개) → 3단계(2공장) 순서로 스테이징에 내고, 운영은 사장님이 말할 때만 올린다.
+- **사장님이 정한 것**: 일은 파트별로 알아서 맡는다(배정 화면 없음) · 빈 담당 글은 "미정" · 운영에 이미 있는 글은 그대로 두고 새로 생기는 글만 새 말로 · 도면 일부만 완료 체크된 주문은 반장이 공정 체크칸을 눌러도 체크 안 됨 · 체크는 파트 권한이 있는 직원만, 반장은 초월 권한이 있되 체크 전에 한 번 더 묻는다 · 담당이 바뀐 기록을 모든 공정에 표시(알림 띠 없음) · 2공장은 1공장이 넘칠 때 도면 한 장 단위로 나눔, 공장 지정은 도면팀만 · 시공자가 공장마다 상차, 제작 완료도 공장마다 따로 · 패킹 체크도 공장마다 따로(3단계에서 다시 설계).
+- **이유**: 파트 화면 점검(11-23)에서 파트 일이 반쯤인데 제작 완료가 눌리는 구멍과 맡기를 풀 수 없는 막힘이 나왔고, 2공장 흐름이 새로 알려졌다. 목업 2판을 다섯 눈(글 · 접근성 · 디자인 · 사용자 걸어 보기 · CSS)으로 비평해 3판을 만들었다.
+- **영향**: 1단계에 마이그레이션 하나(`prodpart_01_handover` — 표시 줄에 넘겨받기 전 담당 칸 둘). 화면 글 원칙: 지어낸 쉬운 말("아무도" · "끝")이 아니라 사장님 · 현장이 쓰는 말(미정 · 완료 · 미완료 · 담당 · 상차). 목업 `docs/design/mockups/production-self-claim-factory2-v3.html`, 원장 `docs/plans/2026-11-09-tablet-production-ui-ledger.md`.
+
 ### [2026-11-22] 생산 화면 7판 — 지금 날짜 탭 그대로 + 도면 내려옴 · 마감 색 · 마감 알림(꺼 둔 채)
 - **키워드**: drawing_arrival, drawing_deadline, deadline_state, drawing_blocker, fph_wait, DRAWING_DEADLINE_DUE, drawing_deadline_alert, FOMS_DRAWING_DEADLINE_ALERT_ENABLED, FOMS_DRAWING_DEADLINE_ALERT_ONLY_USERS, drawing_deadline_alert_state, drawing_notice_target, 도면 마감, 내려옴, 기다림
 - **결정**: 사장님(2026-11-22 — 시안 일곱 판 뒤 "지금 구현된 메인 화면이 가장 낫다, 업그레이드만", 설계서 `docs/specs/2026-11-22-production-drawing-arrival-upgrade_SPEC.md` 2판 승인).
