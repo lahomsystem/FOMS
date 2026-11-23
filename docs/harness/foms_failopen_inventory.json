@@ -50,7 +50,7 @@
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
     "foms/platform/request_limits.py:252",
-    "foms/services/ai_staff/evals_run.py:384",
+    "foms/services/ai_staff/evals_run.py:427",
     "foms/services/app_init.py:145",
     "foms/services/brain/plan_proposals.py:375",
     "foms/services/channel_client.py:445",
@@ -2993,7 +2993,7 @@
     },
     {
       "path": "foms/services/ai_staff/evals.py",
-      "lineno": 462,
+      "lineno": 473,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3002,7 +3002,7 @@
     },
     {
       "path": "foms/services/ai_staff/evals_run.py",
-      "lineno": 384,
+      "lineno": 427,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",

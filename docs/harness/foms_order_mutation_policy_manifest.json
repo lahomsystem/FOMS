@@ -1580,6 +1580,11 @@
       "policy_id": "ADMIN_OPS",
       "rule": "/api/ai-staff/levels"
     },
+    "ai_staff_api.ai_staff_evals_mark_save": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/ai-staff/evals/marks"
+    },
     "ai_staff_api.ai_staff_evals_run": {
       "mode": "guard",
       "policy_id": "ADMIN_OPS",

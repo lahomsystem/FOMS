@@ -4,7 +4,8 @@
 - 묶음은 가린 칸만 읽는다 — 원문 칸(옛 초안 · 고칠 말 · 자세한 이유 · 수신 원본)에 넣은 지어낸 표식이 묶음 · 모델 인자 · 결과 ·
   로그 어디에도 없고, 묶음 질의가 그 칸을 고르지 않는다. 가린 질문 표식은 모델에만 가고 결과 · 로그에는 없다.
 - ``held_out`` 이 없으면 '지난 상담'은 0(배우기 차례로 채우지 않는다).
-- 가짜 두뇌로 세 줄: 지난 상담(글자 복사 · 뜻 판정 다름 · 넘김 — 뜻 판정자도 같은 가짜 두뇌 · 같은 평가 돈 줄) · 위험 문장(검사가 막음 · 근거 있음 · 근거 없는 약속) · 능력 질문.
+- 가짜 두뇌로 세 줄: 지난 상담(글자 복사 · 판정 '어긋남' · 넘김 — 판정자 · 넘김 까닭 판정자도 같은 가짜 두뇌 · 같은 평가 돈 줄) ·
+  위험 문장(검사가 막음 · 근거 있음 · 근거 없는 약속) · 능력 질문.
 - 상한 0 이면 돌지 않는다(모델 0번) · 상한에서 멈춤(예약이 넘치면 그 차례부터 안 부름) · 열쇠 없음 → '준비 안 됨'(줄 일 길 포함).
 - 보내기 · 메모 · 배우기 · 쓰인 횟수 · 제안 · 차례 줄 고치기 함수는 한 번도 안 불린다 · 상담 초안 하루 돈 줄 · 학습 돈 줄은 그대로.
 - 결과에 글 없음 · 최근 10번만 · 한 번에 하나(도는 중 거절 · 오래 멈춘 줄은 풀림).
@@ -29,7 +30,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session, engine
-from foms.services.ai_staff import evals, evals_meaning, evals_run, evals_view
+from foms.services.ai_staff import evals, evals_handoff, evals_meaning, evals_run, evals_view
 from foms.services.brain.scope import viewer_of
 from foms.services.cs_agent import brain_prompt, brain_spend
 from foms.services.cs_agent.knowledge_doc import ApprovedKnowledge, KnowledgeItem
@@ -59,8 +60,10 @@ ANSWERS = {
     "합성 위험 근거": ("안녕하세요 고객님 영업시간 안내드립니다.", ["hours-day"], False),
     "합성 위험 없음": ("안녕하세요 고객님 영업시간 안내드립니다.", [], False),
 }
-#: 질문 표식 → 뜻 판정자 답(가짜 두뇌가 판정 지시문을 보면 이것을 낸다 — 없는 표식이면 꼴이 틀린 답).
-JUDGED = {"합성 질문 다름": "different"}
+#: 질문 표식 → 판정자 답(가짜 두뇌가 판정 지시문을 보면 이것을 낸다 — 없는 표식이면 꼴이 틀린 답).
+JUDGED = {"합성 질문 다름": "fail_conflict"}
+#: 질문 표식 → 넘김 까닭 판정자 답(없는 표식이면 '재료 없음').
+CAUSED = {"합성 질문 넘김": "missing"}
 WHY = "판정까닭표지"  # 판정 까닭 — 결과 · 로그에 남으면 안 된다
 
 
@@ -86,6 +89,13 @@ def _judged(text):
     return _wrap(body, model=evals_meaning.MODEL)
 
 
+def _caused(text):
+    """넘김 까닭 판정 답 — 표식이 :data:`CAUSED` 에 있으면 그 답, 없으면 '재료 없음'."""
+    key = next((k for k in CAUSED if k in text), None)
+    return _wrap(json.dumps({"verdict": CAUSED.get(key, "missing"), "why": WHY}, ensure_ascii=False),
+                 model=evals_handoff.MODEL)
+
+
 class FakeClient:
     """``anthropic.Anthropic`` 흉내 — 받은 인자를 적고 질문 표식에 맞는 답을 낸다. 네트워크 없음."""
 
@@ -100,11 +110,17 @@ class FakeClient:
     def judge_calls(self):
         return [call for call in self.calls if call["system"][0]["text"] == evals_meaning.SYSTEM]
 
+    @property
+    def cause_calls(self):
+        return [call for call in self.calls if call["system"][0]["text"] == evals_handoff.SYSTEM]
+
     def _create(self, **params):
         self.calls.append(copy.deepcopy(params))
         text = json.dumps(params["messages"], ensure_ascii=False)
         if params["system"][0]["text"] == evals_meaning.SYSTEM:
             return _judged(text)
+        if params["system"][0]["text"] == evals_handoff.SYSTEM:
+            return _caused(text)
         key = next(k for k in ANSWERS if k in text)
         return _message(*ANSWERS[key])
 
@@ -223,32 +239,39 @@ def test_fake_brain_counts_the_three_rows(world):
     _settings(target=50)
     client = FakeClient()
     result = _run(client)
-    assert result["status"] == evals.DONE and len(client.calls) == 7  # 초안 6 + 뜻 판정 1('다름' — '같음'은 글자 복사)
+    # 초안 6 + 판정 1('다름' — '같음'은 글자 복사) + 넘김 까닭 1('넘김' — 까닭 '모름'은 규칙 까닭이 아니다)
+    assert result["status"] == evals.DONE and len(client.calls) == 8
     judged = client.judge_calls
     assert len(judged) == 1 and judged[0]["model"] == evals_meaning.MODEL
     assert judged[0]["output_config"]["effort"] == "medium"
-    assert judged[0]["output_config"]["format"]["schema"]["properties"]["verdict"]["enum"] == ["same", "partial",
-                                                                                               "different"]
+    assert judged[0]["output_config"]["format"]["schema"]["properties"]["verdict"]["enum"] == [
+        "pass", "fail_conflict", "fail_promise", "fail_unanswered"]  # '부분'은 없다
+    caused = client.cause_calls
+    assert len(caused) == 1 and caused[0]["model"] == evals_handoff.MODEL
+    assert caused[0]["system"][1]["text"] == "[회사 지식]\n" + brain_prompt.knowledge_text(KNOWLEDGE)  # 두뇌가 받은 지식
     run = _results()[0]
-    assert run["past"] == {"total": 3, "done": 3, "passed": 1, "right_handoff": 0, "partial": 0}
+    assert run["past"] == {"total": 3, "done": 3, "passed": 1, "right_handoff": 0}
     assert run["risk"] == {"total": 3, "done": 3, "bad": 1}
-    assert run["codes"] == {"past": {"copied": 1, "different": 1, "handoff": 1}, "risk": {"safe": 2, "unsupported": 1}}
+    assert run["codes"] == {"past": {"copied": 1, "fail_conflict": 1, "handoff": 1},
+                            "risk": {"safe": 2, "unsupported": 1}}
+    assert run["handoffs"] == {"unsure": 1} and run["handoff_kinds"] == {"missing": 1}
     assert {(f["set"], f["turn"], f["code"]) for f in run["failures"]} == {
-        ("past", ids["diff"], "different"), ("past", ids["hand"], "handoff"), ("risk", ids["bad"], "unsupported")}
-    assert run["cost_usd"] == "7.000000" and run["model"] == brain_prompt.MODEL  # 판정 돈도 평가 줄 · 이번 평가 돈
-    assert _line(brain_spend.EVAL_SPEND_KEY)["usd"] == "7"
+        ("past", ids["diff"], "fail_conflict"), ("past", ids["hand"], "handoff"), ("risk", ids["bad"], "unsupported")}
+    assert run["cost_usd"] == "8.000000" and run["model"] == brain_prompt.MODEL  # 판정 돈도 평가 줄 · 이번 평가 돈
+    assert _line(brain_spend.EVAL_SPEND_KEY)["usd"] == "8"
     view = evals_view.eval_view(db_session, viewer_of(world.admin), now=NOW, erp=False)
     past, risk, cq = view["rows"]
-    assert past["pct"] == 33 and past["text"] == "AI 답이 직원 답과 같은 뜻 33% (3차례 · 옳은 넘김 0) · 기준 50%"
+    assert past["pct"] == 33 and past["text"] == "보내도 되는 답 33% (3차례 · 옳은 넘김 0) · 기준 50%"
     assert past["verdict"] == {"text": "기준 밑", "tone": "danger"}
     assert risk["text"] == "근거 없는 약속 1 · 기준 0" and risk["verdict"] == {"text": "1건", "tone": "danger"}
     assert cq["key"] == "cq" and cq["label"].startswith("능력 질문 ") and " / " in cq["verdict"]["text"]
     assert cq["text"].startswith("회사 지식만 ")
     assert [f["label"] for f in view["failures"]][0] == f"위험 문장 · 차례 #{ids['bad']}"
     assert view["failures"][0]["reason"] == "근거 없는 약속"
-    assert view["failures"][1]["reason"] == "직원 답과 뜻이 다름"
-    assert view["last"]["status_label"] == "끝남" and view["last"]["cost"] == "$7.00" and view["running"] is False
-    context = json.dumps(client.calls[3]["messages"], ensure_ascii=False)  # 가장 오래된 '같음' 초안(넘김 · 다름 + 판정 뒤)의 앞 대화
+    assert view["failures"][1]["reason"] == "직원 답과 사실이 어긋남"
+    assert view["last"]["status_label"] == "끝남" and view["last"]["cost"] == "$8.00" and view["running"] is False
+    # 가장 오래된 '같음' 초안(넘김 + 까닭 판정 · 다름 + 판정 뒤)의 앞 대화
+    context = json.dumps(client.calls[4]["messages"], ensure_ascii=False)
     assert "합성 앞 말" in context
 
 
@@ -271,11 +294,11 @@ def test_cap_zero_never_runs_and_settings_zero_stops_a_queued_run(world):
 
 def test_the_run_stops_at_the_cap(world):
     _world_turns()
-    _settings(cap="4")  # 최악값 3 · 한 번 1 → 초안 둘 뒤 '다름' 차례의 뜻 판정 예약(2 + 3)이 넘친다
+    _settings(cap="4")  # 최악값 3 · 한 번 1 → '넘김' 초안 · 그 까닭 판정 뒤 '다름' 차례의 초안 예약(2 + 3)이 넘친다
     client = FakeClient()
     result = _run(client)
     assert result["status"] == evals.CAP_STOPPED and result["code"] == brain_spend.DAILY_CAP_REACHED
-    assert len(client.calls) == 2 and client.judge_calls == []  # 판정자는 상한에서 부르지 않았다
+    assert len(client.calls) == 2 and len(client.cause_calls) == 1 and client.judge_calls == []
     run = _results()[0]
     assert run["past"]["done"] == 1 and run["risk"]["done"] == 0 and Decimal(run["cost_usd"]) <= Decimal("4")
     assert Decimal(_line(brain_spend.EVAL_SPEND_KEY)["usd"]) <= Decimal("4")
@@ -338,7 +361,7 @@ def test_the_real_draft_daily_spend_lines_do_not_change(world):
     assert _run(FakeClient())["status"] == evals.DONE
     assert _line(brain_spend.SPEND_KEY) == before
     assert _line(brain_spend.LEARNING_SPEND_KEY) is None
-    assert _line(brain_spend.EVAL_SPEND_KEY)["calls"] == 7  # 초안 6 + 뜻 판정 1
+    assert _line(brain_spend.EVAL_SPEND_KEY)["calls"] == 8  # 초안 6 + 판정 1 + 넘김 까닭 1
 
 
 def test_results_hold_no_text_and_only_the_last_ten(world):
@@ -348,8 +371,8 @@ def test_results_hold_no_text_and_only_the_last_ten(world):
         assert _run(FakeClient())["status"] == evals.DONE
     runs = _results()
     assert [run["id"] for run in runs] == list(range(12, 2, -1))
-    keys = {"id", "status", "code", "actor_id", "started_at", "heartbeat_at", "finished_at", "model", "cost_usd",
-            "target_pct", "past", "risk", "codes", "handoffs", "failures"}
+    keys = {"id", "status", "code", "actor_id", "judge", "started_at", "heartbeat_at", "finished_at", "model",
+            "cost_usd", "target_pct", "past", "risk", "codes", "handoffs", "handoff_kinds", "failures"}
     assert all(set(run) == keys for run in runs)
     assert "합성" not in json.dumps(runs, ensure_ascii=False)
 
@@ -390,7 +413,8 @@ def test_a_released_run_stops_spending_and_does_not_overwrite(world):
         return out
 
     client.beta = SimpleNamespace(messages=SimpleNamespace(create=_release_after_first))
-    assert _run(client)["status"] == evals.STALE and len(client.calls) == 1
+    # 첫 차례('넘김')는 그 안의 넘김 까닭 판정까지 끝내고, 다음 차례는 부르지 않는다
+    assert _run(client)["status"] == evals.STALE and len(client.calls) == 2 and len(client.cause_calls) == 1
     run = _results()[0]
     assert run["status"] == evals.STALE and run["finished_at"] == "2030-01-01T00:00:00"
     assert run["past"]["done"] == 0  # 늦은 소식이 덮어쓰지 않았다

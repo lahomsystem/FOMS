@@ -1,4 +1,4 @@
-"""FOMS 접목판 표 셋(ORM) — DDL 정본은 마이그레이션 ``graft_00`` 과 같다(``tests/domains/test_graft_store.py`` 가 견준다).
+"""FOMS 접목판 표(ORM) — 처음 셋의 DDL 정본은 마이그레이션 ``graft_00`` 과 같다(``tests/domains/test_graft_store.py`` 가 견준다).
 
 설계서 2026-11-14-foms-graft 3.4.
 
@@ -7,6 +7,9 @@
 - ``BrainUsageEvent`` (``brain_usage_events``) — '쓰인 곳' 한 번 한 줄(지식 키 · ERP 물건 키 ``erp:order/<번호>``). 합 표
   ``brain_usage`` 는 그대로 둔다. 쓰기 · 읽기 도우미는 :mod:`foms.services.brain.usage_events`.
 - ``AiAgentRun`` (``ai_agent_runs``) — AI 직원 실행 기록(단계마다 도구 · 걸린 시간 — 코드 · 수만, 글 없음).
+- ``AiStaffEvalMark`` (``ai_staff_eval_marks``) — 'AI 시험' 지난 상담 차례 하나의 AI 초안(가린 글)과 사장님 채점(설계서
+  2026-11-23-brain-learning-upgrade 4.1). DDL 정본은 마이그레이션 ``aistaff_00``(``tests/domains/test_ai_staff_eval_marks.py``
+  가 견준다). 쓰기 · 읽기는 :mod:`foms.services.ai_staff.evals_marks`.
 
 - 주문 · 사람 번호 칸에는 FK 가 없다 — 주문 · 계정을 지워도 기록은 남는다(감사 원장 규칙).
 - '같은 할 일 제안은 열린 것 하나'는 부분 유일 색인(``status = 'open'``)이 막는다 — PostgreSQL · SQLite 모두(``sqlite_where``).
@@ -19,7 +22,7 @@ from __future__ import annotations
 import datetime
 from typing import Sequence
 
-from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Index, Integer, String, Text, func
+from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -33,6 +36,10 @@ PROPOSAL_STATUSES: tuple[str, ...] = (
 )
 #: 열린 제안 조건 — 부분 유일 색인 · 읽기 질의가 같은 글자를 쓴다.
 OPEN_SQL = "status = 'open'"
+#: 'AI 시험' 사장님 답 넷 · 틀린 종류 셋(설계서 2026-11-23-brain-learning-upgrade 4.1). 검사 제약 · 마이그레이션 ·
+#: :mod:`foms.services.ai_staff.evals_marks` 가 같은 글자를 쓴다(시험이 견준다).
+MARK_ANSWERS: tuple[str, ...] = ('ok', 'bad', 'handoff_right', 'should_answer')
+MARK_FAIL_KINDS: tuple[str, ...] = ('wrong_fact', 'no_basis', 'tone')
 
 
 def _utcnow() -> datetime.datetime:
@@ -121,4 +128,34 @@ class AiAgentRun(Base):
 
     __table_args__ = (
         Index('ix_ai_agent_runs_agent_started', 'agent', 'started_at'),
+    )
+
+
+class AiStaffEvalMark(Base):
+    """'AI 시험' 지난 상담 차례 하나 — 시험 번호 · 차례 번호 · 브랜드 · AI 초안(가린 글만 · 넘겼으면 빈 글 · 90일 뒤 빈 글) ·
+    채점 코드 · 넘긴 까닭 · 사장님 답 · 틀린 종류 · 누가 · 언제. 손님 글 · 직원 답은 싣지 않는다(차례 줄의 가린 칸을 그때 읽는다)."""
+
+    __tablename__ = 'ai_staff_eval_marks'
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(Integer, nullable=False)  # 결과 줄(SystemSetting ai_staff_eval_results)의 시험 번호
+    turn_id = Column(Integer, nullable=False)  # cs_agent_turns.id — FK 없음(차례 줄을 지워도 기록은 남는다)
+    brand = Column(String(8), nullable=False)
+    draft = Column(Text, nullable=False, default='', server_default=sql_text("''"))  # 가린 글만
+    judge_code = Column(String(32), nullable=False)  # 그 차례의 까닭 코드(결과 줄 codes 와 같은 글자)
+    handoff_reason = Column(String(24), nullable=True)
+    owner_answer = Column(String(16), nullable=True)  # MARK_ANSWERS — 채점 전에는 비어 있다
+    fail_kind = Column(String(16), nullable=True)  # MARK_FAIL_KINDS — '안 돼요'일 때만
+    graded_by = Column(Integer, nullable=True)  # 사람(ADMIN) — FK 없음
+    graded_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_utcnow, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('run_id', 'turn_id', name='uq_ai_staff_eval_marks_run_turn'),
+        CheckConstraint(_in_check('owner_answer', MARK_ANSWERS), name='ck_ai_staff_eval_marks_answer'),
+        CheckConstraint(_in_check('fail_kind', MARK_FAIL_KINDS), name='ck_ai_staff_eval_marks_fail_kind'),
+        # 하루 10개(그 사람이 오늘 채점한 수) · 채점한 줄 모두(판 ⑪ 지난 상담 줄 글) · 90일 지난 초안 비우기.
+        Index('ix_ai_staff_eval_marks_graded', 'graded_by', 'graded_at'),
+        Index('ix_ai_staff_eval_marks_graded_at', 'graded_at'),
+        Index('ix_ai_staff_eval_marks_created', 'created_at'),
     )

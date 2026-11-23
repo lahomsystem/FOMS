@@ -2,9 +2,16 @@
 
 저장은 :mod:`.evals`(설정 · 묶음 · 결과 줄), 돌리기는 :mod:`.evals_run`. 이 모듈은 읽기만 한다(500줄 상한으로 나눴다).
 
-- 줄 셋: '지난 상담'(AI 답이 직원 답과 같은 뜻인 비율 — 분모는 본 수 − 옳은 넘김, 지난번 비율 · 기준 — 0 이면 기준 없음 —
-  설계서 2026-11-22-ai-eval-meaning-judge 2.5) · '위험 문장'(근거 없는 약속 수 · 기준 0) · '능력 질문'
-  (온톨로지 화면과 같은 재료 점수 — 돈 0, 보는 사람의 보기 범위). 숫자를 낸 마지막 시험(끝남 · 상한 · 시간 상한 · 도는 중)으로 그린다.
+- 줄 셋: '지난 상담'(보내도 되는 답 비율 — 분모는 본 수 − 옳은 넘김, 지난번 비율 · 기준 — 0 이면 기준 없음 —
+  설계서 2026-11-22-ai-eval-meaning-judge 2.5 · 2026-11-23-brain-learning-upgrade 4.2) · '위험 문장'(근거 없는 약속 수 · 기준 0) ·
+  '능력 질문'(온톨로지 화면과 같은 재료 점수 — 돈 0, 보는 사람의 보기 범위). 숫자를 낸 마지막 시험(끝남 · 상한 · 시간 상한 · 도는
+  중)으로 그린다.
+- 옛 결과 줄(``judge`` 칸 없음 — '같은 뜻인가' 자, ``partial`` 칸 · ``same`` · ``partial`` · ``different`` 코드)은 옛 글
+  "AI 답이 직원 답과 같은 뜻 N%" 그대로 그린다. 새 줄(:data:`.evals.JUDGE_VERSION`)은 "보내도 되는 답 N%". '지난번'은 같은 자로
+  돈 시험끼리만 견준다.
+- 사장님 채점(:mod:`.evals_marks`)이 있으면 지난 상담 줄 글 끝에 한 구절 — 채점 수, 모이면(:mod:`.evals_calibrate`) 안 되는 답을
+  잡은 비율 · 되는 답을 통과시킨 비율 · 사장님 기준으로 바로잡은 초안 통과율(오차 폭), 넘김은 사장님 답이 '늘 사람 몫' 분류와
+  같은 수.
 - 틀린 차례(차례 번호 · 까닭 코드 · 화면 말 — 글 없음) · 마지막 시험 줄(때 · 상태 · 까닭 말 · 모델 · 진행 · ADMIN 만 쓴 돈).
 - ADMIN 만: 돌릴 수 있음 · 막힌 까닭(돈 상한 0 · 묶음 0) · 설정 값. MANAGER 답에는 돈 열쇠가 없다.
 - 꼬리표 · 막대 색 갈래는 success · primary · warning · danger 뿐(무채색 없음).
@@ -17,10 +24,12 @@ from __future__ import annotations
 import datetime
 from typing import Any, Mapping, Optional
 
+from foms.services.ai_staff import evals_marks as marks
 from foms.services.ai_staff.evals import (
-    ACTIVE, CAP_STOPPED, DONE, FAILED, MESSAGES, NOT_READY, QUEUED, RUNNING, SCORED, SET_PAST, SET_RISK, STALE,
-    TIME_STOPPED, UNSUPPORTED, is_stale, latest_results, naive_utc, parse_money, read_eval_settings,
+    ACTIVE, CAP_STOPPED, DONE, FAILED, JUDGE_VERSION, MESSAGES, NOT_READY, QUEUED, RUNNING, SCORED, SET_PAST, SET_RISK,
+    STALE, TIME_STOPPED, UNSUPPORTED, is_stale, latest_results, naive_utc, parse_money, read_eval_settings,
 )
+from foms.services.ai_staff.evals_calibrate import calibrate
 from foms.services.brain.ontology_view import ontology_summary
 from foms.services.brain.scope import Viewer
 from foms.services.cs_agent.checks import REASONS
@@ -39,7 +48,9 @@ RUNNING_VERDICT = ("도는 중", "primary")
 #: 틀린 까닭 코드 → 화면 말(검사 코드는 :data:`foms.services.cs_agent.checks.REASONS` 의 말).
 CODE_LABELS: dict[str, str] = {
     "direct": "직원 답과 많이 다름", "edited": "직원이 고쳐 보냈을 답", "different": "직원 답과 뜻이 다름",
-    "partial": "맞지만 중요한 안내가 빠짐", "judge_unknown": "뜻 판정을 못 받음", "handoff": "사람에게 넘김", "refused": "답하지 않음",
+    "partial": "맞지만 중요한 안내가 빠짐", "fail_conflict": "직원 답과 사실이 어긋남", "fail_promise": "근거 없이 약속함",
+    "fail_unanswered": "물은 것에 답하지 않음",
+    "judge_unknown": "판정을 못 받음", "handoff": "사람에게 넘김", "refused": "답하지 않음",
     UNSUPPORTED: "근거 없는 약속", "mask_leak": "가림 검사에 걸림", "bad_request": "재료 꼴이 틀림",
     "timeout": "모델 답을 못 받음", "rate_limited": "모델 답을 못 받음", "api_error": "모델 답을 못 받음",
     "bad_response": "모델 답을 못 받음",
@@ -70,14 +81,45 @@ def _row(key: str, label: str, pct: Optional[int], text: str, verdict: tuple[str
 
 
 def _past_pct(run: Optional[Mapping[str, Any]]) -> Optional[int]:
-    """'지난 상담' 같은 뜻 비율 = 통과 ÷ (본 수 − 옳은 넘김). 옳은 넘김 칸이 없는 옛 줄은 0 으로 본다."""
+    """'지난 상담' 통과 비율 = 통과 ÷ (본 수 − 옳은 넘김). 옳은 넘김 칸이 없는 옛 줄은 0 으로 본다."""
     part = _part(run, SET_PAST)
     return _pct(part.get("passed", 0), part.get("done", 0) - part.get("right_handoff", 0))
 
 
+def _judge_of(run: Optional[Mapping[str, Any]]) -> int:
+    """그 시험의 판정 자의 판(칸이 없는 옛 줄은 1 — '같은 뜻인가')."""
+    judge = run.get("judge") if run is not None else None
+    return judge if isinstance(judge, int) and not isinstance(judge, bool) else 1
+
+
+def _p(share: Optional[float]) -> int:
+    return round((share or 0.0) * 100)
+
+
+def _marks_phrase(session: Any, shown: Optional[Mapping[str, Any]]) -> str:
+    """사장님 채점 한 구절(모듈 설명) — 채점이 없으면 빈 글."""
+    pairs, (handed, agreed) = marks.graded_pairs(session)
+    run_id = shown.get("id") if shown is not None else None
+    seen = (marks.observed(session, run_id) if isinstance(run_id, int) and _judge_of(shown) == JUDGE_VERSION
+            else (0, 0))
+    cal = calibrate(pairs, seen)
+    parts = [f"사장님 채점 {cal.graded}개"] if cal.graded else []
+    if cal.ready:
+        parts.append(f"안 되는 답 {_p(cal.caught)}% 잡음 · 되는 답 {_p(cal.passed_ok)}% 통과")
+        if cal.corrected is not None:
+            spread = f"({_p(cal.low)}~{_p(cal.high)}%)" if cal.low is not None else ""
+            parts.append(f"사장님 기준 초안 통과 {_p(cal.corrected)}%{spread}")
+        elif seen[0]:
+            parts.append("채점이 사장님과 너무 달라 바로잡지 못해요")
+    if handed:
+        parts.append(f"넘김 {handed}개 가운데 {agreed}개 사장님과 같음")
+    return " · ".join(parts)
+
+
 def _past_row(run: Optional[Mapping[str, Any]], live: bool = False,
-              previous: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
-    """'지난 상담' 줄 — 같은 뜻 비율(차례 · 옳은 넘김 · 지난번) · 기준(0 이면 기준 없음). ``live`` 면(도는 중) 판정 대신 '도는 중'."""
+              previous: Optional[Mapping[str, Any]] = None, graded: str = "") -> dict[str, Any]:
+    """'지난 상담' 줄 — 통과 비율(차례 · 옳은 넘김 · 지난번) · 기준(0 이면 기준 없음) · 사장님 채점 구절(``graded``).
+    ``live`` 면(도는 중) 판정 대신 '도는 중'."""
     part = _part(run, SET_PAST)
     total, done, right = part.get("total", 0), part.get("done", 0), part.get("right_handoff", 0)
     if run is None:
@@ -85,16 +127,18 @@ def _past_row(run: Optional[Mapping[str, Any]], live: bool = False,
     if total == 0:
         return _row(SET_PAST, "지난 상담 0개", None, "시험용으로 떼어 둔 상담이 없어요 — 묶음 0", ("묶음 0", "warning"))
     pct, target = _past_pct(run), int(run.get("target_pct") or 0)
+    tail = f" · {graded}" if graded else ""
     if pct is None:
         text = f"견줄 차례가 아직 없어요 (옳은 넘김 {right})" if done else "아직 한 차례도 못 봤어요."
-        return _row(SET_PAST, f"지난 상담 {total}개", None, text, ("아직", "warning"))
-    before = _past_pct(previous)
-    text = (f"AI 답이 직원 답과 같은 뜻 {pct}% ({done - right}차례 · 옳은 넘김 {right}"
+        return _row(SET_PAST, f"지난 상담 {total}개", None, text + tail, ("아직", "warning"))
+    before = _past_pct(previous) if _judge_of(previous) == _judge_of(run) else None  # 같은 자끼리만 견준다
+    head = "보내도 되는 답" if _judge_of(run) == JUDGE_VERSION else "AI 답이 직원 답과 같은 뜻"
+    text = (f"{head} {pct}% ({done - right}차례 · 옳은 넘김 {right}"
             + (f" · 지난번 {before}%)" if before is not None else ")"))
     text += f" · 기준 {target}%" if target else ""
     text += f" · {done}/{total}개 봄" if done < total else ""
     verdict = (("통과", "success") if pct >= target else ("기준 밑", "danger")) if target else (f"{pct}%", "primary")
-    return _row(SET_PAST, f"지난 상담 {total}개", pct, text, RUNNING_VERDICT if live else verdict)
+    return _row(SET_PAST, f"지난 상담 {total}개", pct, text + tail, RUNNING_VERDICT if live else verdict)
 
 
 def _risk_row(run: Optional[Mapping[str, Any]], live: bool = False) -> dict[str, Any]:
@@ -172,7 +216,8 @@ def eval_view(session: Any, viewer: Viewer, *, now: datetime.datetime, erp: bool
     shown, previous = (scored + [None, None])[:2]
     running = latest is not None and _status_of(latest, at) in ACTIVE
     live = shown is not None and _status_of(shown, at) in ACTIVE  # 보이는 숫자가 아직 끝나지 않은 시험 것
-    rows = [_past_row(shown, live, previous), _risk_row(shown, live), _cq_row(session, viewer, erp)]
+    rows = [_past_row(shown, live, previous, _marks_phrase(session, shown)), _risk_row(shown, live),
+            _cq_row(session, viewer, erp)]
     out: dict[str, Any] = {"rows": rows, "failures": _failures(shown), "last": _last(latest, at, viewer.is_admin),
                            "running": running}
     if viewer.is_admin:

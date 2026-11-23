@@ -4813,3 +4813,4 @@ from foms.persistence.brain.models import (  # noqa: E402,F401
     BrainChange, BrainLink, BrainObject, BrainQuestion, BrainRelease,
 )
 from foms.persistence.graft.models import AiAgentRun, BrainUsageEvent, ErpActionProposal  # noqa: E402,F401 — 접목판 표 셋(graft_00)
+from foms.persistence.graft.models import AiStaffEvalMark  # noqa: E402,F401 — 'AI 시험' 사장님 채점(aistaff_00)
