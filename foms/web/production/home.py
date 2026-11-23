@@ -28,9 +28,9 @@ from foms.services.feature_flags import (
 )
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.home_step_panel import attach_step_panels, parse_step_order, step_panel_for
-from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
+from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, VIEW_SUB, part_view_mode
 from foms.services.production.part_board import build_part_board, part_sync_cursor
-from foms.services.production.part_constants import PART_CUT
+from foms.services.production.part_constants import PART_CUT, production_parts_label
 from foms.services.production.part_screen import morning_chip, read_screen_marks
 from foms.services.production.pc_view import attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
 from foms.services.production_change_alerts import collect_production_tombstones
@@ -49,6 +49,9 @@ from foms.services.production_home_read_model import (
 )
 
 _HOME_TABS = ('date', 'steps', 'changes', 'all', 'parts')
+#: '도면 카드' 화면(?tab=parts)을 여는 보기 모드 — 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12) · 읽기 전용(D55).
+#: 파트 계정은 날짜 탭에서 바로 카드를 본다(D50).
+_PARTS_TAB_MODES = (VIEW_ADMIN, VIEW_SUB, VIEW_READONLY)
 #: 날짜 한 장 조각(``?view=day&day=``) — 날을 누르면 JS 가 그 장만 받아 끼운다(설계서 §15.6 '날 고르기', 11-14).
 #: 셸 조각(``view=fragment`` + 셸 머리글, 탭 몸통 전체)과 다른 값이라 둘이 섞이지 않는다.
 DAY_VIEW = 'day'
@@ -84,7 +87,7 @@ def _resolve_home_tab(raw, mode: str, surface: bool) -> str:
     tab = raw if raw in _HOME_TABS else 'date'
     if tab == 'steps' and mode == VIEW_PART:
         return 'date'
-    if tab == 'parts' and not (surface and mode in (VIEW_ADMIN, VIEW_READONLY)):
+    if tab == 'parts' and not (surface and mode in _PARTS_TAB_MODES):
         return 'date'
     return tab
 
@@ -92,7 +95,7 @@ def _resolve_home_tab(raw, mode: str, surface: bool) -> str:
 def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=None, today=None, full: bool = False) -> dict:
     """파트 화면 템플릿 값 — 판(없으면 None) · [도면 카드로 보기] · '내 공정' 숨김 · 위 줄 제목 · JS 설정 · 아침 칩.
 
-    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1 —
+    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 대신 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1 —
     날짜 탭은 칸 아래 이름이 읽은 줄 ``marks`` 를 다시 써 0).
     ``days`` 는 그릴 장만 담은 묶음(``{'panes': [고른 장]}``) — 다른 날 판은 그 날을 누를 때 조각으로 만든다(11-14).
     아침 칩(설계서 2026-11-23 §4-9)은 파트 계정의 전체 페이지(``full``)에서만 — 쿼리 1, 날 조각에는 없다.
@@ -120,12 +123,19 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
         'part_config': config,
         'part_since': since if board is not None else None,
         'part_morning': chip,
-        # 날짜 장 제목 옆 [도면 카드로 보기](11-21 사용자 ② — '도면 카드' 탭을 뺀 자리). 문은 예전 탭과 같고(관리자 · 읽기 전용 +
+        # 날짜 장 제목 옆 [도면 카드로 보기](11-21 사용자 ② — '도면 카드' 탭을 뺀 자리). 문은 예전 탭과 같고(관리자 · 대신 · 읽기 전용 +
         # 터치 기기), 화면 긴 변이 992 미만인 폰(``foms_scr``)은 가로로 돌려도 카드를 못 보니 뺀다. 주소(?tab=parts)는 그대로 열린다.
-        'parts_link': surface and mode in (VIEW_ADMIN, VIEW_READONLY) and wants_wide_only_surfaces(),
+        'parts_link': surface and mode in _PARTS_TAB_MODES and wants_wide_only_surfaces(),
         'hide_steps_tab': mode == VIEW_PART,
-        'part_title': (board['part_label'], name) if board is not None and mode == VIEW_PART else None,
+        'part_title': (_title_parts(board), name) if board is not None and mode == VIEW_PART else None,
     }
+
+
+def _title_parts(board: dict) -> str:
+    """위 줄 큰 제목의 파트 이름 — 파트 하나면 그 이름(지금 그대로), 여럿이면 "재단 · 엣지"(2026-11-23 §8-1 여러 파트)."""
+    if board.get('pick'):
+        return production_parts_label([p['key'] for p in board['parts']]) or board['part_label']
+    return board['part_label']
 
 
 def full_rows_of(days) -> list:
@@ -213,7 +223,7 @@ def erp_production_home():
     더 좁다(관리자 · 생산팀, ``write_access.can_write_production``). 협력사 계정은 없다. 금액은 뷰 모델에 싣지 않는다(D7).
 
     생산 파트(설계서 §15.6, P15-5): 파트 계정 + 태블릿이면 날짜 탭의 장에 도면 카드 판을 더 그리고(지금 장은
-    태블릿 가로에서만 숨김), 관리자 · 읽기 전용 직원은 태블릿에서 날짜 장 제목 옆 [도면 카드로 보기](``?tab=parts&part=&day=``, 11-21 위 탭에서 뺐다)로 본다.
+    태블릿 가로에서만 숨김), 관리자 · 대신 · 읽기 전용 직원은 태블릿에서 날짜 장 제목 옆 [도면 카드로 보기](``?tab=parts&part=&day=``, 11-21 위 탭에서 뺐다)로 본다.
     파트 계정은 '내 공정' 탭이 없다(D50, 기기 무관).
 
     날짜 · 도면 카드 탭은 고른 날 장 하나만 그린다(11-14, 예전 D5 는 15장을 다 보냈다). 띠 숫자는 모든 날을 센다.
