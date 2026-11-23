@@ -1097,14 +1097,15 @@ def build_month_calendar(
 
 def construction_day_counts(db: Any, current_user: Any, month: str | None,
                             today: datetime.date | None = None) -> dict[str, Any]:
-    """시공일 고르기 달력(flatpickr) 칸 숫자 — 그 달 날짜별 시공 건수(모바일 홈 달력과 같은 셈)."""
+    """시공일 · 실측일 고르기 달력(flatpickr) 칸 숫자 — 그 달 날짜별 시공 · 실측 건수(모바일 홈 달력과 같은 셈)."""
     today = today or get_today_kst()
     first = _month_first(month, today)
     last = _shift_month(first, 1) - datetime.timedelta(days=1)
     dates = [(first + datetime.timedelta(days=i)).isoformat() for i in range(last.day)]
-    _meas, cons_by, _as = _day_counts(_tower_base_query(db, current_user), dates)
+    meas_by, cons_by, _as = _day_counts(_tower_base_query(db, current_user), dates)
     return {"month": first.strftime("%Y-%m"),
-            "days": {d: int(cons_by.get(d, 0) or 0) for d in dates if cons_by.get(d)}}
+            "days": {d: int(cons_by.get(d, 0) or 0) for d in dates if cons_by.get(d)},
+            "measure_days": {d: int(meas_by.get(d, 0) or 0) for d in dates if meas_by.get(d)}}
 
 
 def build_mobile_control_tower(

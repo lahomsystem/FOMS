@@ -6012,8 +6012,9 @@ function fomsMountErpOrderSurface() {
         instance.calendarContainer.appendChild(bar);
     }
 
-    /** 시공일 달력 칸마다 그날 시공 건수(협력사 달력처럼) — /erp/dashboard/construction-day-counts. */
-    function erpConstructionCountOptions() {
+    /** 시공일 · 실측일 달력 칸마다 그날 건수(협력사 달력처럼) — /erp/dashboard/construction-day-counts.
+     *  key: 'days'(시공) · 'measure_days'(실측). */
+    function erpConstructionCountOptions(key) {
         var days = {};
         var loaded = {};
         function load(fp) {
@@ -6024,7 +6025,7 @@ function fomsMountErpOrderSurface() {
                 .then(function (resp) { return resp.json(); })
                 .then(function (data) {
                     if (!data || !data.success) { loaded[month] = false; return; }
-                    Object.assign(days, (data.data && data.data.days) || {});
+                    Object.assign(days, (data.data && data.data[key || 'days']) || {});
                     fp.redraw();
                 })
                 .catch(function () { loaded[month] = false; });
@@ -6061,13 +6062,14 @@ function fomsMountErpOrderSurface() {
         if (mEl && !mEl._flatpickr) {
             window._erpMeasurementDatePicker = flatpickr(mEl, {
                 ...opts,
+                ...erpConstructionCountOptions('measure_days'),
                 onChange: function () {
                     syncWorkflowStageByMeasurementDate();
                 }
             });
         }
         if (cEl && !cEl._flatpickr) {
-            window._erpConstructionDatePicker = flatpickr(cEl, Object.assign({}, opts, erpConstructionCountOptions()));
+            window._erpConstructionDatePicker = flatpickr(cEl, Object.assign({}, opts, erpConstructionCountOptions('days')));
         }
         var mOpen = document.getElementById('erp-measurement-date-open');
         var cOpen = document.getElementById('erp-construction-date-open');
