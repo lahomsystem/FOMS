@@ -463,6 +463,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/transfer-drawing"
     },
+    "erp_orders_sheet_factory.api_order_sheet_factory": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing/sheet-factory"
+    },
     "erp_orders_drawing_wizard.api_delete_drawing_wizard_pending": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing-wizard/pending/<sheet_id>"
