@@ -33,10 +33,12 @@ from foms.services.erp_mobile_order_display import (
     build_mobile_queue_order_row,
     build_mobile_queue_batch_context,
 )
+from foms.services.orders.drawing_factory import load_split
 
 __all__ = [
     "attach_shipment_row_kinds",
     "enrich_shipment_rows",
+    "shipment_load_text",
     "sort_shipment_rows",
     "build_shipment_mobile_queue_rows",
 ]
@@ -96,6 +98,9 @@ def enrich_shipment_rows(rows: list[Any]) -> None:
         shipment = (sd.get('shipment') or {}) if isinstance(sd, dict) else {}
         r.as_content_text = as_content_html_to_text(shipment.get('as_content') or '')
         r.as_material_text = ""
+        # 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만 "상차 1공장 3장 · 2공장 2장", 그 밖 None(지금 화면 그대로).
+        # 이미 든 주문 JSON 만 읽는다(쿼리 0). PC 표 · 하루치 출고표 · 폰 카드가 이 값 하나를 같이 읽는다.
+        r.shipment_load_text = shipment_load_text(sd)
 
         if is_as_order(r):
             r.as_material_text = as_content_html_to_text(
@@ -139,6 +144,12 @@ def enrich_shipment_rows(rows: list[Any]) -> None:
                         for team in required_teams
                     )
                     r.is_production_approved = all_approved
+
+
+def shipment_load_text(sd: Any) -> str | None:
+    """상차 줄 글(``drawing_factory.load_split``) — 2공장 장이 없으면 None. 출고 옆 시트 · 시공 첫 화면도 이것을 쓴다."""
+    split = load_split(sd) if isinstance(sd, dict) else None
+    return split["text"] if split else None
 
 
 def sort_shipment_rows(rows: list[Any]) -> None:
@@ -254,6 +265,9 @@ def build_shipment_mobile_queue_rows(
                 "packing_departed": _packing_departed,
                 # 협력사 주문 "입금 대기"(설계서 2026-11-03-partner-statement §5.7) — 라우트가 행에 붙인 값(PC 표 · 태블릿과 같은 값).
                 "partner_payment_pending": bool(getattr(order, "partner_payment_pending", False)),
+                # 상차 줄(§4-15) — enrich_shipment_rows 가 붙인 값. 카드 dl 한 줄은 "상차" 칸 + 뒤 글(load_detail).
+                "load_text": getattr(order, "shipment_load_text", None),
+                "load_detail": (getattr(order, "shipment_load_text", None) or "")[len("상차 "):],
             }
             mobile_queue_rows.append(row)
     return mobile_queue_rows

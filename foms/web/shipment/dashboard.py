@@ -68,6 +68,7 @@ from foms.services.shipment_dashboard_display import (
     enrich_shipment_rows,
     sort_shipment_rows,
     build_shipment_mobile_queue_rows,
+    shipment_load_text,
 )
 from foms.services.shipment_change_alerts import (
     build_shipment_change_banner,
@@ -892,6 +893,8 @@ def erp_shipment_tablet_sheet(order_id):
         sheet_can_ack=sheet_can_ack,
         # 시간 · 메모 입력 · [저장] — 저장 API 문지기와 같은 함수(D31, 영업팀 · 시공팀은 보기만).
         can_edit_shipment=can_edit_shipment(current_user),
+        # 머리 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만, 그 밖 None(지금 머리 그대로). 쿼리 0.
+        load_text=shipment_load_text(sd),
     ))
     apply_erp_shell_fragment_headers(response, request)
     return response
