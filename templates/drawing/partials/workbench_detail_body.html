@@ -1,3 +1,4 @@
+{% from 'drawing/partials/sheet_factory_macros.html' import sf_control -%}
 {% macro dw_target_chips(files, group_key) -%}
 {% set viewer = namespace(index=0) %}
 {% for t in files %}
@@ -49,7 +50,7 @@
   {% include 'partials/shared/erp_sub_nav.html' %}
   {% if as_drawing and as_drawing.show %}{% include 'drawing/partials/workbench_as_card.html' %}{% endif %}
 
-  {% macro render_gateway_file_gallery(files, group_key) -%}
+  {% macro render_gateway_file_gallery(files, group_key, sf=none) -%}
   {% if files %}
   <div class="d-flex flex-wrap mt-1">
     {% for f in files %}
@@ -86,6 +87,7 @@
       </div>
       {% endif %}
       <div class="small text-truncate mt-1" title="{{ fname }}" style="max-width: 110px;">{{ fname }}</div>
+      {%- if sf and fkey %}{{ sf_control(sf, sf.by_key.get(fkey, 1), key=fkey, label='도면 ' ~ loop.index ~ '/' ~ files|length ~ ' · ' ~ fname, confirm=sf.production) }}{% endif %}
       {% if download_url %}
       <a href="{{ download_url }}" target="_blank" rel="noopener" class="small text-muted">
         <i class="fas fa-download"></i>
@@ -1533,9 +1535,13 @@
           </div>
 
           <div class="fw-semibold mb-2"><i class="fas fa-file-lines text-primary"></i> 현재 버전</div>
+          {%- if sheet_factory %}
+          <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/sheet-factory.css') }}?v=20261124a">
+          {%- endif %}
           {% if drawing_files %}
-          <div class="small text-muted mb-1">최신 전달본(번호순)</div>
-          {{ render_gateway_file_gallery(drawing_files, 'current_' ~ order.id) }}
+          <div class="small text-muted mb-1">최신 전달본(번호순)
+          {%- if sheet_factory %}<span class="dsf-split" data-dsf-split{% if not sheet_factory.split_text %} hidden{% endif %}> · {{ sheet_factory.split_text }}</span>{% endif %}</div>
+          {{ render_gateway_file_gallery(drawing_files, 'current_' ~ order.id, sheet_factory) }}
           {% else %}
           <div class="small text-muted mb-2">등록된 도면이 없습니다.</div>
           {% endif %}
@@ -1806,6 +1812,9 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dw-pending-select-toggle"
               onclick="toggleAllPendingCards()">전체 해제</button>
           </div>
+          {%- if sheet_factory %}
+          <div class="dsf-send" data-dsf-send{% if not sheet_factory_send %} hidden{% endif %}>{{ sheet_factory_send }}</div>
+          {%- endif %}
           <div class="row g-2" id="dw-transfer-pending-cards">
             {% for p in drawing_pending %}
             <div class="col-6 col-md-4">
@@ -1822,6 +1831,7 @@
                   <input type="checkbox" class="form-check-input dw-pending-checkbox" value="{{ p.sheet_id }}" checked>
                 </div>
               </label>
+              {%- if sheet_factory %}{{ sf_control(sheet_factory, sheet_factory.by_sheet.get(p.sheet_id, 1), sheet_id=p.sheet_id, label=p.sheet_name, confirm=(p.sheet_id in sheet_factory.confirm_sheet_ids), wrap='dsf-pending') }}{% endif %}
             </div>
             {% endfor %}
           </div>
@@ -3306,6 +3316,10 @@
 <script src="{{ url_for('static', filename='js/foms/drawing-stray-files.js') }}?v=20261027b" defer></script>
 <script src="{{ url_for('static', filename='js/drawing/as-room-push.js') }}?v=20261111a" defer></script>
 <script src="{{ url_for('static', filename='js/drawing/workbench-as.js') }}?v=20261112b" defer></script>
+{%- if sheet_factory and sheet_factory.can_set %}
+<script src="{{ url_for('static', filename='js/drawing/sheet-factory.js') }}?v=20261124a" defer></script>
+<script src="{{ url_for('static', filename='js/drawing/workbench-sheet-factory.js') }}?v=20261124a" defer></script>
+{%- endif %}
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20261012a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260930b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-urgent-call-pc.js') }}?v=20261001b" defer></script>
