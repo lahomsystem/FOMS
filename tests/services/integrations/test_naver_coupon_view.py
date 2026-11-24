@@ -65,6 +65,20 @@ def test_missing_ratio_is_unknown_not_naver():
     assert "모르는 쿠폰" in view["ours"]
 
 
+def test_zero_won_coupon_rows_are_not_counted():
+    """형제 상품주문에 0원으로 되풀이된 쿠폰은 장수 · 내역에서 뺀다(스테이징 실데이터)."""
+    view = build_coupon_view(_coupons(
+        {"couponClassCode": "NMP_PRD_DUP_DCNT", "couponDiscountAmount": 0, "naverBurdenRatio": 0},
+        {"couponClassCode": "NMP_PRD_DCNT", "couponDiscountAmount": 10000, "naverBurdenRatio": 100},
+    ), known=True)
+
+    assert view["line"] == "쿠폰 10,000원 · 네이버가 냄"
+    assert len(view["rows"]) == 1
+    assert build_coupon_view(_coupons(
+        {"couponClassCode": "NMP_PRD_DCNT", "couponDiscountAmount": 0, "naverBurdenRatio": 0},
+    ), known=True) is None
+
+
 def test_no_coupon_shows_nothing_but_unread_source_says_unknown():
     assert build_coupon_view([], known=True) is None
 

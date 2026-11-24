@@ -49,6 +49,9 @@ def build_coupon_view(coupons: list[dict[str, Any]], *, known: bool) -> dict[str
         ``{tone, line, title, rows[{label, amount, who}], total, ours}``.
         쿠폰을 안 쓴 주문(원본을 다 읽었고 0장)은 ``None`` — 화면에 아무것도 안 생긴다.
     """
+    # 0원 쿠폰은 뺀다 — 네이버는 같은 쿠폰을 형제 상품주문마다 0원으로 되풀이해 싣는다
+    # (스테이징 실데이터 2026-11-24: 한 장인데 "2장 · -0원 우리가 전부 냄" 으로 보였다).
+    coupons = [row for row in coupons if int(row.get("discount_amount") or 0) > 0]
     if not coupons:
         if known:
             return None
