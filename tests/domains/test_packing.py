@@ -353,19 +353,19 @@ def test_packing_add_submit_guards_double_post(packing_js: str):
 
 
 def test_packing_js_version_bumped_in_dashboards():
-    """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a · 20261019a 이탈 — 2026-11-25 보기만 꼴)."""
+    """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a · 20261019a · 20261125a 이탈 — 열 때 "아직 모름")."""
     entry = _SHIPMENT_ENTRY.read_text(encoding="utf-8")
-    assert "'/static/js/shipment/foms-packing.js?v=20261125a'" in entry
+    assert "'/static/js/shipment/foms-packing.js?v=20261125b'" in entry
     body = _CONSTRUCTION_BODY.read_text(encoding="utf-8")
-    assert "foms-packing.js') }}?v=20261125a" in body
+    assert "foms-packing.js') }}?v=20261125b" in body
     prod_entry = (_REPO_ROOT / "templates" / "shipment" / "partials" / "packing_prod_entry.html").read_text(encoding="utf-8")
-    assert "foms-packing.js') }}?v=20261125a" in prod_entry  # 생산 작업 시트 [패킹]도 같은 핀
+    assert "foms-packing.js') }}?v=20261125b" in prod_entry  # 생산 작업 시트 [패킹]도 같은 핀
     # entry CHAIN 안 핀이 바뀌었으니 entry 자신의 핀도 올린다(옛 entry 캐시가 옛 패킹 JS 를 부르지 않게).
     scripts = (_REPO_ROOT / "templates" / "shipment" / "partials" / "dashboard_scripts.html").read_text(encoding="utf-8")
-    assert "shipment-entry.js') }}?v=20261125a" in scripts
+    assert "shipment-entry.js') }}?v=20261125b" in scripts
     # JS 핀만 검사 — 무관한 foms-packing.css 핀(20260714a)까지 잡지 않도록 스코프한다.
     for src, where in ((entry, _SHIPMENT_ENTRY), (body, _CONSTRUCTION_BODY), (prod_entry, "packing_prod_entry.html")):
-        for old in ("20260714a", "20261019a"):
+        for old in ("20260714a", "20261019a", "20261125a"):
             assert f"foms-packing.js?v={old}" not in src and f"foms-packing.js') }}}}?v={old}" not in src, f"구 JS 버전 핀 잔존: {where}"
 
 
@@ -373,10 +373,27 @@ def test_packing_js_view_only_when_no_factory_to_check(packing_js: str):
     """옛 꼴(1공장뿐) 보기만(2026-11-25) — 응답 can_check 가 빈 목록이면 체크칸 꺼짐 · 누락 신고 · 줄 더하기 없음 · 출발 보고 꺼짐.
 
     공장 꼴 보기만 화면과 같은 꼴이다. 칸이 없는 응답(옛 서버)은 지금처럼 쓰기 — 서버 문이 따로 막는다."""
-    assert "state.canCheck = !Array.isArray(data.can_check) || data.can_check.length > 0;" in packing_js
+    assert "setCanCheck(el, !Array.isArray(data.can_check) || data.can_check.length > 0);" in packing_js
     assert "input.disabled = !state.canCheck;" in packing_js  # 체크칸 꺼짐(상태는 보임)
     assert "if (tplContent && state.canCheck) {" in packing_js  # 누락 신고 단추 없음
-    assert "addForm.classList.toggle('d-none', !state.canCheck);" in packing_js  # 줄 더하기 칸 없음
+    assert "addForm.classList.toggle('d-none', !on);" in packing_js  # 줄 더하기 칸 없음
     assert "btn.disabled = !state.canCheck || !(total > 0 && checked === total);" in packing_js  # 출발 보고 꺼짐
     # 이미 출발 보고된 주문은 지금처럼 "출발 보고 완료"(canCheck 와 상관없이)
     assert packing_js.index("setDepartLabel(btn, '출발 보고 완료');") < packing_js.index("btn.disabled = !state.canCheck ||")
+
+
+def test_packing_js_opens_each_sheet_as_unknown(packing_js: str):
+    """창을 열 때마다 "아직 모름" — 쓰기 칸(줄 더하기 · 누락 신고 · 체크칸 · 출발 보고)은 응답이 쓰기 가능이라고 한 뒤에만 켠다.
+
+    GET 이 실패하면 쓰기 칸 없이 오류 글만. 이어 연 주문에 앞 주문 합계 · 응답이 비치지 않는다(늦게 온 앞 주문 응답은 버림)."""
+    assert "canCheck: false };" in packing_js  # 처음 값도 '아직 모름'
+    open_block = packing_js.split("function openSheet(trigger)")[1].split("loadPacking(orderId);")[0]
+    assert "setCanCheck(el, false);" in open_block and "renderSummary(el, 0, 0);" in open_block
+    assert open_block.index("setCanCheck(el, false);") < open_block.index("instance.show()")  # 보이기 전에 끈다
+    load_block = packing_js.split("async function loadPacking(orderId)")[1].split("async function postPacking")[0]
+    assert "if (orderId === state.orderId) applyData(el, data);" in load_block
+    assert "if (orderId === state.orderId) setError(el," in load_block
+    catch_block = load_block.split("} catch (error) {")[1].split("} finally {")[0]
+    assert "setCanCheck" not in catch_block and "applyData" not in catch_block  # 실패 = 쓰기 칸 그대로 꺼짐
+    post_block = packing_js.split("async function postPacking")[1].split("function openSheet")[0]
+    assert "if (orderId === state.orderId) applyData(el, data);" in post_block

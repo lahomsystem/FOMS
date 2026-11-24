@@ -50,10 +50,13 @@ def _p(role="STAFF", team=None, *, parts=None, lead=False, factory=None, active=
     (_p("ADMIN", "CS"), True, True, (1, 2)),
     (_p("ADMIN", "PRODUCTION", factory=2), True, True, (1, 2)),
     # 사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만" — 출고 · CS · 영업 · 다른 팀 매니저는 쓰기 True → False(전판 값은 줄 끝)
-    (_p("MANAGER", "DRAWING"), False, False, ()),  # 전: True · True(GET 은 3단계 전처럼 다시 못 엶)
-    (_p("MANAGER", None), False, False, ()),  # 팀 없는 매니저 — 전: True · True
+    # 매니저는 팀과 상관없이 목록 보기만(사장님께 드린 선택지 "다른 팀 매니저는 패킹 목록을 보기만" — p3k 고침, 전판 GET 403)
+    (_p("MANAGER", "DRAWING"), False, True, ()),  # 운영(3단계 전): POST 됨 · GET 403 → 쓰기 닫고 보기 엶
+    (_p("MANAGER", None), False, True, ()),  # 팀 없는 매니저 — 같음
+    (_p("MANAGER", "DRAWING", active=False), False, False, ()),
+    (_p("MANAGER", "DRAWING", partner=7), False, False, ()),  # 협력사 매니저는 아님
     # 생산팀은 직원 · 매니저 모두 파트 계정 · 반장만 쓴다(사장님 규칙 — 역할과 무관, 2026-11-25 고침)
-    (_p("MANAGER", "PRODUCTION"), False, False, ()),  # 파트도 반장도 아님 = 보기만 생산팀 직원과 같음(전: True · True · (1,))
+    (_p("MANAGER", "PRODUCTION"), False, True, ()),  # 파트도 반장도 아님 — 쓰기 닫힘 · 매니저라 목록 보기만(직원은 아래 줄처럼 못 봄)
     (_p("MANAGER", "PRODUCTION", parts=["cut"]), True, True, (1,)),  # 파트 있는 매니저 — 자기 공장 몫
     (_p("MANAGER", "PRODUCTION", parts=["edge"], factory=2), True, True, (2,)),
     (_p("MANAGER", "PRODUCTION", lead=True, factory=2), True, True, (2,)),  # 반장 매니저
@@ -71,7 +74,11 @@ def _p(role="STAFF", team=None, *, parts=None, lead=False, factory=None, active=
     (_p("STAFF", "PRODUCTION"), False, False, ()),  # 파트도 반장도 아닌 생산팀(보기만)
     (_p("VIEWER", "SHIPMENT"), False, True, ()),  # 예전 읽기 문 그대로
     (_p("VIEWER", "PRODUCTION", parts=["cut"]), False, False, ()),
+    (_p("VIEWER", "PRODUCTION"), False, False, ()),  # 생산 · 도면 · 팀 없는 조회 전용은 예전처럼 못 봄(넓히지 않음)
+    (_p("VIEWER", "DRAWING"), False, False, ()),
+    (_p("VIEWER", None), False, False, ()),
     (_p("STAFF", "DRAWING"), False, False, ()),
+    (_p("STAFF", None), False, False, ()),
     (_p("STAFF", "SHIPMENT", active=False), False, False, ()),
     (_p("STAFF", "SHIPMENT", partner=7), False, False, ()),
     (None, False, False, ()),
@@ -115,6 +122,8 @@ def test_policy_gate_is_the_same_function(person, allowed):
     (_p("STAFF", "PRODUCTION", parts=["edge"], factory=2), []),  # 2공장 생산 계정 = 옛 꼴은 보기만
     (_p("MANAGER", "PRODUCTION", lead=True, factory=2), []),
     (_p("MANAGER", "PRODUCTION"), []),
+    (_p("MANAGER", "DRAWING"), []),  # 보기만 매니저
+    (_p("MANAGER", None), []),
     (_p("STAFF", "SHIPMENT"), []),  # 보기만(출고 · CS · 영업)
     (_p("MANAGER", "SHIPMENT"), []),
     (_p("STAFF", "CS"), []),
