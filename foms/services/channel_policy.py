@@ -88,6 +88,10 @@ def _manual_push_body_lines(user_message: str, change_note: str | None = None) -
     return lines
 
 
+def _neutralize_markup(line: str) -> str:
+    return line.replace("<", "＜").replace(">", "＞")
+
+
 def _paragraph_blocks(lines: List[str]) -> list[dict[str, str]]:
     """Map each line to its own ChannelTalk text block, preserving blank lines.
 
@@ -99,7 +103,13 @@ def _paragraph_blocks(lines: List[str]) -> list[dict[str, str]]:
     whitespace-only value renders as zero-height HTML. They are emitted as a non-breaking
     space so ChannelTalk draws a real empty line, reproducing the ERP conversion text 그대로.
     """
-    return [_text_block(line if line.strip() else _BLANK_LINE_VALUE) for line in lines]
+    # ChannelTalk parses block values as markup: a bare "<" (e.g. "W<1500") makes the whole
+    # push fail with 422 "block value not parsable". Swap angle brackets for fullwidth look-alikes
+    # (entities like &lt; are not proven to render; raw "&" already works and is kept).
+    return [
+        _text_block(_neutralize_markup(line) if line.strip() else _BLANK_LINE_VALUE)
+        for line in lines
+    ]
 
 
 def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str, str]]:
