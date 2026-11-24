@@ -101,9 +101,12 @@ SERVER_LOCKED_KEYS = frozenset({
 })
 
 #: 부모 키 안에서 잠그는 하위 키. 도면 배정은 도면 전달 권한의 기준값이고(도면 담당 지정 API 만
-#: 쓴다), ``assignments`` 의 나머지 하위 키(영업 담당 등)는 지금처럼 폼 값이 들어간다.
+#: 쓴다), ``assignments`` 의 나머지 하위 키(영업 담당 등)는 지금처럼 폼 값이 들어간다. 공장 완료 표지도 같다(아래).
 SERVER_LOCKED_SUBKEYS = {
     "assignments": ("drawing_assignee_user_ids", "drawing_assignees"),
+    # 공장마다 제작 완료 표지(설계서 2026-11-23 §4-14 · §6-6, 3단계 ⑥) — 공장 완료 API · 제작 완료 · 완료 취소 · 재제작 · 제작 취소만
+    # 쓴다. ``production`` 의 나머지 칸(공정 · 보류 · 불량)은 지금처럼 폼 값이 들어간다.
+    "production": ("factory_done",),
 }
 
 #: ``payment`` 안에서 결제 확인 API(``POST /api/orders/<id>/payment-confirm``)만 쓰는 칸(T18 R4).

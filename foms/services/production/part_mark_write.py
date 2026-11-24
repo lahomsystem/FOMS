@@ -31,6 +31,8 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.revision import execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.orders.drawing_factory import has_second_factory
+from foms.services.production.factory_home import factory_ready
 from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import is_part_admin
 from foms.services.production.part_constants import (
@@ -312,7 +314,17 @@ def order_ready(order: Order, views: list[Any], user: Any, req: MarkRequest, tar
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     if read_main_stage(order) != "PRODUCTION" or _hold_active(sd) or not can_write_production(user):
         return None
+    if has_second_factory(sd):  # 섞인 주문은 공장마다 묻는다(factory_ready, 2026-11-23 §4-4 · §4-14)
+        return None
     return {"order_id": int(order.id)} if complete_state(sd, views)["ready"] else None
+
+
+def _factory_ready(order: Order, entry: dict[str, Any], views: list[Any], user: Any, req: MarkRequest,
+                   target: Optional[str]) -> Optional[dict]:
+    """섞인 주문의 "2공장 제작 완료할까요?"(:func:`~foms.services.production.factory_home.factory_ready`) — 쿼리 0."""
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    return factory_ready(sd, entry, views, user, order_id=int(order.id), part=req.part, target=target,
+                         stage=read_main_stage(order), hold=_hold_active(sd))
 
 
 def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool, user: Any = None) -> str:
@@ -363,7 +375,8 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     """잠금 → 주문 · 도면 검사 → 전이 표 · 막는 까닭 → 쓰기 → 주문 쓰기 → 감사. 커밋 전 응답 자료를 돌려준다.
 
     Returns:
-        ``{mark, order_step, changed, run_started, order_ready}`` — 바뀐 게 없으면(멱등) ``changed`` False.
+        ``{mark, order_step, changed, run_started, order_ready, factory_ready}`` — 바뀐 게 없으면(멱등) ``changed`` False.
+        섞인 주문(2공장)은 ``order_ready`` 대신 ``factory_ready``(그 장 공장의 마지막 검수 장일 때).
     """
     order = check_order(lock_order_row(db, req.order_id))
     entry = current_entry(order, req.key)
@@ -372,7 +385,8 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     decision = _decide(req, order, entry, rows, row, user, admin)
     if decision.kind != DECISION_APPLY:
         return {"mark": mark_body(row, req.order_id, req.key, req.part), "order_step": None, "changed": False,
-                "run_started": False, "order_ready": order_ready(order, rows, user, req, decision.target)}
+                "run_started": False, "order_ready": order_ready(order, rows, user, req, decision.target),
+                "factory_ready": _factory_ready(order, entry, rows, user, req, decision.target)}
     write = plan_write(order, entry, row, part=req.part, target=decision.target, user=user, action=req.action,
                        override=decision.override)
     flush_writes(db, [write])
@@ -388,7 +402,8 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
                  "run_started": bool(started)}, order=order)
     return {"mark": mark_body(write.view, req.order_id, req.key, req.part), "order_step": steps[0] if steps else None,
             "changed": True, "run_started": bool(started),
-            "order_ready": order_ready(order, views.get(req.order_id, []), user, req, decision.target)}
+            "order_ready": order_ready(order, views.get(req.order_id, []), user, req, decision.target),
+            "factory_ready": _factory_ready(order, entry, views.get(req.order_id, []), user, req, decision.target)}
 
 
 def lock_orders(db: Any, order_ids: list[int]) -> dict[int, Order]:

@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 92,
+    "total": 93,
     "external": 34
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 51,
+    "CANONICAL": 52,
     "EXTERNAL": 34,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 88,
+    "flag_modified_structured_data": 89,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -470,49 +470,42 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 619,
+      "lineno": 445,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 660,
+      "lineno": 486,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 697,
+      "lineno": 798,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1111,
+      "lineno": 1168,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1481,
+      "lineno": 1259,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1572,
-      "kind": "flag_modified_structured_data",
-      "classification": "CANONICAL",
-      "owner": "STATE-PROD-01"
-    },
-    {
-      "path": "foms/api/production/orders.py",
-      "lineno": 1653,
+      "lineno": 1340,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
@@ -826,8 +819,22 @@
       "owner": "UNASSIGNED"
     },
     {
+      "path": "foms/services/production/complete_order.py",
+      "lineno": 106,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/services/production/factory_complete.py",
+      "lineno": 114,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
       "path": "foms/services/production/part_mark_write.py",
-      "lineno": 280,
+      "lineno": 282,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"

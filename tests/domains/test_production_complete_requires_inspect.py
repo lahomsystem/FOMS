@@ -476,7 +476,7 @@ def test_판정_함수는_한_곳이고_모두_그것을_부른다() -> None:
     for mod in (status_mod, field_update_mod):
         assert mod.production_complete_move_block is complete_move_mod.production_complete_move_block
     assert "production_complete_block_body(sd)" in inspect.getsource(progress_mod.complete_block_body)
-    assert "_steps_incomplete_block(sd, marks)" in inspect.getsource(prod_api.api_production_complete)  # 일반 쓰기 셋도 아래
+    assert "_steps_incomplete_block(sd, marks)" in inspect.getsource(inspect.getmodule(prod_api.complete_production))  # 3단계: 본문 = 서비스
     assert "production_complete_move_block(order, from_stage, new_status)" in inspect.getsource(
         status_mod.update_order_status_response)
     assert "marks=bulk_marks.get(order.id))" in inspect.getsource(status_mod.bulk_update_order_status_response)

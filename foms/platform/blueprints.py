@@ -73,7 +73,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         erp_orders_sheet_factory_bp,
         erp_orders_drawing_wizard_bp,
     )
-    from foms.api.production import erp_orders_production_bp
+    from foms.api.production import erp_orders_factory_done_bp, erp_orders_production_bp
     from foms.api.construction import erp_orders_construction_bp
     from foms.api.cs import (
         erp_orders_as_bp,
@@ -141,6 +141,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_as_drawing_bp)
     app.register_blueprint(erp_orders_drawing_wizard_bp)
     app.register_blueprint(erp_orders_production_bp)
+    app.register_blueprint(erp_orders_factory_done_bp)  # 공장마다 제작 완료(설계서 2026-11-23 §7 factory-done, PRODUCTION_EDIT)
     app.register_blueprint(erp_orders_construction_bp)
     app.register_blueprint(erp_orders_cs_bp)
     app.register_blueprint(erp_orders_as_bp)

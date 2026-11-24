@@ -19,6 +19,7 @@ from foms.services.orders.construction_dates import production_split_note
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
 from foms.services.production.factory_constants import FACTORY_2, factory_label
+from foms.services.production.factory_home import factory_sheet_view
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import (
     _ensure_dict,
@@ -309,7 +310,10 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
     sheet['change_history'] = _sc['history']
     sheet['has_change_history'] = bool(_sc['history'])
     if full:
-        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, order_marks(db, order.id)))
+        marks = order_marks(db, order.id)
+        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, marks))
+        # 2공장(설계서 2026-11-23 §4-14): 섞인 주문만 공장 줄 · 공장 단추(한 공장 주문은 None — 지금 시트 그대로). 같은 표시 줄(쿼리 0)
+        sheet['factory_sheet'] = factory_sheet_view(sd, marks, user, stage_label=stage_label)
         # 파트 계정 · 파트도 반장도 아닌 생산팀 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 · '승인 때 고친 것' 5 — 공정 API 403 과 같은 판정)
         lock = steps_lock(user)
         sheet.update(steps_locked=lock is not None, steps_locked_note=lock.message if lock else '')
