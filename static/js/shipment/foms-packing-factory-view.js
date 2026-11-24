@@ -127,10 +127,16 @@
         b.classList.add('foms-packing-depart--done');
         facText(b, g.label + ' 상차 완료 ' + hm(g.loaded.at) + (g.loaded.by_name ? ' ' + g.loaded.by_name : ''));
       } else {
-        b.disabled = !g.can_check || g.checked < g.total;
+        b.disabled = !g.can_check || g.checked < g.total || g.made === false;
         facText(b, g.label + ' 상차 완료');
       }
       bar.appendChild(b);
+    });
+    // 제작 완료 전 공장은 단추가 꺼진 까닭을 단추 바로 아래 한 줄로(사장님 2026-11-24 — 상차 완료는 제작 완료 뒤에만)
+    (d.groups || []).forEach(function (g) {
+      if (!g.loaded && g.can_check && g.made === false) {
+        bar.appendChild(facText(attr(el('p', 'foms-pf__why'), 'data-pf-why', g.factory), g.label + ' 제작 완료 뒤에 상차 완료할 수 있어요.'));
+      }
     });
     return bar;
   }
