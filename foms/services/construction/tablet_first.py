@@ -52,6 +52,7 @@ from foms.services.orders.schedule_row_kind import (
 )
 from foms.services.production_home_read_model import production_home_steps
 from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
+from foms.services.orders.drawing_factory import load_split
 from foms.services.shipment_dashboard_helpers import (
     _normalize_worker_name,
     visible_items_for_dates,
@@ -363,6 +364,8 @@ def build_row_view(row: _DayRow) -> dict:
         "packing_state": packing_state,
         "drawing_text": drawing_text,
         "drawing_missing": drawing_missing,
+        # 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만 '출고' 칸 아래 작은 글, 그 밖 None. 쿼리 0.
+        "load_text": (load_split(sd) or {}).get("text"),
     }
 
 
@@ -472,4 +475,6 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
         "worker_options": _worker_options(worker_settings, sections, include_settings=not is_freelancer),
         "worker_colors": {p["name"]: p["color_index"] for sec in reversed(sections) for p in sec["people"]},  # 고른 날 색 우선
         "sections": sections, "cap": DAY_ROWS_CAP, "undated_count": counts.get(UNDATED_KEY, 0),
+        # 상차 줄 모양(css)을 실을지 — 그날 · 미리 볼 날 줄에 상차 줄이 하나라도 있을 때만(없으면 응답 바이트 그대로).
+        "has_load_split": any(r["load_text"] for sec in sections for g in sec["groups"] for r in g["rows"]),
     }
