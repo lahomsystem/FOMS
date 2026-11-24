@@ -5,7 +5,9 @@ DB 를 건드리지 않는 순수 함수. 라우트가 이미 정렬 · 로드�
 
 규칙
 - 묶음 키 = 그 줄의 첫 유효 시공자(기존 `sort_shipment_rows` 와 같은 규칙).
-- 묶음 순서 = 시공자 없음 → 설정에 적힌 시공자 순 → 설정에 없는 이름(이름 순).
+- 묶음 순서 = 시공자 없음(시공 줄) → 설정에 적힌 시공자 순 → 설정에 없는 이름(이름 순) → 시공자 없는 AS 줄(맨 아래).
+  AS 는 접수 때 시공자 칸을 비우므로(2026-11-23) 아직 안 정한 AS 가 늘 있다 — 급한 시공 줄 위에 섞이지 않게 아래로 모은다
+  (사장님 2026-11-24 "배정 안 된 AS 건은 하단 배치").
 - 묶음 안 = 일반 줄 먼저, AS 줄 뒤(그 안에서는 들어온 순서 유지).
 - AS 줄인지는 줄에 붙은 그날 줄 종류(``schedule_row_kind``)로 정한다 — 본 흐름이 열린 AS 주문의 시공일 줄은 일반 줄.
 - 자수(D25) = 줄 자수 ÷ 그 줄 시공자 수. AS 줄은 건수만 세고 자수는 0.
@@ -103,15 +105,19 @@ def build_tablet_day_sheet(
         buckets.setdefault(key_norm, []).append(entry)
 
     extra_norms = sorted(n for n in display_name if n not in settings_by_norm)
-    group_order = ([''] if '' in buckets else []) + [
-        n for n in settings_order + extra_norms if n in buckets
-    ]
-
-    # 화면 순서(묶음 안 일반 → AS)
+    # 화면 순서: 시공자 없는 시공 줄 → 시공자 묶음(묶음 안 일반 → AS) → 시공자 없는 AS 줄
     ordered: list[tuple[str, list[dict]]] = []
-    for key_norm in group_order:
-        bucket = buckets[key_norm]
-        ordered.append((key_norm, [e for e in bucket if not e['is_as']] + [e for e in bucket if e['is_as']]))
+    unassigned = buckets.get('', [])
+    unassigned_normal = [e for e in unassigned if not e['is_as']]
+    unassigned_as = [e for e in unassigned if e['is_as']]
+    if unassigned_normal:
+        ordered.append(('', unassigned_normal))
+    for key_norm in settings_order + extra_norms:
+        if key_norm in buckets:
+            bucket = buckets[key_norm]
+            ordered.append((key_norm, [e for e in bucket if not e['is_as']] + [e for e in bucket if e['is_as']]))
+    if unassigned_as:
+        ordered.append(('', unassigned_as))
 
     # 사람 색 번호
     color_by_norm: dict[str, int] = {}
@@ -167,6 +173,8 @@ def build_tablet_day_sheet(
         groups.append({
             'key': display_name.get(key_norm, '') if key_norm else '',
             'unassigned': not key_norm,
+            # 시공자 없는 AS 줄만 모은 맨 아래 묶음.
+            'as_unassigned': not key_norm and bool(entries) and all(e['is_as'] for e in entries),
             'color_index': color_by_norm.get(key_norm) if key_norm else None,
             'rows': out_rows,
         })
@@ -190,8 +198,10 @@ def build_tablet_day_sheet(
             'off': off,
             'color_index': color_by_norm[norm],
             'in_settings': setting is not None,
-            'as_tech': setting is None and norm in tech_name,
         })
+        # AS 기사 표식은 해당하는 사람에게만 싣는다(화면 조각에 사람 수만큼 실리는 자료라 false 는 싣지 않는다).
+        if setting is None and norm in tech_name:
+            people[-1]['as_tech'] = True
 
     return {
         'groups': groups,
@@ -212,7 +222,7 @@ def pc_card_rows(sheet: dict | None) -> list:
 
     Returns:
         Order 목록(묶음 순서). 각 Order 에 ``pc_card`` dict 가 붙는다:
-        {'no', 'first', 'last', 'miss', 'count', 'workers', 'units', 'is_as', 'blob_top', 'blob_bottom'}.
+        {'no', 'first', 'last', 'miss', 'as_miss', 'count', 'workers', 'units', 'is_as', 'blob_top', 'blob_bottom'}.
         blob_top · blob_bottom = 같은 카드에서 시공자 구성이 같은 이웃 줄과 사람 색 덩어리를 잇는지.
     """
     out: list = []
@@ -227,6 +237,7 @@ def pc_card_rows(sheet: dict | None) -> list:
                 'first': i == 0,
                 'last': i == last,
                 'miss': bool(group.get('unassigned')),
+                'as_miss': bool(group.get('as_unassigned')),
                 'count': len(rows),
                 'workers': row['workers'],
                 'units': row['units'],

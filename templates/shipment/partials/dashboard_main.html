@@ -529,7 +529,7 @@
                 {# id: 배너 점프 칩(#shipment-row-<id>)의 착지점. 태블릿 그리드 행은 같은
                    문서에 동시에 존재하므로 접두어를 달리해 중복 id 를 만들지 않는다. #}
                 {% if _pc and _pc.first %}
-                <tr class="shipment-card-gap{% if _pc.miss %} is-miss{% endif %}"><td colspan="10">{% if _pc.miss %}<span class="shipment-card-gap__lbl">시공자 없음 {{ _pc.count }}건</span>{% endif %}</td></tr>
+                <tr class="shipment-card-gap{% if _pc.miss %} is-miss{% endif %}"><td colspan="10">{% if _pc.miss %}<span class="shipment-card-gap__lbl">{% if _pc.as_miss %}AS · {% endif %}시공자 없음 {{ _pc.count }}건</span>{% endif %}</td></tr>
                 {% endif %}
                 <tr id="shipment-row-{{ r.id }}" data-order-id="{{ r.id }}" class="shipment-row"
                   {% if _pc %}data-card="{{ 'first ' if _pc.first }}{{ 'last ' if _pc.last }}{{ 'miss' if _pc.miss }}"{% endif %}
