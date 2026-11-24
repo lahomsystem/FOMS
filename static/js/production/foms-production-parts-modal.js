@@ -197,11 +197,13 @@
     if (mark.state === 'basic') { return '지금: 기본' + (mark.done_by_name ? ' · ' + mark.done_by_name : ''); }
     return '지금: 담당 미정';
   }
-  // 검수 마지막 장 완료 뒤 같은 창이 이어서 묻는다(§4-4) — 실행 단추 0.8초 잠금, 초점은 [나중에]
+  // 검수 마지막 장 완료 뒤 같은 창이 이어서 묻는다(§4-4) — 실행 단추 0.8초 잠금, 초점은 [나중에].
+  // 섞인 주문(2공장)은 sheets 자리에 서버가 준 factory_ready({label, message}) — "2공장 제작 완료할까요?" · [2공장 제작 완료]
   function complete(card, sheets, pending) {
     var who = ((card.querySelector('.fph-dr__nm b') || {}).textContent || '') + ' #' + attr(card, 'data-order-id');
-    fill({ title: '제작 완료할까요?', run: '제작 완료', tone: 'done', closeText: '나중에' }, [],
-      who + ' · 도면 ' + sheets + '장이 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요.');
+    var fac = sheets && typeof sheets === 'object' ? sheets : null;
+    fill({ title: (fac ? fac.label + ' ' : '') + '제작 완료할까요?', run: pending.run, tone: 'done', closeText: '나중에' }, [],
+      who + ' · ' + (fac ? fac.message : '도면 ' + sheets + '장이 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요.'));
     var run = runBtn();
     run.setAttribute('aria-disabled', 'true');
     pending.locked = true;

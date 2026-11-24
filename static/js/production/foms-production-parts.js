@@ -190,7 +190,9 @@
       }) } };
     }
     var card = p.cards[0];
-    if (p.action === 'complete') { return { url: '/api/orders/' + encodeURIComponent(attr(card, 'data-order-id')) + '/production/complete', body: {} }; }
+    var base = '/api/orders/' + encodeURIComponent(attr(card, 'data-order-id'));
+    if (p.action === 'complete') { return { url: base + '/production/complete', body: {} }; }
+    if (p.action === 'factory') { return { url: base + '/production/factory-done', body: { factory: p.factory, done: true } }; } // 2공장(§4-14)
     var body = { order_id: Number(attr(card, 'data-order-id')), drawing_key: attr(card, 'data-key'), part: cfg.part, action: p.action,
       seen: attr(card, 'data-state') };
     if (body.seen === 'need') { body.seen_by = attr(card, 'data-picked-id') ? Number(attr(card, 'data-picked-id')) : null; } // 본 담당까지 견준다(§4-5)
@@ -217,15 +219,20 @@
   function handle(p, result) {
     var body = result.data || {};
     var data = body.data || {};
+    var asks = p.action === 'complete' || p.action === 'factory'; // 제작 완료 물음의 실행(카드 쓰기가 아님)
     if (result.ok && body.success === true) {
-      var done = p.action === 'bulk' ? bulkDone(data) : { text: p.action === 'complete' ? '제작 완료했어요 — 시공 대기로 넘어갔어요' : '저장했어요', bad: false };
-      if (p.action !== 'bulk' && p.action !== 'complete') { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
-      done.text += p.action === 'complete' ? '' : started(data);
+      var finished = p.action === 'complete' || (p.action === 'factory' && data.final);
+      var done = p.action === 'bulk' ? bulkDone(data) : { text: finished ? '제작 완료했어요 — 시공 대기로 넘어갔어요'
+        : p.action === 'factory' ? p.run + '했어요' : '저장했어요', bad: false };
+      if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
+      done.text += asks ? '' : started(data);
       setBusy(false);
-      if (data.order_ready && p.action === 'done') { // 검수 마지막 장 → 같은 창에서 "제작 완료할까요?"
-        p.action = 'complete';
-        p.run = '제작 완료';
-        M.complete(p.cards[0], findCard(attr(p.cards[0], 'data-order-id')).length || attr(p.cards[0], 'data-of'), p);
+      var fac = data.factory_ready;
+      if ((data.order_ready && p.action === 'done') || (fac && p.action === 'done')) { // 검수 마지막 장 → 같은 창에서 "제작 완료할까요?"(섞인 주문은 공장마다)
+        p.action = fac ? 'factory' : 'complete';
+        p.factory = fac ? fac.factory : null;
+        p.run = fac ? fac.label + ' 제작 완료' : '제작 완료';
+        if (fac) { M.complete(p.cards[0], fac, p); } else { M.complete(p.cards[0], findCard(attr(p.cards[0], 'data-order-id')).length || attr(p.cards[0], 'data-of'), p); }
         setStatus(done.text, false);
         return;
       }
@@ -237,7 +244,7 @@
     if (result.status === 0 || result.kind === 'network' || result.kind === 'timeout') { M.error(OFFLINE); return; }
     var text = body.error || body.message || result.message || OFFLINE;
     if (result.status === 409 || result.status === 403) {
-      if (data.mark && p.action !== 'bulk' && p.action !== 'complete') { applyMark(p.cards[0], data.mark); }
+      if (data.mark && p.action !== 'bulk' && !asks) { applyMark(p.cards[0], data.mark); }
       M.lost(text, M.nowLine(data.mark));
       return;
     }
