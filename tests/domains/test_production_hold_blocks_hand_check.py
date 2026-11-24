@@ -3,7 +3,7 @@
 도면 한 장 누름(``order_gate`` 409 ``HOLD_ACTIVE``)과 같은 규칙 · 같은 글을 공정 칸 손 체크 길(``POST …/production/steps``)에도.
 켜기만 막고 끄기(체크 해제)는 보류 중에도 된다(도면 쪽 ``ALLOWED_WHILE_BLOCKED`` 와 같은 뜻). 막히면 쓰기 · 이벤트 · 버전 변화 없음.
 닿는 자리: 작업 시트(태블릿 · PC) 공정 칸 · '내 공정' [끝] · 옆 시트 · PC 도면 목록 창 [모두 체크] — 모두 같은 공정 API 를 쓴다.
-PC 목록 창은 서버 값 ``all`` 이 보류면 거짓(단추 안 보임). '도면 고치는 중'의 통째 체크는 지금 그대로(사장님 말씀 밖).
+PC 목록 창은 서버 값 ``all`` 이 보류면 거짓(단추 안 보임). '도면 고치는 중'도 2026-11-25 부터 같다(test_production_revising_blocks_steps.py).
 
 되돌리면 실패: 보류 주문 켜기가 200 · 끄기가 409 · PC ``all`` 참. 대조군: 보류 아닌 주문 · 보류를 푼 주문은 그대로 켜진다.
 """
@@ -51,7 +51,7 @@ def test_gate_refuses_turning_on_while_on_hold_with_the_card_message():
     assert step_cell_gate(sd, [], "cut", False) is None  # 끄기는 된다
     assert step_cell_gate({**sd, "production": {"steps": []}}, [], "cut", True) is None  # 대조군: 보류 아님
     revising = {**sd, "production": {"steps": []}, "drawing_status": "RETURNED"}
-    assert step_cell_gate(revising, [], "cut", True) is None  # 도면 고치는 중의 통째 체크는 지금 그대로
+    assert step_cell_gate(revising, [], "cut", True).code == "DRAWING_REVISING"  # 도면 고치는 중도 보류처럼(사장님 2026-11-25)
 
 
 def test_hand_check_on_held_order_is_refused_without_write(client):

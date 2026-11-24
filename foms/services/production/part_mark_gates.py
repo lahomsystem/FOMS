@@ -6,8 +6,8 @@
 =========================  =====  ====================================================================
 코드                        상태   언제
 =========================  =====  ====================================================================
-``HOLD_ACTIVE``             409    보류 중 — 맡기 취소 · 완료 취소만 된다 · 공정 칸 손 체크 켜기도 막힘(끄기는 됨)
-``DRAWING_REVISING``        409    도면 고치는 중(RETURNED · TRANSFERRED) — 같음
+``HOLD_ACTIVE``             409    보류 중 — 맡기 취소 · 완료 취소만 된다 · 공정 칸 손 작업 켜기도 막힘(끄기는 됨)
+``DRAWING_REVISING``        409    도면 고치는 중(RETURNED · TRANSFERRED) — 같음(공정 칸 손 작업 켜기도 막힘, 사장님 2026-11-25)
 ``STEP_SET_BY_HAND``        409    카드를 안 쓴 파트의 공정 칸이 손으로 체크됨 — 그 파트 카드 쓰기
 ``INSPECT_NOT_READY``       409    그 장 재단 · 엣지 · 조립이 아직 — 검수 맡기 · 완료 · 담당 바꾸기(``left``)
 ``INSPECT_DONE_FIRST``      409    그 장 검수가 완료 — 앞 파트 완료 취소 · 기본 취소
@@ -191,8 +191,9 @@ def inspect_gate(sd: Any, marks: Iterable[Any], key: str, part: str, action: str
 def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Optional[Gate]:
     """공정 칸 손 체크(B5′ 오른쪽 — 카드를 쓴 파트는 카드가 기준).
 
-    * 보류 중에 켤 때: 409 ``HOLD_ACTIVE``(사장님 2026-11-24 "보류 중에는 통째 체크도 막기" — 도면 누름과 같은 글). 끄기는 보류
-      중에도 된다(도면 쪽 :data:`ALLOWED_WHILE_BLOCKED` 와 같은 뜻). 도면 고치는 중은 칸 체크를 막지 않는다(지금 그대로).
+    * 보류 · 도면 고치는 중에 켤 때: 409 ``HOLD_ACTIVE`` · ``DRAWING_REVISING``(사장님 2026-11-24 "보류 중에는 통째 작업도 막기" ·
+      2026-11-25 "도면 고치는 중도 보류처럼" — 도면 누름 :func:`order_gate` 와 같은 차례 · 같은 글). 끄기(작업 취소)는 둘 다 된다
+      (도면 쪽 :data:`ALLOWED_WHILE_BLOCKED` — 완료 취소 · 맡기 취소 — 와 같은 뜻).
     * 켤 때: 카드를 쓴 파트에 미완료 장이 1장 이상이면 409 ``PART_USES_CARDS`` + ``left``(쓰기 · 이벤트 없음).
       미완료 0장(확정 도면 0장 포함)이면 지금처럼 켜진다.
     * 끌 때: 카드를 쓴 파트의 지금 장이 모두 카드로 완료면 409 ``STEP_SET_BY_CARDS``(완료 취소는 카드에서).
@@ -209,6 +210,8 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
     """
     if done and _hold_active(sd):
         return Gate(409, HOLD_ACTIVE, HOLD_MESSAGE, {"part": part})
+    if done and drawing_revision_in_progress(sd):
+        return Gate(409, DRAWING_REVISING, REVISING_MESSAGE, {"part": part})
     progress = part_progress(sd, marks, part)
     if not progress["uses_cards"] or not progress["total_n"]:
         return None
