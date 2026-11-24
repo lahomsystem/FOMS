@@ -124,7 +124,7 @@ def test_no_cards_body_is_exactly_the_old_step_rule():
 def test_cards_order_with_zero_drawings_needs_all_four_steps():
     marks = [_m("gone", "cut", "DONE")]
     body = complete_block_body(_sd(0), marks)
-    assert body["message"] == "도면이 없어요 — 공정 칸을 체크하거나 관리자에게 말해 주세요."
+    assert body["message"] == "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
     assert complete_ready(_sd(0, on=("cut", "edge", "assemble", "inspect")), marks) is True
 
 
@@ -175,7 +175,7 @@ def test_step_cell_gate_card_part_with_sheets_left_refuses_with_exact_message():
     marks = [_m(k, "cut", "DONE") for k in KEYS[:3]]  # 사장님 예: 5장 중 3장만 완료
     gate = step_cell_gate(_sd(), marks, "cut", True)
     assert (gate.status, gate.code) == (409, "PART_USES_CARDS")
-    assert gate.message == "도면 2장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 체크돼요."
+    assert gate.message == "도면 2장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
     assert gate.extra == {"part": "cut", "left": 2, "total": 5}
     assert gate.body() == {"success": False, "data": {"code": "PART_USES_CARDS", "part": "cut", "left": 2, "total": 5},
                            "error": gate.message}
@@ -185,7 +185,7 @@ def test_step_cell_gate_card_part_with_sheets_left_refuses_with_exact_message():
 def test_step_cell_gate_card_part_all_done_refuses_turning_off_only():
     gate = step_cell_gate(_sd(on=("cut",)), _all("cut"), "cut", False)
     assert gate.code == "STEP_SET_BY_CARDS"
-    assert gate.message == "도면을 모두 완료해서 체크된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
+    assert gate.message == "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
     assert step_cell_gate(_sd(), _all("cut"), "cut", True) is None  # 미완료 0장 = 지금처럼 켜짐
 
 

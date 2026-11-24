@@ -175,7 +175,7 @@
       if (btn.disabled) { return; }
       if (btn.getAttribute('aria-disabled') === 'true') { // 잠긴 칸(파트 계정) — 요청 없이 까닭만
         var note = page.querySelector('[data-foms-sheet-steps-locked]');
-        setStatus((note && String(note.textContent || '').trim()) || '공정은 도면 카드에서 체크해요', 'bad');
+        setStatus((note && String(note.textContent || '').trim()) || '공정은 도면 카드에서 작업해요', 'bad');
         return;
       }
       var key = btn.getAttribute('data-foms-sheet-step');
@@ -199,7 +199,7 @@
             btn.setAttribute('aria-pressed', done ? 'true' : 'false');
             syncComplete();
           }
-          setStatus(savedText(done ? '체크했어요' : '체크를 풀었어요'), 'ok');
+          setStatus(savedText(done ? '작업 완료했어요' : '작업을 취소했어요'), 'ok');
         });
     }
 

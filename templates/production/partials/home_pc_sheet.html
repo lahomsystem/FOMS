@@ -1,8 +1,8 @@
 {# PC 공정 칸 → 도면 목록 창(사장님 2026-11-24 "PC 에서도 도면별로 체크, PC 는 감독 성격이 강해 세세한 정보를 볼 수 있어야 돼").
    PC(마우스) 날짜 · 찾기 탭에만 하나(home_body.html). 칸(home_pc_macros.pc_steps 의 data-foms-pc-sheet)을 누르면
    foms-production-pc-sheet.js 가 GET /api/production/part-sheet · /api/production/part-history 로 채운다(쓰기 없음).
-   [고치기] 켬(data-edit="1")이고 서버가 쓸 수 있다고 한 사람(관리자 · 반장 — part_access.can_override_marks)만 줄마다 [체크] · [체크 해제]
-   · 창 머리 [모두 체크] · 손 체크 [체크 해제] — 쓰기는 foms-production-pc-sheet-write.js(있는 쓰기 길만). [모두 체크]의 확인 창은 작업 시트와
+   [고치기] 켬(data-edit="1")이고 서버가 쓸 수 있다고 한 사람(관리자 · 반장 — part_access.can_override_marks)만 줄마다 [작업] · [작업 취소]
+   · 창 머리 [모두 작업] · 손 체크 [모두 작업 취소] — 쓰기는 foms-production-pc-sheet-write.js(있는 쓰기 길만). [모두 작업]의 확인 창은 작업 시트와
    같은 조각(sheet_step_confirm.html) · 같은 글(foms-production-sheet-parts.js). 겉틀 = 공용 사유 시트(foms-reason-sheet.css), PC 폭 ·
    가운데 · 줄 꼴만 pc.css. 인라인 style · script 없음.
    2026-11-24 둘째 판: PC 로 연 작업 시트(sheet.html, pc_view)도 같은 조각을 싣는다 — 그 화면은 확인 창이 이미 있어 pc_sheet_confirm=false.

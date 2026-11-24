@@ -121,7 +121,7 @@ def test_part_account_writes_only_own_part(client):
     _login(client, _user("김재단", part="cut"))
     forbidden = _one(client, order, 0, "assemble", "take", "none")
     assert forbidden.status_code == 403 and _code(forbidden) == "PART_FORBIDDEN"
-    assert forbidden.get_json()["error"] == "자기 파트만 체크할 수 있어요."
+    assert forbidden.get_json()["error"] == "자기 파트만 작업할 수 있어요."
     assert _row(order, 0, "assemble") is None
     ok = _one(client, order, 0, "cut", "take", "none")  # 대조군: 자기 파트는 된다
     assert ok.status_code == 200 and ok.get_json()["data"]["mark"]["state"] == "need"

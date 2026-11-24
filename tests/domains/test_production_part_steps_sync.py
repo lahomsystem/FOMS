@@ -203,7 +203,7 @@ def test_hand_checked_step_blocks_card_of_that_part(client):
     take = _mark(client, oid, 0, "edge", "take", "none")
     body = take.get_json()
     assert take.status_code == 409 and body["data"]["code"] == "STEP_SET_BY_HAND"
-    assert body["error"] == "손이 작업 시트에서 엣지 칸을 체크했어요. 다시 해야 하면 손에게 말해 주세요."
+    assert body["error"] == "손이 작업 시트에서 엣지 칸을 작업 완료 처리했어요. 다시 해야 하면 손에게 말해 주세요."
     assert _step(oid, "edge")["done"] is True and _step_events(oid) == []
     assert db_session.query(ProductionPartMark).filter_by(order_id=oid).count() == 0
     _login(client, _user("김재단", part="cut"))
@@ -328,10 +328,10 @@ def test_part_account_cannot_write_order_steps(client):
     resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     body = resp.get_json()
     assert resp.status_code == 403 and body["data"]["code"] == "PART_ACCOUNT_USE_CARDS"
-    assert body["error"] == "공정은 도면 카드에서 체크해요"
+    assert body["error"] == "공정은 도면 카드에서 작업해요"
     assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
     got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
-    assert got["locked"] is True and got["locked_note"] == "공정은 도면 카드에서 체크해요"
+    assert got["locked"] is True and got["locked_note"] == "공정은 도면 카드에서 작업해요"
 
 
 # CS 직원은 2026-11-21 부터 생산을 보기만 한다(설계서 production-pc-viewer §13 결정 2) — 대조군은 파트 없는 생산 매니저로 바꿨다.
@@ -354,10 +354,10 @@ def test_production_account_without_parts_or_lead_cannot_write_steps(client, rol
     _login(client, _user("최보기", role=role))
     resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     assert resp.status_code == 403 and resp.get_json() == {
-        "success": False, "data": {"code": "LEAD_REQUIRED"}, "error": "반장으로 지정된 계정만 체크할 수 있어요."}
+        "success": False, "data": {"code": "LEAD_REQUIRED"}, "error": "반장으로 지정된 계정만 작업할 수 있어요."}
     assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
     got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
-    assert got["locked"] is True and got["locked_note"] == "반장으로 지정된 계정만 체크할 수 있어요."
+    assert got["locked"] is True and got["locked_note"] == "반장으로 지정된 계정만 작업할 수 있어요."
 
 
 # --------------------------------------------------------------------------- #
@@ -373,7 +373,7 @@ def test_sheet_step_buttons_read_only_for_part_account(client, url):
     assert len(buttons) == 4 and all(not b.has_attr("disabled") and b.get("aria-disabled") == "true" and "is-locked" in b["class"]
                                      for b in buttons)
     note = soup.select("[data-foms-sheet-steps-locked]")
-    assert len(note) == 1 and note[0].get_text(strip=True) == "공정은 도면 카드에서 체크해요"
+    assert len(note) == 1 and note[0].get_text(strip=True) == "공정은 도면 카드에서 작업해요"
     assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 그대로
 
 
@@ -385,7 +385,7 @@ def test_sheet_step_buttons_read_only_for_production_account_without_lead(client
     buttons = soup.select("[data-foms-sheet-step]")
     assert len(buttons) == 4 and all(b.get("aria-disabled") == "true" and "is-locked" in b["class"] for b in buttons)
     note = soup.select("[data-foms-sheet-steps-locked]")
-    assert len(note) == 1 and note[0].get_text(strip=True) == "반장으로 지정된 계정만 체크할 수 있어요."
+    assert len(note) == 1 and note[0].get_text(strip=True) == "반장으로 지정된 계정만 작업할 수 있어요."
     assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 지금 그대로
 
 

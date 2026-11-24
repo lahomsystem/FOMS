@@ -166,7 +166,7 @@ def test_two_part_account_writes_both_parts_but_not_a_third_and_steps_stay_locke
     assert mark(client, order, 0, "cut", "take", "none").status_code == 200
     assert mark(client, order, 0, "edge", "take", "none").status_code == 200
     bad = mark(client, order, 0, "assemble", "take", "none")
-    assert bad.status_code == 403 and code(bad) == "PART_FORBIDDEN" and bad.get_json()["error"] == "자기 파트만 체크할 수 있어요."
+    assert bad.status_code == 403 and code(bad) == "PART_FORBIDDEN" and bad.get_json()["error"] == "자기 파트만 작업할 수 있어요."
     assert row(order.id, order.keys[0], "assemble") is None
     locked = check_step(client, make_order(1).id, "cut", True)  # 공정 칸 직접 쓰기 = 카드로만(파트 계정)
     assert locked.status_code == 403 and code(locked) == "PART_ACCOUNT_USE_CARDS"
@@ -223,7 +223,7 @@ def test_production_account_without_parts_or_lead_only_views_cards_and_steps(cli
     assert card.status_code == 403 and code(card) == "PART_REQUIRED"
     step = check_step(client, order.id, "cut", True)
     assert step.status_code == 403 and code(step) == "LEAD_REQUIRED"
-    assert step.get_json()["error"] == "반장으로 지정된 계정만 체크할 수 있어요."
+    assert step.get_json()["error"] == "반장으로 지정된 계정만 작업할 수 있어요."
     started = client.post(f"/api/orders/{order.id}/production/start", json={})
     assert started.status_code != 403, started.get_json()  # 제작 시작 · 완료 · 보류 · 불량 권한은 바꾸지 않는다
 

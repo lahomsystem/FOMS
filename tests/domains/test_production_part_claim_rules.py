@@ -58,7 +58,7 @@ def test_part_without_cards_hand_check_is_the_basis_and_blocks_its_cards(client)
     login(client, make_user("김재단", part="cut"))
     take = mark(client, order, 0, "cut", "take", "none")  # 칸 먼저 → 카드 409
     assert take.status_code == 409 and code(take) == "STEP_SET_BY_HAND"
-    assert take.get_json()["error"] == "박반장이 작업 시트에서 재단 칸을 체크했어요. 다시 해야 하면 박반장에게 말해 주세요."
+    assert take.get_json()["error"] == "박반장이 작업 시트에서 재단 칸을 작업 완료 처리했어요. 다시 해야 하면 박반장에게 말해 주세요."
     bulk = client.post(BULK, json={"part": "cut", "seen": "none",
                                    "items": [{"order_id": order.id, "drawing_key": k} for k in order.keys]})
     assert [s["reason"] for s in bulk.get_json()["data"]["skipped"]] == ["STEP_SET_BY_HAND"] * 5
@@ -96,7 +96,7 @@ def test_card_part_three_of_five_hand_check_is_refused_without_writing(client):
     resp = check_step(client, order.id, "cut", True)
     body = resp.get_json()
     assert resp.status_code == 409 and body["success"] is False
-    assert body["error"] == "도면 2장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 체크돼요."
+    assert body["error"] == "도면 2장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
     assert body["data"] == {"code": "PART_USES_CARDS", "part": "cut", "left": 2, "total": 5}
     assert step(order.id, "cut")["done"] is False and fresh(order.id).mutation_version == version
     assert len(events(order.id, "PRODUCTION_STEP_CHECKED")) == step_events
@@ -202,7 +202,7 @@ def test_every_caller_gives_the_same_completion_answer(client, name):
 def test_zero_drawings_card_order_message(client):
     login(client, make_user("가짜생산"))
     resp = client.post(f"/api/orders/{_row_order('cards_zero_drawings')}/production/complete", json={})
-    assert resp.get_json()["message"] == "도면이 없어요 — 공정 칸을 체크하거나 관리자에게 말해 주세요."
+    assert resp.get_json()["message"] == "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
 
 
 # --------------------------------------------------------------------------- #

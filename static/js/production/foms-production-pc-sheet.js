@@ -3,8 +3,8 @@
  *  · 칸 = [data-foms-pc-sheet="<파트>"](확정 도면 1장 이상): PC 첫 화면 줄(home_pc_macros.pc_steps) · PC 로 연 작업 시트(sheet.html, pc_view —
  *    이 파일은 그때만 실린다). 누름 · Enter · Space. 누름은 붙잡는 단계에서 받아 작업 시트 JS 의 통째 손 체크까지 안 보내고, 창 안 누름도 밖으로 안 보낸다.
  *  · 열 때 GET 두 번: /api/production/part-sheet(상태 · 담당 · 완료 · 바뀜 · 막힘 — 서버 글 그대로) · /api/production/part-history(작업 시트와
- *    같은 글, sheet-parts renderLog). [고치기] 켬(data-edit) + 서버 can_write + 쓰기 파일이 있을 때만 단추([체크] · [체크 해제] · [모두 체크] ·
- *    손 체크 [체크 해제] · "제작 완료할까요?"). 누르면 다시 받아 바뀐 줄만 다시 그리고 뒤의 PC 줄 칸 · 상태 칸을 서버 매크로 HTML 로 바꿔 끼운다.
+ *    같은 글, sheet-parts renderLog). [고치기] 켬(data-edit) + 서버 can_write + 쓰기 파일이 있을 때만 단추([작업] · [작업 취소] · [모두 작업] ·
+ *    손 체크 [모두 작업 취소] · "제작 완료할까요?"). 누르면 다시 받아 바뀐 줄만 다시 그리고 뒤의 PC 줄 칸 · 상태 칸을 서버 매크로 HTML 로 바꿔 끼운다.
  *  · 창 = 공용 사유 시트 겉틀(home_pc_sheet.html). Esc · 초점 가둠 · 닫으면 누른 칸으로(손 체크 확인 창이 위면 키는 그 창 몫). 셸 조각 교체로
  *    다시 실행돼도 화면마다 한 번(data-foms-pc-sheet-bound), 문서 키 리스너는 한 번. 쓰고 닫으면 쓰기 파일이 작업 시트 공정 줄을 서버 값으로. */
 (function () {
@@ -81,7 +81,7 @@
     var st = el('span', 'fpc-sheet__st is-' + r.state, r.word);
     if (r.note) { st.appendChild(el('small', '', r.note)); }
     li.appendChild(st);
-    if (writer() && r.act) { li.appendChild(actButton(r.act === 'check' ? '체크' : '체크 해제', r.act, r.key, r.act === 'check')); }
+    if (writer() && r.act) { li.appendChild(actButton(r.act === 'check' ? '작업' : '작업 취소', r.act, r.key, r.act === 'check')); }
     return li;
   }
   function renderHead(d) {
@@ -93,11 +93,11 @@
     var tools = q('[data-foms-pc-sheet-tools]');
     tools.textContent = '';
     if (w && d.all) {
-      var all = actButton('모두 체크', 'all', '', true);
+      var all = actButton('모두 작업', 'all', '', true);
       all.setAttribute('data-foms-sheet-step', d.part); // 반장 손 체크 확인 창(sheet-parts beforeToggle)이 파트를 읽는다
       tools.appendChild(all);
     }
-    if (w && d.hand_off) { tools.appendChild(actButton('체크 해제', 'hand-off', '', false)); }
+    if (w && d.hand_off) { tools.appendChild(actButton('모두 작업 취소', 'hand-off', '', false)); }
     box.setAttribute('data-order-id', String(d.order_id));
     q('[data-foms-sheet-parts]').setAttribute('data-foms-sheet-parts', JSON.stringify({ sheets: d.sheets, parts: d.parts, keys: d.keys }));
   }
@@ -191,7 +191,7 @@
     S.seq += 1;
     box.hidden = true;
     box.setAttribute('aria-hidden', 'true');
-    q('[data-foms-pc-sheet-tools]').textContent = ''; // [모두 체크](data-foms-sheet-step)를 남기지 않는다
+    q('[data-foms-pc-sheet-tools]').textContent = ''; // [모두 작업](data-foms-sheet-step)을 남기지 않는다
     if (S.dirty && window.FomsPcSheetWrite) { window.FomsPcSheetWrite.afterClose(root, S.reload); } // 작업 시트 공정 줄 · 제작 완료 뒤 첫 화면
     var back = S.opener && document.contains(S.opener) ? S.opener : cellOf(S.id, S.part); // 칸을 바꿔 끼웠으면 새 칸으로
     if (back) { back.focus(); }

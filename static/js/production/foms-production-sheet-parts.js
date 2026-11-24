@@ -1,7 +1,7 @@
 /* 생산 작업 시트 — 파트 카드 3판 칸(설계서 2026-11-23 §4-2 · §8-3, 승인 때 고친 것 2 · 3). 루트 = [data-foms-prod-sheet-page].
  * foms-production-sheet-page.js 가 이 파일(window.FomsSheetParts)이 있을 때만 부른다 — 없으면 시트는 지금 그대로다.
  *  · beforeToggle: 반장 · 관리자가 카드를 안 쓴 파트의 공정 칸을 **켤 때**(끌 때는 아님), 확정 도면이 1장 이상이면 먼저 묻는다
- *    "재단을 완료로 체크할까요?" · "이 주문의 도면 5장이 모두 재단 완료로 처리돼요." [취소] [체크]. 카드를 쓴 파트는 묻지 않고 보낸다
+ *    "재단을 작업 완료로 처리할까요?" · "이 주문의 도면 5장이 모두 재단 완료로 처리돼요." [취소] [작업 완료]. 카드를 쓴 파트는 묻지 않고 보낸다
  *    (서버가 남은 장을 세어 막는다 — 409 PART_USES_CARDS). 확정 도면 0장이면 지금처럼 바로.
  *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "아직 미완료가 있어요 — 재단 1장 · 검수 3장".
@@ -13,7 +13,7 @@
 
   var LABELS = { cut: '재단', edge: '엣지', assemble: '조립', inspect: '검수' };
   var ORDER = ['cut', 'edge', 'assemble', 'inspect'];
-  var KIND = { take: '맡음', basic: '기본', done: '완료', undo: '완료 취소', release: '맡기 취소', step_on: '체크', step_off: '체크 풀림' };
+  var KIND = { take: '맡음', basic: '기본', done: '완료', undo: '완료 취소', release: '맡기 취소', step_on: '작업 완료', step_off: '작업 취소' };
   function toArr(list) { return [].slice.call(list || []); }
   function safeJsonParse(value, fallback) {
     try { var text = String(value || '').trim(); return text ? JSON.parse(text) : fallback; } catch (e) { return fallback; }
@@ -60,7 +60,7 @@
     dlg.box = box;
     dlg.yes = go;
     dlg.opener = opener;
-    box.querySelector('[data-foms-sheet-confirm-title]').textContent = obj(label, '를', '을') + ' 완료로 체크할까요?';
+    box.querySelector('[data-foms-sheet-confirm-title]').textContent = obj(label, '를', '을') + ' 작업 완료로 처리할까요?';
     box.querySelector('[data-foms-sheet-confirm-body]').textContent = '이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.';
     box.hidden = false;
     box.setAttribute('aria-hidden', 'false');
@@ -106,7 +106,7 @@
   function why(page) {
     var info = data(page);
     if (!info || !info.parts || !ORDER.some(function (k) { return info.parts[k] && info.parts[k].uses_cards; })) { return null; }
-    if (!info.sheets) { return '도면이 없어요 — 공정 칸을 체크하거나 관리자에게 말해 주세요.'; }
+    if (!info.sheets) { return '도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요.'; }
     var left = ORDER.filter(function (k) { return info.parts[k] && !info.parts[k].done; })
       .map(function (k) { return LABELS[k] + ' ' + info.parts[k].left_n + '장'; });
     return left.length ? '아직 미완료가 있어요 — ' + left.join(' · ') : null;
@@ -128,8 +128,8 @@
     var who = item.by_name || '';
     var t = d ? ' ' + stamp(d, prev) : '';
     if (item.kind === 'takeover') { return (who ? toward(who) + ' ' : '') + '바뀜' + t; }
-    if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료로 체크' + t; } // 카드 동기화(사람 이름 없음)
-    if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료로 체크 풀림' + t; }
+    if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료 — 작업 완료 처리' + t; } // 카드 동기화(사람 이름 없음)
+    if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료 — 작업 취소 처리' + t; }
     var holderName = item.holder_name && item.holder_name !== who ? '(' + item.holder_name + ' 대신)' : '';
     return [who, holderName, KIND[item.kind] || item.kind].filter(Boolean).join(' ') + t;
   }
