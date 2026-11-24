@@ -63,14 +63,38 @@
     box.hidden = !message;
   }
 
+  // 적던 '항목 추가' 글 — 읽기(keep 없음) · 되돌려 넣기(keep). 실패 뒤 다시 그려도 지우지 않는다.
+  function addDraft(keep) {
+    var form = q(sheet(), '[data-pf-add]');
+    if (!form) return null;
+    var el = form.elements;
+    if (!keep) return { label: el.label.value, qty: el.qty.value, factory: el.factory ? el.factory.value : null };
+    el.label.value = keep.label;
+    el.qty.value = keep.qty;
+    if (keep.factory && el.factory) el.factory.value = keep.factory;
+    return keep;
+  }
+
+  // 쓰기가 막히면(400 · 403 · 409 · 통신 오류) 서버에서 다시 읽어 그린 뒤 안내를 남긴다 — 묵은 화면에서 또 누르지 않게.
+  // 다시 읽기마저 안 되면 지금 자료로 그린다. 줄 체크 · 누락 신고 · 줄 더하기 · 상차 완료가 모두 이 길이다.
   async function post(body) {
     showError('');
+    var id = st.id;
     try {
       st.data = await call('POST', body);
       render();
       return true;
     } catch (err) {
-      showError(String((err && err.message) || err));
+      var message = String((err && err.message) || err);
+      var draft = addDraft();
+      try {
+        var fresh = id === st.id ? await call('GET') : null;
+        if (fresh && id === st.id && fresh.layout === 'factory') st.data = fresh;
+      } catch (_) { /* 지금 자료로 그린다 */ }
+      if (id !== st.id) return false;
+      render();
+      if (draft) addDraft(draft);
+      showError(message);
       return false;
     }
   }
@@ -132,7 +156,7 @@
       disarm();
       btn.disabled = true;
       btn.textContent = '처리 중...';
-      post({ loaded: Number(btn.getAttribute('data-pf-load')) }).then(function (ok) { if (!ok) render(); });
+      post({ loaded: Number(btn.getAttribute('data-pf-load')) });  // 실패면 post 가 다시 읽어 그리고 안내를 남긴다
       return;
     }
     disarm();
@@ -216,9 +240,7 @@
     var li = cb.closest('[data-pf-key]');
     var on = cb.checked;
     li.classList.toggle('foms-packing-row--checked', on);
-    post({ updates: [{ key: li.getAttribute('data-pf-key'), checked: on }] }).then(function (ok) {
-      if (!ok) { cb.checked = !on; li.classList.toggle('foms-packing-row--checked', !on); }
-    });
+    post({ updates: [{ key: li.getAttribute('data-pf-key'), checked: on }] });  // 실패면 서버 자료로 다시 그림(체크도 되돌아감)
   });
 
   document.addEventListener('submit', function (event) {
