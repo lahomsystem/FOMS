@@ -224,6 +224,7 @@ def test_phone_header_subtitle_block_renders_inside_the_white_header(app, ids, m
     _resp, body, _names = _get(app, client, "/brain?tab=search")
     assert "data-ds-nav-sub" not in body
     loader = app.jinja_loader
+    env_loader = app.jinja_env.loader  # 되돌릴 때 새로 만들지 않고 이 객체를 그대로 — 앱이 붙여 둔 계측(loader.load)이 남는다
     child = '{% extends "brain/ds/layout.html" %}{% block page_sub %} 합성 부제 {% endblock %}'
     monkeypatch.setattr(app, "jinja_loader", ChoiceLoader([DictLoader({"brain/ds/search.html": child}), loader]))
     app.jinja_env.loader = app.create_global_jinja_loader()
@@ -232,7 +233,7 @@ def test_phone_header_subtitle_block_renders_inside_the_white_header(app, ids, m
         _resp, body, _names = _get(app, client, "/brain?tab=search")
     finally:
         monkeypatch.setattr(app, "jinja_loader", loader)
-        app.jinja_env.loader = app.create_global_jinja_loader()
+        app.jinja_env.loader = env_loader
         app.jinja_env.cache.clear()
     navbar = body[body.index('aria-label="위 줄"'):body.index("</nav>")]
     assert '<span class="fb-nav-sub" data-ds-nav-sub>합성 부제</span>' in navbar

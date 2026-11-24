@@ -84,6 +84,7 @@ def test_manager_sees_no_level_editing_and_no_cost(app, ids, monkeypatch):
 def test_evals_place_is_whole_without_the_partial_and_fills_with_it(app, ids, monkeypatch):
     _on(monkeypatch)
     loader = app.jinja_loader
+    env_loader = app.jinja_env.loader  # 되돌릴 때 새로 만들지 않고 이 객체를 그대로 — 앱이 붙여 둔 계측(loader.load)이 남는다
 
     def _with_partial(text):
         monkeypatch.setattr(app, "jinja_loader", ChoiceLoader([
@@ -94,7 +95,7 @@ def test_evals_place_is_whole_without_the_partial_and_fills_with_it(app, ids, mo
             return _page(app, ids["admin"])[1]
         finally:
             monkeypatch.setattr(app, "jinja_loader", loader)
-            app.jinja_env.loader = app.create_global_jinja_loader()
+            app.jinja_env.loader = env_loader
             app.jinja_env.cache.clear()
 
     assert re.search(r'data-ds-agents-evals></div>', _with_partial(""))  # 조각이 비면 빈 자리(CSS 가 숨긴다)
