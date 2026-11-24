@@ -4,10 +4,12 @@
  * 마법사 엔진(window.FomsWizardCore)에 붙어 화면만 돕는다(wizard-as.js 꼴). 값은 페이지 설정 factory 에서 읽는다
  * (서버가 그린 값 — 불러오기 요청을 더하지 않는다). 지키는 일은 서버가 한다.
  *
- * - 탭: 2공장 시트만 이름 앞에 "2공장" 표시(1공장은 표시 없음 = 지금 모습). 누구에게나.
+ * - 탭: 2공장 시트만 이름 앞에 "2공장" 표시(1공장은 표시 없음 = 지금 모습). 누구에게나. 표시는 탭 표지(class)만 달고
+ *   CSS ::before 로 그린다 — 이름 바꾸기(wizard.js renameSheet)가 탭의 첫 자식 글을 새 이름으로 바꾸기 때문.
  * - 탭 줄 바로 아래 시트 도구 줄: "공장 지정 [1공장 | 2공장]" + "고르면 바로 저장돼요. [저장]을 안 눌러도 돼요." — 도면팀 누구나 · 관리자만.
- *   고르면 지금 시트를 API 로 바로 저장한다. 생산에 내려간 시트는 확인 창을 먼저, 막히면 서버 글 그대로 창에.
- * - 서버가 모르는 새 시트(자동 저장 전)는 한 번 자동 저장한 뒤 다시 보낸다.
+ *   고르면 지금 시트를 API 로 바로 저장한다. 생산에 내려간 시트면 서버가 물어 와 확인 창을, 막히면 서버 글 그대로 창에.
+ * - 서버가 모르는 새 시트(자동 저장 전)는 저장하지 않고 안내만 한다 — 마법사의 자동 저장 문지기(충돌 뒤 '내 것 유지' ·
+ *   실패로 멈춤 · 고치는 중)를 이 파일이 건너뛰어 남의 새 작업을 덮지 않게. [저장]은 충돌을 사람에게 묻는다.
  */
 (function () {
   'use strict';
@@ -21,8 +23,7 @@
   var fac = cfg && cfg.factory;
   if (!fac) return;
   var bySheet = fac.by_sheet || {};
-  var confirmIds = {};
-  (fac.confirm_sheet_ids || []).forEach(function (id) { confirmIds[String(id)] = true; });
+  var UNSAVED = '아직 저장되지 않은 시트예요. [저장]한 뒤 공장을 지정해 주세요.';
   var core = null;
   var bar = null;
   var busy = false;
@@ -35,17 +36,7 @@
     if (!tabbar) return;
     var sheets = core.state().sheets || [];
     Array.prototype.forEach.call(tabbar.querySelectorAll('.dws-tab'), function (tab, i) {
-      var mark = tab.querySelector('.dws-tab-fac');
-      var two = factoryOf(sheets[i]) === 2;
-      tab.classList.toggle('dws-tab-has-fac', two);
-      if (two && !mark) {
-        mark = document.createElement('span');
-        mark.className = 'dws-tab-fac';
-        mark.textContent = '2공장';
-        tab.insertBefore(mark, tab.firstChild);
-      } else if (!two && mark) {
-        mark.parentNode.removeChild(mark);
-      }
+      tab.classList.toggle('dws-tab-has-fac', factoryOf(sheets[i]) === 2);   // "2공장" = CSS ::before(글 노드 없음)
     });
   }
 
@@ -107,42 +98,27 @@
     var sheet = core.sheet && core.sheet();
     if (!sheet || busy || !SF() || factoryOf(sheet) === to) return;
     var sid = String(sheet.id);
-    var go = function () { send(sid, to, false); };
-    if (confirmIds[sid]) {
-      SF().confirmMove({ to: to, sub: sheet.name || '', onGo: go, anchor: bar });
-    } else {
-      go();
-    }
+    SF().move({
+      orderId: core.orderId, item: { sheet_id: sid, factory: to }, to: to, sub: sheet.name || '', anchor: bar,
+      before: function (on) { setBusy(on); if (!on) refocus(to); },
+      after: function (res) {
+        bySheet = res.data.factory_by_sheet || {};
+        render();
+        core.toast(SF().label(to) + '으로 지정했어요.');
+      },
+      onBlocked: function (res) {
+        render();
+        // 아직 자동 저장 전인 새 시트(서버가 모르는 시트) — 저장하지 않고 안내만.
+        if (res.code === 'DRAWING_NOT_CURRENT' && String(res.data.sheet_id || '') === sid) {
+          SF().showBlocked({ to: to, message: UNSAVED, sub: sheet.name || '', anchor: bar });
+          return true;
+        }
+        return false;
+      }
+    });
   }
 
   function setBusy(on) { busy = on; syncBar(); }
-
-  function send(sid, to, retried) {
-    setBusy(true);
-    SF().post(core.orderId, [{ sheet_id: sid, factory: to }]).then(function (res) {
-      if (res.ok) {
-        setBusy(false);
-        bySheet = res.data.factory_by_sheet || {};
-        render();
-        refocus(to);
-        core.toast(SF().label(to) + '으로 지정했어요.');
-        return;
-      }
-      // 아직 자동 저장 전인 새 시트 — 서버가 모르는 시트라 한 번 자동 저장한 뒤 다시 보낸다.
-      if (!retried && res.code === 'DRAWING_NOT_CURRENT' && String(res.data.sheet_id || '') === sid && core.save) {
-        return core.save({ auto: true }).then(function (saved) {
-          if (saved) { send(sid, to, true); return; }
-          setBusy(false);
-          refocus(to);
-          SF().showBlocked({ to: to, message: res.message, anchor: bar });
-        });
-      }
-      setBusy(false);
-      render();
-      refocus(to);
-      SF().showBlocked({ to: to, message: res.message, anchor: bar });
-    });
-  }
 
   function init() {
     core = window.FomsWizardCore;
