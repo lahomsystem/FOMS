@@ -90,6 +90,25 @@
 }
 .dsf-bar__label { font-weight: 800; color: var(--dsf-text); white-space: nowrap; }
 .dsf-bar .dsf-sel__b { min-width: 64px; }
+/* 그 줄은 평소에 접힌다(display:flex 가 [hidden] 을 이기므로 따로) — 탭 줄 오른쪽 [공장 지정] 으로 펼침(사장님 2026-11-25).
+   단추는 탭 줄 안에 두어 줄 키(44px)를 안 늘린다. 펼치면 눌린 모습. 공장 색이 아니라 탭 줄 단추 색(상태 배지 아님). */
+.dsf-toolrow[hidden] { display: none; }
+.dsf-fold {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 980px;
+  background: #fff;
+  color: #1d1d1f;
+  font: inherit;
+  font-size: calc(13px * var(--foms-fs, 1));
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dsf-fold:hover { background: #f0f0f3; }
+.dsf-fold[aria-expanded="true"] { background: #e7e9f6; border-color: var(--dsf-go); color: var(--dsf-go); }
+.dsf-fold:focus-visible { outline: 3px solid var(--dsf-text); outline-offset: 2px; }
 
 /* 작업실 타일 아래 한 줄 — 타일 칸(지금 112px 고정)이 단추 줄보다 좁으면 칸을 단추 줄만큼 넓힌다(글자 · 높이는 그대로,
    글자 크기 150% 에서도 안 잘린다). 고르는 칸이 있는 타일에만 붙는 표지(.dsf-wrap)라 다른 갤러리는 그대로.
@@ -141,5 +160,6 @@
 /* 손가락으로 누르는 화면 — 보이는 44px(배율을 나눠 보이는 크기를 지킨다, §10 누름 칸) */
 @media (pointer: coarse) {
   :root { --dsf-hit: calc(44px / var(--foms-ui-zoom, 1)); }
+  .dsf-fold { min-height: 40px; }   /* 탭 · ⧉ · × 와 같은 40px(wizard.css 손가락 칸) — 탭 줄 키 44px 안 */
   .dws-tab.dws-tab-has-fac { max-width: 296px; }
 }
