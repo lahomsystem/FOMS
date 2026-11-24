@@ -28,6 +28,7 @@ from foms.services.integrations.naver_commerce.attribution import (
     attribute_addons,
     axis_values,
 )
+from foms.services.integrations.naver_commerce.coupon_view import build_coupon_view
 from foms.services.integrations.naver_commerce.constants import (
     ADDON_PRODUCT_CLASS,
     CHANNEL,
@@ -437,7 +438,10 @@ def _row_source(link: Any) -> dict[str, Any]:
              "claim_label": "", "claim_money_back": False,
              "claim_phase": "", "claim_kind": "",
              "recipient_tel2": "", "paid_at": "", "pay_means": "",
-             "discount": 0}
+             "discount": 0,
+             # 못 읽은 원본은 "쿠폰 0장"이 아니라 **모름**이다(coupon_known False).
+             "coupon_count": 0, "coupon_discount": 0, "coupon_seller_burden": 0,
+             "coupon_known": False, "coupons": []}
     snapshot = link.raw_snapshot
     if not isinstance(snapshot, dict) or not snapshot:
         return empty
@@ -488,6 +492,9 @@ def _row_source(link: Any) -> dict[str, Any]:
         "coupon_seller_burden": sum(
             coupon["seller_burden_amount"] for coupon in payment["coupons"]
             if coupon.get("seller_burden_amount") is not None),
+        # 쿠폰 낱장(2026-11-24) — 주문 화면 예약금 옆 쿠폰 내역이 쓴다(coupon_view).
+        "coupon_known": True,
+        "coupons": payment["coupons"],
     }
 
 
@@ -1026,6 +1033,8 @@ def build_dock_payload(db: Any, order: Any, *,
     paid_at = ""
     pay_means = ""
     discount = 0
+    coupons: list[dict[str, Any]] = []
+    coupon_known = True
     memos: list[str] = []
     # 집계용 클레임 축(A-7). 라벨 한 개가 아니라 **전부** 모은다.
     claims: list[dict[str, str]] = []
@@ -1048,6 +1057,8 @@ def build_dock_payload(db: Any, order: Any, *,
         paid_at = paid_at or source["paid_at"]
         pay_means = pay_means or source["pay_means"]
         discount += source["discount"]
+        coupons.extend(source["coupons"])
+        coupon_known = coupon_known and source["coupon_known"]
         # 상품주문마다 메모가 다를 수 있다 — 다른 값은 전부 보존한다(중복만 제거).
         if source["shipping_memo"] and source["shipping_memo"] not in memos:
             memos.append(source["shipping_memo"])
@@ -1162,6 +1173,9 @@ def build_dock_payload(db: Any, order: Any, *,
         "coupon_count": sum(int(row["coupon_count"] or 0) for row in rows),
         "coupon_discount": sum(int(row["coupon_discount"] or 0) for row in rows),
         "coupon_seller_burden": sum(int(row["coupon_seller_burden"] or 0) for row in rows),
+        # 예약금 옆 쿠폰 그림 · 한 줄 · 내역(2026-11-24). 낱말 · 돈 표기는 서버가 만든다.
+        # 안 쓴 주문은 None — 화면에 아무것도 안 생긴다.
+        "coupon_view": build_coupon_view(coupons, known=coupon_known),
         "order_no": order_no,
         # 집이 둘 이상인 주문에서 머리말이 사실을 말하게 하는 자리. 화면은 이 목록을
         # 쓰고, `order_no`(첫 집)는 하위호환으로만 남긴다.
