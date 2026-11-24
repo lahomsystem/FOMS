@@ -1,7 +1,7 @@
 import datetime
 import uuid
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Text, Boolean, Date, DateTime, Float, LargeBinary,
+    Column, Integer, BigInteger, SmallInteger, String, Text, Boolean, Date, DateTime, Float, LargeBinary,
     Numeric, ForeignKey, func, JSON, UniqueConstraint, Index, CheckConstraint,
     DDL, event, select, text,
 )
@@ -562,6 +562,11 @@ PRODUCTION_PARTS_CHECK_SQL = (
     "production_parts IS NULL OR (jsonb_typeof(production_parts) = 'array' "
     "AND production_parts <@ '[\"cut\",\"edge\",\"assemble\",\"inspect\"]'::jsonb)"
 )
+
+
+# PRODFACTORY-01(설계서 2026-11-23 §6-2): 계정 공장 ``users.production_factory`` 의 CHECK — 두 DB. NULL = 1공장(채우기 없음).
+# 글은 마이그레이션 ``prodfactory_01`` 과 글자 단위로 같다(시험 ``tests/domains/test_production_factory_account.py``).
+PRODUCTION_FACTORY_CHECK_SQL = "production_factory IS NULL OR production_factory IN (1, 2)"
 
 
 class ProductionPartMark(Base):
@@ -1602,6 +1607,8 @@ class User(Base):
         ),
         # PRODPARTS-01: 파트 목록은 비었거나(NULL) 네 key 만 든 배열 — PG 전용(SQLite 는 앱 검사).
         CheckConstraint(PRODUCTION_PARTS_CHECK_SQL, name='ck_users_production_parts').ddl_if(dialect='postgresql'),
+        # PRODFACTORY-01: 계정 공장은 비었거나(= 1공장) 1 · 2(두 DB).
+        CheckConstraint(PRODUCTION_FACTORY_CHECK_SQL, name='ck_users_production_factory'),
     )
 
     id = Column(Integer, primary_key=True)
@@ -1646,6 +1653,10 @@ class User(Base):
     # 공정 체크칸 손 체크). NULL · 거짓 = 반장 아님, 생산팀이 아니면 저장 때 비운다. 읽는 쪽은 part_constants.account_production_lead.
     # 마이그레이션 prodlead_01 이 그 전의 '파트 없는 생산팀'(STAFF · MANAGER)을 참으로 채웠다. 기본값 · 색인 없음.
     production_lead = Column(Boolean, nullable=True)
+    # PRODFACTORY-01(설계서 2026-11-23 §6-2 · C9): 생산팀 계정의 공장 — 한 사람 한 공장, NULL = 1공장(지금과 같음, 채우기 없음).
+    # 관리자 화면은 2공장만 적고 1공장은 비운다(NULL — 저장해도 헛바뀜이 없게), 생산팀이 아니면 저장 때 비운다. 관리자는 칸과 상관없이
+    # 두 공장. 세션은 안 끊는다(요청마다 이 행을 읽는다). 읽는 쪽은 factory_constants.account_production_factory · part_access.
+    production_factory = Column(SmallInteger, nullable=True)
     # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
     partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
     # SESSION-REVOKE-01: 세션 세대 번호(비밀번호·역할 변경 때 +1 → 모든 세션 끊김)와
