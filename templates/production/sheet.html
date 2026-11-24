@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261123v">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% if pc_view %}
 {# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261123v">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261124p">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -218,7 +218,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261123v" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261124p" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer></script>{% if edit_toggle %}
 <script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}
 {% endblock %}
