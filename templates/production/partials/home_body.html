@@ -56,10 +56,5 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">
   <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124i" defer data-foms-run-once="prod-sheet-page"></script>
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
-  {% endif %}{% if can_act %}{# 관리자 사유 창(ADMIN-OVERRIDE-01) — 작업 시트(sheet.html)와 같은 조건 · 같은 세트(쓰는 사람 · PC 는 [고치기] 켬,
-     보기 전용은 싣지 않는다). 판 화면은 위 세트가 사유 시트를 이미 실었다. 2026-11-25: 이 줄이 없어 재시도가 사유 창을 못 찾고 알림창으로 떨어졌다. #}
-  {% if not step_panel %}{% include 'partials/shared/foms_reason_sheet.html' %}
-  <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
-  {% endif %}<script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261125a" defer></script>
   {% endif %}{% if step_panel_omitted %}{# 터치인데 좁은 창(세로)이라 판을 뺐다 — 가로로 돌리면 화면을 다시 받는다(wide_surface_omitted_marker 계약) #}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if write_omitted and tab == 'steps' %}{# 쿠키 없는 첫 요청이라 [끝]을 뺐다 — 터치 기기면 다시 받는다(write_omitted_marker.html) #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
 </div>
