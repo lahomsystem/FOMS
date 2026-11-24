@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.order_geocode_outbox import enqueue_order_address_geocode
+from foms.services.orders.drawing_factory import DRAWING_FACTORY_KEY
 from foms.services.orders.erp_policy_quests import create_quest_from_template
 from foms.services.orders.item_identity import get_or_create_identity
 from foms.services.orders.open_order_lookup import created_event_payload
@@ -106,8 +107,11 @@ def _prepare_structured(
 
     원본을 복사(``copy.deepcopy``)해 반환하며 호출자의 입력을 건드리지 않는다. workflow
     stage 가 없으면 RECEIVED 로 seed 하고, 그 stage 의 quest 가 없으면 템플릿으로 seed 한다.
+    도면 장의 공장(``drawing_factory``)은 서버 소유라 만들기 길(``/add`` 의 ``structured_data_json`` 등)이 실어 와도 버린다
+    (설계서 2026-11-23 §6-3 — 공장 지정 API 만 쓴다, 새 주문은 도면도 없다).
     """
     sd = copy.deepcopy(structured_data or {})
+    sd.pop(DRAWING_FACTORY_KEY, None)
     workflow = sd.setdefault("workflow", {})
     stage = (workflow.get("stage") or "RECEIVED").strip() or "RECEIVED"
     workflow["stage"] = stage

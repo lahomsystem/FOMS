@@ -665,6 +665,11 @@
       "policy_id": "ITEM_CANCEL",
       "rule": "/api/orders/<int:order_id>/items/<uid>/cancel"
     },
+    "erp_orders_sheet_factory.api_order_sheet_factory": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/sheet-factory"
+    },
     "erp_orders_production.api_production_cancel": {
       "mode": "guard",
       "policy_id": "PRODUCTION_EDIT",

@@ -195,6 +195,12 @@
       "reason": "정산 차감 넣기 · 취소(issue_deduction · void_deduction) — 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 깊은 복사 · 재대입 · flag_modified 는 execute_order_mutation 콜백 안에서만 한다(version bump + receipt, If-Match 는 보내면 확인). 예전 api/cs/dashboard.py 무잠금 통째 저장(검수 A12)을 대체한다."
     },
     {
+      "path": "foms/api/drawing/erp_orders_sheet_factory.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01",
+      "reason": "도면 장의 공장 지정(설계서 2026-11-23-production-self-claim-and-factory2 §6-3 · §7) — 서버 소유 칸 structured_data.drawing_factory 를 REV-00 execute_order_mutation 콜백 안에서만 deepcopy → 재대입 → flag_modified 로 쓴다(If-Match · 행 잠금 · 버전 +1 · 멱등 영수증). 같은 값이면 쓰지 않고 되감는다."
+    },
+    {
       "path": "foms/services/production/part_mark_write.py",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01",
