@@ -125,7 +125,8 @@ def factory_ready(sd: Any, entry: dict[str, Any], marks: Iterable[Any], user: An
                   target: Optional[str], stage: Optional[str], hold: bool) -> Optional[dict[str, Any]]:
     """검수 카드를 완료한 뒤 "2공장 제작 완료할까요?"를 물을지(§4-4 섞인 주문) — 쿼리 0(읽은 줄 · 잠근 주문).
 
-    섞인 주문 · 검수 완료 쓰기 · 생산 단계 · 보류 아님 · 그 장의 공장 완료 표지가 아직 · 그 공장 장이 네 파트 모두 완료 · 누른 사람이
+    섞인 주문 · 검수 완료 쓰기 · 생산 단계 · 보류 아님(``hold`` = 보류 · 도면 고치는 중 — 제작 완료가 막힌 주문, 2026-11-25) · 그 장의
+    공장 완료 표지가 아직 · 그 공장 장이 네 파트 모두 완료 · 누른 사람이
     그 공장 완료를 할 수 있을 때만. 한 공장 주문은 지금 ``order_ready`` 그대로(여기는 None).
 
     Returns:

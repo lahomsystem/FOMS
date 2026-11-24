@@ -15,8 +15,10 @@ from flask import jsonify
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.orders.order_transition_service import StageConflictError
+from foms.services.production.part_mark_gates import DRAWING_REVISING, REVISING_MESSAGE
 from foms.services.production.part_progress import complete_block_body
 from models import OrderEvent, OrderMutationReceipt, ProductionRun
 
@@ -105,6 +107,17 @@ def _hold_block_response(sd: dict[str, Any], release_hold: bool):
     if reason:
         message += f" (사유: {reason})"
     return jsonify({"success": False, "code": "HOLD_ACTIVE", "message": message, "hold": hold}), 409
+
+
+def _revising_block_response(sd: dict[str, Any]):
+    """도면 고치는 중(RETURNED · TRANSFERRED)이면 409 ``DRAWING_REVISING`` 튜플, 아니면 None(read-only).
+
+    사장님 2026-11-25 "제작 완료도 막기" — 보류(:func:`_hold_block_response`)와 같은 자리 · 같은 꼴. 글은 도면 한 장 누름 · 공정 칸과
+    같은 ``REVISING_MESSAGE``(새 글 없음). 보류처럼 풀어 주는 길(``release_hold``)은 없다 — 새 도면이 와야 풀린다.
+    """
+    if not drawing_revision_in_progress(sd):
+        return None
+    return jsonify({"success": False, "code": DRAWING_REVISING, "message": REVISING_MESSAGE}), 409
 
 
 def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *, require_quest: bool = False):

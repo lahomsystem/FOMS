@@ -37,6 +37,7 @@ _ADMIN_OVERRIDE_GATE_LABELS: dict[str, str] = {
     "INVALID_STAGE": "단계 전제",
     "COMMAND_REQUIRED": "전용 버튼 경로",
     "DRAWING_STATUS": "도면 수령 전제",
+    "DRAWING_REVISING": "도면 고치는 중",
     "AS_ACTIVE": "진행 중 AS",
     "OVERRIDE_BLOCK": "역행·건너뛰기 차단",
     "OVERRIDE_TARGET": "강제 변경 목표 제한",
