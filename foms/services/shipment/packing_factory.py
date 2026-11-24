@@ -30,7 +30,7 @@ import re
 from typing import Any, Optional
 
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
-from foms.services.orders.drawing_factory import current_factories, has_second_factory
+from foms.services.orders.drawing_factory import current_factories, factory_made, has_second_factory
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, factory_label, normalize_factory
 from foms.services.shipment.packing_access import FACTORY_FORBIDDEN_CODE, factory_forbidden_message
@@ -45,6 +45,7 @@ _STATE_KEYS = ("checked", "at", "by_name", "issue", "issue_at", "issue_by_name")
 _LEGACY_KEY = re.compile(r"^item\d+_(?:body|door|hardware)$")
 
 NOT_ALL_CHECKED_MESSAGE = "전 항목 체크 후 출발 보고"  # 지금 글 그대로(출발 보고 문)
+NOT_DONE_MESSAGE = "{label} 제작 완료 뒤에 상차 완료할 수 있어요."  # 공장 꼴 상차 완료 문(사장님 2026-11-24)
 
 
 class PackingRefusal(Exception):
@@ -156,7 +157,8 @@ def _loaded_alive(packing: dict[str, Any], factory: int, lines: list[dict[str, A
 
 
 def factory_groups(sd: Any, lines: Optional[list[dict[str, Any]]] = None) -> list[dict[str, Any]]:
-    """공장마다 묶음 — ``{factory, label, lines, checked, total, loaded}``(loaded = 살아 있는 상차 완료 기록 또는 None)."""
+    """공장마다 묶음 — ``{factory, label, lines, checked, total, loaded, made}``(loaded = 살아 있는 상차 완료 기록 또는 None,
+    made = 그 공장 제작 완료 — ``drawing_factory.factory_made``, 출고 상차 줄 "(제작 중)" 과 같은 판정)."""
     lines = factory_lines(sd) if lines is None else lines
     packing = stored_packing(sd) or {}
     groups = []
@@ -167,7 +169,8 @@ def factory_groups(sd: Any, lines: Optional[list[dict[str, Any]]] = None) -> lis
         record = _loaded_alive(packing, f, own)
         groups.append({"factory": f, "label": factory_label(f), "lines": own,
                        "checked": sum(1 for l in own if l["checked"]), "total": len(own),
-                       "loaded": {"at": record.get("at"), "by_name": record.get("by_name")} if record else None})
+                       "loaded": {"at": record.get("at"), "by_name": record.get("by_name")} if record else None,
+                       "made": factory_made(sd, f)})
     return groups
 
 
@@ -195,7 +198,7 @@ def factory_payload(sd: Any, user_factories: tuple[int, ...]) -> dict[str, Any]:
         "departed_at": (packing or {}).get("departed_at"),
         "departed_by_name": (packing or {}).get("departed_by_name"),
         "layout": LAYOUT_FACTORY,
-        "groups": [{k: g[k] for k in ("factory", "label", "checked", "total", "loaded")} | {"can_check": g["factory"] in can}
+        "groups": [{k: g[k] for k in ("factory", "label", "checked", "total", "loaded", "made")} | {"can_check": g["factory"] in can}
                    for g in groups],
         "can_check": can,
         "legacy_count": legacy_count(sd),
@@ -227,6 +230,13 @@ def packing_glance(sd: Any) -> Optional[dict[str, Any]]:
 def _require(factory: int, mine: tuple[int, ...]) -> None:
     if factory not in mine:
         raise PackingRefusal(403, FACTORY_FORBIDDEN_CODE, factory_forbidden_message(factory, mine), {"factory": factory})
+
+
+def _require_made(group: dict[str, Any]) -> None:
+    """상차 완료는 그 공장 제작 완료 뒤에만(사장님 2026-11-24) — 줄 체크 · 누락 신고 · 줄 더하기는 막지 않는다."""
+    if not group["made"]:
+        raise PackingRefusal(400, "PACKING_FACTORY_NOT_DONE", NOT_DONE_MESSAGE.format(label=group["label"]),
+                             {"factory": group["factory"]})
 
 
 def require_first_factory(mine: tuple[int, ...]) -> None:
@@ -326,6 +336,7 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
             raise PackingRefusal(400, "BAD_REQUEST", f"이 주문에는 {factory_label(loaded)} 줄이 없어요.")
         _require(loaded, mine)
         if group["loaded"] is None:  # 이미 산 상차 완료면 다시 안 적는다(시각 · 이름 · 열쇠 · 이벤트 그대로)
+            _require_made(group)
             if group["checked"] < group["total"]:
                 raise PackingRefusal(400, "PACKING_FACTORY_NOT_READY",
                                      f"{factory_label(loaded)} 줄을 모두 체크해야 상차 완료할 수 있어요.", {"factory": loaded})
@@ -337,6 +348,8 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
                 packing["departed_at"], packing["departed_by_name"] = now_iso, by_name
                 result = {"event_type": "PACKING_DEPARTED", "factory": loaded, "factories": [g["factory"] for g in groups]}
     if departed and not packing.get("departed_at"):  # 공장 꼴은 이미 출발 보고했으면 아무것도 안 바꾼다(옛 꼴 길은 지금처럼 다시 적음)
+        for group in groups:  # 같은 문 — 제작 완료 전 공장이 하나라도 있으면 거절
+            _require_made(group)
         total = sum(g["total"] for g in groups)
         if total == 0 or sum(g["checked"] for g in groups) < total:
             raise PackingRefusal(400, "PACKING_NOT_ALL_CHECKED", NOT_ALL_CHECKED_MESSAGE)

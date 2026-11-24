@@ -5,7 +5,7 @@
    [data-ship-days-*] 넘기기, [data-ship-pop] 판 여닫기를 그대로 쓴다) · 시공자 칸 · 글자 손잡이 · [다시 받기] · [더보기].
    본문 = 시공자 묶음 카드(칠 없음 — 왼쪽 띠만 사람 색, D29), 줄을 누르면 상세(?focus_order=) = 지금 3분할.
    모양 = static/css/contexts/construction/tablet-first.css(태블릿 가로 코호트 문지기 안에서만 보인다). #}
-{% set F = cons_tablet.first %}{% if F.has_packing_split %}{# 공장 둘로 나뉜 포장 글 두 줄 모양(패킹 공장마다) — 그런 줄이 있을 때만. #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing-factory.css') }}?v=20261124c">{% endif %}
+{% set F = cons_tablet.first %}{% if F.has_packing_split %}{# 공장 둘로 나뉜 포장 글 두 줄 모양(패킹 공장마다) — 그런 줄이 있을 때만. #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing-factory.css') }}?v=20261124d">{% endif %}
 {% set _wd = ['월','화','수','목','금','토','일'] %}
 {% macro _url(d, w, focus=None) -%}
   {{ url_for('erp_construction_page.erp_construction_dashboard', date=d, worker=w, focus_order=focus) }}{% if erp_mine_only %}&mine=1{% endif %}

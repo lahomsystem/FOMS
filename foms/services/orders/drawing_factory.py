@@ -428,6 +428,19 @@ def change_note(rows: list[dict[str, Any]]) -> str:
 # --------------------------------------------------------------------------- #
 # 상차 줄(§4-15, 3단계 ⑦ 화면이 쓴다)
 # --------------------------------------------------------------------------- #
+def factory_made(sd: Any, factory: int) -> bool:
+    """그 공장 몫이 제작 완료인지 — 한 곳 판정(출고 상차 줄의 "(제작 중)" 꼬리 · 패킹 [N공장 상차 완료] 문이 같이 쓴다).
+
+    시공 대기 이후 단계면 모든 공장이 완료(공장 표지가 없어도), 생산 단계면 그 공장 완료 표지가 살아 있을 때만
+    (:func:`factory_done_entry`), 생산 전 · 단계를 모르면 아직 아님. 쿼리 0(주문 JSON 만).
+    """
+    workflow = sd.get("workflow") if isinstance(sd, dict) and isinstance(sd.get("workflow"), dict) else {}
+    rank = STAGE_FORWARD_RANK.get(str(workflow.get("stage") or ""))
+    if rank is not None and rank > _PRODUCTION_RANK:
+        return True
+    return rank == _PRODUCTION_RANK and factory_done_entry(sd, factory) is not None
+
+
 def load_split(sd: Any) -> Optional[dict[str, Any]]:
     """출고 · 시공 화면의 상차 줄 — 2공장 장이 하나도 없으면 None(지금 화면과 같음). 쿼리 0(이미 든 주문 JSON).
 
@@ -441,13 +454,8 @@ def load_split(sd: Any) -> Optional[dict[str, Any]]:
     for _entry, factory in current_factories(sd):
         counts[factory] += 1
     workflow = sd.get("workflow") if isinstance(sd.get("workflow"), dict) else {}
-    rank = STAGE_FORWARD_RANK.get(str(workflow.get("stage") or ""))
-    in_production = rank == _PRODUCTION_RANK
-    factories = []
-    for factory in FACTORIES:
-        if counts[factory]:
-            done = (rank is not None and rank > _PRODUCTION_RANK) or (in_production and factory_done_entry(sd, factory) is not None)
-            factories.append({"factory": factory, "sheets": counts[factory], "done": done})
+    in_production = STAGE_FORWARD_RANK.get(str(workflow.get("stage") or "")) == _PRODUCTION_RANK
+    factories = [{"factory": f, "sheets": counts[f], "done": factory_made(sd, f)} for f in FACTORIES if counts[f]]
     text = " · ".join(f"{factory_label(f['factory'])} {f['sheets']}장" + ("(제작 중)" if in_production and not f["done"] else "")
                       for f in factories)
     return {"text": f"상차 {text}", "factories": factories}

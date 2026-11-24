@@ -102,7 +102,17 @@
 /* [1공장 상차 완료] [2공장 상차 완료] — 지금 출발 보고 단추 꼴(48px · 두 번 눌러 확정)을 공장마다 하나씩, 나란히. */
 .foms-pf__acts {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+/* 제작 완료 전 공장 — 꺼진 [N공장 상차 완료] 단추 바로 아래 까닭 한 줄(사장님 2026-11-24, 상자 아님). */
+.foms-pf__why {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: calc(13px * var(--foms-fs, 1));
+  font-weight: 600;
+  color: var(--foms-text-secondary, #4b5563);
+  word-break: keep-all;
 }
 .foms-pf__acts .foms-packing-depart {
   flex: 1 1 0;
