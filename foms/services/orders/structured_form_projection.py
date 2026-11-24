@@ -107,6 +107,10 @@ SERVER_LOCKED_SUBKEYS = {
     # 공장마다 제작 완료 표지(설계서 2026-11-23 §4-14 · §6-6, 3단계 ⑥) — 공장 완료 API · 제작 완료 · 완료 취소 · 재제작 · 제작 취소만
     # 쓴다. ``production`` 의 나머지 칸(공정 · 보류 · 불량)은 지금처럼 폼 값이 들어간다.
     "production": ("factory_done",),
+    # 출고 패킹(줄 체크 · 출발 보고 departed_at/by_name · 공장 꼴 layout · 공장 상차 완료 factory_loaded, 2026-11-24 3단계 ⑦) —
+    # 패킹 API(/api/erp/shipment/packing/<id>)만 쓴다. ``shipment`` 의 나머지 칸(시공자 · 시공시간 · 현장 메모 등)은 지금처럼 폼 값.
+    # 예전엔 폼이 연 순간의 shipment.packing 스냅샷을 되실어 보내 그사이 현장에서 한 체크 · 출발 보고를 옛 값으로 덮었다.
+    "shipment": ("packing",),
 }
 
 #: ``payment`` 안에서 결제 확인 API(``POST /api/orders/<id>/payment-confirm``)만 쓰는 칸(T18 R4).
