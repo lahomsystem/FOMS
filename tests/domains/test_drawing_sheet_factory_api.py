@@ -213,11 +213,45 @@ def _count_mark_reads(fn) -> int:
     return len(seen)
 
 
-def test_marks_are_read_once_in_production_and_never_before(client):
+def test_marks_are_read_once_for_current_sheets_in_any_stage_and_not_for_unsent_sheets(client):
     login(client, _user())
     early, prod = _order(stage="DRAWING"), _order()
-    assert _count_mark_reads(lambda: _set(client, early, [{"sheet_id": _sheets(early)[0], "factory": 2}])) == 0
+    assert _count_mark_reads(lambda: _set(client, early, [{"sheet_id": _sheets(early)[0], "factory": 2}])) == 1
     assert _count_mark_reads(lambda: _set(client, prod, [{"sheet_id": s, "factory": 2} for s in _sheets(prod)])) == 1
+    unsent = _order(drawing_wizard={"sheets": [{"id": "w-only", "name": "새 시트"}]})
+    assert _count_mark_reads(lambda: _set(client, unsent, [{"sheet_id": "w-only", "factory": 2}])) == 0
+
+
+def test_order_moved_back_from_production_still_refuses_started_sheets(client):
+    """강제 단계 변경으로 고객컨펌으로 되돌린 주문 — 생산에서 남은 표시 줄이 있으면 막는다(대조군: 손 안 댄 장은 된다)."""
+    seed = _order(stage="CONFIRM")
+    _mark(seed, 0, "cut", "DONE", "김재단")
+    login(client, _user())
+    resp = _set(client, seed, [{"sheet_id": _sheets(seed)[0], "factory": 2}])
+    assert resp.status_code == 409 and code(resp) == "SHEET_HAS_WORK"
+    assert _set(client, seed, [{"sheet_id": _sheets(seed)[1], "factory": 2}]).status_code == 200
+
+
+def test_hand_checked_order_refuses_moves(client):
+    seed = make_order(2, steps_done=("cut",))  # 반장이 재단 칸을 손으로 체크(재단 카드 0장)
+    login(client, _user())
+    resp = _set(client, seed, [{"sheet_id": _sheets(seed)[0], "factory": 2}])
+    assert resp.status_code == 409 and code(resp) == "SHEET_HAS_WORK"
+    assert resp.get_json()["error"] == ("2공장으로 옮길 수 없어요 — 재단이 이미 완료로 체크된 주문이에요. "
+                                        "옮기려면 공정 체크부터 해제해 주세요.")
+
+
+def test_draft_autosave_cannot_plant_factory_fields(client):
+    """초안 자동 저장은 손님 쪽 JSON 을 통째로 저장한다 — 서버 소유 공장 칸은 버린다(승격 잠금이 저장된 값을 넘기지 않게)."""
+    login(client, _user(team="SALES", name="한영업"))
+    sd = {"parties": {"customer": {"name": "가짜초안", "phone": "010-3333-4444"}}, "site": {"address_full": "가짜시 2"},
+          "items": [{"product_name": "가짜장"}], "drawing_factory": {"sheets": {"s1": 2}},
+          "production": {"factory_done": {"2": {"keys": ["k"]}}}}
+    resp = client.post("/api/orders/erp/draft/autosave", json={"draft_token": "tok-factory", "structured_data": sd})
+    assert resp.status_code == 200 and resp.get_json()["order_id"], resp.get_json()
+    db_session.expire_all()
+    saved = db_session.get(Order, resp.get_json()["order_id"]).structured_data
+    assert "drawing_factory" not in saved and "factory_done" not in (saved.get("production") or {})
 
 
 # --------------------------------------------------------------------------- #

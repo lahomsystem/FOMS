@@ -23,12 +23,14 @@ from foms.services.orders.drawing_factory import (
     factory_by_sheet,
     factory_done_entry,
     factory_done_message,
+    hand_checked_parts,
     has_second_factory,
     load_split,
     plan_factory_changes,
     present_factories,
     sheet_factory,
     sheet_work,
+    strip_client_factory_state,
     work_block_message,
 )
 
@@ -147,15 +149,15 @@ def _no_marks():
     raise AssertionError("표시 줄을 읽으면 안 되는 경우")
 
 
-def test_plan_skips_same_values_and_reads_marks_only_for_current_sheets_in_production():
+def test_plan_skips_same_values_and_reads_marks_for_current_sheets_in_any_stage():
     sd = _sd(wizard=("s7",), table={"sheets": {"s1": 2}})
     assert plan_factory_changes(sd, [{"sheet_id": "s1", "factory": 2}, {"sheet_id": "s0", "factory": 1}],
                                 stage="PRODUCTION", load_marks=_no_marks) == []
     unsent = plan_factory_changes(sd, [{"sheet_id": "s7", "factory": 2}], stage="PRODUCTION", load_marks=_no_marks)
-    assert unsent == [FactoryChange("sheet", "s7", 1, 2, ())]
-    early = plan_factory_changes(sd, [{"sheet_id": "s0", "factory": 2}], stage="DRAWING", load_marks=_no_marks)
-    assert early == [FactoryChange("sheet", "s0", 1, 2, ("k/d0.png",))]
-    by_key = plan_factory_changes(sd, [{"key": "k/d2.png", "factory": 2}], stage="CONFIRM", load_marks=_no_marks)
+    assert unsent == [FactoryChange("sheet", "s7", 1, 2, ())]  # 안 보낸 시트만 = 표시 줄을 안 읽는다
+    early = plan_factory_changes(sd, [{"sheet_id": "s0", "factory": 2}], stage="DRAWING", load_marks=lambda: [])
+    assert early == [FactoryChange("sheet", "s0", 1, 2, ("k/d0.png",))]  # 한 번도 생산에 안 간 주문 = 표시 줄 없음 → 됨
+    by_key = plan_factory_changes(sd, [{"key": "k/d2.png", "factory": 2}], stage="CONFIRM", load_marks=lambda: [])
     assert by_key == [FactoryChange("sheet", "s2", 1, 2, ("k/d2.png",))]  # 시트 신원이 있는 파일을 key 로 보내도 시트로
 
 
@@ -176,6 +178,47 @@ def test_plan_refuses_unknown_done_order_and_started_sheets_all_or_nothing():
                              stage="PRODUCTION", load_marks=lambda: marks)
     assert busy.value.code == "SHEET_HAS_WORK" and busy.value.message.startswith("2공장으로 옮길 수 없어요 — 1공장 김민준이")
     assert [b["key"] for b in busy.value.extra["blocked"]] == ["k/d1.png"]
+
+
+@pytest.mark.parametrize("stage", ["CONFIRM", "DRAWING", None])
+def test_started_sheet_is_refused_even_after_stage_was_moved_back(stage):
+    """강제 단계 변경으로 생산에서 고객컨펌 · 도면으로 되돌린 주문 — 표시 줄이 남아 있으면 단계와 상관없이 막는다."""
+    marks = [_mark("k/d0.png", "cut", "DONE", done_by="김재단")]
+    with pytest.raises(SheetFactoryRefusal) as busy:
+        plan_factory_changes(_sd(stage=stage or ""), [{"sheet_id": "s0", "factory": 2}], stage=stage, load_marks=lambda: marks)
+    assert busy.value.code == "SHEET_HAS_WORK" and busy.value.extra["blocked"][0]["kind"] == "done"
+
+
+def test_hand_checked_step_blocks_every_current_sheet_like_finished_work():
+    """반장이 공정 칸을 통째 손 체크(그 파트 카드 0장) = 모든 장이 그 공정 완료 → 옮기지 못한다(사장님 '아무도 맡거나 완료하지
+    않은 장만'). 카드를 쓴 파트는 칸이 켜져 있어도 장마다 표시 줄로 본다(대조군)."""
+    sd = _sd(wizard=("s7",))
+    sd["production"] = {"steps": [{"key": k, "done": k in ("cut", "edge")} for k in ("cut", "edge", "assemble", "inspect")]}
+    assert hand_checked_parts(sd, []) == ("cut", "edge")
+    with pytest.raises(SheetFactoryRefusal) as hand:
+        plan_factory_changes(sd, [{"sheet_id": "s0", "factory": 2}], stage="PRODUCTION", load_marks=lambda: [])
+    assert hand.value.code == "SHEET_HAS_WORK"
+    assert hand.value.message == ("2공장으로 옮길 수 없어요 — 재단 · 엣지가 이미 완료로 체크된 주문이에요. "
+                                  "옮기려면 공정 체크부터 해제해 주세요.")
+    assert hand.value.extra["blocked"][0]["kind"] == "hand" and hand.value.extra["blocked"][0]["parts"] == ["cut", "edge"]
+    one = work_block_message({"kind": "hand", "part": "cut", "parts": ["cut"], "name": ""}, from_factory=1, to_factory=2)
+    assert one.endswith("재단이 이미 완료로 체크된 주문이에요. 옮기려면 공정 체크부터 해제해 주세요.")
+    used = [_mark("k/d1.png", "cut", "NEED", picked="김재단"), _mark("k/d2.png", "edge", "NONE")]  # 재단은 카드를 썼다
+    assert hand_checked_parts(sd, used) == ("edge",)  # 엣지는 NONE 줄만 = 카드를 안 쓴 파트
+    assert plan_factory_changes(sd, [{"sheet_id": "s7", "factory": 2}], stage="PRODUCTION", load_marks=_no_marks)  # 안 보낸 시트는 됨
+
+
+def test_residual_factory_done_is_ignored_outside_production_but_work_still_blocks():
+    sd = _sd(stage="CONFIRM", table={"sheets": {"s2": 2}},
+             done={"2": {"keys": ["k/d2.png"], "at": "2026-11-24T07:10:00", "by_name": "강검수"}})
+    assert plan_factory_changes(sd, [{"sheet_id": "s0", "factory": 2}], stage="CONFIRM", load_marks=lambda: [])  # 취소할 화면이 없다
+
+
+def test_strip_client_factory_state_removes_both_server_owned_fields():
+    sd = {"drawing_factory": {"sheets": {"s1": 2}}, "production": {"steps": [], "factory_done": {"2": {}}}, "items": []}
+    assert strip_client_factory_state(sd) == ["drawing_factory", "production.factory_done"]
+    assert sd == {"production": {"steps": []}, "items": []}
+    assert strip_client_factory_state({"items": []}) == [] and strip_client_factory_state(None) == []
 
 
 def test_plan_refuses_moves_in_or_out_of_a_finished_factory():
