@@ -171,8 +171,9 @@ def test_edit_form_selects_saved_factory_and_list_says_second_factory_only(app):
     assert '<option value="1" selected>1공장</option>' in add
     _make_user(team="PRODUCTION", part="cut")  # 대조군: 1공장 계정은 지금 글 그대로
     listing = admin.get("/admin/users").get_data(as_text=True)
-    assert "<td>생산팀 · 재단 · 엣지 · 2공장</td>" in listing and "<td>생산팀 · 재단</td>" in listing
-    assert "1공장</td>" not in listing
+    # 2공장 = 공장 칩(사장님 2026-11-24 식별성), 글은 그대로 · 칩 모양 파일은 2공장 계정이 있을 때만
+    assert '<td>생산팀 · 재단 · 엣지 · <em class="foms-fac foms-fac--2">2공장</em></td>' in listing and "<td>생산팀 · 재단</td>" in listing
+    assert "1공장</td>" not in listing and "1공장</em>" not in listing and listing.count("foms-factory-chip.css?v=") == 1
 
 
 def test_admin_templates_have_no_inline_style_for_factory_field():

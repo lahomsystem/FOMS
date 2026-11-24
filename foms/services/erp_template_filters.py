@@ -15,6 +15,7 @@ from foms.services.orders.partner_push_marks import (
 )
 # 실측 시간 자유 텍스트 판정 경계·정규식 SSOT (동선 정렬 파서와 같은 규약을 써야
 # 오전/오후 판정이 갈리지 않는다). 재노출은 기존 import 경로 호환용.
+from foms.services.production.factory_chip import factory_chips
 from foms.services.shipment.packing_entry import packing_prod_entry
 from foms.services.shipment.packing_factory import packing_glance
 from foms.services.measurement_time import (
@@ -396,3 +397,5 @@ def register_erp_template_filters(bp):
     # 출고 패킹 공장마다(설계서 2026-11-23 '승인 때 고친 것' 6) — 카드 글 재료(2공장 장이 없으면 None) · 생산 작업 시트 [패킹] 칸.
     bp.add_app_template_global(packing_glance, 'packing_glance')
     bp.add_app_template_global(packing_prod_entry, 'packing_prod_entry')
+    # 공장 칩(사장님 2026-11-24 식별성) — 글 안의 "1공장" · "2공장"을 같은 칩으로(foms-factory-chip.css). 빈 글은 그대로.
+    bp.add_app_template_filter(factory_chips, 'factory_chips')

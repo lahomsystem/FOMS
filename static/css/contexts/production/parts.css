@@ -292,17 +292,21 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .pp-mpop a:active { background: var(--fph-old-50); }
 .pp-mpop a:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
 
-/* ── 남의 공장 카드(2공장, 설계서 2026-11-23 §4-13 · §8-1 · §10 F14) — 판 뒤 묶음 "2공장 작업 4장". 바탕은 흰 카드 그대로 · 2px 청록 점선,
-   그림만 흐림(.55), 색 칸 없이 글 한 줄 + 칩 "2공장 작업"(가장 센 것이 못 누르는 분홍 칸이 아니게 — K1 · K3). 누르면 까닭 말풍선.
+/* ── 남의 공장 카드(2공장, 설계서 2026-11-23 §4-13 · §8-1 · §10 F14) — 판 뒤 묶음 "2공장 작업 4장". 바탕은 흰 카드 그대로 · 2px 점선(그 공장
+   칩 색 — data-factory), 그림만 흐림(.55), 색 칸 없이 글 한 줄 + 공장 칩(components/foms-factory-chip.css, 사장님 2026-11-24 식별성).
+   가장 센 것이 못 누르는 분홍 칸이 아니게(K1 · K3). 누르면 까닭 말풍선.
    '전체 도면' 칸에서만 보인다(내 담당 · 내가 완료 칸은 내 공장 카드만). 관리자 공장 고르기(.pp-parts--fac)는 파트 고르기와 같은 꼴. ── */
 .pp-elsewhere { display: flex; flex-direction: column; gap: 6px; }
 .fph-parts[data-pp-on="need"] .pp-elsewhere, .fph-parts[data-pp-on="done"] .pp-elsewhere { display: none; }
-.pp-otherg { margin: 12px 0 2px; padding-top: 10px; border-top: 2px dashed var(--fph-fac2-line); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-fac2-700); }
-.pp-card.is-elsewhere { border: 2px dashed var(--fph-fac2-line); padding: 7px 9px 9px; }
+.pp-otherg { margin: 12px 0 2px; padding-top: 10px; border-top: 2px dashed var(--fph-text3); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text); }
+.pp-otherg:has(.foms-fac--1) { border-top-color: var(--foms-fac1-line); }
+.pp-otherg:has(.foms-fac--2) { border-top-color: var(--foms-fac2-line); }
+.pp-card.is-elsewhere { border: 2px dashed var(--fph-text3); padding: 7px 9px 9px; }
+.pp-card.is-elsewhere[data-factory="1"] { border-color: var(--foms-fac1-line); }
+.pp-card.is-elsewhere[data-factory="2"] { border-color: var(--foms-fac2-line); }
 .pp-card.is-elsewhere .pp-img { cursor: default; }
 .pp-card.is-elsewhere .pp-thumb { opacity: .55; }
-.fph-fac { display: inline-flex; align-items: center; font-style: normal; line-height: 1.5; }
-.fph-fac--2 { padding: 0 8px; border: 1px solid var(--fph-fac2-300); border-radius: 7px; background: var(--fph-fac2-50); color: var(--fph-fac2-700); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+.pp-elsewhere-note .foms-fac { flex-shrink: 0; font-size: calc(15px * var(--foms-fs, 1)); }
 .fph-wi.pp-elsewhere-note { gap: 8px; justify-content: flex-start; padding: 4px 12px; background: var(--fph-surface); border-color: var(--fph-line2); color: var(--fph-text); font-weight: 700; }
 .fph-wi.pp-elsewhere-note:hover { color: var(--fph-text); border-color: var(--fph-line2); }
 .fph-wi.pp-elsewhere-note span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,0 +1,58 @@
+/* 공장 칩(1공장 · 2공장) — 공장 글이 보이는 자리는 모두 이 칩 하나(사장님 2026-11-24 "1공장, 2공장 구분이 잘 안 돼 > 식별성 업그레이드").
+   두 공장 모두 색(무채색 아님): 1공장 = 자주, 2공장 = 청록. 글은 그대로("1공장" · "2공장"), 모양만 바꾼다.
+   잰 값(tests/domains/test_factory_chip_colors.py 가 못 박는다):
+   - 두 칩 바탕 · 테두리 · 글 색 짝마다 ΔE2000 ≥ 10(정상) · ≥ 6(녹색맹 · 적색맹 흉내), 밝은 · 어두운 화면 모두.
+   - 같은 화면 상태 색(완료 초록 · 작업 필요 연보라 · 늦음 빨강 · 보류/바뀜 주황 · 기본 단추 남색)과 칩 바탕끼리 · 글끼리 ΔE2000 ≥ 10.
+   - 칩 글 대비 ≥ 4.5:1, 테두리는 판 바탕과 ≥ 3:1.
+   싣는 곳: 공장 글이 있는 응답에만(2공장 장이 섞인 화면 · 2공장 계정 줄) — 1공장뿐인 화면은 이 파일을 안 받아 바이트까지 그대로.
+   도면 작업실 · 마법사는 sheet-factory.css 가 @import 한다(그 파일을 바꾸면 그 파일 핀도 같이 올린다).
+   글자 크기는 두지 않는다(놓인 줄 글자 그대로 — 줄이지 않는다, PC 80% 배율). */
+:root {
+  --foms-fac1-fill: #f0abfc;
+  --foms-fac1-line: #a21caf;
+  --foms-fac1-ink: #86198f;
+  --foms-fac2-fill: #a5f3fc;
+  --foms-fac2-line: #0891b2;
+  --foms-fac2-ink: #164e63;
+}
+
+/* 어두운 화면(폰 · 시스템 설정) — 어두운 바탕 칩 + 밝은 글. 생산 화면(.foms-prod-home · .foms-prod-page)은 늘 밝은 판이라 밝은 값 그대로. */
+[data-theme='dark'] {
+  --foms-fac1-fill: #701a75;
+  --foms-fac1-line: #e879f9;
+  --foms-fac1-ink: #f5d0fe;
+  --foms-fac2-fill: #0e7490;
+  --foms-fac2-line: #67e8f9;
+  --foms-fac2-ink: #ecfeff;
+}
+[data-theme='dark'] .foms-prod-home,
+[data-theme='dark'] .foms-prod-page {
+  --foms-fac1-fill: #f0abfc;
+  --foms-fac1-line: #a21caf;
+  --foms-fac1-ink: #86198f;
+  --foms-fac2-fill: #a5f3fc;
+  --foms-fac2-line: #0891b2;
+  --foms-fac2-ink: #164e63;
+}
+
+.foms-fac {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid;
+  border-radius: 5px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+.foms-fac--1 {
+  border-color: var(--foms-fac1-line);
+  background: var(--foms-fac1-fill);
+  color: var(--foms-fac1-ink);
+}
+.foms-fac--2 {
+  border-color: var(--foms-fac2-line);
+  background: var(--foms-fac2-fill);
+  color: var(--foms-fac2-ink);
+}

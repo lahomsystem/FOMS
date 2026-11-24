@@ -66,7 +66,7 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
   {{ _who(r) }}
   {{ pc_steps(r) }}
   {{ _by(r) }}
-  <span class="fpc-dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
+  <span class="fpc-dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label | factory_chips }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
 </div>
 {% endmacro %}
 

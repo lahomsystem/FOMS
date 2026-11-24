@@ -36,10 +36,6 @@
   --fpc-done-800: #065f46;
   --fpc-basic-50: #ccedff;
   --fpc-basic-700: #075985;
-  /* 2공장(설계서 2026-11-23 §8-9 · §10 — 태블릿 --fph-fac2-* 와 같은 값). 1공장은 칩 없음(지금 모습) */
-  --fpc-fac2-50: #cdf3ec;
-  --fpc-fac2-300: #7fd6c6;
-  --fpc-fac2-700: #0f6b63;
 }
 
 /* ── 제목 줄: [보드 →] · 보기 전용 표 · [고치기] · 주황 띠 ── */
@@ -130,7 +126,7 @@
 .fpc-by .fph-by i { font-size: calc(13px * var(--foms-fs, 1)); margin-right: 3px; }
 .fpc-dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: #2f3540; white-space: nowrap; }
 /* 섞인 주문(2공장) 도면 칸 — 공장마다 한 줄, 보는 공장 줄이 위 · 굵게, 칸이 모자라면 "완료"만 다음 줄로 */
-.fpc-dw.is-split { white-space: normal; line-height: 1.2; }
+.fpc-dw.is-split { justify-self: end; white-space: normal; line-height: 1.2; text-align: left; } /* 칩이 세로로 한 줄에 서게 — 칸은 오른쪽 끝, 줄은 왼쪽 맞춤 */
 .fpc-dw.is-split .fph-fac { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text2); word-break: keep-all; }
 .fpc-dw.is-split .fph-fac + .fph-fac { margin-top: 3px; }
 .fpc-dw.is-split .fph-fac.is-me { font-weight: 800; color: var(--fpc-text); }
@@ -274,9 +270,8 @@
 .fpc-sheet__nm { font-size: calc(17px * var(--foms-fs, 1)); line-height: 1.3; color: var(--fpc-text); }
 .fpc-sheet__nm b { margin-right: 8px; font-weight: 800; white-space: nowrap; }
 .fpc-sheet__nm span { font-weight: 600; color: var(--fpc-text2); }
-/* 도면 목록 창 줄마다 공장(섞인 주문만) — 1공장 = 글, 2공장 = 청록 칩. 남의 공장 줄은 서버가 단추를 안 준다 */
-.fpc-sheet__nm .fph-fac { margin-left: 8px; font-style: normal; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-text2); white-space: nowrap; }
-.fpc-sheet__nm .fph-fac--2 { padding: 0 8px; border: 1px solid var(--fpc-fac2-300); border-radius: 7px; background: var(--fpc-fac2-50); color: var(--fpc-fac2-700); }
+/* 도면 목록 창 줄마다 공장(섞인 주문만) — 두 공장 모두 공장 칩(components/foms-factory-chip.css). 남의 공장 줄은 서버가 단추를 안 준다 */
+.fpc-sheet__nm .foms-fac { margin-left: 8px; font-size: calc(15px * var(--foms-fs, 1)); }
 .fpc-sheet__meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text2); }
 .fpc-sheet__chg { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-old-700); }
 .fpc-sheet__blk { width: fit-content; padding: 2px 10px; border: 1px solid var(--fpc-warn-soft); border-radius: 8px; background: var(--fpc-warn-50); color: var(--fpc-warn-ink); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }

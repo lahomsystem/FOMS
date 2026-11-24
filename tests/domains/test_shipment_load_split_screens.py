@@ -26,6 +26,10 @@ ROOT = Path(__file__).resolve().parents[2]
 SHELL = {"X-FOMS-ERP-SHELL": "1"}
 CSS_FILE = "css/components/foms-load-split.css"
 MIXED_TEXT = "상차 1공장 2장 · 2공장 1장"
+#: 화면 글 = 같은 글의 공장 이름만 공장 칩(사장님 2026-11-24 식별성 — 거르개 factory_chips, 모양은 foms-factory-chip.css 를 @import)
+F1 = '<em class="foms-fac foms-fac--1">1공장</em>'
+F2 = '<em class="foms-fac foms-fac--2">2공장</em>'
+MIXED_HTML = f"상차 {F1} 2장 · {F2} 1장"
 _seq = itertools.count(1)
 
 
@@ -91,9 +95,9 @@ def test_shipment_fragment_draws_load_split_in_grid_pc_and_phone(client, monkeyp
     plain = _order("가짜평범", f2=False)
     html = _fragment(client)
     assert html.count(CSS_FILE) == 1
-    assert html.count(f'data-ship-load>{MIXED_TEXT}</span>') == 1  # 하루치 출고표 고객 칸
-    assert html.count(f'<div class="small foms-load-split" data-shipment-load>{MIXED_TEXT}</div>') == 1  # PC 표 고객 칸
-    assert html.count('<dt>상차</dt><dd class="foms-load-split" data-shipment-load>1공장 2장 · 2공장 1장</dd>') == 1  # 폰 카드
+    assert html.count(f'data-ship-load>{MIXED_HTML}</span>') == 1  # 하루치 출고표 고객 칸
+    assert html.count(f'<div class="small foms-load-split" data-shipment-load>{MIXED_HTML}</div>') == 1  # PC 표 고객 칸
+    assert html.count(f'<dt>상차</dt><dd class="foms-load-split" data-shipment-load>{F1} 2장 · {F2} 1장</dd>') == 1  # 폰 카드
     grid_plain = html.split(f'id="shipment-tgrid-row-{plain}"', 1)[1].split("</tr>", 1)[0]
     assert "foms-load-split" not in grid_plain
     grid_mixed = html.split(f'id="shipment-tgrid-row-{mixed}"', 1)[1].split("</tr>", 1)[0]
@@ -112,7 +116,7 @@ def test_no_mixed_order_no_trace_in_fragment(client, monkeypatch, cookies):
     _order("가짜평범1", f2=False)
     _order("가짜평범2", f2=False)
     html = _fragment(client, cookies)
-    for token in ("foms-load-split", "data-ship-load", "data-shipment-load", "load_split", "상차 1공장", "<dt>상차</dt>"):
+    for token in ("foms-load-split", "data-ship-load", "data-shipment-load", "load_split", "상차 1공장", "<dt>상차</dt>", "foms-fac"):
         assert token not in html, token
 
 
@@ -122,9 +126,9 @@ def test_side_sheet_head_line_only_for_mixed(client, monkeypatch):
     plain = _order("가짜시트평범", f2=False)
     m = client.get(f"/erp/shipment/tablet-sheet/{mixed}").get_data(as_text=True)
     p = client.get(f"/erp/shipment/tablet-sheet/{plain}").get_data(as_text=True)
-    assert f'<div class="foms-ship-sheet__count foms-load-split" data-ship-load>{MIXED_TEXT}</div>' in m
+    assert f'<div class="foms-ship-sheet__count foms-load-split" data-ship-load>{MIXED_HTML}</div>' in m
     assert m.count(CSS_FILE) == 1
-    assert "foms-load-split" not in p and "상차 1공장" not in p
+    assert "foms-load-split" not in p and "상차 1공장" not in p and "foms-fac" not in p
 
 
 def test_construction_first_screen_row_and_css_gate(app):
@@ -151,7 +155,7 @@ def test_templates_gate_every_spot_with_no_output_when_absent():
     """다섯 자리 · 모양 파일이 모두 조건 안에 있고, 조건 밖에 새 공백 · 빈 칸이 없다(구조 시험)."""
     grid = (ROOT / "templates/shipment/partials/tablet_ship_grid.html").read_text(encoding="utf-8")
     assert ("{%- if r.shipment_load_text is defined and r.shipment_load_text %}<span class=\"foms-tablet-shipgrid__flag "
-            "foms-load-split\" data-ship-load>{{ r.shipment_load_text }}</span>{% endif %}") in grid
+            "foms-load-split\" data-ship-load>{{ r.shipment_load_text | factory_chips }}</span>{% endif %}") in grid
     main = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     assert "{% endif %}{% if r.shipment_load_text is defined and r.shipment_load_text %}<div class=\"small foms-load-split\"" in main
     assert "{% if rows|selectattr('shipment_load_text')|first is defined %}" in main
@@ -161,7 +165,7 @@ def test_templates_gate_every_spot_with_no_output_when_absent():
     assert "{% if load_text %}" in sheet
     cons = (ROOT / "templates/construction/partials/tablet_first_body.html").read_text(encoding="utf-8")
     assert "{%- endmacro %}{% if F.has_load_split %}" in cons
-    assert "{{ r.packing_text }}</span>{% if r.load_text %}<small class=\"foms-load-split\" data-cons-load>" in cons
+    assert "{% if r.load_text %}<small class=\"foms-load-split\" data-cons-load>{{ r.load_text | factory_chips }}</small>" in cons
 
 
 def test_partner_shipment_tab_has_no_load_split():
@@ -182,7 +186,8 @@ def test_css_font_sizes_scale_and_no_achromatic():
     css = re.sub(r"/\*.*?\*/", "", (ROOT / "static" / CSS_FILE).read_text(encoding="utf-8"), flags=re.S)
     for m in re.finditer(r"font-size:\s*([^;]+);", css):
         assert re.fullmatch(r"calc\(\d+px \* var\(--foms-fs, 1\)\)", m.group(1).strip()), m.group(1)
-    assert "#0f6b63" in css and "#0d9488" in css
+    # 공장 색은 공장 칩 한 곳(@import) — 이 파일은 공장 색을 따로 두지 않는다(옛 2공장 청록 #0f6b63 · #0d9488 은 '완료' 초록과 가까웠다)
+    assert css.lstrip().startswith('@import url("foms-factory-chip.css?v=') and "#0f6b63" not in css and "#0d9488" not in css
     for grey in ("#6b7280", "#9ca3af", "#e5e7eb", "gray", "grey"):
         assert grey not in css.lower()
 

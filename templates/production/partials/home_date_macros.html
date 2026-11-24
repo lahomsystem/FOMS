@@ -29,7 +29,7 @@
 {% macro fph_row(r) %}
 <a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' or r.fac_stage else 'p') }}{% if r.fac_elsewhere %} is-elsewhere{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}"
    href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
-  <span class="fph-dr__sg">{{ r.fac_stage or r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% endif %}{% if r.part_miss %}<small class="is-miss">{{ r.part_miss }}</small>{% endif %}</span>
+  <span class="fph-dr__sg">{% if r.fac_stage %}<span class="fph-dr__fs">{{ r.fac_stage | factory_chips }}</span>{% else %}{{ r.home_stage }}{% endif %}{% if r.has_changes %}<small>바뀜</small>{% endif %}{% if r.part_miss %}<small class="is-miss">{{ r.part_miss }}</small>{% endif %}</span>
   <span class="fph-dr__who">
     <span class="fph-dr__ln"><span class="fph-dr__nm"><b>{{ r.customer_name }}</b> <small>#{{ r.id }}</small>{{ fph_due(r) }}</span>{% if r.by_parts %}<span class="fph-dr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</span>
     <span class="fph-dr__pr">{% if r.has_changes %}<em>{{ r.change_line }}</em> · {% endif %}{{ r.v3_product_label or '품목 없음' }}{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
@@ -37,7 +37,7 @@
   <span class="fph-dr__steps{% if r.part_holders %} has-hd{% endif %}" aria-label="공정">
     {% for s in r.home_steps %}{% set h = r.part_holders[loop.index0] if r.part_holders else none %}<span class="fph-dr__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"{% if h %} title="{{ h.aria }}"{% endif %}><i></i>{{ h.label if h else s.label }}{% if h %}{{ fph_hd(h) }}{% endif %}</span>{% endfor %}
   </span>
-  <span class="fph-dr__dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
+  <span class="fph-dr__dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label | factory_chips }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
 </a>
 {% endmacro %}
 {# 작은 칸(제작 완료 · 파트 '도면 없음') — 시공일이 맨 앞이라 칸이 좁아도 안 잘린다. tail = 번호 뒤 글(없으면 품목 · 단계). #}

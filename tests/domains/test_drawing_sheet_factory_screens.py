@@ -145,10 +145,12 @@ def test_workbench_drawing_team_gets_tile_and_pending_selectors(client):
                        r' data-label="도면 (\d)/3 · [^"]+">' % oid, html)
     assert [k for k, _n in tiles] == list(keys) and [n for _k, n in tiles] == ["1", "2", "3"]
     assert html.count('data-fac="2" aria-pressed="true"') == 2  # 타일 2번 · 보낼 칸 시트1
-    assert '<span class="dsf-split" data-dsf-split> · 1공장 2장 · 2공장 1장</span>' in html
+    assert ('<span class="dsf-split" data-dsf-split> · <em class="foms-fac foms-fac--1">1공장</em> 2장 · '
+            '<em class="foms-fac foms-fac--2">2공장</em> 1장</span>') in html  # 공장 이름 = 공장 칩(2026-11-24 식별성)
     assert f'data-sheet-id="{sids[1]}" data-label="시트1"' in html and 'data-confirm="1"' not in html  # 보낼 칸 = 시트로
     assert html.count("drawing-gateway-thumb-wrap me-2 mb-2 position-relative dsf-wrap") == 3  # 고르는 칸이 있는 타일만 넓힐 수 있게
-    assert '<div class="dsf-send" data-dsf-send>보낼 도면 2장 — 1공장 1장 · 2공장 1장</div>' in html
+    assert ('<div class="dsf-send" data-dsf-send>보낼 도면 2장 — <em class="foms-fac foms-fac--1">1공장</em> 1장 · '
+            '<em class="foms-fac foms-fac--2">2공장</em> 1장</div>') in html
     assert "js/drawing/sheet-factory.js" in html and "js/drawing/workbench-sheet-factory.js" in html
     assert "dsf-chip" not in html  # 고르는 사람에게 표시를 따로 두지 않는다(고르기가 곧 표시)
 
@@ -157,7 +159,7 @@ def test_workbench_sales_sees_marks_only_when_second_factory_exists(client):
     oid, _sids, _keys = _order(two=(1,))
     login(client, make_user("최유나", team="SALES"))
     html = _page(client, f"/erp/drawing-workbench/{oid}")
-    assert "data-dsf-sel" not in html and html.count('<span class="dsf-chip">2공장</span>') == 2  # 타일 1 · 보낼 칸 1
+    assert "data-dsf-sel" not in html and html.count('<span class="dsf-chip foms-fac foms-fac--2">2공장</span>') == 2  # 타일 1 · 보낼 칸 1
     assert "sheet-factory.css" in html and "js/drawing/sheet-factory.js" not in html  # 쓰기 JS 는 안 싣는다
 
 
@@ -165,7 +167,7 @@ def test_workbench_after_production_drawing_team_sees_marks_not_selectors(client
     oid, _sids, _keys = _order(stage="CONSTRUCTION", two=(0,))
     login(client, make_user("오가람", team="DRAWING"))
     html = _page(client, f"/erp/drawing-workbench/{oid}")
-    assert "data-dsf-sel" not in html and '<span class="dsf-chip">2공장</span>' in html
+    assert "data-dsf-sel" not in html and '<span class="dsf-chip foms-fac foms-fac--2">2공장</span>' in html
 
 
 def test_wizard_config_and_scripts_follow_right(client):
@@ -241,11 +243,15 @@ def test_fetch_is_guarded_and_success_checked():
 def test_css_fonts_scale_and_factory_two_is_not_grey():
     sizes = re.findall(r"font-size:\s*([^;]+);", CSS)
     assert sizes and all(re.fullmatch(r"calc\(\d+px \* var\(--foms-fs, 1\)\)", s.strip()) for s in sizes), sizes
-    assert "--dsf-fac2-line: #0d9488" in CSS and "--dsf-fac2-700: #0f6b63" in CSS  # 설계서 §8-9 · §10 값
     rules = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
-    chip = re.search(r"\.dws-tab\.dws-tab-has-fac::before,\s*\.dsf-chip \{([^}]*)\}", rules).group(1)
-    assert '.dws-tab.dws-tab-has-fac::before { content: "2공장";' in rules  # 탭 표시 = 글 노드 아님
-    assert "color: var(--dsf-fac2-700)" in chip and "border: 1.5px solid var(--dsf-fac2-line)" in chip
+    # 공장 색 · 칩 모양은 공장 칩 한 곳(@import components/foms-factory-chip.css, 2026-11-24 식별성) — 이 파일에 공장 색 값이 없다
+    assert rules.lstrip().startswith('@import url("../../components/foms-factory-chip.css?v=')
+    assert not re.search(r"--dsf-fac[\w-]*\s*:", rules) and "#0f6b63" not in rules and "#0d9488" not in rules
+    tab = re.search(r"\.dws-tab\.dws-tab-has-fac::before \{([^}]*)\}", rules).group(1)
+    assert 'content: "2공장";' in tab  # 탭 표시 = 글 노드 아님(::before 만 칩 모양을 같은 값으로 그린다)
+    for prop in ("border: 1px solid var(--foms-fac2-line)", "background: var(--foms-fac2-fill)", "color: var(--foms-fac2-ink)"):
+        assert prop in tab, prop
+    assert ".dsf-sel__b.is-1[aria-pressed=\"true\"] { background: var(--foms-fac1-fill); border-color: var(--foms-fac1-line); }" in rules
     assert "@media (pointer: coarse)" in rules and "calc(44px / var(--foms-ui-zoom, 1))" in rules
     assert ".btn" not in rules  # 전역 .btn !important 함정을 피한다
 
