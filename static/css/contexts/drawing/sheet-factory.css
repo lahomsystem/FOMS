@@ -1,0 +1,135 @@
+/* 도면 장의 공장(1공장 · 2공장) — 마법사 탭 · 도구 줄, 작업실 '현재 버전' 타일 · 보낼 시트 칸, 확인 · 막힘 창.
+   설계서 docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md §8-5 · §8-9 · §10(P6 — .btn 없는 전용 클래스).
+   2공장 장이 없고 고를 수도 없는 화면에는 이 파일을 싣지 않는다(지금 모습 그대로). 1공장은 표시 없음.
+   글자는 calc(Npx * var(--foms-fs, 1)) — 탭 글자 크기를 따른다(마법사는 배율 밖이라 1). 줄이지 않는다(PC 80% 배율). */
+:root {
+  --dsf-fac1-700: #3a4490;
+  --dsf-fac2-line: #0d9488;
+  --dsf-fac2-700: #0f6b63;
+  --dsf-line: #c1c7d0;
+  --dsf-text: #14171c;
+  --dsf-text2: #4b525d;
+  --dsf-danger: #dc2626;
+  --dsf-hit: 36px;
+}
+
+/* ---- 2공장 표시(누구에게나) — 흰 바탕 · 청록 테두리 글(§8-9: 1공장 표시 없음, 무채색 아님) ---- */
+.dws-tab-fac,
+.dsf-chip {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1.5px solid var(--dsf-fac2-line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--dsf-fac2-700);
+  font-size: calc(13px * var(--foms-fs, 1));
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.dws-tab-fac { margin-right: 6px; }
+/* 표시가 붙은 탭은 그만큼 넓힌다 — 시트 이름이 지금보다 더 잘리지 않게(표시 폭 + 틈 ≈ 56px) */
+.dws-tab.dws-tab-has-fac { max-width: 256px; }
+
+/* ---- 고르는 칸 [1공장 | 2공장] — 누르는 단추 둘(aria-pressed). 도면팀 누구나 · 관리자만 ---- */
+.dsf-sel {
+  display: inline-flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.dsf-sel__b {
+  min-height: var(--dsf-hit);
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 0 10px;
+  border: 1.5px solid var(--dsf-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--dsf-text2);
+  font: inherit;
+  font-size: calc(14px * var(--foms-fs, 1));
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dsf-sel__b:hover:not(:disabled) { border-color: var(--dsf-text2); }
+.dsf-sel__b.is-1[aria-pressed="true"] { background: var(--dsf-fac1-700); border-color: var(--dsf-fac1-700); color: #fff; }
+.dsf-sel__b.is-2[aria-pressed="true"] { background: var(--dsf-fac2-700); border-color: var(--dsf-fac2-700); color: #fff; }
+.dsf-sel__b:focus-visible { outline: 3px solid var(--dsf-text); outline-offset: 2px; }
+.dsf-sel__b:disabled { cursor: progress; opacity: 0.6; }
+
+/* 마법사 시트 도구 줄(탭 줄 바로 아래) — "공장 지정 [1공장 | 2공장] 고르면 바로 저장돼요. …"(§8-5 · 목업 3판 .dws-tool) */
+.dsf-toolrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 14px;
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.dsf-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+  font-size: calc(13px * var(--foms-fs, 1));
+  color: var(--dsf-text2);
+}
+.dsf-bar__label { font-weight: 800; color: var(--dsf-text); white-space: nowrap; }
+.dsf-bar .dsf-sel__b { min-width: 64px; }
+
+/* 작업실 타일 아래 한 줄(110px 칸 안) · 보낼 시트 칸 카드 아래 */
+.dsf-tile { margin-top: 4px; max-width: 110px; }
+.dsf-tile .dsf-sel { display: flex; }
+.dsf-pending { margin-top: 6px; }
+.dsf-pending .dsf-sel { display: flex; }
+.dsf-tile .dsf-sel__b,
+.dsf-pending .dsf-sel__b { padding: 0 4px; }
+.dsf-send { margin: 0 0 8px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--dsf-fac2-700); }
+.dsf-split[hidden],
+.dsf-send[hidden] { display: none; }
+
+/* ---- 확인 · 막힘 창(기본 <dialog> — 맨 위 겹이라 z-index 가 필요 없다) ---- */
+.dsf-dialog {
+  width: min(440px, calc(100vw / var(--foms-ui-zoom, 1) - 32px));
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--dsf-text);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
+  font-family: inherit;
+}
+.dsf-dialog::backdrop { background: rgba(20, 23, 28, 0.45); }
+.dsf-dialog__box { padding: 20px 20px 16px; }
+.dsf-dialog__title { margin: 0 0 6px; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.35; }
+.dsf-dialog__sub { margin: 0 0 10px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--dsf-text2); }
+.dsf-dialog__body { margin: 0 0 16px; font-size: calc(16px * var(--foms-fs, 1)); line-height: 1.55; word-break: keep-all; }
+.dsf-dialog__body.is-block { font-weight: 700; color: var(--dsf-danger); }
+.dsf-dialog__foot { display: flex; justify-content: flex-end; gap: 8px; }
+.dsf-dialog__btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1.5px solid var(--dsf-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--dsf-text);
+  font: inherit;
+  font-size: calc(15px * var(--foms-fs, 1));
+  font-weight: 800;
+  cursor: pointer;
+}
+.dsf-dialog__btn.is-go { background: var(--dsf-fac2-700); border-color: var(--dsf-fac2-700); color: #fff; }
+.dsf-dialog__btn:focus-visible { outline: 3px solid var(--dsf-text); outline-offset: 2px; }
+
+/* 손가락으로 누르는 화면 — 보이는 44px(배율을 나눠 보이는 크기를 지킨다, §10 누름 칸) */
+@media (pointer: coarse) {
+  :root { --dsf-hit: calc(44px / var(--foms-ui-zoom, 1)); }
+  .dws-tab.dws-tab-has-fac { max-width: 296px; }
+}
