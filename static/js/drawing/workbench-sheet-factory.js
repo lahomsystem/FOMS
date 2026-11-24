@@ -31,6 +31,19 @@
     Array.prototype.forEach.call(document.querySelectorAll(SEL + ' [data-fac]'), function (btn) { btn.disabled = on; });
   }
 
+  // 글 안의 "1공장" · "2공장"을 공장 칩으로(서버 거르개 factory_chips 와 같은 꼴 — foms-factory-chip.css, 사장님 2026-11-24 식별성)
+  function facText(n, text) {
+    n.textContent = '';
+    String(text).split(/([12]공장)/).forEach(function (part, i) {
+      if (!part) return;
+      if (!(i % 2)) { n.appendChild(document.createTextNode(part)); return; }
+      var c = document.createElement('em');
+      c.className = 'foms-fac foms-fac--' + part.charAt(0);
+      c.textContent = part;
+      n.appendChild(c);
+    });
+  }
+
   function countText(counts) {
     var parts = [];
     if (counts[1]) parts.push('1공장 ' + counts[1] + '장');
@@ -44,7 +57,7 @@
     if (!el) return;
     var counts = { 1: 0, 2: 0 };
     Array.prototype.forEach.call(document.querySelectorAll(SEL + '[data-key]'), function (g) { counts[pressed(g)] += 1; });
-    el.textContent = ' · ' + countText(counts);
+    facText(el, ' · ' + countText(counts));
     el.hidden = !counts[2];
   }
 
@@ -62,7 +75,7 @@
       counts[group ? pressed(group) : (chip ? 2 : 1)] += 1;
       total += 1;
     });
-    el.textContent = '보낼 도면 ' + total + '장 — ' + countText(counts);
+    facText(el, '보낼 도면 ' + total + '장 — ' + countText(counts));
     el.hidden = !counts[2];
   }
 

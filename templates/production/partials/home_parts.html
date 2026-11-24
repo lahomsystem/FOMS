@@ -64,7 +64,7 @@
     {% if pb.mode != 'part' %}
     <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('parts', p.key, d.key, factory=pb.url_factory) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
     {% endif %}{% if pb.factory_pick %}{# 관리자 공장 고르기(설계서 2026-11-23 §4-13 · §19 열한째 — 2공장 그림이 켜졌을 때만, 처음 = 계정 값 또는 1공장) #}
-    <nav class="pp-parts pp-parts--fac" aria-label="공장 고르기">{% for f in (1, 2) %}<a class="pp-part{% if f == pb.factory %} is-on{% endif %}" href="{{ home_href('parts', pb.part, d.key, factory=f) }}"{% if f == pb.factory %} aria-current="page"{% endif %}>{{ f }}공장</a>{% endfor %}</nav>
+    <nav class="pp-parts pp-parts--fac" aria-label="공장 고르기">{% for f in (1, 2) %}<a class="pp-part{% if f == pb.factory %} is-on{% endif %}" href="{{ home_href('parts', pb.part, d.key, factory=f) }}"{% if f == pb.factory %} aria-current="page"{% endif %}>{{ (f ~ '공장') | factory_chips }}</a>{% endfor %}</nav>
     {% endif %}
     {% if is_cut %}
     <div class="pp-bulk">
@@ -114,7 +114,7 @@
     {% if pp.hidden %}<p class="pp-cap">더 있는 {{ pp.hidden }}장은 안 보여요. 날을 나눠 보거나 찾기 탭에서 찾아 주세요.</p>{% endif %}{% if pp.elsewhere %}{# 남의 공장 카드(설계서 2026-11-23 §4-13 · §8-1 · C6) — 판 뒤 묶음, 색 칸 없이 글 한 줄 + 칩, 그림만 흐림, 누름 없음
        (누르면 까닭 말풍선). data-pp-card 가 없어 칸 숫자 · 일괄 기본 · 쓰기 밖이고, 30초 받아 오기는 글만 고친다(parts-sync). '전체 도면' 칸에서만 보인다(parts.css). #}
     <section class="pp-elsewhere" aria-label="{{ pp.elsewhere_head }}">
-      <h3 class="pp-otherg">{{ pp.elsewhere_head }}</h3>
+      <h3 class="pp-otherg">{{ pp.elsewhere_head | factory_chips }}</h3>
       <div class="pp-grid pp-grid--elsewhere">
         {% for c in pp.elsewhere %}
         <article class="pp-card is-elsewhere" data-pp-elsewhere data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}" data-factory="{{ c.elsewhere.factory }}">
@@ -124,7 +124,7 @@
           <div class="pp-duerow">{{ fph_due(c) }}</div>
           <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
           <span class="fph-dr__by pp-by">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}</span>
-          <div class="pp-actbox"><p class="pp-why" id="pp-why-{{ c.order_id }}-{{ c.no }}" role="status" hidden></p><button type="button" class="fph-wi pp-act pp-elsewhere-note" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.elsewhere.why }}"><em class="fph-fac fph-fac--2">{{ c.elsewhere.chip }}</em> <span data-pp-elsewhere-text>{{ c.elsewhere.text }}</span></button></div>
+          <div class="pp-actbox"><p class="pp-why" id="pp-why-{{ c.order_id }}-{{ c.no }}" role="status" hidden></p><button type="button" class="fph-wi pp-act pp-elsewhere-note" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.elsewhere.why }}">{{ c.elsewhere.chip | factory_chips }} <span data-pp-elsewhere-text>{{ c.elsewhere.text }}</span></button></div>
         </article>
         {% endfor %}
       </div>

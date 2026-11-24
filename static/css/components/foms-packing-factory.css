@@ -1,11 +1,10 @@
 /* 출고 패킹 공장마다(설계서 2026-11-23 '승인 때 고친 것' 6) — foms-packing-factory.js 가 같은 바텀시트(.foms-packing-sheet)에
    .is-pf 를 붙이고 .foms-pf 칸을 그린다. 2공장 장이 섞인 주문이 있는 응답과 생산 작업 시트 [패킹]에만 실린다(1공장뿐인 날의
    출고 · 시공 조각은 바탕과 바이트까지 같다). 줄 모양은 옛 목록(foms-packing.css)의 .foms-packing-row 를 그대로 쓴다.
-   2공장 색 = 생산 · 도면 화면 값(home.css --fph-fac2-700 #0f6b63 · --fph-fac2-line #0d9488). 무채색 상태 배지 없음. */
+   공장 글(묶음 머리 · 상차 완료 단추 · [패킹] 숫자 글)은 공장 칩 하나(아래 @import, 사장님 2026-11-24 식별성). 무채색 상태 배지 없음. */
+@import url("foms-factory-chip.css?v=20261124a");
 .foms-packing-sheet,
 .foms-pk-prod {
-  --foms-pf-fac2-700: #0f6b63;
-  --foms-pf-fac2-line: #0d9488;
   --foms-pf-done-50: #ecfdf5;
   --foms-pf-done-300: #6ee7b7;
   --foms-pf-done-700: #065f46;
@@ -26,13 +25,16 @@
   height: calc(78vh / var(--foms-ui-zoom, 1));
 }
 
-/* 공장 묶음 — 머리(공장 이름 · 체크 수) + 줄. 2공장 묶음은 점선 위 선 · 2공장 글 색(생산 화면 남의 공장 묶음과 같은 꼴). */
+/* 공장 묶음 — 머리(공장 칩 · 체크 수) + 줄. 둘째 묶음은 그 공장 칩 색 점선 위 선(생산 화면 남의 공장 묶음과 같은 꼴). */
 .foms-pf__g {
   margin: 0 0 12px;
 }
 .foms-pf__g + .foms-pf__g {
   padding-top: 10px;
-  border-top: 2px dashed var(--foms-pf-fac2-line);
+  border-top: 2px dashed var(--foms-fac2-line);
+}
+.foms-pf__g + .foms-pf__g--1 {
+  border-top-color: var(--foms-fac1-line);
 }
 .foms-pf__gh {
   display: flex;
@@ -41,9 +43,6 @@
   margin: 0 0 2px;
   font-size: calc(16px * var(--foms-fs, 1));
   font-weight: 800;
-}
-.foms-pf__g--2 .foms-pf__gh {
-  color: var(--foms-pf-fac2-700);
 }
 .foms-pf__n {
   font-size: calc(15px * var(--foms-fs, 1));
@@ -113,11 +112,6 @@
   line-height: 1.25;
   white-space: normal;
   word-break: keep-all;
-}
-.foms-pf__acts .foms-pf__load--2:not(:disabled) {
-  border-color: var(--foms-pf-fac2-700);
-  background: var(--foms-pf-fac2-700);
-  color: #fff;
 }
 .foms-pf__acts .foms-packing-depart--done:disabled {
   opacity: 1;

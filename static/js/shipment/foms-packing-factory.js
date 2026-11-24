@@ -111,9 +111,9 @@
     // 생산 작업 시트 단추(data-pf-own)는 칸이 좁아 내 공장 몫만 — "패킹 2공장 2/3"
     var own = st.trigger.hasAttribute('data-pf-own');
     var gs = (d.groups || []).filter(function (g) { return !own || g.can_check; });
-    lab.textContent = '패킹 ' + (gs.length > 1 || own
+    V().facText(lab, '패킹 ' + (gs.length > 1 || own
       ? gs.map(function (g) { return g.label + ' ' + g.checked + '/' + g.total; }).join(' · ')
-      : d.checked_count + '/' + d.total);
+      : d.checked_count + '/' + d.total));
   }
 
   function render() {
@@ -146,7 +146,7 @@
     document.querySelectorAll('[data-pf-load][data-armed="true"]').forEach(function (b) {
       b.setAttribute('data-armed', 'false');
       b.classList.remove('foms-packing-depart--armed');
-      b.textContent = b.getAttribute('data-pf-text') || b.textContent;
+      V().facText(b, b.getAttribute('data-pf-text') || b.textContent);
     });
   }
 

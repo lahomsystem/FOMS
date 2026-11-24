@@ -8,7 +8,7 @@
 {%- if _pk -%}
 <button type="button" class="foms-prod-page__btn foms-pk-prod" {% if _pk.split %}data-foms-pf-trigger data-pf-own{% else %}data-foms-packing-trigger{% endif %} data-order-id="{{ _pk.order_id }}" aria-label="패킹 체크 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9Z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/></svg>
 {%- if _pk.departed %}<span class="foms-packing-departed-label"{% if _pk.split %} data-pf-label{% endif %}>출발 보고됨</span>
-{%- else %}<span{% if _pk.split %} data-pf-label{% endif %}>패킹{% if _pk.text %} {{ _pk.text }}{% endif %}</span>{% endif %}
+{%- else %}<span{% if _pk.split %} data-pf-label{% endif %}>패킹{% if _pk.text %} {{ _pk.text | factory_chips }}{% endif %}</span>{% endif %}
 {%- if not _pk.split %}<span class="foms-packing-badge" data-foms-packing-badge hidden></span>{% endif %}</button>
 {%- include 'shipment/partials/packing_sheet.html' %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20261109f">

@@ -35,6 +35,11 @@ from tests.support.production_factory_seed import (
 )
 from tests.support.production_part_claim_seed import BULK, fresh, login, mark, row
 
+#: 공장 칩(사장님 2026-11-24 식별성 — 두 공장 모두 같은 칩, foms-factory-chip.css). 글은 그대로 "1공장" · "2공장".
+F1 = '<em class="foms-fac foms-fac--1">1공장</em>'
+F2 = '<em class="foms-fac foms-fac--2">2공장</em>'
+CHIP_CSS = "css/components/foms-factory-chip.css?v="
+
 MSG2 = "2공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
 
 
@@ -131,11 +136,12 @@ def test_board_puts_own_factory_first_and_other_factory_behind(client, cohort):
     own = re.findall(r'data-pp-card data-order-id="%d" data-key="([^"]+)"' % seed.id, html)
     other = re.findall(r'data-pp-elsewhere data-order-id="%d" data-key="([^"]+)"' % seed.id, html)
     assert own == list(seed.keys[:3]) and other == list(seed.keys[3:])
-    assert html.index("data-pp-card ") < html.index('<h3 class="pp-otherg">2공장 작업 2장</h3>') < html.index("data-pp-elsewhere ")
+    assert html.index("data-pp-card ") < html.index(f'<h3 class="pp-otherg">{F2} 작업 2장</h3>') < html.index("data-pp-elsewhere ")
+    assert html.count(CHIP_CSS) == 1  # 2공장 그림이 켜진 화면만 칩 모양을 싣는다
     assert 'data-pp-count="all">3<' in html  # 칸 숫자는 내 공장 카드만
     block = html[html.index('<section class="pp-elsewhere"'):html.index("</section>", html.index('<section class="pp-elsewhere"'))]
     assert "data-pp-act" not in block and "data-pp-card" not in block  # 누름 없음
-    assert '<em class="fph-fac fph-fac--2">2공장 작업</em> <span data-pp-elsewhere-text>담당 최가은</span>' in block
+    assert f'{F2} 작업 <span data-pp-elsewhere-text>담당 최가은</span>' in block
     assert block.count('data-pp-why="2공장에서 작업하는 도면이에요."') == 2
 
 
@@ -146,8 +152,8 @@ def test_second_factory_account_sees_the_reverse(client, cohort):
     set_cookies(client, TABLET)
     html = _html(client)
     own = re.findall(r'data-pp-card data-order-id="%d" data-key="([^"]+)"' % seed.id, html)
-    assert own == list(seed.keys[3:]) and '<h3 class="pp-otherg">1공장 작업 3장</h3>' in html
-    assert '<b class="fph-fac-now">2공장</b> · ' in html  # 위 줄 공장 글(한 공장 계정)
+    assert own == list(seed.keys[3:]) and f'<h3 class="pp-otherg">{F1} 작업 3장</h3>' in html
+    assert f'<b class="fph-fac-now">{F2}</b> · ' in html  # 위 줄 공장 글(한 공장 계정)
 
 
 def test_admin_gets_factory_picker_only_when_second_factory_exists(client, cohort):
@@ -157,12 +163,14 @@ def test_admin_gets_factory_picker_only_when_second_factory_exists(client, cohor
     mixed_order(3, f2=())
     html = _html(client, "/erp/production/home?tab=parts&part=cut&day=none")
     assert 'aria-label="공장 고르기"' not in html and "pp-elsewhere" not in html and "factory=" not in html
+    assert "foms-fac" not in html  # 2공장 장이 없으면 칩 · 칩 모양 파일 없음(바이트 그대로)
     seed = mixed_order(3, f2=(2,))
     html = _html(client, "/erp/production/home?tab=parts&part=cut&day=none")
     assert 'aria-label="공장 고르기"' in html and "factory=2" in html
+    assert f'aria-current="page">{F1}</a>' in html and f'factory=2">{F2}</a>' in html  # 고르기 단추도 같은 칩
     html2 = _html(client, "/erp/production/home?tab=parts&part=cut&day=none&factory=2")
     own = re.findall(r'data-pp-card data-order-id="%d" data-key="([^"]+)"' % seed.id, html2)
-    assert own == [seed.keys[2]] and '<h3 class="pp-otherg">1공장 작업' in html2
+    assert own == [seed.keys[2]] and f'<h3 class="pp-otherg">{F1} 작업' in html2
 
 
 def test_elsewhere_line_words():
@@ -194,14 +202,14 @@ def test_lead_date_rows_group_other_factory_and_route_own_done(client, cohort):
     login(client, boss1)
     set_cookies(client, TABLET)
     html = _html(client)
-    head = html.index('<h3 class="fph-pane__g is-elsewhere">2공장 작업 <small>1건</small></h3>')
+    head = html.index(f'<h3 class="fph-pane__g is-elsewhere">{F2} 작업 <small>1건</small></h3>')
     assert html.index(f'data-foms-home-dayrow="{only2.id}"') > head
     assert f'class="fph-dr is-p is-elsewhere"' in html
     login(client, boss2)
     html = _html(client)
     done_at = html.index('<h3 class="fph-pane__g">제작 완료')
-    assert html.index(f'#{done2.id} · 2공장 완료 · 1공장 제작 중') > done_at  # 내 공장 완료 = '제작 완료' 칸
-    assert '<span class="fph-fac is-me">2공장 1장 <b class="is-ok">완료</b></span>' not in html  # 완료 칸으로 갔다(줄 아님)
+    assert html.index(f'#{done2.id} · {F2} 완료 · {F1} 제작 중') > done_at  # 내 공장 완료 = '제작 완료' 칸
+    assert f'<span class="fph-fac is-me">{F2} 1장 <b class="is-ok">완료</b></span>' not in html  # 완료 칸으로 갔다(줄 아님)
 
 
 def test_pc_rows_are_combined_and_pc_sheet_marks_each_row(client, cohort):
@@ -211,8 +219,8 @@ def test_pc_rows_are_combined_and_pc_sheet_marks_each_row(client, cohort):
     set_cookies(client, PC)
     html = _html(client)
     assert "is-elsewhere" not in html  # PC 는 묶지 않는다(감독용)
-    assert ('<span class="fpc-dw is-split"><span class="fph-fac is-me">1공장 2장</span>'
-            '<span class="fph-fac">2공장 1장</span></span>') in html
+    assert (f'<span class="fpc-dw is-split"><span class="fph-fac is-me">{F1} 2장</span>'
+            f'<span class="fph-fac">{F2} 1장</span></span>') in html
     data = client.get(f"/api/production/part-sheet?order_id={seed.id}&part=cut").get_json()["data"]
     assert [(r["factory_label"], r["act"]) for r in data["rows"]] == [("1공장", "check"), ("1공장", "check"), ("2공장", None)]
     assert data["rows"][2]["other_factory"] is True and data["rows"][2]["holder"] == "담당 미정"  # 자세히 보임
@@ -230,9 +238,10 @@ def test_work_sheet_marks_second_factory_thumbs(client, cohort):
     login(client, factory_user("박반장", lead=True))
     set_cookies(client, TABLET)
     html = _html(client, f"/erp/production/sheet/{seed.id}")
-    assert html.count('<em class="fpp-fac">2공장</em>') == 1
+    assert html.count(f'<em class="fpp-fac">{F2}</em>') == 1 and html.count(CHIP_CSS) == 1
     plain = mixed_order(2, f2=())
-    assert "fpp-fac" not in _html(client, f"/erp/production/sheet/{plain.id}")
+    plain_html = _html(client, f"/erp/production/sheet/{plain.id}")
+    assert "fpp-fac" not in plain_html and "foms-fac" not in plain_html and CHIP_CSS not in plain_html
 
 
 # --------------------------------------------------------------------------- #

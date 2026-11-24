@@ -90,10 +90,12 @@ def test_admin_regress_override_clears_marks_and_buttons_come_back(client):
     event = db_session.query(OrderEvent).filter_by(order_id=seed.id, event_type="STAGE_OVERRIDE").one()
     assert event.payload["factories_reopened"] == [1, 2]
     html = _sheet(client, seed.id)
-    assert "1공장 제작 중 · 2공장 제작 중" in html  # 공장 줄이 다시 '제작 중'(회차는 닫혀 제작 대기 — [제작 시작] 길은 그대로)
+    assert ('<em class="foms-fac foms-fac--1">1공장</em> 제작 중 · <em class="foms-fac foms-fac--2">2공장</em> 제작 중'
+            in html)  # 공장 줄이 다시 '제작 중'(회차는 닫혀 제작 대기 — [제작 시작] 길은 그대로)
     assert client.post(f"/api/orders/{seed.id}/production/start", json={}).status_code == 200
     html = _sheet(client, seed.id)
-    assert "<b>1공장 제작 완료</b>" in html and "<b>2공장 제작 완료</b>" in html  # 공장 완료 단추가 다시 뜬다
+    assert ('<b><em class="foms-fac foms-fac--1">1공장</em> 제작 완료</b>' in html
+            and '<b><em class="foms-fac foms-fac--2">2공장</em> 제작 완료</b>' in html)  # 공장 완료 단추가 다시 뜬다(이름 = 공장 칩)
 
 
 def test_forward_override_keeps_marks():

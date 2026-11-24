@@ -31,6 +31,10 @@ from tests.support.production_part_claim_seed import fresh, login, mark
 
 PARTS = ("cut", "edge", "assemble", "inspect")
 
+#: 공장 칩(2026-11-24 식별성) — 화면 글의 공장 이름만 칩으로 감싼다.
+F1 = '<em class="foms-fac foms-fac--1">1공장</em>'
+F2 = '<em class="foms-fac foms-fac--2">2공장</em>'
+
 
 def _api(client, oid: int, factory: int, done: bool = True):
     return client.post(f"/api/orders/{oid}/production/factory-done", json={"factory": factory, "done": done})
@@ -268,21 +272,23 @@ def test_work_sheet_factory_buttons(client, people):
     _all_done(seed, (0, 1), people["insp1"])
     login(client, people["boss2"])
     html = _sheet(client, seed.id)
-    assert 'data-foms-sheet-facline>1공장 제작 중 · 2공장 제작 중</p>' in html
+    # 공장 이름 = 공장 칩(사장님 2026-11-24 식별성 — 거르개 factory_chips), 글은 그대로
+    assert f'data-foms-sheet-facline>{F1} 제작 중 · {F2} 제작 중</p>' in html and "foms-factory-chip.css?v=" in html
     assert ('data-foms-sheet-factory="2" data-done="1"' in html and 'aria-disabled="true" data-foms-sheet-factory-why='
             '"2공장에 아직 미완료가 있어요 — 재단 1장 · 엣지 1장 · 조립 1장 · 검수 1장"' in html)
     assert 'data-tablet-sheet-action="production-complete"' not in html  # 1공장이 안 끝났으니 [제작 완료] 없음
     assert "foms-production-sheet-factory.js?v=" in html
     login(client, people["admin"])
     html = _sheet(client, seed.id)
-    assert html.count("data-foms-sheet-factory=") == 2 and "<b>1공장 제작 완료</b>" in html and "<b>2공장 제작 완료</b>" in html
+    assert html.count("data-foms-sheet-factory=") == 2 and f"<b>{F1} 제작 완료</b>" in html and f"<b>{F2} 제작 완료</b>" in html
     set_factory_done(seed.id, 2, [seed.keys[2]])
     html = _sheet(client, seed.id)
-    assert "2공장 완료(강검수 11/24 16:10)" in html and "<b>2공장 완료 취소</b>" in html
+    assert f"{F2} 완료(강검수 11/24 16:10)" in html and f"<b>{F2} 완료 취소</b>" in html
     assert 'data-tablet-sheet-action="production-complete"' in html  # 남은 공장 하나 = 지금 [제작 완료]
     plain = mixed_order(2, f2=())
     html = _sheet(client, plain.id)
     assert "data-foms-sheet-factory" not in html and "foms-production-sheet-factory.js" not in html  # 한 공장 주문 그대로
+    assert "foms-fac" not in html and "foms-factory-chip.css" not in html
 
 
 def test_sheet_factory_api_reads_the_same_done_mark(client, people):

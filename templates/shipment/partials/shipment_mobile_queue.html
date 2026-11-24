@@ -31,7 +31,7 @@
             <div class="erp-shipment-mobile-card__temporal" data-shipment-mobile-detail-row="construction_date" {% if not meta.primary_date %}hidden{% endif %}>
               <dt>시공일</dt>
               <dd class="foms-tabular" data-shipment-mobile-detail-field="construction_date">{{ meta.primary_date }}</dd>
-            </div>{% if meta.load_text %}{# 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만 한 줄. #}<div class="erp-shipment-mobile-card__full" data-shipment-mobile-detail-row="load_split"><dt>상차</dt><dd class="foms-load-split" data-shipment-load>{{ meta.load_detail }}</dd></div>{% endif %}
+            </div>{% if meta.load_text %}{# 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만 한 줄. #}<div class="erp-shipment-mobile-card__full" data-shipment-mobile-detail-row="load_split"><dt>상차</dt><dd class="foms-load-split" data-shipment-load>{{ meta.load_detail | factory_chips }}</dd></div>{% endif %}
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
               <dt>시공시간</dt>
               <dd data-shipment-mobile-detail-field="construction_time">{{ meta.construction_time }}</dd>
@@ -90,7 +90,7 @@
               {% if meta.packing_departed %}
               <span class="foms-packing-departed-label"{% if meta.packing_split %} data-pf-label{% endif %}>출발 보고됨</span>
               {% else %}
-              <span{% if meta.packing_split %} data-pf-label{% endif %}>패킹{% if meta.packing_split %}{% if meta.packing_split.present %} {{ meta.packing_split.text }}{% endif %}{% elif meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
+              <span{% if meta.packing_split %} data-pf-label{% endif %}>패킹{% if meta.packing_split %}{% if meta.packing_split.present %} {{ meta.packing_split.text | factory_chips }}{% endif %}{% elif meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
               {% endif %}
               <span class="foms-packing-badge{% if meta.packing_departed %} foms-packing-badge--done{% endif %}" data-foms-packing-badge hidden></span>
             </button>

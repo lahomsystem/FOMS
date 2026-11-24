@@ -3,62 +3,48 @@
    자리 다섯: 출고 탭 하루치 출고표(고객 칸 표식) · PC 표(고객 칸 작은 줄) · 폰 카드(dl 한 줄) · 출고 옆 시트 머리 ·
    시공 탭 첫 화면('출고' 칸 아래). 협력사 출고 탭에는 없다.
    이 파일은 2공장 줄이 있는 응답에만 실린다 — 2공장 장이 없는 날의 출고 · 시공 조각은 바탕과 바이트까지 같다.
-   색 = 생산 · 도면 화면의 2공장 값(home.css --fph-fac2-700 #0f6b63 · --fph-fac2-line #0d9488 ·
-   sheet-factory.css --dsf-fac2-*)과 같다. 무채색 아님.
+   공장 이름은 공장 칩(아래 @import — 1공장 자주 · 2공장 청록, 사장님 2026-11-24 식별성), 줄 글은 놓인 칸 글 색 그대로(어두운 화면에서도 읽힌다).
    좁은 칸(고객 칸 · '출고' 칸)에서 "2공장 2장"이 말줄임으로 잘리지 않게 낱말 사이에서 두 줄로 내린다(섞인 주문 줄만 키가 는다). */
+@import url("foms-factory-chip.css?v=20261124a");
 .foms-load-split {
-  --foms-load2-700: #0f6b63;
-  --foms-load2-line: #0d9488;
-  --foms-load2-50: #ecfaf6;
-  color: var(--foms-load2-700);
   font-weight: 700;
 }
 
-/* 출고 탭 하루치 출고표 — 고객 칸 표식(.foms-tablet-shipgrid__flag 꼴, 글 색만 2공장 값). */
+/* 출고 탭 하루치 출고표 — 고객 칸 표식(.foms-tablet-shipgrid__flag 꼴, 공장은 칩). */
 body.erp-mobile-v2-layout .foms-tablet-shipgrid__flag.foms-load-split,
 .foms-tablet-shipgrid__flag.foms-load-split {
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
   word-break: keep-all;
-  color: var(--foms-load2-700);
 }
 
-/* PC 표 — 고객 칸 작은 줄(.small 그대로, 왼쪽 선만 2공장 선). */
+/* PC 표 — 고객 칸 작은 줄(.small 그대로, 공장은 칩). */
 div.small.foms-load-split {
   margin-top: 2px;
-  padding-left: 6px;
-  border-left: 3px solid var(--foms-load2-line);
   white-space: normal;
   word-break: keep-all;
 }
 
-/* 폰 카드 dl 한 줄 — dd 글자 크기는 지금 dd 그대로(13px × 글자배율). */
+/* 폰 카드 dl 한 줄 — dd 글자 크기 · 색은 지금 dd 그대로(13px × 글자배율), 공장은 칩. */
 .erp-shipment-mobile-card__detail dd.foms-load-split {
-  color: var(--foms-load2-700);
   font-weight: 700;
 }
 
-/* 출고 옆 시트 머리 — 번호 줄 아래 한 줄. 선 하나로 2공장 줄임을 알린다. */
+/* 출고 옆 시트 머리 — 번호 줄 아래 한 줄(공장은 칩). */
 .foms-ship-sheet__count.foms-load-split {
   align-self: flex-start;
   margin-top: 2px;
-  padding: 1px 8px;
-  border: 1px solid var(--foms-load2-line);
-  border-radius: 7px;
-  background: var(--foms-load2-50);
-  color: var(--foms-load2-700);
   font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 700;
 }
 
-/* 시공 탭 첫 화면 — '출고' 칸 아래 작은 글(그 칸 small 꼴, 색만 2공장 값 · 말줄임 대신 두 줄). */
+/* 시공 탭 첫 화면 — '출고' 칸 아래 작은 글(그 칸 small 꼴 · 말줄임 대신 두 줄, 공장은 칩). */
 body.erp-mobile-v2-layout .foms-cons-row__c small.foms-load-split,
 .foms-cons-row__c small.foms-load-split {
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
   word-break: keep-all;
-  color: var(--foms-load2-700);
   font-weight: 700;
 }

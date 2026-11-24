@@ -139,7 +139,9 @@ def test_phone_cards_swap_trigger_only_for_mixed_and_load_assets_once(client, mo
     assert html.count("data-foms-pf-trigger") == 1 and html.count("foms-packing-factory.js?v=") == 1
     assert html.count("foms-packing-factory-view.js?v=") == 1 and html.count("foms-packing-factory.css?v=") == 1
     card = html.split(f'data-order-id="{mixed}">', 1)[1].split("</button>", 1)[0]
-    assert "<span data-pf-label>패킹 1공장 1/4 · 2공장 0/3</span>" in card
+    # 공장 이름은 공장 칩(사장님 2026-11-24 식별성 — 거르개 factory_chips · JS facText 가 같은 꼴), 글은 그대로
+    assert ('<span data-pf-label>패킹 <em class="foms-fac foms-fac--1">1공장</em> 1/4 · '
+            '<em class="foms-fac foms-fac--2">2공장</em> 0/3</span>') in card
     plain_btn = html.split(f'data-order-id="{plain}">', 1)[0].rsplit("<button", 1)[1]
     assert "data-foms-packing-trigger" in plain_btn and "data-foms-pf-trigger" not in plain_btn
 
@@ -252,7 +254,8 @@ def test_css_contracts():
     for m in re.finditer(r"font-size:\s*([^;]+);", css):
         assert re.fullmatch(r"calc\(\d+px \* var\(--foms-fs, 1\)\)", m.group(1).strip()), m.group(1)
     assert ".foms-packing-sheet.is-pf .offcanvas-body > :not(.foms-pf)" in css
-    assert "#0f6b63" in css and "#0d9488" in css
+    # 공장 색은 공장 칩 한 곳(@import components/foms-factory-chip.css) — 옛 2공장 청록 값을 따로 두지 않는다
+    assert css.lstrip().startswith('@import url("foms-factory-chip.css?v=') and "#0f6b63" not in css and "#0d9488" not in css
     assert re.search(r"\.foms-pf__main \{[^}]*min-height: 44px", css)
     assert re.search(r"\.foms-pf__acts \.foms-packing-depart \{[^}]*min-height: 48px", css)
 

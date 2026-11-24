@@ -68,7 +68,7 @@
     var nm = main.appendChild(el('p', 'fpc-sheet__nm'));
     nm.appendChild(el('b', '', r.label));
     nm.appendChild(el('span', '', r.item));
-    if (r.factory_label) { nm.appendChild(el('em', 'fph-fac' + (r.factory === 2 ? ' fph-fac--2' : ''), r.factory_label)); } // 섞인 주문(2공장)
+    if (r.factory_label) { nm.appendChild(el('em', 'foms-fac foms-fac--' + (r.factory === 2 ? 2 : 1), r.factory_label)); } // 섞인 주문 — 공장 칩(foms-factory-chip.css)
     var meta = [r.holder, r.done].filter(Boolean);
     var m = meta.length ? main.appendChild(el('p', 'fpc-sheet__meta')) : null;
     meta.forEach(function (t) { m.appendChild(el('span', '', t)); });

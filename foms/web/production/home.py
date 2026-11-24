@@ -184,9 +184,9 @@ def _factory_scene(user, rows: list, pc_view: bool) -> dict:
     group = None if pc_view else home_factory(user)
     viewer = group or user_factory(user)
     if not scene_on((r.get('structured_data') or {} for r in rows), viewer):
-        return {'group': None, 'label': None}
+        return {'group': None, 'label': None, 'on': False}
     attach_factory_rows(rows, viewer=viewer, group=group)
-    return {'group': group, 'label': factory_label(group) if group else None}
+    return {'group': group, 'label': factory_label(group) if group else None, 'on': True}
 
 
 def _screen_marks(db, tab: str, pane, rows: list, pc_view: bool, today):
@@ -346,6 +346,7 @@ def erp_production_home():
         **flags,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
         factory_now=scene['label'],
+        factory_scene=scene['on'],  # 공장 칩 CSS 를 실을지(home_styles.html)
     ))
     apply_ept_b7_render_headers(response, route_id='erp_production_home', render_ms=(time.perf_counter() - _t0) * 1000)
     apply_erp_shell_fragment_headers(response, request, etag_ignore=_ETAG_VOLATILE)

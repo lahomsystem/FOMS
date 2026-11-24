@@ -1536,11 +1536,11 @@
 
           <div class="fw-semibold mb-2"><i class="fas fa-file-lines text-primary"></i> 현재 버전</div>
           {%- if sheet_factory %}
-          <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/sheet-factory.css') }}?v=20261124a">
+          <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/sheet-factory.css') }}?v=20261124b">
           {%- endif %}
           {% if drawing_files %}
           <div class="small text-muted mb-1">최신 전달본(번호순)
-          {%- if sheet_factory %}<span class="dsf-split" data-dsf-split{% if not sheet_factory.split_text %} hidden{% endif %}> · {{ sheet_factory.split_text }}</span>{% endif %}</div>
+          {%- if sheet_factory %}<span class="dsf-split" data-dsf-split{% if not sheet_factory.split_text %} hidden{% endif %}> · {{ sheet_factory.split_text | factory_chips }}</span>{% endif %}</div>
           {{ render_gateway_file_gallery(drawing_files, 'current_' ~ order.id, sheet_factory) }}
           {% else %}
           <div class="small text-muted mb-2">등록된 도면이 없습니다.</div>
@@ -1813,7 +1813,7 @@
               onclick="toggleAllPendingCards()">전체 해제</button>
           </div>
           {%- if sheet_factory %}
-          <div class="dsf-send" data-dsf-send{% if not sheet_factory_send %} hidden{% endif %}>{{ sheet_factory_send }}</div>
+          <div class="dsf-send" data-dsf-send{% if not sheet_factory_send %} hidden{% endif %}>{{ sheet_factory_send | factory_chips }}</div>
           {%- endif %}
           <div class="row g-2" id="dw-transfer-pending-cards">
             {% for p in drawing_pending %}
@@ -3318,7 +3318,7 @@
 <script src="{{ url_for('static', filename='js/drawing/workbench-as.js') }}?v=20261112b" defer></script>
 {%- if sheet_factory and sheet_factory.can_set %}
 <script src="{{ url_for('static', filename='js/drawing/sheet-factory.js') }}?v=20261124a" defer></script>
-<script src="{{ url_for('static', filename='js/drawing/workbench-sheet-factory.js') }}?v=20261124a" defer></script>
+<script src="{{ url_for('static', filename='js/drawing/workbench-sheet-factory.js') }}?v=20261124b" defer></script>
 {%- endif %}
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20261012a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260930b" defer></script>

@@ -17,6 +17,14 @@
     return n;
   }
   function attr(n, name, value) { n.setAttribute(name, value == null ? '' : String(value)); return n; }
+  // 글 안의 "1공장" · "2공장"을 공장 칩으로(서버 거르개 factory_chips 와 같은 꼴 — foms-factory-chip.css, 사장님 2026-11-24 식별성)
+  function facText(n, text) {
+    n.textContent = '';
+    String(text).split(/([12]공장)/).forEach(function (part, i) {
+      if (part) n.appendChild(i % 2 ? el('em', 'foms-fac foms-fac--' + part.charAt(0), part) : document.createTextNode(part));
+    });
+    return n;
+  }
 
   // ISO → "2026. 11. 24. 오전 09:40"(옛 모듈 출발 보고 글과 같은 꼴) · hm → "09:10"
   function when(iso) {
@@ -71,7 +79,7 @@
   function group(g, items) {
     var sec = attr(el('section', 'foms-pf__g foms-pf__g--' + g.factory), 'aria-label', g.label);
     var head = el('h6', 'foms-pf__gh');
-    head.appendChild(el('b', null, g.label));
+    head.appendChild(el('b', 'foms-fac foms-fac--' + g.factory, g.label));
     head.appendChild(el('span', 'foms-pf__n', g.checked + '/' + g.total));
     sec.appendChild(head);
     if (!g.can_check) sec.appendChild(el('p', 'foms-pf__note', g.label + ' 줄은 ' + g.label + '에서 체크해요.'));
@@ -117,10 +125,10 @@
       if (g.loaded) {
         b.disabled = true;
         b.classList.add('foms-packing-depart--done');
-        b.textContent = g.label + ' 상차 완료 ' + hm(g.loaded.at) + (g.loaded.by_name ? ' ' + g.loaded.by_name : '');
+        facText(b, g.label + ' 상차 완료 ' + hm(g.loaded.at) + (g.loaded.by_name ? ' ' + g.loaded.by_name : ''));
       } else {
         b.disabled = !g.can_check || g.checked < g.total;
-        b.textContent = g.label + ' 상차 완료';
+        facText(b, g.label + ' 상차 완료');
       }
       bar.appendChild(b);
     });
@@ -128,6 +136,6 @@
   }
 
   window.FomsPackingFactoryView = {
-    ISSUE: ISSUE, el: el, attr: attr, when: when, hm: hm, group: group, addForm: addForm, actions: actions
+    ISSUE: ISSUE, el: el, attr: attr, facText: facText, when: when, hm: hm, group: group, addForm: addForm, actions: actions
   };
 })();
