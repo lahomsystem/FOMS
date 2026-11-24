@@ -56,6 +56,8 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 {%- endmacro %}
 
 {# 줄 한 개 = 여섯 칸(시공일 · 상태 · 손님/품목 · 공정 넷 · 발주/담당 · 도면). 공정 칸: 마우스 글 = '재단 끝 · 김재단 · 11/20 14:05',
+   섞인 주문(2공장, 2026-11-23 §8-4)의 도면 칸 = 공장마다 한 줄 "1공장 3장" / "2공장 2장 완료"(칸 폭 5rem 이라 두 줄 — factory_home.drawing_cell,
+   2공장 장이 없으면 지금 글).
    아주 넓은 화면(줄 칸 1,500px 이상)은 칸 안에 '김재단 11/20' 을 글로(pc.css 컨테이너 쿼리). #}
 {% macro pc_row(r, job=False) %}
 <div class="fpc-r{{ _row_class(r) }}" data-foms-home-dayrow="{{ r.id }}"{% if job %} {{ _job_attrs(r) }}{% endif %}>
@@ -64,7 +66,7 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
   {{ _who(r) }}
   {{ pc_steps(r) }}
   {{ _by(r) }}
-  <span class="fpc-dw">{{ r.drawing_label }}</span>
+  <span class="fpc-dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
 </div>
 {% endmacro %}
 

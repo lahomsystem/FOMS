@@ -3,8 +3,10 @@
    · 고른 줄('내 공정' 탭 오른쪽 판만, 11-21). 화면 탭 · 날 단추 · 파트 고르기 · 판 줄 · [다시 받기] 가 모두 이것을 쓰고, JS 는 링크의 href 를 그대로 쓴다(주소를 다시 짓지 않는다). #}
 {# part 는 '도면 카드' 화면과 날짜 · 바뀐 것 · 찾기 탭에만 싣는다 — 날짜 · 바뀐 것 · 찾기는 여러 파트 계정이 고른 파트(part_board.url_part ·
    nav_part, 2026-11-23 §4-12)뿐이고 파트 하나인 계정 · 판 없는 사람은 None 을 넘겨 주소가 지금 그대로다. #}
-{% macro home_href(tab=None, part=None, day=None, done=None, order=None) -%}
-{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab and tab != 'date' else None), part=(part if tab in (None, 'date', 'parts', 'changes', 'all') else None), day=(day if tab in (None, 'date', 'parts') else None), done=(done if tab == 'changes' else None), order=(order if tab == 'steps' else None)) }}
+{# factory = 관리자가 도면 판 머리에서 고른 공장(2공장 그림이 켜졌을 때만 part_board.url_factory, 2026-11-23 §19 열한째) — 날짜 · 도면 카드 탭만.
+   그 밖에는 None 이라 주소가 지금 그대로다. #}
+{% macro home_href(tab=None, part=None, day=None, done=None, order=None, factory=None) -%}
+{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab and tab != 'date' else None), part=(part if tab in (None, 'date', 'parts', 'changes', 'all') else None), day=(day if tab in (None, 'date', 'parts') else None), done=(done if tab == 'changes' else None), order=(order if tab == 'steps' else None), factory=(factory if tab in (None, 'date', 'parts') else None)) }}
 {%- endmacro %}
 {# 시공일 표 — 줄 · 칸 · 카드 · 판 어디서나 같은 꼴로 늘 보인다(사용자 11-21 "시공일 표기 필요. 아주 중요한 정보야").
    r = 첫 화면 행(또는 같은 열쇠를 가진 카드 · 받은함 장): day_label('오늘 11/21 (금)' · '내일 11/22 (토)' · '11/23 (일)' · '시공일 없음'),
@@ -21,10 +23,13 @@
 {% macro fph_hd(h) -%}
 <span class="visually-hidden">, {{ h.aria }}</span>{% if h.name %}<small class="fph-dr__hd{% if h.kind == 'done' %} is-done{% elif h.kind == 'none' %} is-none{% elif h.old %} is-old{% endif %}" aria-hidden="true"><b>{{ h.name }}</b>{% if h.tail %}<span>{{ h.tail }}</span>{% endif %}</small>{% endif %}
 {%- endmacro %}
+{# 2공장(설계서 2026-11-23 §4-13 · §4-14 · §8-2, 행 칸 = foms/services/production/factory_home.py — 2공장 그림이 꺼지면 칸이 없어 지금 그대로):
+   남의 공장 장만 있는 줄 is-elsewhere(점선 테두리), 단계 글 fac_stage("2공장 제작 완료만 남음"), 섞인 주문 도면 칸 두 줄
+   ("1공장 3장" / "2공장 2장 완료" — 보는 사람 공장 줄이 위 · 굵게). #}
 {% macro fph_row(r) %}
-<a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}"
+<a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' or r.fac_stage else 'p') }}{% if r.fac_elsewhere %} is-elsewhere{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}"
    href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
-  <span class="fph-dr__sg">{{ r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% endif %}{% if r.part_miss %}<small class="is-miss">{{ r.part_miss }}</small>{% endif %}</span>
+  <span class="fph-dr__sg">{{ r.fac_stage or r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% endif %}{% if r.part_miss %}<small class="is-miss">{{ r.part_miss }}</small>{% endif %}</span>
   <span class="fph-dr__who">
     <span class="fph-dr__ln"><span class="fph-dr__nm"><b>{{ r.customer_name }}</b> <small>#{{ r.id }}</small>{{ fph_due(r) }}</span>{% if r.by_parts %}<span class="fph-dr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</span>
     <span class="fph-dr__pr">{% if r.has_changes %}<em>{{ r.change_line }}</em> · {% endif %}{{ r.v3_product_label or '품목 없음' }}{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
@@ -32,7 +37,7 @@
   <span class="fph-dr__steps{% if r.part_holders %} has-hd{% endif %}" aria-label="공정">
     {% for s in r.home_steps %}{% set h = r.part_holders[loop.index0] if r.part_holders else none %}<span class="fph-dr__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"{% if h %} title="{{ h.aria }}"{% endif %}><i></i>{{ h.label if h else s.label }}{% if h %}{{ fph_hd(h) }}{% endif %}</span>{% endfor %}
   </span>
-  <span class="fph-dr__dw">{{ r.drawing_label }}</span>
+  <span class="fph-dr__dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
 </a>
 {% endmacro %}
 {# 작은 칸(제작 완료 · 파트 '도면 없음') — 시공일이 맨 앞이라 칸이 좁아도 안 잘린다. tail = 번호 뒤 글(없으면 품목 · 단계). #}

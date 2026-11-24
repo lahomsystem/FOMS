@@ -172,7 +172,7 @@
     openWhy = null;
   }
   function showWhy(btn) {
-    var card = btn.closest('[data-pp-card]');
+    var card = btn.closest('[data-pp-card], [data-pp-elsewhere]'); // 남의 공장 카드(2공장)도 같은 말풍선
     var bubble = card && card.querySelector('.pp-why');
     if (!bubble) { return; }
     if (openWhy === bubble) { hideWhy(); return; }

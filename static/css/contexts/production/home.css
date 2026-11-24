@@ -36,6 +36,12 @@
   --fph-holder-done: var(--fph-brand-dark);
   --fph-holder-none: var(--fph-text3);
   --fph-step-w: calc(76px * var(--foms-fs, 1));
+  /* 2공장(설계서 2026-11-23 §8-9 · §10 새 토큰) — 청록. 1공장은 칩 · 바탕 토큰이 없다(지금 모습 = 1공장). 남의 공장 줄 · 카드는 바탕 없이
+     점선 테두리(--fph-fac2-line, 판 바탕과 3.28:1 — 민트 '완료'와 안 섞임). parts.css · pc.css 도 이 값을 쓴다. */
+  --fph-fac2-50: #cdf3ec;
+  --fph-fac2-300: #7fd6c6;
+  --fph-fac2-700: #0f6b63;
+  --fph-fac2-line: #0d9488;
   background: var(--fph-bg);
   color: var(--fph-text);
   min-height: 60vh;
@@ -498,6 +504,20 @@
 .fph-dr__st.is-done i { background: var(--fph-brand); border-color: var(--fph-brand); }
 .fph-dr__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
 .fph-dr__dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+/* 2공장(설계서 2026-11-23 §4-13 · §4-14 · §8-2) — 섞인 주문 도면 칸 두 줄("1공장 3장" / "2공장 2장 완료"): 보는 사람 공장 줄이 위 · 굵게,
+   칸 폭(92px × 배율)이 모자라면 줄 안에서 "완료"만 다음 줄로. 칸을 숨기는 폰 규칙(.fph-dr__dw display:none)은 그대로 이긴다(칸 꼴 안 바꿈). */
+.fph-dr__dw.is-split { white-space: normal; line-height: 1.2; }
+.fph-dr__dw.is-split .fph-fac { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); word-break: keep-all; }
+.fph-dr__dw.is-split .fph-fac + .fph-fac { margin-top: 3px; }
+.fph-dr__dw.is-split .fph-fac.is-me { font-weight: 800; color: var(--fph-text); }
+.fph-dr__dw .is-ok { font-weight: 800; color: var(--fph-ok); }
+/* 남의 공장 장만 있는 줄(한 공장 계정) — 만들 것 묶음 끝 작은 머리 아래, 바탕 그대로 · 청록 점선 테두리. '바뀜' 빨강이 이긴다(§10 F17) */
+.fph-dr.is-elsewhere { border: 2px dashed var(--fph-fac2-line); }
+.fph-dr.is-elsewhere .fph-dr__sg { color: var(--fph-fac2-700); }
+.fph-dr.is-elsewhere.is-chg { border-style: solid; border-color: var(--fph-danger); }
+.fph-pane__g.is-elsewhere { margin-top: 10px; padding-top: 10px; border-top: 2px dashed var(--fph-fac2-line); color: var(--fph-fac2-700); }
+/* 위 줄 공장 이름(한 공장 계정, 2공장 그림이 켜졌을 때만) — "2공장 · 11월 24일 (화) · 전체 39건" */
+.foms-prod-home__date .fph-fac-now { font-weight: 800; color: var(--fph-fac2-700); }
 /* 공정 칸 아래 이름(설계서 2026-11-23 §4-10 · §10) — 하는 중이면 담당, 완료면 완료한 사람, 없으면 "미정". 줄에 이름이 있을 때만
    공정 묶음이 .has-hd 를 단다(지금 줄은 그대로). 칸 폭 76px × 글자 배율, 글 15px × 배율(80% 에서 보이는 12px), 한 줄 · 줄바꿈 없음.
    이름(b)만 말줄임, 꼬리(span — ' 외 n' · ' 바뀜')는 안 줄인다. 좁은 폭(폰 · 세로 · 두 줄 꼴 · 한 줄 꼴 문턱 아래)은 아래 덩이에서 숨긴다. */
