@@ -289,9 +289,9 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "", "-sync")]
     assert order == sorted(order)
     # P2(2026-11-23 §4-12)가 modal(대신 한 줄)을 다시 올렸다 — parts · claim 은 P1 핀 그대로
-    assert len(re.findall(r"foms-production-parts\.js'\) \}\}\?v=20261123v\" defer", tpl)) == 1
+    assert len(re.findall(r"foms-production-parts\.js'\) \}\}\?v=20261124g\" defer", tpl)) == 1  # 3단계 공장 제작 완료 물음
     assert len(re.findall(r"foms-production-parts-claim\.js'\) \}\}\?v=20261124f\" defer", tpl)) == 1  # 3단계 남의 공장 카드 말풍선
-    assert len(re.findall(r"foms-production-parts-modal\.js'\) \}\}\?v=20261124a\" defer", tpl)) == 1
+    assert len(re.findall(r"foms-production-parts-modal\.js'\) \}\}\?v=20261124g\" defer", tpl)) == 1
 
 
 def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> None:

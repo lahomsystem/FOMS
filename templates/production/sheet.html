@@ -101,7 +101,7 @@
             {% if can_act %}</button>{% else %}</div>{% endif %}
             {% endfor %}
           </div>
-          {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
+          {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}{% if order.factory_sheet %}<p class="foms-prod-page__steps-note" data-foms-sheet-facline>{{ order.factory_sheet.line }}</p>{% endif %}
           {% if can_act %}<p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>{% endif %}
           {% if order.uses_cards %}<button type="button" class="fpp-loglink" data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>
           <ul class="fpp-log" id="foms-sheet-log" data-foms-sheet-log aria-live="polite" hidden></ul>{% endif %}
@@ -194,9 +194,11 @@
                2026-11-22: 진짜 disabled 를 빼고 aria-disabled 만 — 눌러도 아무 일이 없던 것을, 누르면 남은 공정을 글로 알린다
                (요청 없음, foms-production-sheet-page.js). 공정 칸 잠금(파트 계정)도 같다. #}
             {% set _inspected = order.complete_ready %}
-            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} aria-disabled="true"{% endif %}{% if order.complete_why %} data-foms-sheet-complete-why="{{ order.complete_why }}"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>
+            {%- set _fs = order.factory_sheet %}{# 2공장(설계서 2026-11-23 §4-14): 섞인 주문은 공장 단추 — 안 끝난 공장이 내 공장 하나뿐이면 지금 [제작 완료](마지막) #}
+            {%- if _fs %}{% for b in _fs.buttons %}<button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--ghost' if not b.done else ('foms-prod-page__btn--pri' if b.ready else 'foms-prod-page__btn--off') }}" data-foms-sheet-factory="{{ b.factory }}" data-done="{{ '1' if b.done else '0' }}" data-order-id="{{ order.id }}"{% if not b.ready %} aria-disabled="true" data-foms-sheet-factory-why="{{ b.why }}"{% endif %}><b>{{ b.label }}</b></button>{% endfor %}{% endif %}
+            {% if not _fs or _fs.show_complete %}<button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} aria-disabled="true"{% endif %}{% if order.complete_why %} data-foms-sheet-complete-why="{{ order.complete_why }}"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>{% endif %}
           {% elif order.stage == '제작완료' %}
-            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>{% if order.factory_sheet %}{% for b in order.factory_sheet.reopen %}<button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-foms-sheet-reopen="{{ b.factory }}" data-order-id="{{ order.id }}">{{ b.label }}</button>{% endfor %}{% endif %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
           {% endif %}
         </div>
@@ -220,7 +222,8 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261124p" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer></script>{% if pc_view and order.final_sheet_count %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer></script>{% if can_act and order.factory_sheet %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261124g" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261124f" defer></script>{% if edit_on %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261124r" defer></script>{% endif %}{% endif %}{% if edit_toggle %}
 <script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}
