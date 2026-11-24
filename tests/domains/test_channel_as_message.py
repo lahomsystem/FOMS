@@ -259,3 +259,15 @@ def test_build_as_push_text_uses_latest_reception_in_same_cycle() -> None:
     import unittest.mock as mock
     with mock.patch.object(as_log, "current_as_cycle_id", return_value=cycle):
         assert as_log.current_reception_entry(sd)["id"] == "b"
+
+
+def test_build_as_push_text_marks_paid_billing_only() -> None:
+    """유상 판정이면 내용 앞에 비용 줄(금액 있으면 함께), 무상·미정은 줄 생략."""
+    def sd(billing):
+        return {"shipment": {"as_content": "문짝 처짐", "as_billing": billing}}
+
+    paid = build_as_push_text(_order(sd({"type": "paid", "amount": 50000, "confirmed": True})))
+    assert "비용 : 유상 (50,000원)\n내용 : 문짝 처짐" in paid
+    assert "비용 : 유상\n" in build_as_push_text(_order(sd({"type": "paid", "amount": None})))
+    assert "비용" not in build_as_push_text(_order(sd({"type": "free"})))
+    assert "비용" not in build_as_push_text(_order(sd({"type": "undecided"})))
