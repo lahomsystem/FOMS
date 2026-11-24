@@ -46,6 +46,9 @@ from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.drawing_confirm_partial_view import build_confirm_result_view, build_ok_scope
 from foms.services.orders.drawing_key_safety import is_own_order_key
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage, sends_only_other_sheets
+from foms.services.orders.drawing_factory_view import pending_split_text, workbench_factory_view
+from foms.services.orders.erp_policy_permissions import can_set_sheet_factory
+from foms.services.orders.state_axes import read_main_stage
 from foms.services.partners.schedule_request import pending_request, request_text
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
 from foms.services.files.list_thumb import list_thumb_url
@@ -1497,6 +1500,10 @@ def erp_drawing_workbench_detail(order_id):
     # 도면 칸에 따로 올라온 파일(사본) — 도면팀이 여기서 지운다(주문 5690). 도면팀은 ERP 주문
     # 화면을 못 연다(can_edit_erp). PC 상세만 그린다.
     stray_drawing_files = build_stray_drawing_files(db, order, s_data, current_user)
+    # 장의 공장(설계서 2026-11-23 §8-5) — 2공장 장이 없고 고를 수도 없으면 None(현재 버전 · 보낼 시트 칸 그대로). 조회 0.
+    sheet_factory = workbench_factory_view(
+        s_data, order_id=order.id, can_set=bool(current_user and can_set_sheet_factory(current_user)),
+        stage=read_main_stage(order))
 
     ctx = dict(
         order=order,
@@ -1554,6 +1561,8 @@ def erp_drawing_workbench_detail(order_id):
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,
         stray_drawing_files=stray_drawing_files,
+        sheet_factory=sheet_factory,
+        sheet_factory_send=pending_split_text(drawing_pending, sheet_factory['by_sheet']) if sheet_factory else '',
         # 완료 주문 AS 도면 카드·맨 위 단추(설계서 2026-11-11-as-drawing-after-completion §6.1) — 조회 0.
         as_drawing=as_drawing_detail,
         # 생산·시공 단계 = 보내면 영업 확인 없이 바로 최종(전달 창 안내·기본 교체).
