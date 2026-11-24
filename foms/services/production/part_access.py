@@ -9,6 +9,8 @@
 * 대신(반장, 2026-11-23 §4-12 B7 · '승인 때 고친 것' 5) = 생산 쓰기 사람(:func:`~foms.services.production.write_access.can_write_production`
   — 생산팀 STAFF · MANAGER)이고 관리자가 반장으로 체크한 계정(``users.production_lead``) → 관리자와 같은 카드 권한(네 파트 · 남의 장
   대신 완료 · 완료 취소 · 맡기 취소) + 공정 칸 손 체크(잠그지 않음). 반장이 파트를 가져도 반장이 이긴다(네 파트). 자기 공장 장만은 3단계(C9).
+* 공장(설계서 2026-11-23 §4-13 · §5 · C9, 3단계) = 파트 계정 · 반장은 자기 계정 공장 장만, 관리자는 두 공장
+  (:func:`writable_factories` · :func:`can_write_sheet`). 읽기 전용은 두 공장을 보기만 한다.
 * 읽기 전용 = 생산 첫 화면을 볼 수 있지만 위 셋이 아닌 사람(CS · 영업 · 도면 · 다른 팀 매니저 · **파트도 반장도 아닌 생산팀** 등) —
   카드는 보고 쓰지 않는다. 파트도 반장도 아닌 생산팀은 공정 칸도 잠긴다(:func:`steps_lock`). [제작 시작] · [제작 완료] · 보류 · 불량 같은
   그 밖 생산 쓰기는 지금 그대로(:func:`~foms.services.production.write_access.can_write_production`).
@@ -19,6 +21,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from foms.services.production.factory_constants import (
+    DEFAULT_FACTORY,
+    FACTORIES,
+    account_production_factory,
+    stored_production_factory,
+)
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS, account_production_lead, account_production_parts
 from foms.services.production.write_access import can_write_production
@@ -190,3 +198,45 @@ def steps_locked_for(user: Any) -> bool:
         파트 계정(반장 · 관리자 아님) · 파트도 반장도 아닌 생산팀이면 True.
     """
     return steps_lock(user) is not None
+
+
+def user_factory(user: Any) -> int:
+    """보는 사람의 처음 공장 — 계정 공장(비면 1공장). 관리자 판 머리 공장 고르기의 처음 값도 이것(§4-13 · §19 열한째).
+
+    Args:
+        user: 사용자 객체(None 허용). 이미 읽은 행의 칸만 본다 — 쿼리 0.
+
+    Returns:
+        1 · 2.
+    """
+    return stored_production_factory(user)
+
+
+def writable_factories(user: Any) -> tuple[int, ...]:
+    """이 사람이 카드 · 공정을 쓸 수 있는 공장들(§5 권한 표 · C9).
+
+    Args:
+        user: 사용자 객체(None 허용).
+
+    Returns:
+        관리자 = 두 공장, 파트 계정 · 반장 = 자기 계정 공장 하나(비면 1공장), 그 밖 = 빈 tuple(보기만).
+    """
+    mode = part_view_mode(user)
+    if mode == VIEW_ADMIN:
+        return FACTORIES
+    if mode in (VIEW_PART, VIEW_SUB):
+        return (account_production_factory(user) or DEFAULT_FACTORY,)
+    return ()
+
+
+def can_write_sheet(user: Any, factory: Any) -> bool:
+    """이 사람이 그 공장 장을 쓸 수 있는지(남의 공장 장은 보기만 — C6). 공장이 비면 1공장으로 본다.
+
+    Args:
+        user: 사용자 객체(None 허용).
+        factory: 장의 공장(1 · 2 · None).
+
+    Returns:
+        :func:`writable_factories` 안이면 True.
+    """
+    return (factory if factory in FACTORIES else DEFAULT_FACTORY) in writable_factories(user)
