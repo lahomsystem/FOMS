@@ -74,9 +74,15 @@ def test_zero_drawings_falls_back_to_the_step_even_with_cards():
     assert part_done(_sd(0), marks, "cut") is False and part_done(_sd(0, on=("cut",)), marks, "cut") is True
 
 
-def test_factory_argument_is_reserved_for_the_second_factory_phase():
-    with pytest.raises(NotImplementedError):
-        part_progress(_sd(), [], "cut", factory=2)
+def test_factory_argument_counts_only_that_factorys_sheets():
+    # 3단계(§4-14): k4 · k5 = 2공장. 1공장 재단 3장 완료면 1공장은 완료, 2공장은 2장 미완료 — 주문 전체는 미완료(대조군).
+    sd = dict(_sd(), drawing_factory={"files": {"k4": 2, "k5": 2}})
+    marks = [_m(k, "cut", "DONE") for k in ("k1", "k2", "k3")]
+    assert part_done(sd, marks, "cut", factory=1) is True
+    assert part_progress(sd, marks, "cut", factory=2)["left_keys"] == ["k4", "k5"]
+    assert part_done(sd, marks, "cut") is False
+    # 카드를 안 쓴 파트는 주문 칸 체크가 두 공장 모두에 통한다
+    assert part_done(dict(sd, production=_sd(on=("edge",))["production"]), marks, "edge", factory=2) is True
 
 
 # --------------------------------------------------------------------------- #

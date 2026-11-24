@@ -26,6 +26,9 @@ from foms.services.feature_flags import (
     wants_wide_only_surfaces,
     wants_wide_viewport_surfaces,
 )
+from foms.services.production.factory_constants import factory_label
+from foms.services.production.factory_home import attach_factory_rows, attach_factory_stage
+from foms.services.production.factory_scope import home_factory, scene_on
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.home_step_panel import attach_step_panels, parse_step_order, step_panel_for
 from foms.services.production.part_access import (
@@ -35,6 +38,7 @@ from foms.services.production.part_access import (
     VIEW_SUB,
     part_account_parts,
     part_view_mode,
+    user_factory,
 )
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT, production_parts_label
@@ -112,7 +116,8 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
     # 30초 받아 오기(P15-7)의 첫 since = 그리는 서버 시각(기기 시계 아님). 표시 줄을 읽기 **전**에 잡는다.
     since = part_sync_cursor()
     if days is not None and surface and ((tab == 'date' and mode == VIEW_PART) or tab == 'parts'):
-        board = build_part_board(db, user, days, part=request.args.get('part'), marks=marks, today=today)
+        board = build_part_board(db, user, days, part=request.args.get('part'), marks=marks, today=today,
+                                 factory=request.args.get('factory'))
     name = getattr(user, 'name', None) or getattr(user, 'username', '') or ''
     config = None
     chip = None
@@ -168,6 +173,20 @@ def full_rows_of(days) -> list:
     if days.get('all_rows') is not None:
         return days['all_rows']
     return [row for pane in days.get('panes') or [] for row in pane.get('make_rows') or []]
+
+
+def _factory_scene(user, rows: list, pc_view: bool) -> dict:
+    """2공장 그림(설계서 2026-11-23 §4-13 · §4-14 · §8-2) — 켜지면 행에 공장 칸을 달고 묶을 공장 · 위 줄 공장 글을 돌려준다.
+
+    한 공장 계정(파트 계정 · 반장)의 태블릿 · 폰만 날짜 줄을 공장으로 묶는다(남의 공장 줄 · 내 공장 완료). 관리자 · 보기만 하는
+    직원 · PC(감독용)는 두 공장을 합쳐 본다. 2공장 장이 하나도 없고 보는 공장이 1공장이면 아무것도 안 단다(지금 화면 그대로).
+    """
+    group = None if pc_view else home_factory(user)
+    viewer = group or user_factory(user)
+    if not scene_on((r.get('structured_data') or {} for r in rows), viewer):
+        return {'group': None, 'label': None}
+    attach_factory_rows(rows, viewer=viewer, group=group)
+    return {'group': group, 'label': factory_label(group) if group else None}
 
 
 def _screen_marks(db, tab: str, pane, rows: list, pc_view: bool, today):
@@ -272,6 +291,7 @@ def erp_production_home():
         attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
     if request.args.get('view') == PANEL_VIEW:
         return _step_panel_response(tab, surface, rows, flags)  # '내 공정' 판 하나(누른 줄) — 행 읽기 뒤 쿼리 0
+    scene = _factory_scene(user, rows, flags['pc_view'])  # 2공장 칸(켜졌을 때만) — 날짜 묶기 전에 단다
     past_hidden = stats['past_hidden']
     # 띠 숫자는 모든 날을 같은 행에서 센다(쿼리 없음). 그리는 장은 고른 날 하나뿐 — 나머지 날은 누를 때 조각으로(11-14).
     # 주소 order= (옛 focus_order=)는 그 주문의 날 장을 고르고 줄에 테두리를 친다(바로가기 · 알림 · 검색, §9-10).
@@ -280,6 +300,8 @@ def erp_production_home():
             if tab in ('date', 'parts') else None)
     pane = selected_day_pane(days) if days is not None else None
     marks = _screen_marks(db, tab, pane, rows, flags['pc_view'], today)
+    if scene['group'] is not None and marks is not None:  # "2공장 제작 완료만 남음"(§4-4) — 읽은 표시 줄로, 쿼리 0
+        attach_factory_stage(pane.get('make_rows') or [], marks, scene['group'])
     screen = _part_screen(db, user, tab, mode, surface,
                           {'panes': [pane], 'all_rows': rows} if pane is not None else None,
                           marks=marks, today=today, full=not day_view)
@@ -323,6 +345,7 @@ def erp_production_home():
         **_step_panel_screen(tab, surface, queues),
         **flags,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
+        factory_now=scene['label'],
     ))
     apply_ept_b7_render_headers(response, route_id='erp_production_home', render_ms=(time.perf_counter() - _t0) * 1000)
     apply_erp_shell_fragment_headers(response, request, etag_ignore=_ETAG_VOLATILE)

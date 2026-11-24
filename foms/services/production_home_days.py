@@ -25,7 +25,7 @@ _BAR_ORDER = ('f', 'p', 'w', 'x')  # 막대 색 순서: 제작 완료 · 만드�
 
 def _row_bar_kind(row: dict[str, Any]) -> str:
     view = row.get('home_view')
-    if view == 'done' or row.get('home_stage') == '검수 끝':
+    if view == 'done' or row.get('home_stage') == '검수 끝' or row.get('fac_done'):  # 내 공장 완료(2공장, §4-14)도 완료 색
         return 'f'
     if view == 'prod':
         return 'w' if row.get('home_stage') == '제작 대기' else 'p'
@@ -57,12 +57,15 @@ def _home_bucket(key: str, label: str, sub: str, title: str, rows: list[dict[str
             width = round(100 * counts[kind] / total, 2)
             segs.append({'k': kind, 'x': round(x, 2), 'w': width})
             x += width
-    make_rows = sorted((r for r in rows if r.get('home_view') == 'prod'), key=_make_sort_key)
+    # 2공장(설계서 2026-11-23 §4-13 · §4-14, factory_home 이 단 칸 — 2공장 그림이 꺼지면 칸이 없어 지금 그대로): 내 공장 완료가
+    # 살아 있는 섞인 주문은 '제작 완료' 묶음으로, 남의 공장 장만 있는 줄은 만들 것 묶음 끝 작은 머리 아래(elsewhere_rows)로.
+    make_all = sorted((r for r in rows if r.get('home_view') == 'prod' and not r.get('fac_done')), key=_make_sort_key)
+    make_rows = [r for r in make_all if not r.get('fac_elsewhere')]
     bucket = {
         'key': key, 'label': label, 'sub': sub, 'title': title, 'total': total, 'segs': segs,
-        'make': len(make_rows), 'make_rows': make_rows,
+        'make': len(make_all), 'make_rows': make_rows, 'elsewhere_rows': [r for r in make_all if r.get('fac_elsewhere')],
         'wait_rows': [r for r in rows if r.get('home_view') == 'wait'],
-        'done_rows': [r for r in rows if r.get('home_view') == 'done'],
+        'done_rows': [r for r in rows if r.get('home_view') == 'done' or r.get('fac_done')],
         'is_today': False, 'is_weekend': False, 'show_day': False, 'note': '', 'hidden': 0,
         'arrival': arrival_line(rows, today), 'wait_head': None,
     }

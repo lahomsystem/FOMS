@@ -17,6 +17,8 @@ from foms.services.erp_template_filters import eval_spec_width_mm, item_spec_w30
 from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.construction_dates import production_split_note
 from foms.services.orders.drawing_confirm_partial import active_items
+from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
+from foms.services.production.factory_constants import FACTORY_2, factory_label
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import (
     _ensure_dict,
@@ -144,20 +146,27 @@ def _prod_sheet_drawing_thumb(sd: dict[str, Any]) -> dict[str, str] | None:
 
 
 def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
-    """도면 전달본 **전체**(저장 순서 = 도면 번호). 이미지는 kind 'image', 그 밖(PDF 등)은 'file'."""
+    """도면 전달본 **전체**(저장 순서 = 도면 번호). 이미지는 kind 'image', 그 밖(PDF 등)은 'file'.
+
+    섞인 주문(2공장 장이 있는 주문, 설계서 2026-11-23 §8-3)은 2공장 장에 ``fac`` = "2공장"(목록 칩) — 1공장 장 · 한 공장 주문은 칸 없음.
+    """
     out: list[dict[str, str]] = []
+    mixed = has_second_factory(sd)
     for f in resolve_final_drawing_files(sd):
         view = (f.get('view_url') or '').strip()
         if not view:
             continue
         name = f.get('filename') or '도면'
-        out.append({
+        item = {
             'kind': 'image' if name.lower().endswith(_PROD_SHEET_IMG_EXT) else 'file',
             'view': view,  # 큰 그림 · 눌러 크게 보기 = 원본
             'thumb': _small_drawing_url(f, view),  # 작은 줄만
             'download': (f.get('download_url') or view).strip(),
             'label': name,
-        })
+        }
+        if mixed and sheet_factory(sd, f) == FACTORY_2:
+            item['fac'] = factory_label(FACTORY_2)
+        out.append(item)
     return out
 
 
