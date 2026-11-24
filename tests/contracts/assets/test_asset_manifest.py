@@ -227,8 +227,8 @@ def test_pilot_template_source_uses_asset_url_for_every_css_js() -> None:
     calls = _ASSET_URL_CALL.findall(source)
     assert len(calls) == PILOT_ASSET_COUNT, calls
     assert len(set(calls)) == PILOT_ASSET_COUNT, "같은 자산이 두 번 실렸다"
-    assert sum(c.endswith(".css") for c in calls) == 16
-    assert sum(c.endswith(".js") for c in calls) == 33
+    assert sum(c.endswith(".css") for c in calls) == 17
+    assert sum(c.endswith(".js") for c in calls) == 34
     assert not _DATE_PIN_URL_FOR.search(source), "시범 파일에 손 날짜 핀(?v=)이 남았다"
     assert "?v=" not in source
     images = re.findall(r"url_for\('static', filename='(images/[^']+\.png)'\)", source)
