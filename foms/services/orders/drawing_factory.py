@@ -26,9 +26,12 @@ from foms.services.orders.stage_override import STAGE_FORWARD_RANK
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, FACTORY_2, factory_label
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS, PRODUCTION_PART_LABELS
 from foms.services.production.part_mark_rules import subject_particle, toward_particle
+from foms.services.production.part_progress import cards_used
+from foms.services.production.steps import step_done_map
 
-#: 주문 JSON 칸 이름(서버 소유).
+#: 주문 JSON 칸 이름(서버 소유) — 장의 공장 · 공장 완료 표지(``production`` 안, 3단계 ⑥ 이 쓴다).
 DRAWING_FACTORY_KEY = "drawing_factory"
+FACTORY_DONE_KEY = "factory_done"
 #: 이벤트 · 감사 행위 코드.
 SHEET_FACTORY_EVENT = "DRAWING_SHEET_FACTORY_CHANGED"
 SHEET_FACTORY_REFUSED = "DRAWING_SHEET_FACTORY_REFUSED"
@@ -149,16 +152,33 @@ def _part_order(row: Any) -> int:
     return PRODUCTION_PART_KEYS.index(part) if part in PRODUCTION_PART_KEYS else len(PRODUCTION_PART_KEYS)
 
 
-def sheet_work(key: str, marks: Iterable[Any]) -> Optional[dict[str, Any]]:
-    """장(지금 key)에 걸린 일 — 일이 시작된 장(§4-1 C3′)이면 무엇이 걸렸는지, 아니면 None.
+def hand_checked_parts(sd: Any, marks: Iterable[Any]) -> tuple[str, ...]:
+    """공정 칸을 손으로 체크한 파트(§4-2 왼쪽 칸 — 그 파트 카드를 한 장도 안 쓴 채 칸이 켜짐) = 그 주문 모든 장이 그 파트 완료.
+
+    Args:
+        sd: 주문 ``structured_data``(읽기만).
+        marks: 그 주문 표시 줄들.
+
+    Returns:
+        공정 순 파트 key 들(없으면 빈 tuple). 카드를 쓴 파트는 칸이 켜져 있어도 빠진다 — 장마다 표시 줄이 판정한다.
+    """
+    used = cards_used(marks)
+    done = step_done_map(sd)
+    return tuple(part for part in PRODUCTION_PART_KEYS if done.get(part) and part not in used)
+
+
+def sheet_work(key: str, marks: Iterable[Any], *, hand_parts: Iterable[str] = ()) -> Optional[dict[str, Any]]:
+    """장(지금 key)에 걸린 일 — 일이 시작된 장(§4-1 C3′ · 사장님 "아무도 맡거나 완료하지 않은 장만 옮긴다")이면 무엇이, 아니면 None.
 
     Args:
         key: 확정 도면 key.
         marks: 그 주문 표시 줄들(``ProductionPartMark`` 꼴 — ``drawing_key`` · ``part`` · ``state`` · 이름 칸).
+        hand_parts: :func:`hand_checked_parts` — 반장이 공정 칸을 통째 손 체크한 파트(모든 장이 그 공정 완료).
 
     Returns:
         완료(재단 기본 포함)한 파트가 있으면 ``{kind: 'done', part, name}``(공정 순 첫 파트, 이름 = 완료한 사람), 담당만 있으면
-        ``{kind: 'held', part, name}``(이름 = 담당). NONE 줄만 있거나 줄이 없으면 None(일이 시작 안 된 장 — 옮길 수 있다).
+        ``{kind: 'held', part, name}``(이름 = 담당), 표시 줄은 없는데 손 체크한 공정이 있으면 ``{kind: 'hand', part, parts, name: ''}``.
+        NONE 줄만 있거나 줄이 없고 손 체크도 없으면 None(일이 시작 안 된 장 — 옮길 수 있다).
     """
     rows = sorted((m for m in marks if getattr(m, "drawing_key", None) == key and getattr(m, "state", "NONE") != "NONE"),
                   key=_part_order)
@@ -169,6 +189,9 @@ def sheet_work(key: str, marks: Iterable[Any]) -> Optional[dict[str, Any]]:
     if rows:
         row = rows[0]
         return {"kind": "held", "part": row.part, "name": row.picked_by_name or ""}
+    hand = [part for part in PRODUCTION_PART_KEYS if part in set(hand_parts)]
+    if hand:
+        return {"kind": "hand", "part": hand[0], "parts": hand, "name": ""}
     return None
 
 
@@ -192,6 +215,9 @@ def work_block_message(work: dict[str, Any], *, from_factory: int, to_factory: i
         해요체 한 문장 둘("2공장으로 옮길 수 없어요 — …").
     """
     head = f"{toward_particle(factory_label(to_factory))} 옮길 수 없어요 — "
+    if work["kind"] == "hand":  # 반장이 공정 칸을 통째 손 체크 — "재단 · 엣지가 이미 완료로 체크된 주문이에요."
+        labels = " · ".join(PRODUCTION_PART_LABELS.get(p, p) for p in work["parts"])
+        return f"{head}{subject_particle(labels)} 이미 완료로 체크된 주문이에요. 옮기려면 공정 체크부터 해제해 주세요."
     part = PRODUCTION_PART_LABELS.get(work["part"], work["part"])
     name = str(work.get("name") or "").strip()
     if work["kind"] == "done":
@@ -210,7 +236,7 @@ def factory_done_entry(sd: Any, factory: int) -> Optional[dict[str, Any]]:
     제작 완료)이 ``structured_data.production.factory_done`` 에 쓴다 — 이 묶음은 읽기만 한다.
     """
     production = sd.get("production") if isinstance(sd, dict) else None
-    marks = production.get("factory_done") if isinstance(production, dict) else None
+    marks = production.get(FACTORY_DONE_KEY) if isinstance(production, dict) else None
     entry = marks.get(str(factory)) if isinstance(marks, dict) else None
     if not isinstance(entry, dict):
         return None
@@ -265,9 +291,11 @@ def plan_factory_changes(sd: dict[str, Any], items: list[dict[str, Any]], *, sta
                          load_marks: Callable[[], list[Any]]) -> list[FactoryChange]:
     """요청(장 하나 또는 여럿) → 바꿀 것. 하나라도 막히면 :class:`SheetFactoryRefusal`(아무것도 안 바꿈). 같은 값이면 빠진다.
 
-    판정(§4-13 표): 바꿀 것이 있는데 시공 대기 이후면 409 ``ORDER_DONE``. 생산 단계(또는 단계를 모름)면 지금 장이 걸린 옮김만
-    표시 줄을 읽어(``load_marks`` — 쿼리 1, 그 밖엔 0) 들고 나는 공장 완료 표지(``FACTORY_DONE``) → 일이 시작된 장(``SHEET_HAS_WORK``,
-    완료 · 담당 갈라 ``blocked``). 생산 전 단계 · 안 보낸 시트는 그냥 된다.
+    판정(§4-13 표): 바꿀 것이 있는데 시공 대기 이후면 409 ``ORDER_DONE``. 지금 장이 걸린 옮김이면 **단계와 상관없이** 표시 줄을
+    읽어(``load_marks`` — 쿼리 1, 안 보낸 시트만이면 0) 일이 시작된 장(``SHEET_HAS_WORK`` — 완료 · 담당 · 손 체크 갈라 ``blocked``)을
+    막는다. 강제 단계 변경으로 생산에서 고객컨펌 · 도면으로 되돌린 주문도 표시 줄 · 손 체크 칸이 남아 있으면 막히고, 한 번도 생산에
+    안 간 주문은 표시 줄 · 체크가 없어 그냥 된다. 공장 완료 표지(``FACTORY_DONE``)는 생산 단계(또는 단계를 모름)에서만 본다 — 표지는
+    생산 단계에서만 뜻이 있고, 그 밖 단계에서는 취소할 화면도 없다. 안 보낸 시트는 그냥 된다.
 
     Args:
         sd: 주문 ``structured_data``(잠근 행의 값).
@@ -296,22 +324,30 @@ def plan_factory_changes(sd: dict[str, Any], items: list[dict[str, Any]], *, sta
     if rank is not None and rank > _PRODUCTION_RANK:
         raise SheetFactoryRefusal(409, "ORDER_DONE", ORDER_DONE_MESSAGE)
     moving = [c for c in changes if c.keys]
-    if moving and (rank is None or rank == _PRODUCTION_RANK):
-        _check_production_moves(sd, moving, load_marks())
+    if moving:
+        marks = load_marks()
+        if rank is None or rank == _PRODUCTION_RANK:
+            _check_factory_done(sd, moving)
+        _check_started(sd, moving, marks)
     return changes
 
 
-def _check_production_moves(sd: dict[str, Any], moving: list[FactoryChange], marks: list[Any]) -> None:
-    """생산 단계 옮김 — 공장 완료 표지 먼저, 그다음 일이 시작된 장(하나라도 막히면 모두 안 바꿈)."""
+def _check_factory_done(sd: dict[str, Any], moving: list[FactoryChange]) -> None:
+    """생산 단계 옮김 — 들고 나는 공장에 살아 있는 공장 완료 표지가 있으면 막는다."""
     for change in moving:
         for factory in (change.before, change.after):
             done = factory_done_entry(sd, factory)
             if done is not None:
                 raise SheetFactoryRefusal(409, "FACTORY_DONE", factory_done_message(factory, done), {"factory": factory})
+
+
+def _check_started(sd: dict[str, Any], moving: list[FactoryChange], marks: list[Any]) -> None:
+    """일이 시작된 장(표시 줄 · 손 체크 칸) — 하나라도 막히면 모두 안 바꿈."""
+    hand = hand_checked_parts(sd, marks)
     blocked = []
     for change in moving:
         for key in change.keys:
-            work = sheet_work(key, marks)
+            work = sheet_work(key, marks, hand_parts=hand)
             if work is not None:
                 blocked.append({"sheet_id": change.ident if change.kind == "sheet" else None, "key": key, **work,
                                 "message": work_block_message(work, from_factory=change.before, to_factory=change.after)})
@@ -344,6 +380,24 @@ def apply_factory_changes(sd: dict[str, Any], changes: list[FactoryChange], *, b
         "at": at_iso,
         "by_name": by_name,
     }
+
+
+def strip_client_factory_state(sd: Any) -> list[str]:
+    """손님 쪽이 보낸 ``structured_data`` 에서 서버 소유 공장 칸을 뺀다(제자리) — ``drawing_factory`` · ``production.factory_done``.
+
+    주문 만들기(``order_create._prepare_structured``) · 초안 자동 저장(``erp_orders_structured.api_erp_draft_autosave``)처럼 손님 쪽
+    JSON 을 통째로 저장하는 길이 부른다. 공장 지정 API · 공장별 완료(3단계 ⑥)만 이 칸을 쓴다.
+
+    Returns:
+        뺀 경로(감사 · 로그용, 없으면 빈 목록).
+    """
+    if not isinstance(sd, dict):
+        return []
+    removed = [DRAWING_FACTORY_KEY] if sd.pop(DRAWING_FACTORY_KEY, None) is not None else []
+    production = sd.get("production")
+    if isinstance(production, dict) and production.pop(FACTORY_DONE_KEY, None) is not None:
+        removed.append(f"production.{FACTORY_DONE_KEY}")
+    return removed
 
 
 def change_rows(sd: dict[str, Any], changes: list[FactoryChange]) -> list[dict[str, Any]]:

@@ -39,6 +39,7 @@ from foms.services.integrations.naver_commerce.auto_assign import (
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.balance_payment_method import normalize_balance_method
 from foms.services.orders.drawing_confirm_partial import preserve_item_cancel_state
+from foms.services.orders.drawing_factory import strip_client_factory_state
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_flag_permissions import (
@@ -2384,6 +2385,9 @@ def api_erp_draft_autosave():
 
         if structured_data is not None:
             sd = copy.deepcopy(structured_data)
+            # 서버 소유 공장 칸(장의 공장 · 공장 완료 표지)은 초안에 못 심는다 — 승격(PUT) 잠금이 저장된 값을 넘겨 살아남는다
+            # (설계서 2026-11-23 §6-3 · §4-14).
+            strip_client_factory_state(sd)
             meta = sd.get('meta') if isinstance(sd.get('meta'), dict) else {}
             meta['draft'] = True
             meta.setdefault('created_via', 'ADD_ORDER_AUTOSAVE')
