@@ -215,9 +215,9 @@ def work_block_message(work: dict[str, Any], *, from_factory: int, to_factory: i
         해요체 한 문장 둘("2공장으로 옮길 수 없어요 — …").
     """
     head = f"{toward_particle(factory_label(to_factory))} 옮길 수 없어요 — "
-    if work["kind"] == "hand":  # 반장이 공정 칸을 통째 손 체크 — "재단 · 엣지가 이미 완료로 체크된 주문이에요."
+    if work["kind"] == "hand":  # 반장이 공정 칸을 통째 손 체크 — "재단 · 엣지가 이미 작업 완료된 주문이에요."
         labels = " · ".join(PRODUCTION_PART_LABELS.get(p, p) for p in work["parts"])
-        return f"{head}{subject_particle(labels)} 이미 완료로 체크된 주문이에요. 옮기려면 공정 체크부터 해제해 주세요."
+        return f"{head}{subject_particle(labels)} 이미 작업 완료된 주문이에요. 옮기려면 공정 칸 작업부터 취소해 주세요."
     part = PRODUCTION_PART_LABELS.get(work["part"], work["part"])
     name = str(work.get("name") or "").strip()
     if work["kind"] == "done":

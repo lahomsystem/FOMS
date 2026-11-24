@@ -238,8 +238,8 @@ def test_hand_checked_order_refuses_moves(client):
     login(client, _user())
     resp = _set(client, seed, [{"sheet_id": _sheets(seed)[0], "factory": 2}])
     assert resp.status_code == 409 and code(resp) == "SHEET_HAS_WORK"
-    assert resp.get_json()["error"] == ("2공장으로 옮길 수 없어요 — 재단이 이미 완료로 체크된 주문이에요. "
-                                        "옮기려면 공정 체크부터 해제해 주세요.")
+    assert resp.get_json()["error"] == ("2공장으로 옮길 수 없어요 — 재단이 이미 작업 완료된 주문이에요. "
+                                        "옮기려면 공정 칸 작업부터 취소해 주세요.")
 
 
 def test_draft_autosave_cannot_plant_factory_fields(client):

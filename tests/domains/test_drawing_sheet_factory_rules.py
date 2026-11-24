@@ -198,11 +198,11 @@ def test_hand_checked_step_blocks_every_current_sheet_like_finished_work():
     with pytest.raises(SheetFactoryRefusal) as hand:
         plan_factory_changes(sd, [{"sheet_id": "s0", "factory": 2}], stage="PRODUCTION", load_marks=lambda: [])
     assert hand.value.code == "SHEET_HAS_WORK"
-    assert hand.value.message == ("2공장으로 옮길 수 없어요 — 재단 · 엣지가 이미 완료로 체크된 주문이에요. "
-                                  "옮기려면 공정 체크부터 해제해 주세요.")
+    assert hand.value.message == ("2공장으로 옮길 수 없어요 — 재단 · 엣지가 이미 작업 완료된 주문이에요. "
+                                  "옮기려면 공정 칸 작업부터 취소해 주세요.")
     assert hand.value.extra["blocked"][0]["kind"] == "hand" and hand.value.extra["blocked"][0]["parts"] == ["cut", "edge"]
     one = work_block_message({"kind": "hand", "part": "cut", "parts": ["cut"], "name": ""}, from_factory=1, to_factory=2)
-    assert one.endswith("재단이 이미 완료로 체크된 주문이에요. 옮기려면 공정 체크부터 해제해 주세요.")
+    assert one.endswith("재단이 이미 작업 완료된 주문이에요. 옮기려면 공정 칸 작업부터 취소해 주세요.")
     used = [_mark("k/d1.png", "cut", "NEED", picked="김재단"), _mark("k/d2.png", "edge", "NONE")]  # 재단은 카드를 썼다
     assert hand_checked_parts(sd, used) == ("edge",)  # 엣지는 NONE 줄만 = 카드를 안 쓴 파트
     assert plan_factory_changes(sd, [{"sheet_id": "s7", "factory": 2}], stage="PRODUCTION", load_marks=_no_marks)  # 안 보낸 시트는 됨

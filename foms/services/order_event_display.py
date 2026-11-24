@@ -583,7 +583,7 @@ def _describe_part_claim(event_type: str, payload: dict[str, Any]) -> str:
     if event_type == "PRODUCTION_STEP_CHECKED" and payload.get("via") == "sheet":
         # 'sheet' = 사람이 공정 칸을 손으로 바꿈(작업 시트 · '내 공정' [끝] · PC [고치기] 모두 같은 공정 API) — 자리 말은 쓰지 않는다
         part = _PRODUCTION_PART_KR.get(str(payload.get("key") or ""), "")
-        return f"{part} 칸을 손으로 " + ("체크했습니다" if payload.get("done") else "체크 해제했습니다")
+        return f"{part} 칸을 손으로 " + ("작업 완료 처리했습니다" if payload.get("done") else "작업 취소했습니다")
     return ""
 
 

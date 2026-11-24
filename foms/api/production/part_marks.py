@@ -106,9 +106,9 @@ def _gate_part(user: Any, part: str) -> bool:
     if mode in (VIEW_ADMIN, VIEW_SUB):
         return True
     if mode != VIEW_PART:
-        raise MarkRefusal(403, "PART_REQUIRED", "생산 파트가 정해진 계정만 체크할 수 있어요.")
+        raise MarkRefusal(403, "PART_REQUIRED", "생산 파트가 정해진 계정만 작업할 수 있어요.")
     if part not in part_account_parts(user):
-        raise MarkRefusal(403, "PART_FORBIDDEN", "자기 파트만 체크할 수 있어요.")
+        raise MarkRefusal(403, "PART_FORBIDDEN", "자기 파트만 작업할 수 있어요.")
     return False
 
 

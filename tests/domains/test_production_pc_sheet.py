@@ -176,7 +176,7 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     assert (d["label"], d["total"], d["done_n"], d["customer_name"], d["order_id"]) == ("재단", 5, 2, "구슬기", order.id)
     assert d["can_write"] is True and d["all"] is False and d["hand_off"] is False
     assert d["has_run"] is True and d["start_note"] is None and isinstance(d["me"], int)
-    assert d["notice"] == "도면 3장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 체크돼요."  # 거절 글 그대로(승인 때 고친 것 2)
+    assert d["notice"] == "도면 3장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."  # 거절 글 그대로(승인 때 고친 것 2)
     rows = d["rows"]
     assert [r["label"] for r in rows] == [f"도면 {i}/5" for i in range(1, 6)]
     assert [r["word"] for r in rows] == ["재단 끝", "재단 끝", "작업 필요", "안 봄", "안 봄"]

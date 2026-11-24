@@ -12,8 +12,8 @@
 * 누름 종류(``act``): 미완료 장 = ``check``(완료로 처리), 완료 · 기본 장 = ``uncheck``(완료 취소), 손으로 통째 체크한 파트는
   줄 단추 없이 창 머리 한 단추(공정 칸 끄기 길). 보류 · 도면 고치는 중 · 검수 순서로 막힌 미완료 장은 ``act`` 없음(서버가 늘 409 —
   태블릿 판처럼 막힌 표시만, 2026-11-24 셋째 판). 완료 취소는 막힌 중에도 되므로 그대로. 화면은 이 값만 따른다.
-* ``undo_releases``: [체크 해제]가 완료 취소 뒤 맡기 취소까지 이을지 — 보는 사람이 맡고 완료한 장이고 맡은 때 → 완료한 때가
-  :data:`UNDO_RELEASE_WINDOW` 안(PC [체크]가 맡기 → 완료를 잇달아 한 흔적, 서버 UTC 로 견줌)일 때만. 그 밖은 완료 취소만.
+* ``undo_releases``: [작업 취소]가 완료 취소 뒤 맡기 취소까지 이을지 — 보는 사람이 맡고 완료한 장이고 맡은 때 → 완료한 때가
+  :data:`UNDO_RELEASE_WINDOW` 안(PC [작업]가 맡기 → 완료를 잇달아 한 흔적, 서버 UTC 로 견줌)일 때만. 그 밖은 완료 취소만.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ ACT_UNCHECK = "uncheck"
 #: 제작 회차가 없는 주문(첫 도면을 체크하면 제작 시작도 같이 됨, 설계서 §4-8)의 창 머리 한 줄 — 태블릿 도면 판 확인 창의 지금 글
 #: (foms-production-parts-modal.js firstLine)과 같은 글 하나로 쓴다(새 글 안 만듦).
 START_NOTE = "이 집 첫 도면이라 제작 시작도 같이 돼요."
-#: [체크 해제]가 맡기 취소까지 잇는 문턱 — 같은 사람이 맡은 뒤 이 안에 완료했으면 PC [체크](맡기 → 완료)의 흔적으로 본다(셋째 판 4).
+#: [작업 취소]가 맡기 취소까지 잇는 문턱 — 같은 사람이 맡은 뒤 이 안에 완료했으면 PC [작업](맡기 → 완료)의 흔적으로 본다(셋째 판 4).
 UNDO_RELEASE_WINDOW = datetime.timedelta(minutes=2)
 
 
@@ -101,7 +101,7 @@ def _lines(state: str, snap: MarkSnapshot, row: Any, hand: Optional[dict[str, An
 
 
 def undo_releases(state: str, snap: MarkSnapshot, row: Any, viewer_id: Any) -> bool:
-    """[체크 해제] 뒤 맡기 취소까지 할지 — 보는 사람이 맡고 완료했고, 맡은 때 → 완료한 때가 2분 안(서버 UTC)."""
+    """[작업 취소] 뒤 맡기 취소까지 할지 — 보는 사람이 맡고 완료했고, 맡은 때 → 완료한 때가 2분 안(서버 UTC)."""
     if state != "done" or viewer_id is None or snap.picked_by_user_id != viewer_id or snap.done_by_user_id != viewer_id:
         return False
     picked, done = parse_datetime_utc(snap.picked_at), parse_datetime_utc(getattr(row, "done_at", None))
@@ -184,7 +184,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
     Returns:
         ``{part, label, total, done_n, uses_cards, notice, all, hand_off, hand, rows, keys}`` —
         ``notice`` = 카드를 쓴 파트에 남은 장이 있을 때의 안내(공정 칸 체크 거절 글 그대로, 승인 때 고친 것 2),
-        ``all`` = [모두 체크]를 보일지(아무도 맡거나 완료하지 않은 파트 · 칸이 꺼짐 · 장 1장 이상 · 보류 아님),
+        ``all`` = [모두 작업]를 보일지(아무도 맡거나 완료하지 않은 파트 · 칸이 꺼짐 · 장 1장 이상 · 보류 아님),
         ``hand_off`` = 손으로 통째 체크한 파트(창 머리 한 단추로 끈다).
     """
     sd = sd if isinstance(sd, dict) else {}
@@ -201,7 +201,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
         "part": part, "label": PRODUCTION_PART_LABELS[part], "total": len(entries), "done_n": progress["done_n"],
         "uses_cards": progress["uses_cards"],
         "notice": PART_USES_CARDS_MESSAGE.format(left=left) if progress["uses_cards"] and entries and left else None,
-        # 보류 중에는 통째 체크(공정 칸 켜기)를 서버가 막는다(사장님 2026-11-24) — [모두 체크]를 안 보인다
+        # 보류 중에는 통째 체크(공정 칸 켜기)를 서버가 막는다(사장님 2026-11-24) — [모두 작업]를 안 보인다
         "all": bool(entries) and not progress["uses_cards"] and not progress["done"] and not hold_active,
         "hand_off": bool(hand), "hand": hand["text"] if hand else None,
         "rows": rows, "keys": [entry["key"] for entry in entries],

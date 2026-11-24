@@ -51,7 +51,7 @@ def test_파트_계정의_잠긴_공정_칸을_누르면_잠금_글_요청은_�
     html = get_html(client, f"/erp/production/sheet/{order.id}")
     cells = re.findall(r'<button [^>]*data-foms-sheet-step="\w+"[^>]*>', html)
     assert len(cells) == 4 and all('aria-disabled="true"' in c and " disabled" not in c and "is-locked" in c for c in cells)
-    _run(tmp_path, html, {"mode": "locked", "order": order.id, "note": "공정은 도면 카드에서 체크해요"})
+    _run(tmp_path, html, {"mode": "locked", "order": order.id, "note": "공정은 도면 카드에서 작업해요"})
 
 
 def test_시트_JS_는_aria_disabled_로_막고_진짜_disabled_를_쓰지_않는다() -> None:

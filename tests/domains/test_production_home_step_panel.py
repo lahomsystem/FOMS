@@ -205,7 +205,7 @@ def test_화면_판정_공정_끝은_반장_관리자만() -> None:
     for ptr, edit in (("coarse", ""), ("fine", fresh)):
         flags = production_screen_flags(who(), req(ptr, edit), now)
         assert flags["can_act"] is True and flags["can_check_steps"] is False, ptr
-        assert flags["steps_lock_note"] == "반장으로 지정된 계정만 체크할 수 있어요.", ptr
+        assert flags["steps_lock_note"] == "반장으로 지정된 계정만 작업할 수 있어요.", ptr
 
 
 def test_보기만_계정은_공정_끝_단추_없이_보류_불량은_그대로(client, cohort) -> None:
@@ -220,7 +220,7 @@ def test_보기만_계정은_공정_끝_단추_없이_보류_불량은_그대로
     html = get_html(client, HOME + "?tab=steps")
     pane = pane_html(html, a.id)
     assert "data-foms-step-finish" not in html and "data-foms-home-step-done" not in html
-    assert "반장으로 지정된 계정만 체크할 수 있어요.</p>" in pane
+    assert "반장으로 지정된 계정만 작업할 수 있어요.</p>" in pane
     assert "data-foms-sheet-defect-toggle" in pane and 'data-tablet-sheet-action="production-hold"' in pane
     for cookies in ({"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "915"},
                     {"foms_ptr": "fine", "foms_vw": "wide", "foms_prod_edit": str(int(time.time()))}):
@@ -363,7 +363,7 @@ def test_확인_창은_없고_실을_것(client, cohort) -> None:
     # 확인 창 꼴이 쓰던 parts.css 는 이제 도면 카드 판에만. 새 JS 는 머리(일찍), 시트 JS 는 문서당 한 번
     assert "css/contexts/production/parts.css" not in html
     assert html.index(STEPS_JS + "?v=20261123u") < html.index("</head>")
-    assert 'js/production/foms-production-sheet-page.js?v=20261123u" defer data-foms-run-once="prod-sheet-page"' in html
+    assert 'js/production/foms-production-sheet-page.js?v=20261124i" defer data-foms-run-once="prod-sheet-page"' in html
     assert "js/foms/tablet-domain-sheets.js?v=" in html and "js/foms/foms-reason-sheet.js?v=" in html
     assert html.count("data-foms-reason-sheet") == 1 and "css/components/foms-reason-sheet.css?v=" in html
     # 셸 조각도 같은 것(조각 맨 앞에 새 JS)
