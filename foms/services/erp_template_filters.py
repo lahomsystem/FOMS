@@ -15,6 +15,8 @@ from foms.services.orders.partner_push_marks import (
 )
 # 실측 시간 자유 텍스트 판정 경계·정규식 SSOT (동선 정렬 파서와 같은 규약을 써야
 # 오전/오후 판정이 갈리지 않는다). 재노출은 기존 import 경로 호환용.
+from foms.services.shipment.packing_entry import packing_prod_entry
+from foms.services.shipment.packing_factory import packing_glance
 from foms.services.measurement_time import (
     MEAS_AM_END_HOUR,
     MEAS_AM_START_HOUR,
@@ -392,8 +394,5 @@ def register_erp_template_filters(bp):
     # 중간 크기 칸(화면 160~320px) 640 주소(SPEC 2026-11-20-mid-size-image). 같은 정본 판정 · 그림이 아니면 None.
     bp.add_app_template_filter(mid_thumb_url, 'mid_thumb_url')
     # 출고 패킹 공장마다(설계서 2026-11-23 '승인 때 고친 것' 6) — 카드 글 재료(2공장 장이 없으면 None) · 생산 작업 시트 [패킹] 칸.
-    from foms.services.shipment.packing_entry import packing_prod_entry
-    from foms.services.shipment.packing_factory import packing_glance
-
     bp.add_app_template_global(packing_glance, 'packing_glance')
     bp.add_app_template_global(packing_prod_entry, 'packing_prod_entry')
