@@ -28,12 +28,14 @@ def _config(monkeypatch, *, can_transfer: bool, hotfix: bool, partner_org_id):
 
 def test_save_send_config_reports_transfer_hotfix_partner(monkeypatch):
     cfg = _config(monkeypatch, can_transfer=True, hotfix=True, partner_org_id=3)
-    assert cfg == {"user_id": 7, "can_transfer": True, "hotfix_stage": True, "is_partner": True}
+    assert cfg == {"user_id": 7, "can_transfer": True, "hotfix_stage": True, "is_partner": True,
+                   "can_set_factory": False}  # 공장 지정 권한(설계서 2026-11-23 §5-1) — 팀 없는 STAFF 는 못 한다
 
 
 def test_save_send_config_plain_order_without_transfer_right(monkeypatch):
     cfg = _config(monkeypatch, can_transfer=False, hotfix=False, partner_org_id=None)
-    assert cfg == {"user_id": 7, "can_transfer": False, "hotfix_stage": False, "is_partner": False}
+    assert cfg == {"user_id": 7, "can_transfer": False, "hotfix_stage": False, "is_partner": False,
+                   "can_set_factory": False}
 
 
 def test_save_send_config_without_user_is_locked(monkeypatch):

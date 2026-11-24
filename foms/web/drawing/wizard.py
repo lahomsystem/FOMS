@@ -17,7 +17,9 @@ from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.drawing_wizard_part_memory import load_policy as load_part_memory_policy
 from foms.services.orders.as_drawing_views import wizard_config_view
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
-from foms.services.orders.erp_policy_permissions import can_transfer_drawing
+from foms.services.orders.drawing_factory_view import wizard_factory_view
+from foms.services.orders.erp_policy_permissions import can_set_sheet_factory, can_transfer_drawing
+from foms.services.orders.state_axes import read_main_stage
 from foms.web.drawing.workbench import erp_drawing_workbench_bp
 
 
@@ -40,13 +42,15 @@ def _wizard_ui() -> str:
 def _save_send_config(current_user: Any, order: Order) -> dict:
     """[저장] 창(save-send.js)이 칸을 잠그고 숨기는 데 쓰는 값 — 화면 표시용이다. 전달·PUSH 권한은 서버가 다시 검사한다.
 
-    설계서 ``docs/specs/2026-11-05-wizard-save-send-options_SPEC.md`` §5.
+    설계서 ``docs/specs/2026-11-05-wizard-save-send-options_SPEC.md`` §5. ``can_set_factory`` = 장의 공장 지정 권한(도면팀 누구나
+    + 관리자 — 설계서 2026-11-23 §5-1, 서버 API 가 같은 술어로 다시 검사한다).
     """
     return {
         'user_id': int(getattr(current_user, 'id', 0) or 0),
         'can_transfer': bool(current_user and can_transfer_drawing(current_user, order)),
         'hotfix_stage': bool(is_drawing_hotfix_stage(order)),
         'is_partner': bool(getattr(order, 'partner_org_id', None)),
+        'can_set_factory': bool(current_user and can_set_sheet_factory(current_user)),
     }
 
 
@@ -70,13 +74,16 @@ def erp_drawing_workbench_wizard(order_id: int) -> Any:
         and (current_user.role == 'ADMIN' or is_drawing_workbench_participant(current_user, order))
     )
     wizard_ui = _wizard_ui()
+    save_send = _save_send_config(current_user, order)
     # 그림 종류 기억(실시간 학습) 켜고 끄기 — 문턱은 서버가 판정한다(설계서 2026-10-26-drawing-part-memory-spec §3.7).
     memory = load_part_memory_policy(db)
     wizard_config = {'order_id': order.id, 'can_save': can_save, 'ui': wizard_ui,
                      'part_memory': {k: bool(memory[k]) for k in ('store', 'follow', 'spread')},
-                     'save_send': _save_send_config(current_user, order),
+                     'save_send': save_send,
                      # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §4.3) — 아니면 None.
-                     'as_drawing': wizard_config_view(order, sd)}
+                     'as_drawing': wizard_config_view(order, sd),
+                     # 장의 공장(설계서 2026-11-23 §8-5) — 2공장 시트가 없고 고를 수도 없으면 None(화면 그대로).
+                     'factory': wizard_factory_view(sd, can_set=save_send['can_set_factory'], stage=read_main_stage(order))}
     return render_template(
         'drawing/wizard.html',
         order=order,
