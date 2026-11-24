@@ -62,6 +62,9 @@
 {# 네이버 원본 도크(T14-B) — 수집 주문 편집 화면 전용. 폼 무참조 additive 부품. #}
 <link rel="stylesheet" href="{{ asset_url('css/orders/erp-naver-dock.css') }}">
 <script src="{{ asset_url('js/orders/erp-naver-dock.js') }}" defer></script>
+{# 네이버 쿠폰: 예약금 옆 쿠폰 그림 · 한 줄 · 눌렀을 때 내역 — 도크와 같은 #naver-origin-data 의 coupon_view 만 읽는다(서버 왕복 0). #}
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-naver-coupon.css') }}">
+<script src="{{ asset_url('js/orders/erp-naver-coupon.js') }}" defer></script>
 {% if flag_spec_picker %}
 <link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">

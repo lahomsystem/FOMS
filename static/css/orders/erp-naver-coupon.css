@@ -1,0 +1,114 @@
+/*
+ * 네이버 쿠폰 표시 — 예약금 동전 옆 쿠폰 그림 · 아래 한 줄 · 눌렀을 때만 내역 (erp-naver-coupon.js).
+ *
+ * 색 뜻(사장님 2026-11-24): 초록 = 우리가 낸 몫 있음 · 주황 = 네이버가 냄 · 노랑 = 모름.
+ * 무채색은 쓰지 않는다(상태 배지 규칙). 그림 크기는 옆 동전(40px)과 같다.
+ */
+.erp-coupon--ours { --erp-coupon-fg: #0a7a41; --erp-coupon-icon: #0a8f4c; --erp-coupon-bg: #f3fbf6; --erp-coupon-line: #bfe3cd; }
+.erp-coupon--naver { --erp-coupon-fg: #b23c0a; --erp-coupon-icon: #d9541a; --erp-coupon-bg: #fff6f0; --erp-coupon-line: #f3c7ae; }
+.erp-coupon--unknown { --erp-coupon-fg: #7a5000; --erp-coupon-icon: #c98a00; --erp-coupon-bg: #fff8e1; --erp-coupon-line: #ecd48a; }
+
+.erp-coupon-icon-btn {
+  background: none;
+  border: 0;
+  padding: 0.1rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  color: var(--erp-coupon-icon);
+  border-radius: 0.375rem;
+}
+.erp-coupon-icon-btn svg {
+  width: 40px;
+  height: 40px;
+  display: block;
+}
+.erp-coupon-icon-btn:focus-visible,
+.erp-coupon-line__btn:focus-visible {
+  outline: 2px solid var(--erp-coupon-icon);
+  outline-offset: 2px;
+}
+
+.erp-coupon-line {
+  width: 100%;
+  text-align: right;
+}
+/* 모바일: 쿠폰 그림 + 한 줄 글을 오른쪽에 붙여 한 줄로. */
+.erp-coupon-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+}
+.erp-coupon-row .erp-coupon-line {
+  width: auto;
+  min-width: 0;
+}
+.erp-coupon-row .erp-coupon-icon-btn svg {
+  width: 32px;
+  height: 32px;
+}
+.erp-coupon-line__btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-size: calc(13px * var(--foms-fs, 1));
+  font-weight: 700;
+  color: var(--erp-coupon-fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-align: right;
+}
+
+.erp-coupon-box {
+  width: 100%;
+  max-width: 20rem;
+  margin-left: auto;
+  box-sizing: border-box;
+  border: 1px solid var(--erp-coupon-line);
+  background: var(--erp-coupon-bg);
+  color: #111;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  font-size: calc(14px * var(--foms-fs, 1));
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  text-align: left;
+}
+.erp-coupon-box__title {
+  font-weight: 700;
+}
+.erp-coupon-box__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.125rem 0.625rem;
+  align-items: baseline;
+}
+.erp-coupon-box__amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.erp-coupon-box__who {
+  grid-column: 1 / -1;
+  font-size: calc(13px * var(--foms-fs, 1));
+  color: var(--erp-coupon-fg);
+}
+.erp-coupon-box__note {
+  color: var(--erp-coupon-fg);
+}
+.erp-coupon-box__sum {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.625rem;
+  font-weight: 700;
+  border-top: 1px solid var(--erp-coupon-line);
+  padding-top: 0.375rem;
+}
+.erp-coupon-box__sum + .erp-coupon-box__sum {
+  border-top: 0;
+  padding-top: 0;
+}
