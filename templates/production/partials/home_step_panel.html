@@ -26,7 +26,7 @@
     {% elif p.revise_block %}{# 도면 고치는 중 — 보류와 같은 자리 · 같은 꼴(사장님 2026-11-25), 글은 도면 카드 판 까닭 그대로 #}
     <div class="fph-sp__hold"><b>{{ p.revise_block.text }}</b><span>{{ p.revise_block.why }}</span></div>
     {% elif can_check_steps %}{# 공정 [끝] — 파트도 반장도 아닌 생산팀은 단추 없이, 아래 상태 줄에 한 줄(승인 때 고친 것 5) #}
-    <button type="button" class="fph-sp__done" data-foms-step-finish data-order-id="{{ p.id }}" data-step-key="{{ p.key }}" data-step-label="{{ p.label }}"{% if p.next_id %} data-next-order="{{ p.next_id }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ p.label }} 끝</button>
+    <button type="button" class="fph-sp__done" data-foms-step-finish data-order-id="{{ p.id }}" data-step-key="{{ p.key }}" data-step-label="{{ p.label }}"{% if p.next_id %} data-next-order="{{ p.next_id }}"{% endif %}{% if p.confirm %} data-foms-sheet-parts="{{ p.confirm | tojson | forceescape }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ p.label }} 끝</button>
     {% endif %}
     {% if can_act %}<div class="fph-sp__acts">
       <button type="button" class="fph-sp__act is-bad" data-foms-sheet-defect-toggle aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></svg>불량</button>

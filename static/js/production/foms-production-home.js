@@ -4,7 +4,8 @@
  * 링크 · 셸 조각 교체가 옮기고, 여기서는 누르는 즉시 켜짐 표시만 먼저 바꾼다.
  * 전체 주문: 날짜 묶음 접기/펴기·보기 칸·찾기(보이기/숨기기만, 새 요청 없음). 접기/펴기는 모바일 실측 탭
  * (measurement/mobile-glance-tabs.js)과 같은 말: is-closed · aria-expanded · 모두 펼치기/접기.
- * 내 공정: 공정 탭(마지막 탭은 이 브라우저에 기억) · [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true}.
+ * 내 공정: 공정 탭(마지막 탭은 이 브라우저에 기억) · [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true}
+ * (도면 있는 주문만 먼저 한 번 묻기, 2026-11-25).
  * 바뀐 것의 [확인했어요] 는 tablet-domain-sheets.js(change-ack) 몫. 실패 글은 설계서 §8 한 가지.
  * 셸 조각 교체(레일 · 아래 메뉴, 11-14)로 다시 실행된다: 같은 화면에는 한 번만 묶고(data-foms-home-bound), 창 리스너 ·
  * 1분 타이머는 window.__FOMS_PROD_HOME 로 한 번만 달아 그때그때 지금 화면의 함수(G.api)를 부른다. */
@@ -123,8 +124,18 @@
       });
     }).catch(function () { return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT }; });
   }
+  // [<공정> 끝]: 확정 도면이 있는 주문만 먼저 한 번 묻는다(사장님 2026-11-25) — 작업 시트와 같은 창 · 글 · 판정(sheet-parts.js
+  // beforeToggle, 자료 = 서버가 단추에 실은 data-foms-sheet-parts). 도면 없는 주문 · 그 파일이 없는 화면은 지금처럼 바로 저장.
+  var asking = false;
   function finishStep(btn) {
-    if (btn.disabled) { return; }
+    if (btn.disabled || asking) { return; }
+    var sp = window.FomsSheetParts;
+    if (!sp || !btn.hasAttribute('data-foms-sheet-parts')) { saveStep(btn); return; }
+    asking = true;
+    sp.beforeToggle(btn, btn, true, function () { asking = false; if (document.contains(btn)) { saveStep(btn); } },
+      function () { asking = false; });
+  }
+  function saveStep(btn) {
     var orderId = btn.getAttribute('data-order-id');
     var key = btn.getAttribute('data-step-key');
     btn.disabled = true;

@@ -81,13 +81,14 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 {% endmacro %}
 
 {# '내 공정' 줄(§6-4) = 시공일 | 번호 · 이름 · 품목 | 앞 공정 누가 · 언제 | 발주 · 담당 [| <공정> 끝]. 보기 전용이면 [끝] 칸 자체가 없다
-   (남는 폭은 이름 칸). [고치기] 켬(can_act)이면 지금 태블릿 줄과 같은 단추 · 같은 POST(data-foms-home-step-done, foms-production-home.js). #}
+   (남는 폭은 이름 칸). [고치기] 켬(can_act)이면 지금 태블릿 줄과 같은 단추 · 같은 POST(data-foms-home-step-done, foms-production-home.js) ·
+   도면 있는 주문만 한 번 묻는 자료(data-foms-sheet-parts = r.step_confirm, 2026-11-25 — home_steps.html 과 같다). #}
 {% macro pc_qrow(r, q, can_act) %}
 <div class="fpc-q{{ _row_class(r) }}{% if can_act %} is-act{% endif %}" data-foms-home-qrow="{{ r.id }}">
   {{ pc_due_cell(r) }}
   {{ _who(r) }}
   <span class="fpc-prev">{% if r.pc_prev %}<i>앞 공정</i> <b>{{ r.pc_prev.head }}</b><br>{{ r.pc_prev.meta }}{% endif %}{% if r.hold_active and not can_act %}<span class="fpc-hold">보류 중{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}</span>{% elif r.revise_block and not can_act %}<span class="fpc-hold">{{ r.revise_block.text }}</span>{% endif %}</span>
   {{ _by(r) }}
-  {% if can_act %}{% if r.hold_active %}<span class="fpc-hold">보류 중{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}</span>{% elif r.revise_block %}<span class="fpc-hold">{{ r.revise_block.text }}</span>{% else %}<button type="button" class="fpc-done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>{% endif %}{% endif %}
+  {% if can_act %}{% if r.hold_active %}<span class="fpc-hold">보류 중{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}</span>{% elif r.revise_block %}<span class="fpc-hold">{{ r.revise_block.text }}</span>{% else %}<button type="button" class="fpc-done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"{% if r.step_confirm %} data-foms-sheet-parts="{{ r.step_confirm | tojson | forceescape }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>{% endif %}{% endif %}
 </div>
 {% endmacro %}

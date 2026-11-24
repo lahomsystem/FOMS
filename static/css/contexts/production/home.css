@@ -604,6 +604,12 @@
 .fph-nx span { grid-column: 1; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fph-nx em { grid-column: 2; grid-row: 1 / 3; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); white-space: nowrap; }
 
+/* ── 내 공정 [<공정> 끝] 확인 창(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") = 작업 시트와 같은 조각(sheet_step_confirm.html) —
+   겉틀은 공용 사유 시트, 본문 한 줄 · 태블릿 누름 칸(보이는 44px · 틈 8px)은 sheet.css 와 같은 값(첫 화면은 sheet.css 를 싣지 않는다) ── */
+.foms-prod-home .fpp-confirm-body { margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fph-text); word-break: keep-all; }
+.foms-prod-home .fpp-confirm .foms-reason-sheet__actions > .foms-btn { font-size: calc(17px * var(--foms-fs, 1)); }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) { .foms-prod-home .fpp-confirm .foms-reason-sheet__actions { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); } .foms-prod-home .fpp-confirm .foms-reason-sheet__actions > .foms-btn { min-height: calc(44px / var(--foms-ui-zoom, 1)); } }
+
 /* ── 가로 태블릿 · PC(992px 이상): 제목 줄은 늘 한 줄(11-14) — 글꼴이 늦게 오거나 글자를 키워도 높이(73px = --fph-bar-h 기본값)가
    그대로라 날 단추가 그려진 뒤 위아래로 움직이지 않는다(스테이징 실측: 두 줄 139px → 한 줄 73px 로 줄며 단추가 66px 올라갔다).
    넘치면 날짜 글이 먼저 말줄임으로 줄고, 그다음 화면 탭 줄이 옆으로 밀린다. ── */

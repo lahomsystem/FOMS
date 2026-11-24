@@ -281,7 +281,7 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     modal = (JS / "foms-production-parts-modal.js").read_text(encoding="utf-8")
     sheet = (JS / "foms-production-sheet-parts.js").read_text(encoding="utf-8")
     assert "if (bound.claim === root || board.root !== root) { return; }" in claim
-    assert "if (bound.modal === root) { return; }" in modal and "window.__FOMS_SHEET_PARTS_BOUND" in sheet
+    assert "if (bound.modal === root) { return; }" in modal and "if (!S.bound) {" in sheet
     for src in (claim, modal):
         assert not re.search(r"fetch\s*\(|fomsMutationFetch|XMLHttpRequest|sendBeacon", src), "쓰기는 parts.js send() 하나"
     assert not re.search(r"method: 'POST'|fomsMutationFetch", sheet), "시트 JS 의 POST 는 시트 공정 길 하나"
