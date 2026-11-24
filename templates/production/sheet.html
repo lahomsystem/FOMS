@@ -173,6 +173,8 @@
             <button type="button" class="foms-prod-page__btn{% if order.hold_active %} is-active{% endif %}"
                     data-tablet-sheet-action="production-hold" data-order-id="{{ order.id }}"
                     data-hold-active="{{ 1 if order.hold_active else 0 }}" data-hold-reason="{{ order.hold_reason }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>{{ '보류 해제' if order.hold_active else '보류' }}</button>
+            {#- 패킹 체크(설계서 2026-11-23 '승인 때 고친 것' 6 ④) — 조각이 스스로 판정: 패킹을 체크하는 사람 + 이 주문에 내 공장 줄이 있을 때만 세 번째 칸. -#}
+            {% include 'shipment/partials/packing_prod_entry.html' %}
           </div>
           <div class="foms-prod-page__chips" id="foms-prod-page-defect-reasons" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">
             {% for r in defect_reasons %}<button type="button" class="foms-prod-page__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}

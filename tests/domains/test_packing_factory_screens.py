@@ -172,7 +172,7 @@ def test_construction_hero_and_tablet_text(client, monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# 생산 작업 시트 [패킹] — 끼울 조각(sheet.html 은 다른 일꾼 파일)
+# 생산 작업 시트 [패킹] — 조각(packing_prod_entry.html)과 그 조각을 끼운 작업 시트(sheet.html [보류] 뒤 한 줄)
 # --------------------------------------------------------------------------- #
 _INCLUDE = "{% include 'shipment/partials/packing_prod_entry.html' %}"
 
@@ -274,3 +274,24 @@ def test_construction_first_screen_wraps_split_packing_text(app):
     assert "{% set F = cons_tablet.first %}{% if F.has_packing_split %}" in body
     css = (ROOT / "static/css/components/foms-packing-factory.css").read_text(encoding="utf-8")
     assert ".foms-cons-row__c span.is-split {" in css
+
+
+@pytest.mark.parametrize("who,mixed,expect", [
+    ({"team": "PRODUCTION", "production_lead": True, "production_factory": 2}, True, "pf"),
+    ({"team": "PRODUCTION", "production_lead": True, "production_factory": 2}, False, None),
+    ({"team": "PRODUCTION", "production_parts": ["cut"], "production_part": "cut"}, False, "old"),
+    ({"team": "PRODUCTION", "production_lead": True}, False, "old"),
+    ({"team": "PRODUCTION"}, True, None),  # 파트도 반장도 아닌 생산팀 — 쓰기 단추 줄은 있어도 [패킹]은 없음
+])
+def test_tablet_work_sheet_third_button(client, monkeypatch, who, mixed, expect):
+    """실제 작업 시트(태블릿 쿠키) — [불량 알리기] [보류] 뒤 세 번째 칸이 조각의 판정대로만 나온다."""
+    _login(client, monkeypatch, role="STAFF", **who)
+    for k, v in {"foms_ptr": "coarse", "foms_vw": "wide", "foms_scr": "1176"}.items():
+        client.set_cookie(k, v, domain="localhost")
+    oid = _order(f"pw{next(_seq)}", f2=mixed)
+    html = client.get(f"/erp/production/sheet/{oid}").get_data(as_text=True)
+    pair = html.split('<div class="foms-prod-page__pair">', 1)[1].split('<div class="foms-prod-page__chips"', 1)[0]
+    assert pair.count('<button type="button" class="foms-prod-page__btn') == (2 if expect is None else 3)
+    assert ("data-foms-pf-trigger" in pair) is (expect == "pf") and ("data-foms-packing-trigger" in pair) is (expect == "old")
+    if expect is None:
+        assert "foms-packing-sheet" not in html and "foms-packing-factory" not in html
