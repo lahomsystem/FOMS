@@ -19,6 +19,7 @@ from foms.services.feature_flags import pointer_hint
 from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date
 from foms.services.production.home_step_panel import _hold_reason, _prev_line, _run_start_text
 from foms.services.production.late_rule import production_late_view
+from foms.services.production.part_access import steps_lock
 from foms.services.production.write_access import can_ack_production_change, can_write_production
 from foms.services.production_home_read_model import production_home_queue_key
 
@@ -63,16 +64,23 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
         기기 무관 · PC 보기 전용 포함, §13 결정 5)
         · ``edit_on``([고치기] 켬) · ``edit_toggle``([고치기] 단추를 그림) · ``edit_now``(JS 가 심을 서버 시각)
         · ``write_omitted``(쓰기 팀인데 기기 쿠키가 없거나 이상해 단추를 뺐다 — 화면이 표식을 남기면 터치 기기는
-        foms-wide-surface-recover.js 가 쿠키가 심긴 뒤 한 번 다시 받는다, §12).
+        foms-wide-surface-recover.js 가 쿠키가 심긴 뒤 한 번 다시 받는다, §12)
+        · ``can_check_steps``('내 공정' [끝] · PC [고치기] 공정 [끝] — 쓰기 단추를 그리는데 공정 칸 잠금이 없을 때, 2026-11-23
+        '승인 때 고친 것' 5: 파트도 반장도 아닌 생산팀은 [끝]만 빠지고 보류 · 불량 · 제작 시작/완료는 ``can_act`` 그대로)
+        · ``steps_lock_note``(그때 판 상태 줄에 둘 한 줄 — 잠금이 없으면 빈 글).
     """
     now = time.time() if now_epoch is None else now_epoch
     pointer = _pointer(request)
     pc = pointer == 'fine'
     writer = can_write_production(user)
     edit_on = bool(writer and pc and edit_cookie_fresh(request, now))
+    can_act = bool(writer and (pointer == 'coarse' or edit_on))
+    lock = steps_lock(user) if can_act else None
     return {
         'pc_view': pc,
-        'can_act': bool(writer and (pointer == 'coarse' or edit_on)),
+        'can_act': can_act,
+        'can_check_steps': bool(can_act and lock is None),
+        'steps_lock_note': lock.message if lock else '',
         'can_ack': can_ack_production_change(user),
         'edit_on': edit_on,
         'edit_toggle': bool(writer and pc),

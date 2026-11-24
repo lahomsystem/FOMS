@@ -29,7 +29,9 @@ HOME = "/erp/production/home"
 
 
 def _make_user(client, username: str, team: str | None, role: str = "STAFF") -> User:
-    user = User(username=username, password=generate_password_hash("pw"), role=role, team=team, name=username, is_active=True)
+    # 생산팀 = 마이그레이션 prodlead_01 이 채운 지금 계정(반장, 설계서 2026-11-23 '승인 때 고친 것' 5)
+    user = User(username=username, password=generate_password_hash("pw"), role=role, team=team, name=username, is_active=True,
+                production_lead=True if team == "PRODUCTION" else None)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:

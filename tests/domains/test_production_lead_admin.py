@@ -177,11 +177,11 @@ def test_migration_fills_only_production_staff_and_managers_without_parts_on_sql
             "(4, 'STAFF', 'CS', 1, NULL, NULL),"              # 다른 팀 → 그대로
             "(5, 'STAFF', 'PRODUCTION', 1, 'cut', '[\"cut\"]')," # 파트 있는 계정 → 그대로
             "(6, 'ADMIN', 'PRODUCTION', 1, NULL, NULL),"      # 관리자는 칸과 상관없이 늘 된다 → 그대로
-            "(7, 'STAFF', 'PRODUCTION', 1, NULL, '[\"edge\"]')")) # 새 칸만 있는 행(옛 칸 NULL) — 조건 밖
+            "(7, 'STAFF', 'PRODUCTION', 1, NULL, '[\"edge\"]')")) # 새 칸만 남은 행(옛 칸 NULL) — 앱은 파트 없음으로 본다 → 반장
         module.upgrade()
         got = dict(conn.execute(text("SELECT id, production_lead FROM users")).all())
-        assert got == {1: 1, 2: 1, 3: None, 4: None, 5: None, 6: None, 7: None}
-        conn.execute(text(f"UPDATE users SET production_lead = 1 WHERE {module.FILL_WHERE['sqlite']}"))  # 다시 돌려도 같다
+        assert got == {1: 1, 2: 1, 3: None, 4: None, 5: None, 6: None, 7: 1}
+        conn.execute(text(f"UPDATE users SET production_lead = 1 WHERE {module.FILL_WHERE}"))  # 다시 돌려도 같다
         assert dict(conn.execute(text("SELECT id, production_lead FROM users")).all()) == got
         module.downgrade()
         assert {c["name"] for c in inspect(conn).get_columns("users")} == {
@@ -189,10 +189,13 @@ def test_migration_fills_only_production_staff_and_managers_without_parts_on_sql
         assert dict(conn.execute(text("SELECT id, production_part FROM users")).all())[5] == "cut"
 
 
-def test_fill_where_is_the_same_condition_on_both_dialects():
-    """운영에 올리기 전 셀 읽기 전용 집계는 이 글을 그대로 쓴다 — 두 방언은 '빈 목록' 견주기만 다르다."""
-    pg, lite = (_migration().FILL_WHERE[k] for k in ("postgresql", "sqlite"))
-    head = "upper(trim(team)) = 'PRODUCTION' AND upper(trim(role)) IN ('STAFF', 'MANAGER') AND production_part IS NULL AND "
-    assert pg.startswith(head) and lite.startswith(head)
-    assert pg[len(head):] == "(production_parts IS NULL OR production_parts = '[]'::jsonb)"
-    assert lite[len(head):] == "(production_parts IS NULL OR json_array_length(production_parts) = 0)"
+def test_fill_where_matches_the_app_meaning_of_no_parts():
+    """운영에 올리기 전 셀 읽기 전용 집계는 이 글을 그대로 쓴다(두 방언 같은 글). '파트 없음' = 옛 칸 NULL — 앱 판정
+    ``stored_production_parts`` 와 같다(새 칸에 목록이 남아 있어도 옛 칸이 비면 파트 없음)."""
+    assert _migration().FILL_WHERE == (
+        "upper(trim(team)) = 'PRODUCTION' AND upper(trim(role)) IN ('STAFF', 'MANAGER') AND production_part IS NULL")
+    from types import SimpleNamespace
+
+    from foms.services.production.part_constants import stored_production_parts
+    for parts in (None, [], ["edge"], ["cut", "edge"]):
+        assert stored_production_parts(SimpleNamespace(production_part=None, production_parts=parts)) == ()
