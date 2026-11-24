@@ -460,10 +460,14 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <button type="button" class="erp-payment-confirm-btn" data-payment-type="deposit" data-confirmed="0"{% if policy_can('FINANCE_MUTATION') %} onclick="window.erpTogglePayment(this, 'deposit')" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;"{% else %} title="예약금 확인 상태(변경 권한 없음)" style="background: none; border: 0; padding: 0.1rem; cursor: default;" aria-disabled="true"{% endif %}>
                                     <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="예약금">
                                 </button>
+                                <button type="button" id="erp-coupon-icon" class="erp-coupon-icon-btn" aria-expanded="false" aria-controls="erp-coupon-box" title="쿠폰 내역 보기" aria-label="쿠폰 내역 보기" hidden></button>
                                 <label for="erp-deposit-amount" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
                             </div>
                             <input type="text" id="erp-deposit-amount" data-erp="deposit_amount" inputmode="numeric" placeholder="0원" maxlength="24" class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                         </div>
+                        {# 네이버 쿠폰(2026-11-24) — 쿠폰을 쓴 네이버 주문에서만 erp-naver-coupon.js 가 채운다. 보기만 하는 칸. #}
+                        <div id="erp-coupon-line" class="erp-coupon-line" hidden></div>
+                        <div id="erp-coupon-box" class="erp-coupon-box" hidden></div>
                         {% if deposit_last_change %}<div class="erp-deposit-who">{{ deposit_last_change.by }} {{ deposit_last_change.at }} 고침</div>{% endif %}
                         <div id="erp-free-input-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <input type="text" id="erp-free-input-text" maxlength="128" placeholder="항목명" class="erp-amount-value erp-amount-value--free-input-text text-end" title="항목명 등 자유 텍스트">
