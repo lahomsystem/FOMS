@@ -84,13 +84,13 @@
           <div class="erp-shipment-mobile-card__packing">
             <button type="button"
                     class="foms-btn foms-btn--secondary foms-btn--sm foms-packing-trigger"
-                    data-foms-packing-trigger
+                    {% if meta.packing_split %}data-foms-pf-trigger{% else %}data-foms-packing-trigger{% endif %}
                     data-order-id="{{ o.id }}">
               <i class="fas fa-box-open" aria-hidden="true"></i>
               {% if meta.packing_departed %}
-              <span class="foms-packing-departed-label">출발 보고됨</span>
+              <span class="foms-packing-departed-label"{% if meta.packing_split %} data-pf-label{% endif %}>출발 보고됨</span>
               {% else %}
-              <span>패킹{% if meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
+              <span{% if meta.packing_split %} data-pf-label{% endif %}>패킹{% if meta.packing_split %}{% if meta.packing_split.present %} {{ meta.packing_split.text }}{% endif %}{% elif meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
               {% endif %}
               <span class="foms-packing-badge{% if meta.packing_departed %} foms-packing-badge--done{% endif %}" data-foms-packing-badge hidden></span>
             </button>
@@ -157,7 +157,7 @@
   {% endif %}
 </section>
 
-{% include 'shipment/partials/packing_sheet.html' %}
+{% include 'shipment/partials/packing_sheet.html' %}{% if mobile_queue_rows|map(attribute='shipment_meta')|selectattr('packing_split')|first is defined %}{% include 'shipment/partials/packing_factory_assets.html' %}{% endif %}
 
 {% if can_edit_shipment|default(false) %}
 <div class="offcanvas offcanvas-bottom" tabindex="-1" id="erp-shipment-mobile-edit-sheet" aria-labelledby="erp-shipment-mobile-edit-title">

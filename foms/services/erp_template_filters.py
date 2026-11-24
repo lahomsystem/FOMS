@@ -391,3 +391,9 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(list_thumb_url, 'list_thumb_url')
     # 중간 크기 칸(화면 160~320px) 640 주소(SPEC 2026-11-20-mid-size-image). 같은 정본 판정 · 그림이 아니면 None.
     bp.add_app_template_filter(mid_thumb_url, 'mid_thumb_url')
+    # 출고 패킹 공장마다(설계서 2026-11-23 '승인 때 고친 것' 6) — 카드 글 재료(2공장 장이 없으면 None) · 생산 작업 시트 [패킹] 칸.
+    from foms.services.shipment.packing_entry import packing_prod_entry
+    from foms.services.shipment.packing_factory import packing_glance
+
+    bp.add_app_template_global(packing_glance, 'packing_glance')
+    bp.add_app_template_global(packing_prod_entry, 'packing_prod_entry')

@@ -12,6 +12,7 @@ from typing import Any
 
 from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.shipment.packing_factory import packing_glance
 from foms.services.orders.as_log import latest_client_log_text
 from foms.services.orders.schedule_row_kind import (
     ROW_AS_VISIT_TOO_ATTR,
@@ -263,6 +264,8 @@ def build_shipment_mobile_queue_rows(
                 ),
                 # P6: 출발 보고 완료 여부(카드 라벨을 "출발 보고됨"으로 전환).
                 "packing_departed": _packing_departed,
+                # 패킹 공장마다(설계서 2026-11-23 '승인 때 고친 것' 6) — 2공장 장이 섞인 주문만 {text, present, …}, 그 밖 None(지금 카드 그대로).
+                "packing_split": packing_glance(sd),
                 # 협력사 주문 "입금 대기"(설계서 2026-11-03-partner-statement §5.7) — 라우트가 행에 붙인 값(PC 표 · 태블릿과 같은 값).
                 "partner_payment_pending": bool(getattr(order, "partner_payment_pending", False)),
                 # 상차 줄(§4-15) — enrich_shipment_rows 가 붙인 값. 카드 dl 한 줄은 "상차" 칸 + 뒤 글(load_detail).
