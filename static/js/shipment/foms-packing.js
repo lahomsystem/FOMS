@@ -10,7 +10,8 @@
   if (window.__FOMS_PACKING_BOUND) return;
   window.__FOMS_PACKING_BOUND = true;
 
-  var state = { orderId: null, trigger: null, items: [] };
+  // canCheck: GET/POST 의 can_check(체크할 수 있는 공장들)가 빈 목록이면 보기만(2026-11-25 — 출고 · CS · 영업 등). 칸이 없는 응답은 지금처럼.
+  var state = { orderId: null, trigger: null, items: [], canCheck: true };
   var ISSUE_LABELS = { missing: '미입고', damaged: '파손', short: '수량 부족' };
   // P6: 상차 완료 → 출발 보고 2단 확인. 1탭 arm → DEPART_ARM_MS 내 재탭 확정(미확정 시 자동 해제).
   var DEPART_ARM_MS = 3200;
@@ -139,7 +140,7 @@
       btn.classList.add('foms-packing-depart--done');
       setDepartLabel(btn, '출발 보고 완료');
     } else {
-      btn.disabled = !(total > 0 && checked === total);
+      btn.disabled = !state.canCheck || !(total > 0 && checked === total);
       btn.classList.remove('foms-packing-depart--done');
       setDepartLabel(btn, DEPART_LABEL);
     }
@@ -210,6 +211,7 @@
       input.type = 'checkbox';
       input.className = 'foms-packing-row__check';
       input.checked = !!item.checked;
+      input.disabled = !state.canCheck;
       input.setAttribute('data-foms-packing-check', '');
       input.setAttribute('aria-label', item.label);
 
@@ -242,7 +244,7 @@
       main.appendChild(qty);
       li.appendChild(main);
 
-      if (tplContent) {
+      if (tplContent && state.canCheck) {
         var frag = tplContent.cloneNode(true);
         if (item.issue) {
           var activeChip = frag.querySelector('[data-foms-packing-issue-chip="' + item.issue + '"]');
@@ -256,6 +258,9 @@
   }
 
   function applyData(el, data) {
+    state.canCheck = !Array.isArray(data.can_check) || data.can_check.length > 0;
+    var addForm = q(el, '[data-foms-packing-add]');
+    if (addForm) addForm.classList.toggle('d-none', !state.canCheck);
     state.items = Array.isArray(data.items) ? data.items : [];
     var total = typeof data.total === 'number' ? data.total : state.items.length;
     var checked = typeof data.checked_count === 'number'
