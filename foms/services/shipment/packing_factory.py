@@ -320,3 +320,19 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
         packing["departed_at"], packing["departed_by_name"] = now_iso, by_name  # 지금처럼 다시 누르면 새로 적는다
         result = {"event_type": "PACKING_DEPARTED", "factories": [g["factory"] for g in groups]}
     return result
+
+
+def strip_client_packing_state(sd: Any) -> list[str]:
+    """손님 쪽이 보낸 ``structured_data`` 에서 패킹 자료(``shipment.packing``)를 뺀다(제자리) — 패킹 API 만 쓴다.
+
+    주문 만들기(``order_create._prepare_structured``) · 초안 자동 저장(``erp_orders_structured.api_erp_draft_autosave``)처럼 손님 쪽
+    JSON 을 통째로 저장하는 길이 부른다(``drawing_factory.strip_client_factory_state`` 와 같은 꼴). 폼 저장(PUT structured)은
+    ``structured_form_projection.SERVER_LOCKED_SUBKEYS["shipment"]`` 잠금이 서버 값을 지킨다.
+
+    Returns:
+        뺀 경로(없으면 빈 목록).
+    """
+    shipment = sd.get("shipment") if isinstance(sd, dict) else None
+    if isinstance(shipment, dict) and shipment.pop("packing", None) is not None:
+        return ["shipment.packing"]
+    return []

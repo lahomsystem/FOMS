@@ -30,6 +30,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.order_geocode_outbox import enqueue_order_address_geocode
 from foms.services.orders.drawing_factory import strip_client_factory_state
+from foms.services.shipment.packing_factory import strip_client_packing_state
 from foms.services.orders.erp_policy_quests import create_quest_from_template
 from foms.services.orders.item_identity import get_or_create_identity
 from foms.services.orders.open_order_lookup import created_event_payload
@@ -108,10 +109,12 @@ def _prepare_structured(
     원본을 복사(``copy.deepcopy``)해 반환하며 호출자의 입력을 건드리지 않는다. workflow
     stage 가 없으면 RECEIVED 로 seed 하고, 그 stage 의 quest 가 없으면 템플릿으로 seed 한다.
     도면 장의 공장(``drawing_factory``) · 공장 완료 표지(``production.factory_done``)는 서버 소유라 만들기 길(``/add`` 의
-    ``structured_data_json`` 등)이 실어 와도 버린다(설계서 2026-11-23 §6-3 · §4-14 — 새 주문은 도면도 없다).
+    ``structured_data_json`` 등)이 실어 와도 버린다(설계서 2026-11-23 §6-3 · §4-14 — 새 주문은 도면도 없다). 출고 패킹
+    (``shipment.packing`` — 체크 · 출발 보고 · 공장 상차 완료)도 패킹 API 만 쓰므로 버린다(새 주문은 상차 전이다).
     """
     sd = copy.deepcopy(structured_data or {})
     strip_client_factory_state(sd)
+    strip_client_packing_state(sd)
     workflow = sd.setdefault("workflow", {})
     stage = (workflow.get("stage") or "RECEIVED").strip() or "RECEIVED"
     workflow["stage"] = stage
