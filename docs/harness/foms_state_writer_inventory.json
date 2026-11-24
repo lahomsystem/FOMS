@@ -90,13 +90,6 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 767,
-      "axis": "MAIN",
-      "kind": "subscript_stage",
-      "owner": "STATE-PROD"
-    },
-    {
-      "path": "foms/api/production/orders.py",
       "lineno": 768,
       "axis": "MAIN",
       "kind": "subscript_stage",
@@ -104,7 +97,14 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 806,
+      "lineno": 769,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 807,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-PROD"
@@ -235,14 +235,6 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 767,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-PROD"
-    },
-    {
-      "path": "foms/api/production/orders.py",
       "lineno": 768,
       "kind": "subscript_stage",
       "axis": "MAIN",
@@ -251,7 +243,15 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 806,
+      "lineno": 769,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 807,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -387,7 +387,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 398,
+      "lineno": 402,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -395,7 +395,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 410,
+      "lineno": 414,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -403,7 +403,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 411,
+      "lineno": 415,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",

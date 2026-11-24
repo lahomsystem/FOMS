@@ -221,9 +221,9 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261124p" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261124h" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer></script>{% if can_act and order.factory_sheet %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261124g" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261124h" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261124f" defer></script>{% if edit_on %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261124r" defer></script>{% endif %}{% endif %}{% if edit_toggle %}
 <script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}

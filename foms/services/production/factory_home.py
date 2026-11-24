@@ -157,6 +157,26 @@ def factory_left_message(factory: int, state: dict[str, Any]) -> str:
     return f"{factory_label(factory)}에 아직 미완료가 있어요 — {left}"
 
 
+def factory_step_fields(sd: Any, marks: Iterable[Any]) -> dict[str, Any]:
+    """공정 API 응답에 더할 공장마다 준비 · 까닭(섞인 주문만 — 한 공장 주문은 빈 사전, 응답 그대로). 읽기 전용 · 쿼리 0.
+
+    작업 시트가 공정 칸을 손 체크 · 해제한 뒤 [2공장 제작 완료] 단추 색 · 회색 까닭을 다시 그린다(그릴 때 한 번만 정하지 않게).
+
+    Returns:
+        ``{"factories": {"1": {ready, why, done}, "2": …}}`` 또는 ``{}``. ``ready`` = 공장 완료 API 와 같은 판정
+        (:func:`complete_state` ``factory=``), ``done`` = 표지가 살아 있음.
+    """
+    if not has_second_factory(sd):
+        return {}
+    marks = list(marks)
+    out: dict[str, Any] = {}
+    for factory in present_factories(sd):
+        state = complete_state(sd, marks, factory=factory)
+        out[str(factory)] = {"ready": bool(state["ready"]), "why": "" if state["ready"] else factory_left_message(factory, state),
+                             "done": factory_done_entry(sd, factory) is not None}
+    return {"factories": out}
+
+
 def _status_word(sd: Any, factory: int) -> str:
     entry = factory_done_entry(sd, factory)
     if entry is None:
@@ -200,4 +220,4 @@ def factory_sheet_view(sd: Any, marks: Iterable[Any], user: Any, *, stage_label:
 
 
 __all__ = ["attach_factory_rows", "attach_factory_stage", "drawing_cell", "factory_counts", "factory_finished", "factory_left_message",
-           "factory_ready", "factory_sheet_view"]
+           "factory_ready", "factory_sheet_view", "factory_step_fields"]
