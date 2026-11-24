@@ -1,14 +1,16 @@
-"""출고 패킹을 누가 보고 누가 체크하나 — 한 곳 규칙(설계서 2026-11-23 '승인 때 고친 것' 6 ①, 사장님 "패킹 체크는 생산, 시공, 관리자").
+"""출고 패킹을 누가 보고 누가 체크하나 — 한 곳 규칙(사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만").
 
-정책 엔진 문지기(``PACKING_WRITE`` 의 ``gate``) · 패킹 API 의 읽기 문(GET) · 줄마다 공장 문 · 화면 단추가 모두 이 함수들을 본다.
-둘이 어긋나면 단추는 있는데 서버가 막거나, 쓰기는 되는데 목록을 못 읽는다(예전 — 생산팀 매니저는 POST 는 되는데 GET 이 403).
+정책 엔진 문지기(``PACKING_WRITE`` 의 ``gate``) · 패킹 API 의 읽기 문(GET) · 줄마다 공장 문 · 화면(공장 꼴 ``can_check``)이 모두 이
+함수들을 본다. 둘이 어긋나면 단추는 있는데 서버가 막거나, 쓰기는 되는데 목록을 못 읽는다.
 
-* **체크(쓰기)** = 관리자 · 매니저(팀 무관 — 지금 그대로) · 출고 · CS(회계 별칭) · 영업 · 시공 팀 직원(지금 그대로)
-  + **생산팀 중 카드 · 공정을 쓰는 계정**(파트 계정 · 반장 — ``part_access.writable_factories`` 가 빈 것이 아닌 계정, 새로).
-  파트도 반장도 아닌 생산팀(보기만) · VIEWER · 협력사 · 꺼진 계정은 안 된다.
-* **공장 몫** = 생산팀 계정(관리자 아님)은 자기 계정 공장 줄만(``part_access.user_factory``), 그 밖은 두 공장. 2공장 장이 없는 주문은
-  모든 줄이 1공장 몫이다(``packing_factory``).
-* **보기(GET)** = 체크할 수 있는 사람 + 예전 읽기 문이 열어 주던 출고 · CS · 영업 · 시공 팀 조회 전용(VIEWER) — 그 사람들 화면은 그대로.
+* **체크(쓰기 — 줄 체크 · 누락 신고 · 줄 더하기 · 상차 완료 · 출발 보고)** = 관리자 · 시공팀(직원 · 매니저)
+  + 생산팀 중 카드 · 공정을 쓰는 계정(파트 계정 · 반장 — ``part_access.writable_factories`` 가 빈 것이 아닌 계정)과 생산팀 매니저
+  (2026-11-24 판 그대로, 자기 공장 줄만). 출고 · CS(회계 별칭) · 영업(켜진 프리랜서 포함) 팀 직원 · 매니저, 다른 팀 매니저는 2026-11-25 부터
+  보기만. 파트도 반장도 아닌 생산팀 직원 · VIEWER · 협력사 · 꺼진 계정은 안 된다.
+* **공장 몫** = 생산팀 계정(관리자 아님)은 자기 계정 공장 줄만(``part_access.user_factory``), 그 밖 체크하는 사람은 두 공장. 2공장 장이
+  없는 주문은 모든 줄이 1공장 몫이다(``packing_factory``).
+* **보기(GET)** = 체크할 수 있는 사람 + 예전(3단계 전) 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 계정(직원 · 매니저 · 조회 전용)
+  — 화면으로 보던 사람은 그대로 본다. 다른 팀(도면 등) 매니저는 예전에도 목록을 못 열었다(GET 403) — 쓰기가 닫히므로 다시 403.
 
 생산 쪽 규칙(``foms/services/production/part_access.py``)은 읽기만 한다(그 파일은 고치지 않는다).
 """
@@ -21,8 +23,10 @@ from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.production.factory_constants import FACTORIES, factory_label
 from foms.services.production.part_access import user_factory, writable_factories
 
-#: 지금 패킹 권한이 있던 팀(``PACKING_WRITE`` 의 teams 와 같은 값) — 두 공장.
-PACKING_TEAMS: tuple[str, ...] = ("CS", "SALES", "SHIPMENT", "CONSTRUCTION")
+#: 체크(쓰기)하는 팀 — 두 공장(사장님 2026-11-25 "생산 · 시공 · 관리자"). 생산팀은 아래 공장 몫 규칙으로 따로.
+PACKING_WRITE_TEAMS: tuple[str, ...] = ("CONSTRUCTION",)
+#: 목록을 보는 팀(예전 읽기 문 그대로 — 출고 · CS(회계 별칭) · 영업 · 시공).
+PACKING_VIEW_TEAMS: tuple[str, ...] = ("CS", "SALES", "SHIPMENT", "CONSTRUCTION")
 #: 공장 몫으로 묶이는 팀.
 PRODUCTION_TEAMS: tuple[str, ...] = ("PRODUCTION",)
 
@@ -54,25 +58,30 @@ def can_write_packing(user: Any) -> bool:
         user: 사용자 객체(None 허용). 이미 읽은 행의 칸만 본다 — 쿼리 0.
 
     Returns:
-        관리자 · 매니저 · 출고 · CS · 영업 · 시공 팀 직원(지금 그대로)이거나, 카드 · 공정을 쓰는 생산팀 계정(파트 계정 · 반장)이면 True.
+        관리자, 시공팀 직원 · 매니저, 생산팀 매니저 · 카드 · 공정을 쓰는 생산팀 직원(파트 계정 · 반장)이면 True. 출고 · CS · 영업 ·
+        다른 팀은 False(보기만 — :func:`can_view_packing`).
     """
     if not _live(user):
         return False
     role = _role(user)
-    if role in ("ADMIN", "MANAGER"):
+    if role == "ADMIN":
         return True
-    if role != "STAFF":
+    if role not in ("STAFF", "MANAGER"):
         return False
-    if team_has_capability(getattr(user, "team", None), PACKING_TEAMS):
+    team = getattr(user, "team", None)
+    if team_has_capability(team, PACKING_WRITE_TEAMS):
         return True
-    return bool(writable_factories(user))
+    if team_has_capability(team, PRODUCTION_TEAMS):
+        return role == "MANAGER" or bool(writable_factories(user))
+    return False
 
 
 def can_view_packing(user: Any) -> bool:
-    """패킹 목록(GET)을 열 수 있는지 — 체크할 수 있는 사람 + 출고 · CS · 영업 · 시공 팀 조회 전용(예전 읽기 문 그대로)."""
+    """패킹 목록(GET)을 열 수 있는지 — 체크할 수 있는 사람 + 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(예전 읽기 문)."""
     if can_write_packing(user):
         return True
-    return _live(user) and _role(user) == "VIEWER" and team_has_capability(getattr(user, "team", None), PACKING_TEAMS)
+    return (_live(user) and _role(user) in ("STAFF", "MANAGER", "VIEWER")
+            and team_has_capability(getattr(user, "team", None), PACKING_VIEW_TEAMS))
 
 
 def packing_factories(user: Any) -> tuple[int, ...]:

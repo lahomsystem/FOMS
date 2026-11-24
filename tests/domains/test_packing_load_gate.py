@@ -44,7 +44,7 @@ def _events(oid: int, kind: str) -> int:
 
 def test_load_refused_before_factory_done_and_nothing_written(client):
     """① 1공장 줄을 모두 체크했어도 1공장 제작 완료 전이면 400 — 기록 · 이벤트 · 버전 그대로."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_making())
     data = client.get(URL.format(oid)).get_json()["data"]
     assert _check(client, oid, _keys(data, 1)).status_code == 200  # ⑤ 줄 체크는 막지 않는다
@@ -59,7 +59,7 @@ def test_load_refused_before_factory_done_and_nothing_written(client):
 
 def test_load_after_factory_done(client):
     """② 1공장 완료 표지가 살아 있으면 상차 완료 — 2공장은 아직(제작 중)이라 출발 보고는 안 됨."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_making(done=(1,)))
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1) + _keys(data, 2))
@@ -72,7 +72,7 @@ def test_load_after_factory_done(client):
 
 def test_load_after_order_left_production_without_marks(client):
     """③ 시공 대기로 넘어간 주문은 공장 표지가 없어도 모두 완료 — 두 공장 상차 완료 → 출발 보고."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_making(stage="CONSTRUCTION"))
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1) + _keys(data, 2))
@@ -98,7 +98,7 @@ def test_factory_done_cancel_after_load_lapses_the_load(client):
 
     다시 제작 완료해도(표지 시각이 상차 기록 뒤) 저절로 살아나지 않고, 다시 눌러야 출발 보고가 된다(막다른 길 없음).
     """
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_making(done=(1, 2)))
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1) + _keys(data, 2))
@@ -120,7 +120,7 @@ def test_factory_done_cancel_after_load_lapses_the_load(client):
 
 def test_old_depart_button_has_the_same_gate(client):
     """④ 공장 꼴 주문의 옛 [상차 완료 → 출발 보고] — 제작 완료 전 공장이 하나라도 있으면 거절(아무것도 안 씀)."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_making(done=(1,)))
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1) + _keys(data, 2))
@@ -132,7 +132,7 @@ def test_old_depart_button_has_the_same_gate(client):
 
 def test_checks_issue_and_add_are_not_gated(client):
     """⑤ 패킹 체크는 제작 단계와 상관없이 — 체크 · 누락 신고 · 줄 더하기 모두 200(제작 완료 전 두 공장)."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_making())
     data = client.get(URL.format(oid)).get_json()["data"]
     k2 = _keys(data, 2)
@@ -150,7 +150,7 @@ def test_checks_issue_and_add_are_not_gated(client):
 ])
 def test_get_groups_made_matches_load_line(client, stage, done, made):
     """⑥ GET 공장 묶음 ``made`` = 출고 상차 줄 판정(같은 함수) — 생산 단계에선 "(제작 중)"이 붙은 공장만 made False."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     sd = _making(stage=stage, done=done)
     oid = _order(copy.deepcopy(sd))
     groups = client.get(URL.format(oid)).get_json()["data"]["groups"]
@@ -164,7 +164,7 @@ def test_get_groups_made_matches_load_line(client, stage, done, made):
 
 def test_plain_order_departure_not_gated(client):
     """⑦ 1공장뿐인 주문(옛 꼴)은 손대지 않음 — 생산 단계여도 지금처럼 출발 보고, 응답 칸 그대로(made 칸 없음)."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_making(f2=()))
     data = client.get(URL.format(oid)).get_json()["data"]
     assert "groups" not in data and "made" not in str(data.keys())

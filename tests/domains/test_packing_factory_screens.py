@@ -44,13 +44,18 @@ def _p(role="STAFF", team=None, *, parts=None, lead=False, factory=None, active=
 @pytest.mark.parametrize("person,write,view,factories", [
     (_p("ADMIN", "CS"), True, True, (1, 2)),
     (_p("ADMIN", "PRODUCTION", factory=2), True, True, (1, 2)),
-    (_p("MANAGER", "DRAWING"), True, True, (1, 2)),
-    (_p("MANAGER", "PRODUCTION"), True, True, (1,)),  # 매니저는 지금 그대로 · 생산팀이면 자기 공장 몫
-    (_p("STAFF", "SHIPMENT"), True, True, (1, 2)),
+    # 사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만" — 출고 · CS · 영업 · 다른 팀 매니저는 쓰기 True → False(전판 값은 줄 끝)
+    (_p("MANAGER", "DRAWING"), False, False, ()),  # 전: True · True(GET 은 3단계 전처럼 다시 못 엶)
+    (_p("MANAGER", None), False, False, ()),  # 팀 없는 매니저 — 전: True · True
+    (_p("MANAGER", "PRODUCTION"), True, True, (1,)),  # 생산팀 매니저는 그대로 · 자기 공장 몫
+    (_p("MANAGER", "CONSTRUCTION"), True, True, (1, 2)),
+    (_p("MANAGER", "SHIPMENT"), False, True, ()),  # 보기만(전: True)
+    (_p("MANAGER", "CS"), False, True, ()),
+    (_p("STAFF", "SHIPMENT"), False, True, ()),  # 보기만(전: True)
     (_p("STAFF", "CONSTRUCTION"), True, True, (1, 2)),
-    (_p("STAFF", "CS"), True, True, (1, 2)),
-    (_p("STAFF", "SALES"), True, True, (1, 2)),
-    (_p("STAFF", "ACCOUNTING"), True, True, (1, 2)),  # CS 별칭
+    (_p("STAFF", "CS"), False, True, ()),  # 보기만(전: True)
+    (_p("STAFF", "SALES"), False, True, ()),  # 보기만(전: True) — 켜진 프리랜서도 영업팀이라 같음
+    (_p("STAFF", "ACCOUNTING"), False, True, ()),  # CS 별칭 — 보기만(전: True)
     (_p("STAFF", "PRODUCTION", parts=["cut"]), True, True, (1,)),  # 새로 — 파트 계정
     (_p("STAFF", "PRODUCTION", parts=["edge"], factory=2), True, True, (2,)),
     (_p("STAFF", "PRODUCTION", lead=True, factory=2), True, True, (2,)),  # 새로 — 반장
@@ -73,9 +78,16 @@ def test_permission_table(person, write, view, factories):
     (_p("STAFF", "PRODUCTION", lead=True), True),
     (_p("STAFF", "PRODUCTION"), False),
     (_p("STAFF", "CONSTRUCTION"), True),
+    (_p("MANAGER", "CONSTRUCTION"), True),
     (_p("MANAGER", "PRODUCTION"), True),
+    (_p("ADMIN", None), True),
     (_p("VIEWER", "SHIPMENT"), False),
     (_p("STAFF", "DRAWING"), False),
+    (_p("STAFF", "SHIPMENT"), False),  # 2026-11-25 부터(전: True)
+    (_p("STAFF", "CS"), False),
+    (_p("STAFF", "SALES"), False),
+    (_p("MANAGER", "SHIPMENT"), False),
+    (_p("MANAGER", "DRAWING"), False),
 ])
 def test_policy_gate_is_the_same_function(person, allowed):
     """정책 PACKING_WRITE 문지기 = can_write_packing(앞문 · 핸들러 · 화면이 한 함수)."""

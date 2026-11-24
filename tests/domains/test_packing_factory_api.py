@@ -102,7 +102,7 @@ def test_mixed_order_groups_sheet_lines_and_hardware(client):
 
 def test_plain_order_keeps_today_list_and_payload_keys(client):
     """1공장뿐 — 지금 목록(제품마다 3줄), 응답 칸도 지금 그대로(공장 칸 없음)."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd(f2=()))
     data = client.get(URL.format(oid)).get_json()["data"]
     assert set(data) == {"items", "checked_count", "issues_count", "total", "persisted", "departed_at", "departed_by_name"}
@@ -151,7 +151,7 @@ def _events(oid: int, kind: str) -> int:
 
 def test_uncheck_before_departure_reopens_factory_and_blocks_auto_depart(client):
     """출발 전: 상차 완료한 공장 줄 체크를 풀면 그 공장 상차 완료가 풀린다 — 2공장이 상차 완료해도 출발 보고가 안 찍힌다(안 실린 줄)."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     f1, f2 = _keys(data, 1), _keys(data, 2)
@@ -182,7 +182,7 @@ def test_uncheck_before_departure_reopens_factory_and_blocks_auto_depart(client)
 
 def test_after_departure_records_stay(client):
     """출발 뒤: 체크 풀기 · 새 장 · 더한 줄로 상차 완료가 다시 안 풀린다(단추가 다시 안 켜짐), departed_at 그대로."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1) + _keys(data, 2))
@@ -199,7 +199,7 @@ def test_after_departure_records_stay(client):
 
 def test_loaded_twice_changes_nothing(client):
     """이미 산 상차 완료를 다시 보냄 → 성공, 시각 · 이름 · 열쇠 · 이벤트 · 버전 그대로(쓰기 0)."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1))
@@ -215,12 +215,12 @@ def test_loaded_twice_changes_nothing(client):
 
 def test_departed_again_on_factory_layout_changes_nothing(client):
     """공장 꼴 출발 뒤 [상차 완료 → 출발 보고](옛 단추) 다시 — 2공장 생산 계정이어도 성공, departed_at · 이름 그대로 · 이벤트 없음."""
-    _user(client, team="SHIPMENT", name="박출고")
+    _user(client, team="CONSTRUCTION", name="박출고")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1) + _keys(data, 2))
     gone = client.post(URL.format(oid), json={"departed": True}).get_json()["data"]
-    for who in ({"team": "SHIPMENT"}, {"team": "PRODUCTION", "lead": True, "factory": 2}):
+    for who in ({"team": "CONSTRUCTION"}, {"team": "PRODUCTION", "lead": True, "factory": 2}):
         _user(client, **who)
         res = client.post(URL.format(oid), json={"departed": True})
         assert res.status_code == 200, res.get_json()
@@ -232,7 +232,7 @@ def test_departed_in_old_layout_then_second_factory_shows_unloaded_groups(client
     """옛 꼴로 출발한 뒤 2공장 장이 생긴 주문(공장 기록 없음) — 지금 동작 그대로: 머리 '출발 보고됨', 두 공장 상차 완료 없음(줄은 새로 미체크),
     줄을 모두 체크하면 [N공장 상차 완료]를 누를 수 있고 기록만 남는다(출발 시각은 그대로)."""
     old = [{"key": f"item0_{x}", "label": x, "qty": 1, "checked": True, "by_name": "박출고"} for x in ("body", "door", "hardware")]
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd(packing={"items": old, "departed_at": "2026-11-24T00:10:00+00:00", "departed_by_name": "박출고"}))
     data = client.get(URL.format(oid)).get_json()["data"]
     assert data["departed_at"] and [g["loaded"] for g in data["groups"]] == [None, None] and data["checked_count"] == 0
@@ -243,7 +243,7 @@ def test_departed_in_old_layout_then_second_factory_shows_unloaded_groups(client
 
 
 def test_old_depart_button_on_mixed_order_needs_all_and_loads_remaining(client):
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1))
@@ -297,7 +297,7 @@ def test_admin_add_needs_factory_choice_on_mixed_order(client):
 
 
 def test_loaded_on_plain_order_is_refused(client):
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd(f2=()))
     res = client.post(URL.format(oid), json={"loaded": 1})
     assert res.status_code == 400 and "packing" not in (_fresh(oid).get("shipment") or {})
@@ -305,8 +305,13 @@ def test_loaded_on_plain_order_is_refused(client):
 
 @pytest.mark.parametrize("role,team,status", [
     ("MANAGER", "PRODUCTION", 200),  # 예전: POST 는 되는데 GET 403 — 이제 같이 됨
-    ("MANAGER", "DRAWING", 200),
+    ("MANAGER", "DRAWING", 403),  # 2026-11-25: 쓰기가 닫혀 예전(3단계 전)처럼 목록도 못 엶(전판 200)
     ("VIEWER", "SHIPMENT", 200),  # 예전 읽기 문 그대로(조회 전용)
+    ("STAFF", "SHIPMENT", 200),  # 2026-11-25 부터 보기만 — 목록은 그대로
+    ("MANAGER", "SHIPMENT", 200),
+    ("STAFF", "CS", 200),
+    ("STAFF", "ACCOUNTING", 200),
+    ("STAFF", "SALES", 200),
     ("STAFF", "PRODUCTION", 403),  # 파트도 반장도 아닌 생산팀(보기만)
     ("VIEWER", "PRODUCTION", 403),
 ])
@@ -324,7 +329,7 @@ def test_legacy_checks_get_notice_and_stay_stored(client):
                "by_name": "박출고", "issue": None} for s in ("body", "door", "hardware")]
     legacy.append({"key": "custom_1_3", "label": "상판 유리", "qty": 1, "checked": True, "at": None, "by_name": "박출고",
                    "issue": None})
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd(packing={"items": legacy, "updated_at": None}))
     data = client.get(URL.format(oid)).get_json()["data"]
     assert data["layout"] == "factory" and data["legacy_count"] == 2
@@ -337,7 +342,7 @@ def test_legacy_checks_get_notice_and_stay_stored(client):
 
 def test_back_to_one_factory_keeps_factory_layout_and_checks(client):
     """섞인 주문이 다시 1공장만 됨 → 공장 꼴로 저장했으면 그대로(1공장 묶음 하나), 옮겨 온 장의 체크도 따라온다."""
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     moved = _keys(data, 2, "sheet")[0]
@@ -354,7 +359,7 @@ def test_back_to_one_factory_keeps_factory_layout_and_checks(client):
 
 
 def test_sheet_removed_hides_line_but_keeps_state_and_load(client):
-    _user(client, team="SHIPMENT")
+    _user(client, team="CONSTRUCTION")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 2))
