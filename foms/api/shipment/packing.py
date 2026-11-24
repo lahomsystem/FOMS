@@ -61,6 +61,15 @@ PACKING_WRITE_POLICY_ID = "PACKING_WRITE"
 class _PackingGateError(Exception):
     """출발 보고 전제(전 항목 체크) 위반 — mutation 내부에서 raise, 호출부가 400 으로 매핑."""
 
+
+class _PackingNoChange(Exception):
+    """공장 꼴 — 이미 산 상차 완료 · 이미 한 출발 보고를 다시 보냄(그 밖에 바꾼 것 없음). 되감고 지금 자료로 200 — 쓰기 · 버전 ·
+    영수증 · 이벤트 · 감사 줄 0."""
+
+    def __init__(self, data: dict[str, Any]) -> None:
+        super().__init__("no change")
+        self.data = data
+
 # 파생 기본 항목: (key 접미사, 라벨 접미사).
 _DERIVED_PART_SUFFIXES = (
     ("body", "본체 패널"),
@@ -393,6 +402,8 @@ def api_shipment_packing_save(order_id: int):
             by_name=by_name, user_id=user_id, now_iso=now_iso,
             new_key=f"custom_{int(datetime.datetime.now().timestamp() * 1000)}_{len(stored['items']) if stored else 0}",
         )
+        if not result["changed"]:
+            raise _PackingNoChange(pf.factory_payload(o.structured_data if isinstance(o.structured_data, dict) else {}, mine))
         data = pf.factory_payload(sd, mine)
         o.structured_data = sd
         flag_modified(o, "structured_data")
@@ -430,6 +441,11 @@ def api_shipment_packing_save(order_id: int):
     except _PackingGateError as gate:
         db.rollback()
         return jsonify({"success": False, "error": str(gate)}), 400
+    except _PackingNoChange as same:
+        db.rollback()
+        resp = jsonify({"success": True, "data": {**same.data, "mutation_receipt": None}})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
     except pf.PackingRefusal as refusal:
         db.rollback()
         return jsonify({"success": False, "data": {"code": refusal.code, **refusal.extra}, "error": refusal.message,

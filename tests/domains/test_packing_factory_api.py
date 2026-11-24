@@ -137,22 +137,109 @@ def test_two_factory_loads_then_departed_automatically(client):
     assert _packing_fields(sd) == (f"출발 {format_datetime_kst(packing['departed_at'], '%H:%M')}", "departed")  # 한국 시각
 
 
-def test_uncheck_after_load_keeps_record_and_new_sheet_reopens_factory(client):
-    """체크를 풀어도 상차 완료 기록은 그대로(지금 '출발 뒤 체크 풀기'와 같다). 새 장이 오면 그 공장 상차 완료가 풀린다."""
+def _add_sheet(oid: int, key: str = "orders/x/new.png") -> None:
+    o = db_session.get(Order, oid)
+    sd = dict(o.structured_data)
+    sd["drawing_current_files"] = sd["drawing_current_files"] + [{"key": key, "filename": "새도면.png"}]
+    o.structured_data = sd
+    db_session.commit()
+
+
+def _events(oid: int, kind: str) -> int:
+    return db_session.query(OrderEvent).filter_by(order_id=oid, event_type=kind).count()
+
+
+def test_uncheck_before_departure_reopens_factory_and_blocks_auto_depart(client):
+    """출발 전: 상차 완료한 공장 줄 체크를 풀면 그 공장 상차 완료가 풀린다 — 2공장이 상차 완료해도 출발 보고가 안 찍힌다(안 실린 줄)."""
+    _user(client, team="SHIPMENT")
+    oid = _order(_sd())
+    data = client.get(URL.format(oid)).get_json()["data"]
+    f1, f2 = _keys(data, 1), _keys(data, 2)
+    _check(client, oid, f1)
+    client.post(URL.format(oid), json={"loaded": 1})
+    after = _check(client, oid, f1[:1], on=False).get_json()["data"]
+    assert after["groups"][0]["loaded"] is None and after["groups"][0]["checked"] == 3
+    assert "1" in _fresh(oid)["shipment"]["packing"]["factory_loaded"]  # 읽기는 저장값을 안 고친다(기록은 남음)
+    _check(client, oid, f2)
+    two = client.post(URL.format(oid), json={"loaded": 2}).get_json()["data"]
+    assert two["groups"][1]["loaded"] is not None and two["departed_at"] is None
+    early = client.post(URL.format(oid), json={"loaded": 1})
+    assert early.status_code == 400 and early.get_json()["data"]["code"] == "PACKING_FACTORY_NOT_READY"
+    rechecked = _check(client, oid, f1[:1]).get_json()["data"]
+    assert rechecked["groups"][0]["loaded"] is None  # 다시 체크만으로는 안 살아남 — 다시 눌러야 함
+    done = client.post(URL.format(oid), json={"loaded": 1}).get_json()["data"]
+    assert done["departed_at"]
+    assert _events(oid, "PACKING_FACTORY_LOADED") == 2 and _events(oid, "PACKING_DEPARTED") == 1
+    # 새 장이 오는 것도(출발 전이면) 그 공장을 풀었다 — 출발 뒤인 지금은 아래 시험
+    oid2 = _order(_sd())
+    k1 = _keys(client.get(URL.format(oid2)).get_json()["data"], 1)
+    _check(client, oid2, k1)
+    client.post(URL.format(oid2), json={"loaded": 1})
+    _add_sheet(oid2)
+    again = client.get(URL.format(oid2)).get_json()["data"]
+    assert again["groups"][0]["loaded"] is None and again["groups"][0]["total"] == 5
+
+
+def test_after_departure_records_stay(client):
+    """출발 뒤: 체크 풀기 · 새 장 · 더한 줄로 상차 완료가 다시 안 풀린다(단추가 다시 안 켜짐), departed_at 그대로."""
+    _user(client, team="SHIPMENT")
+    oid = _order(_sd())
+    data = client.get(URL.format(oid)).get_json()["data"]
+    _check(client, oid, _keys(data, 1) + _keys(data, 2))
+    client.post(URL.format(oid), json={"loaded": 1})
+    gone = client.post(URL.format(oid), json={"loaded": 2}).get_json()["data"]
+    _check(client, oid, _keys(data, 1)[:2], on=False)
+    client.post(URL.format(oid), json={"add": {"label": "상판 유리", "factory": 2}})
+    _add_sheet(oid)
+    now = client.get(URL.format(oid)).get_json()["data"]
+    assert [g["loaded"] for g in now["groups"]] == [g["loaded"] for g in gone["groups"]] and all(now["groups"][i]["loaded"] for i in (0, 1))
+    assert (now["departed_at"], now["departed_by_name"]) == (gone["departed_at"], gone["departed_by_name"])
+    assert now["groups"][0]["checked"] < now["groups"][0]["total"]  # 새 줄 · 푼 줄은 미체크로 보이기만
+
+
+def test_loaded_twice_changes_nothing(client):
+    """이미 산 상차 완료를 다시 보냄 → 성공, 시각 · 이름 · 열쇠 · 이벤트 · 버전 그대로(쓰기 0)."""
     _user(client, team="SHIPMENT")
     oid = _order(_sd())
     data = client.get(URL.format(oid)).get_json()["data"]
     _check(client, oid, _keys(data, 1))
-    client.post(URL.format(oid), json={"loaded": 1})
-    after = _check(client, oid, _keys(data, 1)[:1], on=False).get_json()["data"]
-    assert after["groups"][0]["loaded"] is not None and after["groups"][0]["checked"] == 3
-    o = db_session.get(Order, oid)
-    sd = dict(o.structured_data)
-    sd["drawing_current_files"] = sd["drawing_current_files"] + [{"key": "orders/x/new.png", "filename": "새도면.png"}]
-    o.structured_data = sd
-    db_session.commit()
-    again = client.get(URL.format(oid)).get_json()["data"]
-    assert again["groups"][0]["loaded"] is None and again["groups"][0]["total"] == 5
+    first = client.post(URL.format(oid), json={"loaded": 1}).get_json()["data"]
+    before = _fresh(oid)
+    version = db_session.get(Order, oid).mutation_version
+    again = client.post(URL.format(oid), json={"loaded": 1})
+    assert again.status_code == 200 and again.get_json()["data"]["mutation_receipt"] is None
+    assert again.get_json()["data"]["groups"][0]["loaded"] == first["groups"][0]["loaded"]
+    assert _fresh(oid) == before and db_session.get(Order, oid).mutation_version == version
+    assert _events(oid, "PACKING_FACTORY_LOADED") == 1
+
+
+def test_departed_again_on_factory_layout_changes_nothing(client):
+    """공장 꼴 출발 뒤 [상차 완료 → 출발 보고](옛 단추) 다시 — 2공장 생산 계정이어도 성공, departed_at · 이름 그대로 · 이벤트 없음."""
+    _user(client, team="SHIPMENT", name="박출고")
+    oid = _order(_sd())
+    data = client.get(URL.format(oid)).get_json()["data"]
+    _check(client, oid, _keys(data, 1) + _keys(data, 2))
+    gone = client.post(URL.format(oid), json={"departed": True}).get_json()["data"]
+    for who in ({"team": "SHIPMENT"}, {"team": "PRODUCTION", "lead": True, "factory": 2}):
+        _user(client, **who)
+        res = client.post(URL.format(oid), json={"departed": True})
+        assert res.status_code == 200, res.get_json()
+        assert (res.get_json()["data"]["departed_at"], res.get_json()["data"]["departed_by_name"]) == (gone["departed_at"], "박출고")
+    assert _events(oid, "PACKING_DEPARTED") == 1
+
+
+def test_departed_in_old_layout_then_second_factory_shows_unloaded_groups(client):
+    """옛 꼴로 출발한 뒤 2공장 장이 생긴 주문(공장 기록 없음) — 지금 동작 그대로: 머리 '출발 보고됨', 두 공장 상차 완료 없음(줄은 새로 미체크),
+    줄을 모두 체크하면 [N공장 상차 완료]를 누를 수 있고 기록만 남는다(출발 시각은 그대로)."""
+    old = [{"key": f"item0_{x}", "label": x, "qty": 1, "checked": True, "by_name": "박출고"} for x in ("body", "door", "hardware")]
+    _user(client, team="SHIPMENT")
+    oid = _order(_sd(packing={"items": old, "departed_at": "2026-11-24T00:10:00+00:00", "departed_by_name": "박출고"}))
+    data = client.get(URL.format(oid)).get_json()["data"]
+    assert data["departed_at"] and [g["loaded"] for g in data["groups"]] == [None, None] and data["checked_count"] == 0
+    assert data["legacy_count"] == 0  # 출발 뒤라 '다시 체크' 안내 없음
+    _check(client, oid, _keys(data, 1))
+    one = client.post(URL.format(oid), json={"loaded": 1}).get_json()["data"]
+    assert one["groups"][0]["loaded"] is not None and one["departed_at"] == "2026-11-24T00:10:00+00:00"
 
 
 def test_old_depart_button_on_mixed_order_needs_all_and_loads_remaining(client):

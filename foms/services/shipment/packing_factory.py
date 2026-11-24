@@ -14,15 +14,20 @@
   칸(없으면 1공장).
 * **줄 상태를 지우지 않는다.** 지금 장에 없는 줄(빠진 장 · 옛 제품 줄)은 안 보일 뿐 ``items`` 에 남는다 — 장이 돌아오면 체크도 돌아온다.
   옛 꼴로 체크한 제품 줄이 있는 주문에 2공장 장이 생기면 그 줄들은 공장 꼴 목록에 없다 → 화면에 "다시 체크" 안내(:func:`legacy_count`).
-* **상차 완료(공장 f)** = ``factory_loaded[f]`` 가 있고 지금 f 줄 열쇠 ⊆ 저장한 ``keys`` — 새 줄(새 장 · 더한 줄)이 오면 저절로 풀려
-  다시 누른다(공장 완료 표지와 같은 꼴). 체크를 풀어도 기록은 그대로(지금 '출발 뒤 체크 풀기'와 같다). 있는 공장이 모두 상차 완료되는
-  순간 출발 보고(``departed_at`` · ``departed_by_name``)가 처리된다. 상차 완료 · 출발 보고 모두 취소 길은 없다(지금과 같다).
+* **상차 완료(공장 f)** 가 살아 있음 — 출발 보고 전: ``factory_loaded[f]`` 가 있고 지금 f 줄 열쇠 ⊆ 저장한 ``keys`` **그리고** f 줄이
+  지금 모두 체크됐고 그 체크가 모두 상차 완료 시각 이전(누락 신고는 안 따짐 — 옛 출발 보고 문과 같게). 새 줄(새 장 · 더한 줄)이 오거나
+  누가 체크를 풀면 풀리고, 다시 체크만 해서는 안 살아난다 — [N공장 상차 완료]를 다시 눌러야 한다(안 실린 줄이 있는데 출발 보고가
+  찍히지 않게). 출발 보고 뒤: 적어 둔 기록이 있으면 그대로 산 것(새 줄 · 체크 풀기로 다시
+  안 풀림 — 출발 뒤 단추가 다시 켜지지 않는다). 읽기는 저장값을 고치지 않는다(풀려도 기록은 남고, 다시 누르면 덮는다).
+  있는 공장이 모두 상차 완료되는 순간 출발 보고(``departed_at`` · ``departed_by_name``)가 처리된다. 상차 완료 · 출발 보고 모두 취소
+  길은 없다(지금과 같다). 이미 산 상차 완료 · 이미 한 출발 보고를 다시 보내면 아무것도 안 바꾼다(``changed`` False).
 """
 
 from __future__ import annotations
 
+import datetime
 import re
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.orders.drawing_factory import current_factories, has_second_factory
@@ -124,13 +129,30 @@ def factory_lines(sd: Any) -> list[dict[str, Any]]:
     return out
 
 
-def _loaded_alive(packing: dict[str, Any], factory: int, keys: Iterable[str]) -> Optional[dict[str, Any]]:
+def _when(raw: Any) -> Optional[datetime.datetime]:
+    try:
+        at = datetime.datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return None
+    return at if at.tzinfo else at.replace(tzinfo=datetime.timezone.utc)
+
+
+def _loaded_alive(packing: dict[str, Any], factory: int, lines: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """그 공장 상차 완료 기록이 살아 있으면 그 기록 — 출발 뒤면 기록만 있으면, 출발 전이면 열쇠 ⊆ 기록 · 줄 모두 체크 · 그 체크가
+    모두 기록 시각 이전일 때만(풀었다 다시 체크한 줄이 있으면 다시 눌러야 한다). 저장값은 고치지 않는다."""
     record = (packing.get(LOADED_KEY) or {}).get(str(factory)) if isinstance(packing.get(LOADED_KEY), dict) else None
     if not isinstance(record, dict):
         return None
-    current = set(keys)
+    if packing.get("departed_at"):
+        return record
+    current = {l["key"] for l in lines}
     saved = {str(k) for k in record.get("keys") or [] if isinstance(k, str)}
-    return record if current and current <= saved else None
+    if not current or not current <= saved or not all(l["checked"] for l in lines):
+        return None
+    loaded_at = _when(record.get("at"))
+    if loaded_at is not None and any((_when(l.get("at")) or loaded_at) > loaded_at for l in lines):
+        return None
+    return record
 
 
 def factory_groups(sd: Any, lines: Optional[list[dict[str, Any]]] = None) -> list[dict[str, Any]]:
@@ -142,7 +164,7 @@ def factory_groups(sd: Any, lines: Optional[list[dict[str, Any]]] = None) -> lis
         own = [l for l in lines if l["factory"] == f]
         if not own:
             continue
-        record = _loaded_alive(packing, f, (l["key"] for l in own))
+        record = _loaded_alive(packing, f, own)
         groups.append({"factory": f, "label": factory_label(f), "lines": own,
                        "checked": sum(1 for l in own if l["checked"]), "total": len(own),
                        "loaded": {"at": record.get("at"), "by_name": record.get("by_name")} if record else None})
@@ -252,7 +274,8 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
         by_name · user_id · now_iso: 누가 · 언제. new_key: 더한 줄 열쇠.
 
     Returns:
-        ``{event_type, factory?, factories?}`` — PACKING_UPDATED · PACKING_FACTORY_LOADED · PACKING_DEPARTED.
+        ``{event_type, changed, factory?, factories?}`` — PACKING_UPDATED · PACKING_FACTORY_LOADED · PACKING_DEPARTED. ``changed``
+        False = 이미 산 상차 완료 · 이미 한 출발 보고를 다시 보냈고 그 밖에 바꾼 것도 없음(부르는 쪽은 쓰지 않고 되감는다).
 
     Raises:
         PackingRefusal: 남의 공장 줄(403) · 공장 값(400) · 그 공장 줄이 다 체크 안 됨(400) · 출발 보고 문(400).
@@ -267,11 +290,13 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
     items = packing["items"]
     rows = {str(r.get("key")): r for r in items if isinstance(r, dict)}
     view = {l["key"]: l for l in factory_lines(sd)}
+    changed = bool(add)
     for upd in updates or []:
         line = view.get(upd.get("key")) if isinstance(upd, dict) else None
         if line is None:
             continue
         _require(line["factory"], mine)
+        changed = True
         row = rows.get(line["key"])
         if row is None:
             row = {"key": line["key"], "label": line["label"], "qty": 1, "checked": False, "at": None, "by_name": None,
@@ -300,16 +325,18 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
         if group is None:
             raise PackingRefusal(400, "BAD_REQUEST", f"이 주문에는 {factory_label(loaded)} 줄이 없어요.")
         _require(loaded, mine)
-        if group["checked"] < group["total"]:
-            raise PackingRefusal(400, "PACKING_FACTORY_NOT_READY",
-                                 f"{factory_label(loaded)} 줄을 모두 체크해야 상차 완료할 수 있어요.", {"factory": loaded})
-        _record(packing, group, by_name=by_name, user_id=user_id, now_iso=now_iso)
-        result = {"event_type": "PACKING_FACTORY_LOADED", "factory": loaded}
-        groups = factory_groups(sd)
-        if not packing.get("departed_at") and all(g["loaded"] for g in groups):
-            packing["departed_at"], packing["departed_by_name"] = now_iso, by_name
-            result = {"event_type": "PACKING_DEPARTED", "factory": loaded, "factories": [g["factory"] for g in groups]}
-    if departed:
+        if group["loaded"] is None:  # 이미 산 상차 완료면 다시 안 적는다(시각 · 이름 · 열쇠 · 이벤트 그대로)
+            if group["checked"] < group["total"]:
+                raise PackingRefusal(400, "PACKING_FACTORY_NOT_READY",
+                                     f"{factory_label(loaded)} 줄을 모두 체크해야 상차 완료할 수 있어요.", {"factory": loaded})
+            _record(packing, group, by_name=by_name, user_id=user_id, now_iso=now_iso)
+            changed = True
+            result = {"event_type": "PACKING_FACTORY_LOADED", "factory": loaded}
+            groups = factory_groups(sd)
+            if not packing.get("departed_at") and all(g["loaded"] for g in groups):
+                packing["departed_at"], packing["departed_by_name"] = now_iso, by_name
+                result = {"event_type": "PACKING_DEPARTED", "factory": loaded, "factories": [g["factory"] for g in groups]}
+    if departed and not packing.get("departed_at"):  # 공장 꼴은 이미 출발 보고했으면 아무것도 안 바꾼다(옛 꼴 길은 지금처럼 다시 적음)
         total = sum(g["total"] for g in groups)
         if total == 0 or sum(g["checked"] for g in groups) < total:
             raise PackingRefusal(400, "PACKING_NOT_ALL_CHECKED", NOT_ALL_CHECKED_MESSAGE)
@@ -317,9 +344,10 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
             if not group["loaded"]:
                 _require(group["factory"], mine)
                 _record(packing, group, by_name=by_name, user_id=user_id, now_iso=now_iso)
-        packing["departed_at"], packing["departed_by_name"] = now_iso, by_name  # 지금처럼 다시 누르면 새로 적는다
+        packing["departed_at"], packing["departed_by_name"] = now_iso, by_name
+        changed = True
         result = {"event_type": "PACKING_DEPARTED", "factories": [g["factory"] for g in groups]}
-    return result
+    return {**result, "changed": changed}
 
 
 def strip_client_packing_state(sd: Any) -> list[str]:
