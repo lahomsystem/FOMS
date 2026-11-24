@@ -20,10 +20,18 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
-from foms.services.orders.drawing_factory import current_factories, factory_done_entry, has_second_factory
+from foms.services.orders.drawing_factory import (
+    current_factories,
+    factory_done_entry,
+    has_second_factory,
+    present_factories,
+    sheet_factory,
+)
 from foms.services.production.factory_constants import FACTORIES, factory_label
-from foms.services.production.part_constants import PRODUCTION_PART_KEYS
-from foms.services.production.part_progress import part_done
+from foms.services.production.part_access import can_finish_factory
+from foms.services.production.part_constants import MARK_STATE_DONE, PART_INSPECT, PRODUCTION_PART_KEYS
+from foms.services.production.part_progress import complete_state, part_done
+from foms.services.production_home_read_model import format_step_at_kst
 
 
 def factory_finished(sd: Any, marks: Iterable[Any], factory: int) -> bool:
@@ -113,4 +121,83 @@ def attach_factory_stage(rows: Iterable[dict[str, Any]], marks: Iterable[Any], g
             row["fac_stage"] = f"{factory_label(group)} 제작 완료만 남음"
 
 
-__all__ = ["attach_factory_rows", "attach_factory_stage", "drawing_cell", "factory_counts", "factory_finished"]
+def factory_ready(sd: Any, entry: dict[str, Any], marks: Iterable[Any], user: Any, *, order_id: int, part: str,
+                  target: Optional[str], stage: Optional[str], hold: bool) -> Optional[dict[str, Any]]:
+    """검수 카드를 완료한 뒤 "2공장 제작 완료할까요?"를 물을지(§4-4 섞인 주문) — 쿼리 0(읽은 줄 · 잠근 주문).
+
+    섞인 주문 · 검수 완료 쓰기 · 생산 단계 · 보류 아님 · 그 장의 공장 완료 표지가 아직 · 그 공장 장이 네 파트 모두 완료 · 누른 사람이
+    그 공장 완료를 할 수 있을 때만. 한 공장 주문은 지금 ``order_ready`` 그대로(여기는 None).
+
+    Returns:
+        ``{order_id, factory, label, sheets, final, others, message}`` — ``final`` = 다른 있는 공장이 모두 이미 완료(이번이 마지막),
+        ``message`` = 창 본문 뒤쪽("2공장 도면 2장이 모두 완료됐어요. 1공장은 아직 제작 중이에요.").
+    """
+    if part != PART_INSPECT or target != MARK_STATE_DONE or stage != "PRODUCTION" or hold or not has_second_factory(sd):
+        return None
+    factory = sheet_factory(sd, entry)
+    if factory_done_entry(sd, factory) is not None or not can_finish_factory(user, factory):
+        return None
+    marks = list(marks)
+    if not factory_finished(sd, marks, factory):
+        return None
+    others = [f for f in present_factories(sd) if f != factory]
+    final = all(factory_done_entry(sd, f) is not None for f in others)
+    names = " · ".join(factory_label(f) for f in others)
+    tail = (f"{names}은 이미 완료했어요. 제작 완료하면 시공 대기로 넘어가요." if final
+            else f"{names}은 아직 제작 중이에요.") if others else "제작 완료하면 시공 대기로 넘어가요."
+    sheets = factory_counts(sd)[factory]
+    return {"order_id": order_id, "factory": factory, "label": factory_label(factory), "sheets": sheets, "final": final,
+            "others": [factory_label(f) for f in others],
+            "message": f"{factory_label(factory)} 도면 {sheets}장이 모두 완료됐어요. {tail}"}
+
+
+def factory_left_message(factory: int, state: dict[str, Any]) -> str:
+    """그 공장에 남은 일 — "2공장에 아직 미완료가 있어요 — 엣지 1장 · 검수 2장"(§4-14 작업 시트 · 공장 완료 거절 글)."""
+    left = " · ".join(f"{m['label']} {state['left'].get(m['key'], 0)}장" for m in state["missing_steps"])
+    return f"{factory_label(factory)}에 아직 미완료가 있어요 — {left}"
+
+
+def _status_word(sd: Any, factory: int) -> str:
+    entry = factory_done_entry(sd, factory)
+    if entry is None:
+        return f"{factory_label(factory)} 제작 중"
+    who = " ".join(p for p in (str(entry.get("by_name") or "").strip(), format_step_at_kst(entry.get("at"))) if p)
+    return f"{factory_label(factory)} 완료" + (f"({who})" if who else "")
+
+
+def factory_sheet_view(sd: Any, marks: Iterable[Any], user: Any, *, stage_label: str) -> Optional[dict[str, Any]]:
+    """작업 시트의 공장 줄 · 공장 단추(§4-14 '작업 시트 [제작 완료](섞인 주문)') — 한 공장 주문은 None(지금 시트 그대로).
+
+    * 줄: "1공장 제작 중 · 2공장 완료(강검수 11/24 16:10)".
+    * 제작중: 내가 완료할 수 있는 공장(:func:`can_finish_factory` — 관리자 두 공장 · 그 밖 계정 공장) 중 안 끝난 공장마다
+      [2공장 제작 완료](그 공장 판정 — 안 되면 회색 + 까닭), 살아 있는 공장은 [2공장 완료 취소]. 안 끝난 공장이 내 공장 하나뿐이면
+      지금 [제작 완료](마지막 — 남은 공장을 한꺼번에)를 그대로 보인다(``show_complete``).
+    * 제작완료: 관리자는 [1공장 완료 취소] · [2공장 완료 취소](지금 [완료 취소] = 둘 다 — §19 여섯째).
+    """
+    if not has_second_factory(sd):
+        return None
+    marks = list(marks)
+    present = present_factories(sd)
+    mine = [f for f in present if can_finish_factory(user, f)]
+    view = {"line": " · ".join(_status_word(sd, f) for f in present), "buttons": [], "show_complete": True, "reopen": []}
+    if stage_label == "제작완료":
+        view["reopen"] = [{"factory": f, "label": f"{factory_label(f)} 완료 취소"} for f in mine] if len(mine) > 1 else []
+        return view
+    if stage_label != "제작중":
+        return view
+    undone = [f for f in present if factory_done_entry(sd, f) is None]
+    view["show_complete"] = bool(undone) and len(undone) == 1 and undone[0] in mine
+    for factory in mine:
+        if factory not in undone:
+            view["buttons"].append({"factory": factory, "done": False, "label": f"{factory_label(factory)} 완료 취소",
+                                    "ready": True, "why": ""})
+        elif not view["show_complete"]:
+            state = complete_state(sd, marks, factory=factory)
+            view["buttons"].append({"factory": factory, "done": True, "label": f"{factory_label(factory)} 제작 완료",
+                                    "ready": bool(state["ready"]),
+                                    "why": "" if state["ready"] else factory_left_message(factory, state)})
+    return view
+
+
+__all__ = ["attach_factory_rows", "attach_factory_stage", "drawing_cell", "factory_counts", "factory_finished", "factory_left_message",
+           "factory_ready", "factory_sheet_view"]

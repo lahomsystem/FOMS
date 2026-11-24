@@ -5,8 +5,6 @@ erp.py에서 분리: production/start, production/complete, production/steps.
 
 import copy
 import datetime
-import hashlib
-import json
 import uuid
 from foms.services.datetime_kst import now_utc_naive
 from functools import wraps
@@ -26,7 +24,6 @@ from foms.services.erp_display import _ensure_dict
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.order_transition_service import (
     COMMAND_REGISTRY,
-    StageConflictError,
     TransitionCommand,
     TransitionError,
     transition_order,
@@ -52,7 +49,6 @@ from foms.services.orders.state_axes import (
     read_main_stage,
 )
 from foms.services.orders.admin_override import (
-    GATE_STEPS_INCOMPLETE,
     admin_override_error,
     log_admin_override_denied,
     record_admin_override_event,
@@ -62,7 +58,6 @@ from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     evaluate_policy,
 )
-from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.production.part_access import steps_lock
 from foms.services.production.write_access import (
     PRODUCTION_ACK_DENIED_MESSAGE,
@@ -81,7 +76,22 @@ from foms.services.production.steps import (
 )
 from foms.services.production.part_mark_gates import GateRefusal, step_cell_gate
 from foms.services.production.part_marks_query import order_marks
-from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras
+from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras  # noqa: F401  # complete_block_body = 판정 한 곳 재노출(위치 고정 시험)
+from foms.services.production.complete_order import clear_factory_marks, complete_production, uncomplete_factories
+from foms.services.production.order_write_helpers import (  # 옮긴 조각 — 옛 이름 그대로(시작 · 재제작 · 취소 · 완료 취소 · 공정 · 보류)
+    _append_hold_history,
+    _current_production_run,
+    _hold_active,
+    _hold_block_response,
+    _idempotency_receipt_exists,
+    _merge_event_payload,
+    _punch_or_return,
+    _release_hold_in_sd,
+    _request_hash,
+    _scope_hash,
+    _stage_quest_block,
+    _transition_error_response,
+)
 from foms.services.production.start_run import (
     START_NOTE,
     append_stage_history,
@@ -110,8 +120,6 @@ _ensure_production_steps = ensure_production_steps
 _PRODUCTION_DEFECT_REASONS = ("자재 불량", "가공 오류", "파손", "기타")
 _PRODUCTION_DEFECTS_CAP = 20
 
-# 보류 이력(hold_history) 캡 — 완료 후에도 보존되는 해제된 보류 기록(최근 20건 유지).
-_PRODUCTION_HOLD_HISTORY_CAP = 20
 
 
 def _can_edit_production_steps(user: Any) -> bool:
@@ -150,37 +158,6 @@ def _production_change_ack_required(f: Callable[..., Any]) -> Callable[..., Any]
         return jsonify({"success": False, "error": PRODUCTION_ACK_DENIED_MESSAGE}), 403
 
     return wrapped
-
-
-def _append_hold_history(production: dict[str, Any], released_by: str | None) -> None:
-    """보류 해제 직전, active hold 를 hold_history 에 보존한다(완료 후 이력 소실 방지).
-
-    보류 해제 2경로(hold API 직접 해제 · 전이 게이트 release)가 공유한다. 호출 시점의
-    ``production['hold']`` 가 active 면 ``{reason, at(보류 시작), released_at(now),
-    released_by}`` 를 ``production['hold_history']`` 리스트에 append 하고 최근
-    ``_PRODUCTION_HOLD_HISTORY_CAP`` 건만 유지한다. active 가 아니면 아무것도 하지
-    않는다(빈 해제·중복 append 방지). 호출부가 이 함수 뒤에 hold 를 초기화한다.
-
-    :param production: ``sd['production']`` dict(호출부의 deepcopy 작업 사본 내부 참조).
-    :param released_by: 해제자 이름(``user.name`` 또는 None).
-    """
-    hold = production.get("hold")
-    if not (isinstance(hold, dict) and hold.get("active")):
-        return
-    history = production.get("hold_history")
-    if not isinstance(history, list):
-        history = []
-    history.append(
-        {
-            "reason": hold.get("reason") or "",
-            "at": hold.get("at"),
-            "released_at": now_utc_naive().isoformat(),
-            "released_by": released_by,
-        }
-    )
-    if len(history) > _PRODUCTION_HOLD_HISTORY_CAP:
-        history = history[-_PRODUCTION_HOLD_HISTORY_CAP:]
-    production["hold_history"] = history
 
 
 def _apply_production_hold_gate(
@@ -308,17 +285,6 @@ def _idempotency_key(body: dict[str, Any]) -> str | None:
     return key[:64] if key else None
 
 
-def _scope_hash(command_id: str, order_id: int) -> str:
-    """전이 scope 의 sha256 hex(receipt 저장용)."""
-    return hashlib.sha256(f"{command_id}:{order_id}".encode("utf-8")).hexdigest()
-
-
-def _request_hash(body: dict[str, Any]) -> str:
-    """요청 payload 의 sha256 hex(same-key/different-hash 감지용)."""
-    canonical = json.dumps(body, sort_keys=True, ensure_ascii=False, default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
 def _record_immutable_ack_receipt(
     db: Any, actor_user_id: Any, order_id: int, idem_key: str,
     body: dict[str, Any], response_body: dict[str, Any],
@@ -358,47 +324,6 @@ def _record_immutable_ack_receipt(
     db.flush()
 
 
-def _idempotency_receipt_exists(db: Any, actor_user_id: Any, policy_id: str, idem_key: str | None) -> bool:
-    """(actor, policy, key) receipt 존재 여부. 존재하면 이 요청은 replay(전제 게이트 skip).
-
-    same-key transport 재시도는 첫 전이로 stage 가 이미 advance 됐어도 stage 게이트가 아니라
-    전이 엔진의 idempotency replay 로 저장된 성공을 돌려줘야 한다(§E2E "same key replay 200").
-    """
-    if not idem_key or actor_user_id is None:
-        return False
-    return (
-        db.query(OrderMutationReceipt.read_receipt_id)
-        .filter(
-            OrderMutationReceipt.actor_user_id == actor_user_id,
-            OrderMutationReceipt.policy_id == policy_id,
-            OrderMutationReceipt.idempotency_key == idem_key,
-        )
-        .first()
-        is not None
-    )
-
-
-def _hold_active(sd: dict[str, Any]) -> tuple[bool, dict[str, Any] | None]:
-    """(hold active 여부, hold dict). production.hold.active 판정."""
-    production = sd.get("production")
-    hold = production.get("hold") if isinstance(production, dict) else None
-    if isinstance(hold, dict):
-        return bool(hold.get("active")), hold
-    return False, None
-
-
-def _hold_block_response(sd: dict[str, Any], release_hold: bool):
-    """보류 중(active)이고 release_hold 아니면 409 HOLD_ACTIVE 튜플, 아니면 None(read-only)."""
-    active, hold = _hold_active(sd)
-    if not active or release_hold:
-        return None
-    message = "보류 중인 주문입니다."
-    reason = hold.get("reason")
-    if reason:
-        message += f" (사유: {reason})"
-    return jsonify({"success": False, "code": "HOLD_ACTIVE", "message": message, "hold": hold}), 409
-
-
 def _drawing_block_response(db: Any, order: Order, sd: dict[str, Any], predicate: Callable[[Any], Any]):
     """도면 게이트(2a-2)에 막히면 409 DRAWING_STATUS 튜플(생산팀용 문구), 아니면 None.
 
@@ -418,124 +343,9 @@ def _drawing_block_response(db: Any, order: Order, sd: dict[str, Any], predicate
     }), 409
 
 
-def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *, require_quest: bool = False):
-    """현재 stage quest 가 존재하고 미완이면 409 QUEST_INCOMPLETE, 아니면 None.
-
-    quest 자체가 없으면(레거시/backfill 미완) 기본(``require_quest=False``)은 게이트하지 않는다
-    (lock-out 방지) — 존재하는 stage quest 의 필수 승인이 완료돼야만 전이한다.
-    ``require_quest=True`` 면 quest 없음도 409 로 거부한다(code 는 소비자 호환을 위해
-    ``QUEST_INCOMPLETE`` 그대로, 구분은 ``reason: "QUEST_MISSING"``). 이때 missing_teams 는
-    정책 템플릿의 필수 팀(CONFIRM 이면 CS·SALES)이다. 화면 승인 버튼(합성 quest)이 quest 를
-    만들고 전이까지 하므로 막다른 길이 아니다(2026-09-20 F2).
-    """
-    quests = sd.get("quests")
-    has_stage_quest = isinstance(quests, list) and any(
-        isinstance(q, dict) and q.get("stage") in (stage_code, stage_label) for q in quests
-    )
-    if not has_stage_quest:
-        if not require_quest:
-            return None
-        _complete, missing = check_quest_approvals_complete(sd, stage_code)
-        return (
-            jsonify({
-                "success": False, "code": "QUEST_INCOMPLETE", "reason": "QUEST_MISSING",
-                "message": f"{stage_label} 승인이 먼저 필요합니다.", "missing_teams": missing,
-            }),
-            409,
-        )
-    for stage in (stage_code, stage_label):
-        complete, _missing = check_quest_approvals_complete(sd, stage)
-        if complete:
-            return None
-    _complete, missing = check_quest_approvals_complete(sd, stage_code)
-    return (
-        jsonify({
-            "success": False, "code": "QUEST_INCOMPLETE",
-            "message": "필수 승인이 완료되지 않아 전이할 수 없습니다.", "missing_teams": missing,
-        }),
-        409,
-    )
-
-
-def _steps_incomplete_block(sd: dict[str, Any], marks: list[Any]):
-    """검수까지(공정 4칸 · 카드를 쓴 주문은 네 파트 실제 완료) 안 끝났으면 409 STEPS_INCOMPLETE 튜플, 끝났으면 None.
-
-    판정 · 글은 :func:`complete_block_body` 한 곳(작업 시트 단추 · 일반 단계 쓰기와 같은 함수, §4-3).
-    """
-    body = complete_block_body(sd, marks)
-    return None if body is None else (jsonify(body), 409)
-
-
-def _punch_or_return(blocked, code: str, override, punched: list):
-    """업무 게이트 판정을 관리자 강제 진행과 합친다.
-
-    막히지 않았으면 None. 막혔는데 override 가 없으면 거부 응답을 그대로 돌려주고,
-    override 가 있으면 건너뛴 게이트 코드를 ``punched`` 에 적고 None 을 돌려준다.
-    """
-    if blocked is None:
-        return None
-    if override is None:
-        return blocked
-    punched.append(code)
-    return None
-
-
-def _transition_error_response(exc: Exception):
-    """전이 엔진/REV helper 예외를 route JSON 오류로 매핑(stage 불일치는 INVALID_STAGE)."""
-    code = "INVALID_STAGE" if isinstance(exc, StageConflictError) else getattr(exc, "error_code", "TRANSITION_ERROR")
-    status = getattr(exc, "status_code", 409)
-    return jsonify({"success": False, "code": code, "message": str(exc)}), status
-
-
-def _is_rework_completion(sd: dict[str, Any]) -> bool:
-    """production.rework.active 판정(완료 시 active 해제하고 재제작 표식을 남기기 위함)."""
-    production = sd.get("production") if isinstance(sd.get("production"), dict) else None
-    rework = production.get("rework") if isinstance(production, dict) else None
-    return bool(isinstance(rework, dict) and rework.get("active"))
-
-
-def _release_hold_in_sd(sd: dict[str, Any], db: Any, order_id: int, user_id: Any, via: str,
-                        released_by: str | None = None) -> None:
-    """same-tx 보류 해제 + PRODUCTION_HOLD_TOGGLED 이벤트(전이 후 side-effect).
-
-    초기화 직전 active hold 를 :func:`_append_hold_history` 로 보존한다 — 완료 후에도 해제
-    사유가 남아야 한다(전이 게이트 release 경로와 hold API 직접 해제가 공유하는 계약).
-    """
-    production = sd.get("production")
-    if not isinstance(production, dict):
-        production = {}
-        sd["production"] = production
-    _append_hold_history(production, released_by)
-    production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
-    db.add(OrderEvent(
-        order_id=order_id, event_type="PRODUCTION_HOLD_TOGGLED",
-        payload={"active": False, "reason": "", "via": via,
-                 "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_HOLD_TOGGLED"},
-        created_by_user_id=user_id,
-    ))
-
-
 # 회차 열기 · 단계 기록은 첫 카드 맡기(§4-8)와 같이 쓰려고 ``foms/services/production/start_run.py`` 로 옮겼다 — 옛 이름은 남긴다.
 _mint_current_production_run = mint_current_production_run
 _append_stage_history = append_stage_history
-
-
-def _current_production_run(db: Any, order_id: int) -> ProductionRun | None:
-    """해당 주문의 current production run(없으면 None). start/cancel 게이트·종결이 공유."""
-    return (
-        db.query(ProductionRun)
-        .filter(ProductionRun.order_id == order_id, ProductionRun.is_current.is_(True))
-        .first()
-    )
-
-
-def _close_current_production_run(db: Any, order_id: int) -> None:
-    """current IN_PROGRESS run 을 COMPLETED + is_current=False 로 종결(없으면 no-op)."""
-    run = _current_production_run(db, order_id)
-    if run is None:
-        return
-    run.status = "COMPLETED"
-    run.is_current = False
 
 
 def _reopen_last_production_run(db: Any, order_id: int, sd: dict[str, Any]) -> None:
@@ -598,32 +408,6 @@ def _apply_start_side_effects(db: Any, order: Order, user: Any, user_id: Any,
                       extra={"hold_released": bool(release_hold and hold_was_active)})
 
 
-def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any, release_hold: bool,
-                                 hold_was_active: bool, is_rework: bool, event_id: Any) -> None:
-    """PRODUCTION_COMPLETE 전이 후 same-tx side-effect: history·rework 해제·보류해제·event 보강·run 종결."""
-    sd = copy.deepcopy(_ensure_dict(order.structured_data))
-    note = "제작 완료 (재제작)" if is_rework else "제작 완료 (시공/출고 대기)"
-    _append_stage_history(sd, "CONSTRUCTION", note, user)
-    if is_rework:
-        production = sd.get("production")
-        rework = production.get("rework") if isinstance(production, dict) else None
-        if isinstance(rework, dict):
-            rework["active"] = False  # count·reason·at·by_name 은 보존, active 만 해제.
-            # completed_at 은 uncomplete(완료 취소)가 "이 완료가 재제작 완료였는지" 판정하는
-            # 근거 — 존재하면 uncomplete 가 rework 를 active=True 로 복원한다.
-            rework["completed_at"] = now_utc_naive().isoformat()
-    if release_hold and hold_was_active:
-        _release_hold_in_sd(sd, db, order.id, user_id, "release_on_complete",
-                            user.name if user else None)
-    order.structured_data = sd
-    flag_modified(order, "structured_data")
-    sync_erp_flat_columns(order, sd)
-    _enrich_production_completed_event(db, event_id, is_rework)
-    _close_current_production_run(db, order.id)
-    _audit_production(order, "PRODUCTION_COMPLETED", user_id,
-                      extra={"is_rework": bool(is_rework), "new_stage": "CONSTRUCTION"})
-
-
 def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
                                reason: str, run_id: Any) -> None:
     """제작 취소 mutation 안의 same-tx side-effect(단계 무변경): history·진행 플래그 정리·event.
@@ -655,6 +439,7 @@ def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
             _append_hold_history(production, user.name if user else None)
             production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
             hold_released = True
+    clear_factory_marks(sd)  # 2공장: 공장 완료 표지도 모두 지움(주문 통째 다시 — 설계서 2026-11-23 §4-14 되돌리기)
 
     order.structured_data = sd
     flag_modified(order, "structured_data")
@@ -674,16 +459,20 @@ def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
 
 
 def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
-                                   event_id: Any) -> None:
+                                   event_id: Any, requested_factories: Any = None) -> None:
     """PRODUCTION_UNCOMPLETE 전이 후 same-tx side-effect: history·재제작 복원·event 보강.
 
     직전 완료가 재제작 완료였으면(``rework.completed_at`` 존재 + ``active`` False) rework 를
     다시 활성으로 복원하고 완료 시각 표식을 제거한다(count 불변). production run 은
     :func:`_reopen_last_production_run` 으로 다시 연다(마지막 COMPLETED run 을 current
     IN_PROGRESS 로, 없으면 신규 발급) — 버킷 = 단계 + run 이라 run 없이는 제작대기로 떨어진다.
+
+    2공장(설계서 2026-11-23 §4-14 · §19 여섯째): 섞인 주문은 누른 사람 공장 표지만 지운다(관리자는 몸 ``factories`` 로 고름 — 기본
+    둘 다). 다른 공장은 완료 그대로 남는다. 한 공장 주문은 표지가 없어 지금 그대로.
     """
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     _append_stage_history(sd, "PRODUCTION", "완료 취소 (제작중 복귀)", user)
+    reopened = clear_factory_marks(sd, uncomplete_factories(user, sd, requested_factories) or ())
 
     production = sd.get("production") if isinstance(sd.get("production"), dict) else None
     rework = production.get("rework") if isinstance(production, dict) else None
@@ -698,42 +487,11 @@ def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: An
     sync_erp_flat_columns(order, sd)
     _merge_event_payload(db, event_id, {
         "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_COMPLETE_REVERTED",
-        "rework_restored": rework_restored,
+        "rework_restored": rework_restored, **({"factories_reopened": reopened} if reopened else {}),
     })
     _reopen_last_production_run(db, order.id, sd)
     _audit_production(order, "PRODUCTION_COMPLETE_CANCELED", user_id,
                       extra={"rework_restored": rework_restored})
-
-
-def _merge_event_payload(db: Any, event_id: Any, extra: dict[str, Any]) -> None:
-    """전이가 만든 OrderEvent payload 에 legacy 표시 키를 덧씌운다(없는 event 는 no-op).
-
-    :param db: DB 세션.
-    :param event_id: 전이 결과 ``result.event_id`` (replay 면 None).
-    :param extra: payload 에 병합할 키(같은 키는 덮어쓴다).
-    """
-    if not event_id:
-        return
-    event = db.get(OrderEvent, event_id)
-    if event is None:
-        return
-    payload = dict(event.payload or {})
-    payload.update(extra)
-    event.payload = payload
-    flag_modified(event, "payload")
-
-
-def _enrich_production_completed_event(db: Any, event_id: Any, is_rework: bool) -> None:
-    """전이가 만든 PRODUCTION_COMPLETED 이벤트 payload 에 legacy 표시 키·rework 표식을 보강한다."""
-    extra: dict[str, Any] = {
-        "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_COMPLETED",
-        "target": "workflow.stage", "before": "PRODUCTION", "after": "CONSTRUCTION",
-        "change_method": "API", "source_screen": "erp_production_dashboard",
-        "reason": "제작 완료 (시공 대기)",
-    }
-    if is_rework:
-        extra["rework"] = True
-    _merge_event_payload(db, event_id, extra)
 
 
 @erp_orders_production_bp.route("/<int:order_id>/production/start", methods=["POST"])
@@ -909,84 +667,12 @@ def api_production_complete(order_id):
     보류해제·PRODUCTION_COMPLETED event 보강·current run 종결(COMPLETED)을 반영한다. 불량 보고(defect)는
     완료 게이트가 아니다.
     """
-    db = get_db()
-    try:
-        # 첫 조회부터 행 잠금 — 카드 쓰기(같은 행을 잠근다)와 줄 세워 표시 줄 판정이 낡지 않게(§4-3).
-        order = lock_order_row(db, order_id)
-        if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
-
-        body = request.get_json(silent=True) or {}
-        release_hold = body.get("release_hold") is True
-        idem_key = _idempotency_key(body)
-        user_id = session.get("user_id")
-        user = get_user_by_id(user_id)
-
-        err = admin_override_error(user, body)
-        if err is not None:
-            log_admin_override_denied(
-                db, order_id=order_id, gate=err[0].get_json().get("code"),
-                route="erp_orders_production.api_production_complete", user=user)
-            return err
-        override = resolve_admin_override(user, body)
-        punched: list = []
-
-        sd = _ensure_dict(order.structured_data)
-        hold_was_active = _hold_active(sd)[0]
-        is_rework = _is_rework_completion(sd)
-        from_stage = read_main_stage(order)
-
-        if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_COMPLETE, idem_key):
-            if order.erp_stage_code not in ("생산", "PRODUCTION"):
-                if override is None:
-                    return jsonify({"success": False, "code": "INVALID_STAGE",
-                                    "message": "제작중 상태에서만 제작을 완료할 수 있습니다."}), 409
-                punched.append("INVALID_STAGE")
-            blocked = _punch_or_return(
-                _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
-            if blocked is not None:
-                return blocked
-            blocked = _punch_or_return(
-                _stage_quest_block(sd, "PRODUCTION", "생산"), "QUEST_INCOMPLETE", override, punched)
-            if blocked is not None:
-                return blocked
-            marks = order_marks(db, order_id)  # 카드를 쓴 주문은 표시 줄로(§4-3, +1)
-            blocked = _punch_or_return(
-                _steps_incomplete_block(sd, marks), GATE_STEPS_INCOMPLETE, override, punched)
-            if blocked is not None:
-                return blocked
-
-        try:
-            result = transition_order(
-                db, command_id="PRODUCTION_COMPLETE", order_id=order_id,
-                actor_user_id=user_id, expected_from=from_stage, target_value="CONSTRUCTION",
-                scope_hash=_scope_hash("PRODUCTION_COMPLETE", order_id),
-                request_hash=_request_hash(body), idempotency_key=idem_key,
-                emergency_override=bool(override),
-                reason=(override.reason if override is not None else None),
-            )
-        except (TransitionError, RevisionError) as exc:
-            db.rollback()
-            return _transition_error_response(exc)
-
-        if not result.replayed:
-            _apply_complete_side_effects(
-                db, order, user, user_id, release_hold, hold_was_active, is_rework, result.event_id
-            )
-        if override is not None and punched:
-            record_admin_override_event(
-                db, order, override=override, gates=punched,
-                route="erp_orders_production.api_production_complete", axis="MAIN",
-                from_value=from_stage, to_value="CONSTRUCTION")
-        db.commit()
-        return jsonify({
-            "success": True,
-            "message": "제작이 완료되었습니다. (시공 대기 상태로 변경)",
-            "new_status": "CONSTRUCTION",
-        })
-    except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
-        db.rollback()
-        return jsonify({"success": False, "message": str(exc)}), 500
+    # 본문은 서비스 한 곳(foms/services/production/complete_order.complete_production — 공장 완료 API 와 같이 쓴다, 2026-11-23
+    # §4-14). 게이트 순서: 존재 → 제작중 → 보류 → 승인 → 검수까지(판정 = complete_block_body 한 곳).
+    body = request.get_json(silent=True) or {}
+    user_id = session.get("user_id")
+    return complete_production(get_db(), order_id, get_user_by_id(user_id), user_id, body, _idempotency_key(body),
+                               audit=_audit_production, route="erp_orders_production.api_production_complete")
 
 
 @erp_orders_production_bp.route("/<int:order_id>/production/rework", methods=["POST"])
@@ -1106,6 +792,7 @@ def api_production_rework(order_id: int):
             "at": now_utc_naive().isoformat(),
             "by_name": user.name if user else None,
         }
+        clear_factory_marks(sd)  # 2공장: 공장 완료 표지도 모두 지움(주문 통째 다시 — 설계서 2026-11-23 §4-14)
 
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
@@ -1311,7 +998,7 @@ def api_production_uncomplete(order_id: int):
             return _transition_error_response(exc)
 
         if not result.replayed:
-            _apply_uncomplete_side_effects(db, order, user, user_id, result.event_id)
+            _apply_uncomplete_side_effects(db, order, user, user_id, result.event_id, body.get("factories"))
         if override is not None and punched:
             record_admin_override_event(
                 db, order, override=override, gates=punched,

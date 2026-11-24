@@ -213,6 +213,18 @@
       "reason": "제작 시작 곁일(단계 기록 · 회차 열기, 2026-11-23 self-claim §4-8) — [제작 시작] 라우트(foms/api/production/orders.py — execute_order_mutation 콜백 또는 transition_order 뒤 같은 tx)와 첫 카드 맡기(part_mark_write.py execute_order_mutation 콜백)가 부른다. 호출자가 deepcopy 한 사본을 재대입 → flag_modified 한다."
     },
     {
+      "path": "foms/services/production/complete_order.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01",
+      "reason": "제작 완료 본문(설계서 2026-11-23-production-self-claim-and-factory2 §4-14 — foms/api/production/orders.py 에서 옮김). transition_order(PRODUCTION_COMPLETE) 뒤 같은 tx 곁일이 deepcopy → 재대입 → flag_modified 로 쓴다(섞인 주문은 남은 공장 완료 표지를 같은 사본에)."
+    },
+    {
+      "path": "foms/services/production/factory_complete.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01",
+      "reason": "공장마다 제작 완료 · 완료 취소(설계서 2026-11-23 §4-14 · §7 factory-done) — 서버 소유 칸 structured_data.production.factory_done 을 REV-00 execute_order_mutation 콜백 안에서만 deepcopy → 재대입 → flag_modified 로 쓴다. 마지막 공장은 complete_order 의 제작 완료 길(transition_order) 그대로."
+    },
+    {
       "path": "foms/services/orders/construction_note.py",
       "classification": "CANONICAL",
       "owner": "GRAFT-T7",

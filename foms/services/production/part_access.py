@@ -240,3 +240,23 @@ def can_write_sheet(user: Any, factory: Any) -> bool:
         :func:`writable_factories` 안이면 True.
     """
     return (factory if factory in FACTORIES else DEFAULT_FACTORY) in writable_factories(user)
+
+
+def can_finish_factory(user: Any, factory: Any) -> bool:
+    """공장 제작 완료 · 공장 완료 취소를 할 수 있는지(설계서 2026-11-23 §4-14 · §5 '공장 완료는 내 공장만').
+
+    제작 완료와 같은 사람(:func:`~foms.services.production.write_access.can_write_production` — 관리자 + 생산팀) + 공장 문:
+    관리자는 두 공장, 그 밖은 계정 공장(비면 1공장). 파트 · 반장 칸과 상관없다([제작 완료]가 그렇듯).
+
+    Args:
+        user: 사용자 객체(None 허용). 이미 읽은 행의 칸만 본다 — 쿼리 0.
+        factory: 공장(1 · 2).
+
+    Returns:
+        할 수 있으면 True.
+    """
+    if factory not in FACTORIES or not can_write_production(user):
+        return False
+    if is_part_admin(user):
+        return True
+    return factory == (account_production_factory(user) or DEFAULT_FACTORY)
