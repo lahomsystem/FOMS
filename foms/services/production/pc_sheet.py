@@ -184,7 +184,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
     Returns:
         ``{part, label, total, done_n, uses_cards, notice, all, hand_off, hand, rows, keys}`` —
         ``notice`` = 카드를 쓴 파트에 남은 장이 있을 때의 안내(공정 칸 체크 거절 글 그대로, 승인 때 고친 것 2),
-        ``all`` = [모두 작업]를 보일지(아무도 맡거나 완료하지 않은 파트 · 칸이 꺼짐 · 장 1장 이상 · 보류 아님),
+        ``all`` = [모두 작업]을 보일지(아무도 맡거나 완료하지 않은 파트 · 칸이 꺼짐 · 장 1장 이상 · 보류 · 도면 고치는 중 아님),
         ``hand_off`` = 손으로 통째 체크한 파트(창 머리 한 단추로 끈다).
     """
     sd = sd if isinstance(sd, dict) else {}
@@ -201,8 +201,9 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
         "part": part, "label": PRODUCTION_PART_LABELS[part], "total": len(entries), "done_n": progress["done_n"],
         "uses_cards": progress["uses_cards"],
         "notice": PART_USES_CARDS_MESSAGE.format(left=left) if progress["uses_cards"] and entries and left else None,
-        # 보류 중에는 통째 체크(공정 칸 켜기)를 서버가 막는다(사장님 2026-11-24) — [모두 작업]를 안 보인다
-        "all": bool(entries) and not progress["uses_cards"] and not progress["done"] and not hold_active,
+        # 보류 · 도면 고치는 중에는 통째 작업(공정 칸 켜기)을 서버가 막는다(사장님 2026-11-24 · 11-25) — [모두 작업]을 안 보인다.
+        # [모두 작업 취소](hand_off, 끄기)는 둘 다 된다(서버 step_cell_gate 와 같은 규칙)
+        "all": bool(entries) and not progress["uses_cards"] and not progress["done"] and not ctx["order_block"],
         "hand_off": bool(hand), "hand": hand["text"] if hand else None,
         "rows": rows, "keys": [entry["key"] for entry in entries],
     }
