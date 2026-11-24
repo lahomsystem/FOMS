@@ -1,11 +1,15 @@
-/** Sync globals used by detail DOM (MY_ID / 팀 등) from .erp-dashboard data-* — runs on full load and fragment rebind. */
+/** Sync globals used by detail DOM (MY_ID / 팀 등) from .erp-dashboard data-* — runs on full load and fragment rebind.
+ *  속성이 있는 화면(주문 대시보드)만 그 값으로 쓴다(지금 그대로). 속성이 없는 화면(생산 · 시공 · 이력 · 정산 …)은 이미 있는 값을
+ *  둔다 — 레이아웃이 심은 MY_ROLE 을 빈 값으로 덮어 관리자 사유 창(foms-admin-override.js)이 안 뜨던 것(2026-11-25 스테이징 실측).
+ *  아무도 안 심은 값은 지금처럼 빈 값. */
         window.fomsSyncErpDashboardUserGlobals = function fomsSyncErpDashboardUserGlobals() {
           var el = document.querySelector('.erp-dashboard');
           if (!el) return;
-          window.MY_ID = el.getAttribute('data-user-id') || '';
-          window.MY_TEAM = el.getAttribute('data-user-team') || '';
-          window.MY_NAME = el.getAttribute('data-user-name') || '';
-          window.MY_ROLE = el.getAttribute('data-user-role') || '';
+          [['MY_ID', 'data-user-id'], ['MY_TEAM', 'data-user-team'], ['MY_NAME', 'data-user-name'], ['MY_ROLE', 'data-user-role']]
+            .forEach(function (pair) {
+              if (el.hasAttribute(pair[1])) { window[pair[0]] = el.getAttribute(pair[1]) || ''; }
+              else if (window[pair[0]] == null) { window[pair[0]] = ''; }
+            });
         };
         window.fomsSyncErpDashboardUserGlobals();
 

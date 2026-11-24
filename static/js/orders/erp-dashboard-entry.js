@@ -5,7 +5,7 @@
 (function () {
   var CHAIN = [
     '/static/js/orders/order-detail-fragment.js?v=20261119s',
-    '/static/js/orders/dashboard/erp-dashboard-core.js?v=20261120m',
+    '/static/js/orders/dashboard/erp-dashboard-core.js?v=20261125a',
     '/static/js/orders/dashboard/erp-dashboard-gateway.js?v=20261120m',
     '/static/js/orders/dashboard/erp-dashboard-attachments.js?v=20261120m',
     '/static/js/orders/dashboard/erp-dashboard-drawing.js?v=20261004a',
