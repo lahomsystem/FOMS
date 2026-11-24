@@ -16,7 +16,7 @@
 {% endif %}{% for q in queues.queues %}
 <div class="fph-q{% if step_panel %} fph-q--sp{% if q.rows %} has-sp{% endif %}{% endif %}" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if q.key != _on %} hidden{% endif %}>{% if step_panel %}<div class="fph-q__list">{{ _note }}{% endif %}
   {% for r in q.rows %}
-  {% set _sel = step_panel and r.id == q.selected_id %}<div class="fph-qr{% if r.hold_active %} is-hold{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if _sel %} is-on{% endif %}" data-foms-home-qrow="{{ r.id }}"{% if _sel %} aria-current="true"{% endif %}>
+  {% set _sel = step_panel and r.id == q.selected_id %}<div class="fph-qr{% if r.hold_active %} is-hold{% elif r.revise_block %} is-revise{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if _sel %} is-on{% endif %}" data-foms-home-qrow="{{ r.id }}"{% if _sel %} aria-current="true"{% endif %}>
     <span class="fph-qr__n">{{ loop.index }}</span>
     <a class="fph-qr__who" href="{% if step_panel %}{{ home_href('steps', order=r.id) }}" data-foms-erp-no-shell="1" data-foms-step-sheet="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% else %}{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% endif %}">
       <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if step_panel and r.hold_active %}<span class="fph-qr__holdtag">보류</span>{% elif step_panel and r.revise_block %}<span class="fph-qr__holdtag">{{ r.revise_block.text }}</span>{% endif %}{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
