@@ -129,7 +129,7 @@ def test_제목_줄_탭은_보드_없이_찾기로_끝나고_레일_생산이_�
     nav = nav[: nav.index("</nav>")]
     assert "data-foms-home-board" not in nav and "/erp/production/dashboard" not in nav and "navtab--out" not in nav
     assert nav.rstrip().endswith(">찾기</a>")
-    assert "home.css?v=20261124g" in html
+    assert "home.css?v=20261124h" in html
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
     tools = html[html.index('class="foms-prod-home__tools"'):]
     tools = tools[: tools.index("</header>")]
@@ -275,7 +275,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261124g" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261124h" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -291,7 +291,7 @@ def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸�
     assert ".foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in css
     page = (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")
     assert '<h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>' in page
-    assert "sheet.css') }}?v=20261124h" in page
+    assert "sheet.css') }}?v=20261124i" in page
 
 
 def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다() -> None:
@@ -302,7 +302,7 @@ def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다()
     bar = frag.split('<div class="foms-prod-sheet__titlebar">')[1].split("{# ──")[0]
     assert '<div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>' in bar
     body = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
-    assert "css/contexts/production/sheet.css') }}?v=20261124h" in body
+    assert "css/contexts/production/sheet.css') }}?v=20261124i" in body
 
 
 def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채우거나_48px_로_굴린다() -> None:
@@ -350,7 +350,7 @@ def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채�
     assert _pane(626, 1) < _pane(626, 0.9) < _px(1)  # 100% · 90%: 줄 48 그대로 띠 안에서 굴린다
     assert _pane(626, 0.9) < 40 + rows * 48 + 49
     assert _pane(800, 1) >= _px(1)  # 1280×800: 칸을 채운다(줄 49.1px)
-    assert "home.css') }}?v=20261124g" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261124h" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_두_줄로_100퍼센트는_그대로() -> None:
@@ -374,7 +374,7 @@ def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_
     for name, base_w, big_w in (("fph-pane", 760, 455), ("fph-list", 1072, 801), ("fph-q", 1072, 801)):
         assert _px(name, 1) < base_w and _px(name, 1.5) > big_w, name
     # 경계 = 이름 칸이 이름 글자의 12배(날짜 장 20px · 찾기 22px · 내 공정 22px, 글자 배율을 곱한다)
-    assert abs(_px("fph-pane", 1) - (128 + 154 + 92 + 36 + 12 + 2 + 12 * 20)) < 0.01
+    assert abs(_px("fph-pane", 1) - (128 + 154 + 108 + 36 + 12 + 2 + 12 * 20)) < 0.01  # 도면 칸 108px(2026-11-24 — "[2공장] 1장 완료" 한 줄)
     assert abs(_px("fph-list", 1.5) - (150 + 290 + 130 + 20 + 2 + 44 + 12 * 22 * 1.5)) < 0.01
     assert abs(_px("fph-q", 1.2) - (64 + 190 + 30 + 16 + 2 + 150 * 1.2 + 12 * 22 * 1.2)) < 0.01
     # 두 줄로 바꿀 때 칸 · 글자 · 단추 크기는 그대로 — 자리(grid)와 여백만 바꾸고 아무 칸도 숨기지 않는다

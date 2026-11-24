@@ -125,9 +125,9 @@
 .fpc-by .fph-by { font-size: calc(15px * var(--foms-fs, 1)); }
 .fpc-by .fph-by i { font-size: calc(13px * var(--foms-fs, 1)); margin-right: 3px; }
 .fpc-dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: #2f3540; white-space: nowrap; }
-/* 섞인 주문(2공장) 도면 칸 — 공장마다 한 줄, 보는 공장 줄이 위 · 굵게, 칸이 모자라면 "완료"만 다음 줄로 */
+/* 섞인 주문(2공장) 도면 칸 — 공장마다 한 줄("[2공장] 1장 완료" 한 줄 — 끝 칸 6.75rem), 보는 공장 줄이 위 · 굵게 */
 .fpc-dw.is-split { justify-self: end; white-space: normal; line-height: 1.2; text-align: left; } /* 칩이 세로로 한 줄에 서게 — 칸은 오른쪽 끝, 줄은 왼쪽 맞춤 */
-.fpc-dw.is-split .fph-fac { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text2); word-break: keep-all; }
+.fpc-dw.is-split .fph-fac { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text2); white-space: nowrap; }
 .fpc-dw.is-split .fph-fac + .fph-fac { margin-top: 3px; }
 .fpc-dw.is-split .fph-fac.is-me { font-weight: 800; color: var(--fpc-text); }
 .fpc-dw .is-ok { font-weight: 800; color: var(--fpc-ok-dark); }
@@ -189,7 +189,7 @@
 
 /* ── 넓은 창(992 이상): 여섯 칸 줄. 칸 폭 = 목업 값(1440×900 넘침 0). 칸 크기는 글자 배율(rem)을 따른다.
    줄을 담는 PC 칸(날짜 장 · 찾기 목록 · 공정 줄)을 한 이름(fpc) 컨테이너로 재서 세 단계로 접는다(media 는 화면 크기 배율을 못 본다):
-   ① 넓음(칸 61rem + 78px 이상) 여섯 칸 ② 좁음(글자를 키우거나 창이 좁음) ⑤ 발주 · 담당을 ③ 아래로 ③ 아주 좁음 = 접힌 꼴(가로 넘침 0). ── */
+   ① 넓음(칸 62.75rem + 78px 이상) 여섯 칸 ② 좁음(글자를 키우거나 창이 좁음) ⑤ 발주 · 담당을 ③ 아래로 ③ 아주 좁음 = 접힌 꼴(가로 넘침 0). ── */
 .fpc-due { flex: 0 0 8.5rem; }
 .fpc-st { flex: 0 0 7rem; }
 .fpc-who { flex: 1 1 12rem; }
@@ -198,13 +198,14 @@
 .fpc-prev { flex: 1 1 12rem; }
 @media (min-width: 992px) {
   .fpc-pane, .foms-prod-home__list.fpc-list, .fph-q.fpc-qs { container: fpc / inline-size; }
-  .fpc-r { display: grid; grid-template-columns: 8.5rem 7rem minmax(14rem, 1.3fr) minmax(19rem, 2fr) minmax(7.5rem, .8fr) 5rem; gap: 10px; }
+  /* 끝 칸(도면) 6.75rem = 108px × 글자 배율(rem 이 배율을 따른다) — 섞인 주문 "2공장 12장 완료"(14px 굵게 + 칩 ≈ 102px × 배율)가 한 줄(2026-11-24 검토) */
+  .fpc-r { display: grid; grid-template-columns: 8.5rem 7rem minmax(14rem, 1.3fr) minmax(19rem, 2fr) minmax(7.5rem, .8fr) 6.75rem; gap: 10px; }
   .fpc-r--mini { grid-template-columns: 8.5rem 7rem minmax(15rem, 1fr) minmax(8rem, .6fr); }
   .fpc-q { display: grid; grid-template-columns: 8.5rem minmax(12rem, 1.4fr) minmax(10rem, 1.2fr) minmax(7rem, .8fr); gap: 14px; min-height: 80px; }
   .fpc-q.is-act { grid-template-columns: 8.5rem minmax(12rem, 1.4fr) minmax(10rem, 1.2fr) minmax(7rem, .8fr) 11.5rem; }
-  /* ② 좁음: 여섯 칸 최소 폭(칸 61rem + 틈 50 + 여백 26 + 테두리 2)보다 좁으면 발주 · 담당을 이름 아래 줄로 */
-  @container fpc (max-width: calc(61rem + 78px - 0.02px)) {
-    .fpc-r:not(.fpc-r--mini) { grid-template-columns: 8.5rem 7rem minmax(10rem, 1fr) minmax(15rem, 1.5fr) 5rem; }
+  /* ② 좁음: 여섯 칸 최소 폭(칸 62.75rem + 틈 50 + 여백 26 + 테두리 2)보다 좁으면 발주 · 담당을 이름 아래 줄로 */
+  @container fpc (max-width: calc(62.75rem + 78px - 0.02px)) {
+    .fpc-r:not(.fpc-r--mini) { grid-template-columns: 8.5rem 7rem minmax(10rem, 1fr) minmax(15rem, 1.5fr) 6.75rem; }
     .fpc-r:not(.fpc-r--mini) > .fpc-due { grid-column: 1; grid-row: 1 / 3; }
     .fpc-r:not(.fpc-r--mini) > .fpc-st { grid-column: 2; grid-row: 1 / 3; }
     .fpc-r:not(.fpc-r--mini) > .fpc-who { grid-column: 3; grid-row: 1; }
@@ -213,8 +214,8 @@
     .fpc-r:not(.fpc-r--mini) > .fpc-dw { grid-column: 5; grid-row: 1 / 3; }
     .fpc-r--mini { grid-template-columns: 8.5rem 7rem minmax(10rem, 1fr) minmax(7rem, .6fr); }
   }
-  /* ③ 아주 좁음(좁음 꼴 최소 폭 45.5rem + 68px · 작은 줄 32.5rem + 58px 아래): 접힌 꼴 — 시공일 · 상태 · 이름 한 줄, 공정 칸은 다음 줄 */
-  @container fpc (max-width: calc(45.5rem + 68px - 0.02px)) {
+  /* ③ 아주 좁음(좁음 꼴 최소 폭 47.25rem + 68px · 작은 줄 32.5rem + 58px 아래): 접힌 꼴 — 시공일 · 상태 · 이름 한 줄, 공정 칸은 다음 줄 */
+  @container fpc (max-width: calc(47.25rem + 68px - 0.02px)) {
     .fpc-r:not(.fpc-r--mini) { display: flex; }
   }
   @container fpc (max-width: calc(32.5rem + 58px - 0.02px)) {
@@ -222,7 +223,7 @@
   }
   /* 아주 넓을 때(줄 칸 1,500px 이상 — 1920@80% 는 CSS 2,400px): 공정 칸이 폭을 더 갖고(1 : 2.4 : .8) 칸 안에 누가 · 날짜를 글로 */
   @container fpc (min-width: 1500px) {
-    .fpc-r:not(.fpc-r--mini) { grid-template-columns: 9rem 8rem minmax(14rem, 1fr) minmax(19rem, 2.4fr) minmax(7.5rem, .8fr) 5rem; }
+    .fpc-r:not(.fpc-r--mini) { grid-template-columns: 9rem 8rem minmax(14rem, 1fr) minmax(19rem, 2.4fr) minmax(7.5rem, .8fr) 6.75rem; }
     .fpc-r--mini { grid-template-columns: 9rem 8rem minmax(15rem, 1fr) minmax(8rem, .6fr); }
     .fpc-s { height: 62px; }
     .fpc-s__m { display: block; }

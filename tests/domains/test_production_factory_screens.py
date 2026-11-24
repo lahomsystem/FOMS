@@ -238,7 +238,7 @@ def test_work_sheet_marks_second_factory_thumbs(client, cohort):
     login(client, factory_user("박반장", lead=True))
     set_cookies(client, TABLET)
     html = _html(client, f"/erp/production/sheet/{seed.id}")
-    assert html.count(f'<em class="fpp-fac">{F2}</em>') == 1 and html.count(CHIP_CSS) == 1
+    assert html.count(f'<span class="fpp-fac">{F2}</span>') == 1 and html.count(CHIP_CSS) == 1
     plain = mixed_order(2, f2=())
     plain_html = _html(client, f"/erp/production/sheet/{plain.id}")
     assert "fpp-fac" not in plain_html and "foms-fac" not in plain_html and CHIP_CSS not in plain_html

@@ -18,13 +18,13 @@ from tests.support.color_contrast import contrast_ratio, hex_rgb, pair_distances
 ROOT = Path(__file__).resolve().parents[2]
 CSS_DIR = ROOT / "static/css/contexts/production"
 #: 공장 칩(2026-11-24 사장님 "1공장, 2공장 구분이 잘 안 돼")이 네 파일을 모두 다시 올렸다.
-PIN = "20261124g"
+PIN = "20261124h"
 #: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다.
 PARTS_PIN = "20261124g"
 #: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 · 셋째 판)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
-PC_PIN = "20261124g"
+PC_PIN = "20261124h"
 #: 작업 시트 sheet.css(sheet.html · tablet_kanban_body.html 같은 핀) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
-SHEET_PIN = "20261124h"
+SHEET_PIN = "20261124i"
 
 
 def _css(name: str) -> str:
@@ -164,8 +164,8 @@ def test_날짜_줄_칸_아래_이름과_숨김_셋() -> None:
     assert "font-size: calc(15px * var(--foms-fs, 1))" in _rule(home, ".fph-dr .fph-dr__sg small.is-miss")
     hide = (".fph-dr__hd { display: none; }", ".fph-dr__steps.has-hd { gap: 6px; }", ".fph-dr__steps.has-hd .fph-dr__st { width: auto; }")
     wide = _block(home, "@media (min-width: 992px)")
-    one = _block(wide, "@container fph-pane (max-width: calc(190px + 4 * 4.75rem + 25.75rem - 0.02px))")  # 이름 16자(지휘 판정 11-23)
-    two = _block(wide, "@container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 20.75rem - 0.02px))")  # 두 줄 꼴 문턱 그대로
+    one = _block(wide, "@container fph-pane (max-width: calc(190px + 4 * 4.75rem + 26.75rem - 0.02px))")  # 이름 16자(지휘 판정 11-23) · 도면 칸 108px(11-24)
+    two = _block(wide, "@container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 21.75rem - 0.02px))")  # 두 줄 꼴 문턱(도면 칸 108px)
     phone = _block(home, "@media (max-width: 991.98px)")
     for body in (one, phone):
         for line in hide:
@@ -178,12 +178,12 @@ def test_날짜_줄_칸_아래_이름과_숨김_셋() -> None:
         return eval(py.replace("px", ""), {"max": max})  # noqa: S307 — 이 시험의 고정 식
 
     for fs in (1, 1.2, 1.3, 1.4, 1.5):
-        assert _px("190px + 4 * 4.75rem + 25.75rem", fs) > _px("196px + 4 * max(34px, 1.5rem) + 20.75rem", fs), fs
-    assert abs(_px("190px + 4 * 4.75rem + 25.75rem", 1) - (128 + 36 + 12 + 2 + 12 + 4 * 76 + 92 + 16 * 20)) < 0.01  # 이름 16자
+        assert _px("190px + 4 * 4.75rem + 26.75rem", fs) > _px("196px + 4 * max(34px, 1.5rem) + 21.75rem", fs), fs
+    assert abs(_px("190px + 4 * 4.75rem + 26.75rem", 1) - (128 + 36 + 12 + 2 + 12 + 4 * 76 + 108 + 16 * 20)) < 0.01  # 이름 16자 · 도면 108
     # 숨김 덩이는 기본 규칙보다 뒤(같은 특이도 — 뒤가 이긴다)
     assert home.index(".fph-dr__steps.has-hd .fph-dr__st { width: var(--fph-step-w); }") < home.index("@container fph-pane (max-width: calc(190px")
-    # 12자 문턱(20.75rem 짜리 190px 식)은 쓰지 않는다
-    assert "calc(190px + 4 * 4.75rem + 20.75rem" not in home
+    # 12자 문턱(21.75rem 짜리 190px 식)은 쓰지 않는다
+    assert "calc(190px + 4 * 4.75rem + 21.75rem" not in home
     # 자리표시 키(F2): 한 줄 꼴 84 · 두 줄 꼴 · 폰 140(× 배율)
     assert "contain-intrinsic-size: auto calc(84px * var(--foms-fs, 1));" in _rule(home, ".fph-dr")
     assert "contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1))" in two and "contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1))" in phone

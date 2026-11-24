@@ -4,11 +4,25 @@
    시공 탭 첫 화면('출고' 칸 아래). 협력사 출고 탭에는 없다.
    이 파일은 2공장 줄이 있는 응답에만 실린다 — 2공장 장이 없는 날의 출고 · 시공 조각은 바탕과 바이트까지 같다.
    공장 이름은 공장 칩(아래 @import — 1공장 자주 · 2공장 청록, 사장님 2026-11-24 식별성), 줄 글은 놓인 칸 글 색 그대로(어두운 화면에서도 읽힌다).
-   좁은 칸(고객 칸 · '출고' 칸)에서 "2공장 2장"이 말줄임으로 잘리지 않게 낱말 사이에서 두 줄로 내린다(섞인 주문 줄만 키가 는다). */
-@import url("foms-factory-chip.css?v=20261124a");
+   공장 몫마다 한 덩이(거르개 factory_line_chips — "[1공장] 2장" · "(제작 중)" 은 각각 안 꺾이고, 칸이 모자랄 때만 그 둘 사이에서 꺾임).
+   둘째 몫이 다음 줄로 가면 그 앞 " · " 는 줄 머리 왼쪽 밖(1em)으로 밀려 가려진다 — 한 줄에 둘이 다 들어갈 때만 보인다(글은 그대로).
+   섞인 주문 줄만 키가 는다(2026-11-24 검토 — "(제작 중)"이 갈리고 "·"가 홀로 남던 것). */
+@import url("foms-factory-chip.css?v=20261124b");
 .foms-load-split {
   font-weight: 700;
 }
+.foms-fac-line { display: block; overflow: hidden; }
+.foms-fac-line__in { display: block; margin-left: -1em; text-indent: 1em; }
+.foms-fac-seg { display: inline-block; max-width: calc(100% - 1em); text-indent: 0; vertical-align: top; }
+.foms-fac-seg + .foms-fac-seg { padding-left: 1em; text-indent: -1em; }
+.foms-fac-sep { display: inline-block; width: 1em; text-align: center; text-indent: 0; }
+/* 한 덩이("[1공장] 2장" · "(제작 중)") = 통째로 줄을 옮기는 inline-block — 칸이 그 덩이보다도 좁을 때만(PC 100% · 글자 150%) 안에서 꺾인다(잘림 0) */
+.foms-fac-nw { display: inline-block; max-width: 100%; text-indent: 0; white-space: normal; word-break: keep-all; vertical-align: top; }
+/* 시공 탭 첫 화면 칸은 칸 안 모든 span 을 한 줄 말줄임 · 14px 로 묶는다(tablet-first.css, 특이도 0,2,2) — 상차 줄 조각은 그 규칙 밖 */
+body.erp-mobile-v2-layout .foms-cons-row__c .foms-fac-line,
+body.erp-mobile-v2-layout .foms-cons-row__c .foms-fac-line span { overflow: visible; text-overflow: clip; white-space: normal; font-size: inherit; font-weight: inherit; }
+body.erp-mobile-v2-layout .foms-cons-row__c .foms-fac-line { overflow: hidden; }
+body.erp-mobile-v2-layout .foms-cons-row__c .foms-fac-line .foms-fac-nw { word-break: keep-all; }
 
 /* 출고 탭 하루치 출고표 — 고객 칸 표식(.foms-tablet-shipgrid__flag 꼴, 공장은 칩). */
 body.erp-mobile-v2-layout .foms-tablet-shipgrid__flag.foms-load-split,

@@ -5,7 +5,7 @@
    [data-ship-days-*] 넘기기, [data-ship-pop] 판 여닫기를 그대로 쓴다) · 시공자 칸 · 글자 손잡이 · [다시 받기] · [더보기].
    본문 = 시공자 묶음 카드(칠 없음 — 왼쪽 띠만 사람 색, D29), 줄을 누르면 상세(?focus_order=) = 지금 3분할.
    모양 = static/css/contexts/construction/tablet-first.css(태블릿 가로 코호트 문지기 안에서만 보인다). #}
-{% set F = cons_tablet.first %}{% if F.has_packing_split %}{# 공장 둘로 나뉜 포장 글 두 줄 모양(패킹 공장마다) — 그런 줄이 있을 때만. #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing-factory.css') }}?v=20261124b">{% endif %}
+{% set F = cons_tablet.first %}{% if F.has_packing_split %}{# 공장 둘로 나뉜 포장 글 두 줄 모양(패킹 공장마다) — 그런 줄이 있을 때만. #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing-factory.css') }}?v=20261124c">{% endif %}
 {% set _wd = ['월','화','수','목','금','토','일'] %}
 {% macro _url(d, w, focus=None) -%}
   {{ url_for('erp_construction_page.erp_construction_dashboard', date=d, worker=w, focus_order=focus) }}{% if erp_mine_only %}&mine=1{% endif %}
@@ -18,7 +18,7 @@
     {%- set _names = [] %}{% for g in sec.groups %}{% for n in g.names %}{% if n not in _names %}{% set _ = _names.append(n) %}{% endif %}{% endfor %}{% endfor %}
     <b>{{ _l }}{% if sec.date == F.today %} 오늘{% endif %}</b><span>{{ sec.count }}집{% if _names %} · 시공자 {{ _names|length }}명{% endif %}</span>
   {%- endif -%}
-{%- endmacro %}{% if F.has_load_split %}{# 상차 줄(설계서 2026-11-23 §4-15) 모양 — 2공장 장이 섞인 줄이 있을 때만. #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-load-split.css') }}?v=20261124b">{% endif %}
+{%- endmacro %}{% if F.has_load_split %}{# 상차 줄(설계서 2026-11-23 §4-15) 모양 — 2공장 장이 섞인 줄이 있을 때만. #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-load-split.css') }}?v=20261124c">{% endif %}
 <section class="foms-cons-first" aria-label="시공 첫 화면" data-cons-first data-cons-date="{{ F.selected }}">
   <div class="foms-cons-first__bar">
     <div class="foms-ship-days" role="group" aria-label="시공 날짜 고르기">
@@ -100,7 +100,7 @@
             <span class="foms-cons-row__c foms-cons-row__who"><b>{{ r.customer }}</b>{% if r.agency %}<small>{{ r.agency }}</small>{% endif %}</span>
             <span class="foms-cons-row__c foms-cons-row__prod"><b>{{ r.product }}</b>{% if r.units %}<small>{{ r.units }}자</small>{% endif %}</span>
             <span class="foms-cons-row__c foms-cons-row__addr"><b>{{ r.district or '-' }}</b><small>{{ r.address_rest }}</small></span>
-            <span class="foms-cons-row__c foms-cons-row__ship"><small>출고</small><span class="is-{{ r.packing_state }}">{{ (r.packing_text | factory_chips) if r.packing_state == 'split' else r.packing_text }}</span>{% if r.load_text %}<small class="foms-load-split" data-cons-load>{{ r.load_text | factory_chips }}</small>{% endif %}</span>
+            <span class="foms-cons-row__c foms-cons-row__ship"><small>출고</small><span class="is-{{ r.packing_state }}">{{ (r.packing_text | factory_chips) if r.packing_state == 'split' else r.packing_text }}</span>{% if r.load_text %}<small class="foms-load-split" data-cons-load>{{ r.load_text | factory_line_chips }}</small>{% endif %}</span>
             <span class="foms-cons-row__c foms-cons-row__drw"><small>도면</small><span{% if r.drawing_missing %} class="is-warn"{% endif %}>{{ r.drawing_text }}</span></span>
             <span class="foms-cons-row__open">열기</span>
           </a>

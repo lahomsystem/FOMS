@@ -132,7 +132,7 @@
     {% endif %}
     {% if pp.done_count %}
     <h3 class="fph-pane__g">제작 완료 {{ pp.done_count }} <small>파트 일이 끝난 집</small></h3>
-    <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true, 'pp-donechip', r.fac_done or none) }}{% endfor %}</div>
+    <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true, 'pp-donechip', (r.fac_done | factory_chips) if r.fac_done else none) }}{% endfor %}</div>
     {% endif %}
   </div>
 </div>

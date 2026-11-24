@@ -451,7 +451,7 @@ def test_pc_css_는_PC_응답에서만_싣고_글자는_배율을_따른다() ->
     assert ".fpc-r.is-late, .fpc-q.is-late { background: var(--fpc-danger-50); border-color: var(--fpc-danger-line); box-shadow: inset 6px 0 0 var(--fpc-danger); }" in css
     assert ".fpc-r.is-tight, .fpc-q.is-tight { background: var(--fpc-warn-50); border-color: var(--fpc-warn-soft); box-shadow: inset 6px 0 0 var(--fpc-warn-line); }" in css
     # 여섯 칸 = 목업 값, 아주 넓은 칸(1,500px)은 공정이 더 갖고 칸 안 글
-    assert "grid-template-columns: 8.5rem 7rem minmax(14rem, 1.3fr) minmax(19rem, 2fr) minmax(7.5rem, .8fr) 5rem;" in css
+    assert "grid-template-columns: 8.5rem 7rem minmax(14rem, 1.3fr) minmax(19rem, 2fr) minmax(7.5rem, .8fr) 6.75rem;" in css  # 도면 칸 108px × 배율(11-24)
     assert "@container fpc (min-width: 1500px)" in css and ".fpc-s__m { display: block; }" in css
     users = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "templates").rglob("*.html")
                    if "production/pc.css" in p.read_text(encoding="utf-8"))
@@ -496,4 +496,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261124g" in (ROOT / tpl).read_text(encoding="utf-8"), tpl  # 2026-11-24 도면 목록 창(둘째 판) · 공장 칩이 올림
+        assert "pc.css') }}?v=20261124h" in (ROOT / tpl).read_text(encoding="utf-8"), tpl  # 2026-11-24 도면 목록 창(둘째 판) · 공장 칩이 올림

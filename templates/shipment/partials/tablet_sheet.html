@@ -13,7 +13,7 @@
 <div class="foms-ship-sheet" data-order-id="{{ order.id }}">
   <div class="foms-ship-sheet__titlebar">
     <div class="foms-ship-sheet__head">{{ customer_name }}{% if is_as %} <span class="foms-ship-sheet__as">AS</span>{% endif %}</div>
-    <div class="foms-ship-sheet__count">#{{ order.id }}{% if construction_date %} · {{ construction_date[5:7]|int }}/{{ construction_date[8:10]|int }} {{ 'AS 방문' if is_as else '출고' }}{% endif %}</div>{% if load_text %}{# 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만. #}<div class="foms-ship-sheet__count foms-load-split" data-ship-load>{{ load_text | factory_chips }}</div><link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-load-split.css') }}?v=20261124b">{% endif %}
+    <div class="foms-ship-sheet__count">#{{ order.id }}{% if construction_date %} · {{ construction_date[5:7]|int }}/{{ construction_date[8:10]|int }} {{ 'AS 방문' if is_as else '출고' }}{% endif %}</div>{% if load_text %}{# 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만. #}<div class="foms-ship-sheet__count foms-load-split" data-ship-load>{{ load_text | factory_line_chips }}</div><link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-load-split.css') }}?v=20261124c">{% endif %}
   </div>
   {# 배정 전에 "이 건 시공일이 바뀌었다"를 먼저 보게 한다. 확인 누름은 대시보드 위임 핸들러가 받는다. #}
   {% set _sheet_alerts = order.shipment_change_alerts if order.shipment_change_alerts is defined else [] %}
