@@ -20,7 +20,7 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
    테두리 is-focus(태블릿 줄 home_date_macros.fph_row 와 같은 행 값 home_focus · 같은 꼴). #}
 {% macro _row_class(r) -%}
 {%- set lv = r.pc_late.level if r.pc_late else none -%}
-{% if lv %} is-{{ lv }}{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.hold_active %} is-hold{% endif %}{% if r.home_focus %} is-focus{% endif %}
+{% if lv %} is-{{ lv }}{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.hold_active %} is-hold{% elif r.revise_block %} is-revise{% endif %}{% if r.home_focus %} is-focus{% endif %}
 {%- endmacro %}
 
 {# ③ 손님 · 품목 칸. 안 내려온 주문(기다림)은 칸 안에 막힌 까닭 · 도면 담당 · 영업 담당 한 줄(fph_why, 칸 · 폭 그대로 — 설계서

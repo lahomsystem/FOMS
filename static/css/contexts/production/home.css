@@ -317,7 +317,7 @@
 .fph-q[hidden] { display: none; }
 .fph-qr { min-height: 96px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr) calc(150px * var(--foms-fs, 1)) 190px; align-items: center; padding-right: 16px; gap: 0 10px; }
 .fph-qr.is-chg { border-color: var(--fph-danger); }
-.fph-qr.is-hold { opacity: .7; }
+.fph-qr.is-hold, .fph-qr.is-revise { opacity: .7; } /* 도면 고치는 중 줄도 보류처럼 흐리게(사장님 2026-11-25 "보류처럼") */
 .fph-qr__n { font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); text-align: center; }
 .fph-qr__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: inherit; text-decoration: none; padding: 8px 0; }
 .fph-qr__who:hover, .fph-qr__who:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }

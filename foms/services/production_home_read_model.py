@@ -343,7 +343,9 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
     for q in queues:
         q['rows'].sort(key=_due_sort_key)
         q['count'] = len(q['rows'])
-        q['incoming'] = waiting_rows if prev is None else [r for r in prev['rows'] if not r.get('hold_active')]
+        # 곧 올 것 = 바로 앞 공정 줄에서 막히지 않은 주문(보류 · 도면 고치는 중은 멈춰 있어 오지 않는다 — 2026-11-25 보류처럼)
+        q['incoming'] = waiting_rows if prev is None else [r for r in prev['rows']
+                                                           if not r.get('hold_active') and not r.get('revise_block')]
         q['incoming_label'] = '제작 대기' if prev is None else f"{prev['label']} 중"
         prev = q
     return {'queues': queues, 'waiting': len(waiting_rows), 'finished': finished, 'deadline_missed': missed}
