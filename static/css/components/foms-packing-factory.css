@@ -2,7 +2,7 @@
    .is-pf 를 붙이고 .foms-pf 칸을 그린다. 2공장 장이 섞인 주문이 있는 응답과 생산 작업 시트 [패킹]에만 실린다(1공장뿐인 날의
    출고 · 시공 조각은 바탕과 바이트까지 같다). 줄 모양은 옛 목록(foms-packing.css)의 .foms-packing-row 를 그대로 쓴다.
    공장 글(묶음 머리 · 상차 완료 단추 · [패킹] 숫자 글)은 공장 칩 하나(아래 @import, 사장님 2026-11-24 식별성). 무채색 상태 배지 없음. */
-@import url("foms-factory-chip.css?v=20261124a");
+@import url("foms-factory-chip.css?v=20261124b");
 .foms-packing-sheet,
 .foms-pk-prod {
   --foms-pf-done-50: #ecfdf5;

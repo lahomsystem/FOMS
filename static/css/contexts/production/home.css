@@ -453,7 +453,7 @@
   contain-intrinsic-size: auto calc(84px * var(--foms-fs, 1));
   min-height: 74px;
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr) auto calc(92px * var(--foms-fs, 1)); /* 도면 칸은 글자 배율 따라(R8) */
+  grid-template-columns: 128px minmax(0, 1fr) auto calc(108px * var(--foms-fs, 1)); /* 도면 칸은 글자 배율 따라(R8) — 108px = 섞인 주문 "2공장 12장 완료" 한 줄(2026-11-24 검토) */
   align-items: center;
   gap: 0 12px;
   padding-right: 12px;
@@ -501,9 +501,9 @@
 .fph-dr__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
 .fph-dr__dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 /* 2공장(설계서 2026-11-23 §4-13 · §4-14 · §8-2) — 섞인 주문 도면 칸 두 줄("1공장 3장" / "2공장 2장 완료"): 보는 사람 공장 줄이 위 · 굵게,
-   칸 폭(92px × 배율)이 모자라면 줄 안에서 "완료"만 다음 줄로. 칸을 숨기는 폰 규칙(.fph-dr__dw display:none)은 그대로 이긴다(칸 꼴 안 바꿈). */
+   한 줄씩("완료"까지 — 칸 108px × 배율). 칸을 숨기는 폰 규칙(.fph-dr__dw display:none)은 그대로 이긴다(칸 꼴 안 바꿈). */
 .fph-dr__dw.is-split { justify-self: end; white-space: normal; line-height: 1.2; text-align: left; } /* 칩이 세로로 한 줄에 서게 — 칸은 오른쪽 끝, 줄은 왼쪽 맞춤 */
-.fph-dr__dw.is-split .fph-fac { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); word-break: keep-all; }
+.fph-dr__dw.is-split .fph-fac { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); white-space: nowrap; }
 .fph-dr__dw.is-split .fph-fac + .fph-fac { margin-top: 3px; }
 .fph-dr__dw.is-split .fph-fac.is-me { font-weight: 800; color: var(--fph-text); }
 .fph-dr__dw .is-ok { font-weight: 800; color: var(--fph-ok); }
@@ -655,9 +655,9 @@
   .fph-panes { container: fph-pane / inline-size; }
   .foms-prod-home__list { container: fph-list / inline-size; }
   .fph-q { container: fph-q / inline-size; }
-  /* 날짜 장(fph-dr): 단계 128 + 공정 4 × max(34, 글 2자 1.5rem) + 틈 18 + 도면 5.75rem(92px × 배율) + 칸 틈 36 + 여백 12 + 테두리 2
+  /* 날짜 장(fph-dr): 단계 128 + 공정 4 × max(34, 글 2자 1.5rem) + 틈 18 + 도면 6.75rem(108px × 배율) + 칸 틈 36 + 여백 12 + 테두리 2
      + 이름 12 × 1.25rem(20px × 배율) */
-  @container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 20.75rem - 0.02px)) {
+  @container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 21.75rem - 0.02px)) {
     .fph-dr { grid-template-columns: 128px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 8px; contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1)); }
     .fph-dr__sg { grid-row: 1 / 3; }
     .fph-dr__who { grid-column: 2 / 4; padding-bottom: 2px; }
@@ -683,13 +683,13 @@
 }
 
 /* ── 날짜 장 공정 칸 아래 이름(.fph-dr__hd)은 한 줄 꼴에 들어갈 때만(설계서 2026-11-23 §10 '숨길 곳', 지휘 판정 11-23 이름 칸 16자) ──
-   단계 128 + 칸 틈 36 + 여백 12 + 테두리 2 + 공정 칸 틈 12 = 190px, 칸 넷 4 × 4.75rem(76px × 배율), 도면 5.75rem(92px × 배율)
-   + 이름 16 × 1.25rem(20px × 배율) = 25.75rem. 이보다 좁으면 이름 줄을 숨기고 칸 폭도 지금 꼴로. 이 문턱은 어느 글자 배율에서나
+   단계 128 + 칸 틈 36 + 여백 12 + 테두리 2 + 공정 칸 틈 12 = 190px, 칸 넷 4 × 4.75rem(76px × 배율), 도면 6.75rem(108px × 배율)
+   + 이름 16 × 1.25rem(20px × 배율) = 26.75rem. 이보다 좁으면 이름 줄을 숨기고 칸 폭도 지금 꼴로. 이 문턱은 어느 글자 배율에서나
    위 두 줄 꼴 문턱보다 넓어 두 줄 꼴에서도 늘 숨는다(두 줄 꼴 덩이는 자리만 바꾸고 아무것도 숨기지 않는다 — 11-14 규칙 그대로).
    기본 규칙(.fph-dr__steps.has-hd)보다 뒤라 같은 특이도에서 이긴다. 1rem = 16px × 글자 배율일 때만 맞는 식이다
    (2000px 넘는 화면은 뿌리 글자가 18px — foms-ui-zoom.css — 이라 조금 일찍 숨는다. 쿼리 조건에는 var() 를 못 쓴다). */
 @media (min-width: 992px) {
-  @container fph-pane (max-width: calc(190px + 4 * 4.75rem + 25.75rem - 0.02px)) {
+  @container fph-pane (max-width: calc(190px + 4 * 4.75rem + 26.75rem - 0.02px)) {
     .fph-dr__hd { display: none; }
     .fph-dr__steps.has-hd { gap: 6px; }
     .fph-dr__steps.has-hd .fph-dr__st { width: auto; }

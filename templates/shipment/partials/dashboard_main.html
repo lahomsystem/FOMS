@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/tablet-day-sheet.css') }}?v=20261123b">
 {# PC(마우스 · 992px 이상) 출고 표 안쪽 카드 모양 · 이름판(설계서 2026-11-23-pc-shipment-card-table) — PC 문지기 안에서만 그린다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/pc-card-table.css') }}?v=20261123a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/pc-ship-sheet.css') }}?v=20261123a">{% if rows|selectattr('shipment_load_text')|first is defined %}{# 상차 줄(설계서 2026-11-23 §4-15) 모양 — 2공장 장이 섞인 줄이 있을 때만 싣는다(없으면 조각 바이트 그대로). #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-load-split.css') }}?v=20261124b">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/pc-ship-sheet.css') }}?v=20261123a">{% if rows|selectattr('shipment_load_text')|first is defined %}{# 상차 줄(설계서 2026-11-23 §4-15) 모양 — 2공장 장이 섞인 줄이 있을 때만 싣는다(없으면 조각 바이트 그대로). #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-load-split.css') }}?v=20261124c">{% endif %}
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -572,7 +572,7 @@
                     {% endif %}
                     {% if r.partner_payment_pending is defined and r.partner_payment_pending %}
                     <div class="small text-danger" data-shipment-partner-unpaid><i class="fas fa-won-sign" aria-hidden="true"></i> 입금 대기</div>
-                    {% endif %}{% if r.shipment_load_text is defined and r.shipment_load_text %}<div class="small foms-load-split" data-shipment-load>{{ r.shipment_load_text | factory_chips }}</div>{% endif %}
+                    {% endif %}{% if r.shipment_load_text is defined and r.shipment_load_text %}<div class="small foms-load-split" data-shipment-load>{{ r.shipment_load_text | factory_line_chips }}</div>{% endif %}
                     {# 시공일 변경 배지 + [확인]. 고객 셀에 두는 이유: PC 표에는 시공일 열이
                        없고(페이지 자체가 날짜로 필터된다) 고객 셀이 행 신원을 읽는 자리다. #}
                     {{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_order_here|default(false)) }}

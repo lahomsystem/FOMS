@@ -103,7 +103,7 @@
 .foms-prod-page__btn--off, .foms-prod-page__btn--off:disabled, .foms-prod-page__btn--off:hover { opacity: 1; background: var(--fpp-raised); border-color: var(--fpp-line); color: var(--fpp-text3); }
 .foms-prod-page__btn:disabled > * { pointer-events: none; } /* 글 조각을 눌러도 꺼진 단추 밖으로 누름이 새지 않게 */
 .foms-prod-page__btn b { font-weight: inherit; }
-.foms-prod-page__off-hint { font-weight: 700; white-space: nowrap; }
+.foms-prod-page__off-hint { font-weight: 700; white-space: normal; word-break: keep-all; } /* 폭이 모자랄 때만 낱말 사이에서 꺾인다(폰 360 · 글자 130%) — 셋이 서면 단추째 다음 줄(줄 나눔은 한 줄 폭으로 정한다) */
 .foms-prod-page__off-hint[hidden] { display: none; }
 
 /* ── 본문 두 단 ── */
@@ -169,7 +169,7 @@
 .foms-prod-page__th span { position: relative; z-index: 1; padding: 2px 8px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; background: rgba(0, 0, 0, .55); color: #fff; border-radius: 0 6px 0 0; }
 .foms-prod-page__th.is-on { border-color: #9ea4ff; }
 /* 섞인 주문(2공장)의 2공장 장 — 작은 그림 오른쪽 위 칩(설계서 2026-11-23 §8-3 '도면 목록 장마다 2공장 칩') */
-.foms-prod-page__th .fpp-fac { position: absolute; z-index: 1; top: 4px; right: 4px; font-style: normal; font-size: calc(13px * var(--foms-fs, 1)); line-height: 1; } /* 자리만 — 모양은 공장 칩 */
+.foms-prod-page__th .fpp-fac { position: absolute; z-index: 1; top: 4px; right: 4px; padding: 0; border-radius: 0; background: none; color: inherit; font-size: calc(13px * var(--foms-fs, 1)); line-height: 1; } /* 자리만(번호 span 꼴은 지운다) — 모양은 공장 칩 */
 .foms-prod-page__th--file { flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-style: dashed; border-color: #8b929e; }
 .foms-prod-page__th--file span { position: static; background: transparent; padding: 0; font-size: calc(15px * var(--foms-fs, 1)); }
 .foms-prod-page__th--file small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; }
@@ -251,6 +251,9 @@
 .foms-prod-page__acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .foms-prod-page__acts > .foms-prod-page__btn { flex: 1 1 auto; min-height: 64px; border-radius: 12px; font-size: calc(20px * var(--foms-fs, 1)); }
 .foms-prod-page__acts > .foms-prod-page__btn--ghost { border-color: var(--fpp-line2); background: var(--fpp-surface); }
+/* 위 줄이 단추 공통 :hover · :focus-visible(특이도 0,2,0)보다 뒤라 덮으므로 한 단 더 세게 되살린다 — 마우스 · 키보드 초점(Tab)이 보인다 */
+.foms-prod-page__acts > .foms-prod-page__btn--ghost:hover,
+.foms-prod-page__acts > .foms-prod-page__btn--ghost:focus-visible { background: var(--fpp-brand-50); border-color: var(--fpp-brand); color: var(--fpp-brand-dark); }
 .foms-prod-page__acts > .foms-prod-page__btn:has(> .foms-prod-page__off-hint:not([hidden])) { flex-direction: column; gap: 0; }
 .foms-prod-page__statusrow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 20px; }
 .foms-prod-page__status { margin: 0; min-height: 20px; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); text-align: right; }
@@ -293,7 +296,6 @@
   .foms-prod-page__main { max-height: 44vh; }
   .foms-prod-page__nav { width: 56px; height: 56px; font-size: calc(30px * var(--foms-fs, 1)); }
   .foms-prod-page__side { border-left: 0; border-top: 1px solid var(--fpp-line); padding: 12px 12px 90px; }
-  .foms-prod-page__acts { flex-wrap: wrap; }
 }
 
 /* ── 칸반 옆 시트(400px, .foms-prod-sheet) 안에서 같은 조각을 쓸 때 — 연락처·공정 블록·도면 스트립 (F2 ①②③, 11-09) ── */

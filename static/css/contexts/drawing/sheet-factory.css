@@ -3,9 +3,10 @@
    2공장 장이 없고 고를 수도 없는 화면에는 이 파일을 싣지 않는다(지금 모습 그대로). 1공장은 표시 없음.
    공장 색 · 칩 모양은 공장 칩 한 곳(아래 @import components/foms-factory-chip.css — 1공장 자주 · 2공장 청록, 사장님 2026-11-24 식별성).
    글자는 calc(Npx * var(--foms-fs, 1)) — 탭 글자 크기를 따른다(마법사는 배율 밖이라 1). 줄이지 않는다(PC 80% 배율). */
-@import url("../../components/foms-factory-chip.css?v=20261124a");
+@import url("../../components/foms-factory-chip.css?v=20261124b");
 :root {
   --dsf-line: #c1c7d0;
+  --dsf-go: #4a55b8; /* [N공장으로 옮기기] — 기본 단추 남색(옮길 곳이 1공장일 수도 있어 공장 색 아님) */
   --dsf-text: #14171c;
   --dsf-text2: #4b525d;
   --dsf-danger: #dc2626;
@@ -59,7 +60,8 @@
   cursor: pointer;
 }
 .dsf-sel__b:hover:not(:disabled) { border-color: var(--dsf-text2); }
-/* 두 단추 글은 늘 그 공장 칩 글 색, 고른 단추는 칩 바탕 · 테두리(공장 칩과 같은 색 — 고르기가 곧 표시) */
+/* 두 단추 글은 늘 그 공장 칩 글 색, 고른 단추는 칩 바탕 · 테두리(공장 칩과 같은 색 — 고르기가 곧 표시).
+   단추 바탕이 흰색 고정이라 어두운 화면에서도 칩 값은 밝은 값(foms-factory-chip.css 의 '늘 밝은 자리'에 .dsf-sel 을 넣었다). */
 .dsf-sel__b.is-1 { color: var(--foms-fac1-ink); }
 .dsf-sel__b.is-2 { color: var(--foms-fac2-ink); }
 .dsf-sel__b.is-1[aria-pressed="true"] { background: var(--foms-fac1-fill); border-color: var(--foms-fac1-line); }
@@ -133,7 +135,7 @@
   font-weight: 800;
   cursor: pointer;
 }
-.dsf-dialog__btn.is-go { background: #4a55b8; border-color: #4a55b8; color: #fff; } /* [N공장으로 옮기기] — 옮길 곳이 1공장일 수도 있어 공장 색이 아닌 기본 단추 남색 */
+.dsf-dialog__btn.is-go { background: var(--dsf-go); border-color: var(--dsf-go); color: #fff; }
 .dsf-dialog__btn:focus-visible { outline: 3px solid var(--dsf-text); outline-offset: 2px; }
 
 /* 손가락으로 누르는 화면 — 보이는 44px(배율을 나눠 보이는 크기를 지킨다, §10 누름 칸) */

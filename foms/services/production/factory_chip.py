@@ -34,3 +34,32 @@ def factory_chips(text: Any) -> Any:
     parts = _LABEL_RE.split(str(text))
     out = [_CHIP.format(n=_NUMBER_OF[part], label=part) if i % 2 else escape(part) for i, part in enumerate(parts)]
     return Markup("").join(out)
+
+
+_SEG = " · "
+
+
+def factory_line_chips(text: Any) -> Any:
+    """공장마다 한 덩이로 끊는 줄 — 상차 줄("상차 1공장 2장(제작 중) · 2공장 1장(제작 중)") 거르개 ``factory_line_chips``.
+
+    글은 그대로(이어 붙이면 같은 글). 공장 몫마다 ``foms-fac-seg``(공장 칩 + 장 수는 한 덩이, "(제작 중)"도 한 덩이 — 칸이
+    모자랄 때만 그 둘 사이에서 꺾인다), 두 번째 몫 앞 " · " 는 ``foms-fac-sep`` — 줄이 갈려 몫이 줄 머리에 서면 CSS 가 가린다
+    (``foms-load-split.css``). 맨 앞 글머리("상차 ")는 첫 몫 안 첫 줄 앞. 빈 글은 그대로.
+    """
+    if text is None or text == "":
+        return text
+    segs = []
+    for i, part in enumerate(str(text).split(_SEG)):
+        hit = _LABEL_RE.search(part)
+        head, core = (part[:hit.start()], part[hit.start():]) if hit else (part, "")
+        body, tail = core, ""
+        if core.endswith(")") and "(" in core:
+            body, tail = core[:core.rfind("(")], core[core.rfind("("):]
+        inner = Markup('<span class="foms-fac-sep">{}</span>').format(_SEG) if i else Markup("")
+        inner += escape(head)
+        if body:
+            inner += Markup('<span class="foms-fac-nw">{}</span>').format(factory_chips(body))
+        if tail:
+            inner += Markup('<wbr><span class="foms-fac-nw">{}</span>').format(tail)
+        segs.append(Markup('<span class="foms-fac-seg">{}</span>').format(inner))
+    return Markup('<span class="foms-fac-line"><span class="foms-fac-line__in">{}</span></span>').format(Markup("").join(segs))

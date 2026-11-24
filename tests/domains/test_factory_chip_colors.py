@@ -60,7 +60,8 @@ def test_token_values_light_dark_and_production_stays_light():
     assert _block(css, ":root") == _flat(LIGHT)
     assert _block(css, "[data-theme='dark']") == _flat(DARK)
     # 생산 화면은 늘 밝은 판(토큰이 고정) — 어두운 설정에서도 밝은 칩
-    assert _block(css, "[data-theme='dark'] .foms-prod-home,\n[data-theme='dark'] .foms-prod-page") == _flat(LIGHT)
+    # 늘 밝은 자리(생산 판 · 흰 바탕 고정 공장 고르기 단추 .dsf-sel) — 어두운 설정에서도 밝은 칩 값
+    assert _block(css, "[data-theme='dark'] .foms-prod-home,\n[data-theme='dark'] .foms-prod-page,\n[data-theme='dark'] .dsf-sel") == _flat(LIGHT)
     assert "font-size" not in css  # 놓인 줄 글자 그대로(줄이지 않는다)
     for n in (1, 2):
         rule = re.search(r"\.foms-fac--%d \{([^}]*)\}" % n, css).group(1)
@@ -142,3 +143,47 @@ def test_scripts_draw_the_same_chip():
     assert "facText: facText" in view and "split(/([12]공장)/)" in view
     pk = (ROOT / "static/js/shipment/foms-packing-factory.js").read_text(encoding="utf-8")
     assert pk.count("V().facText(") == 2  # [패킹] 숫자 글 · 상차 완료 단추 되돌리기도 칩을 지킨다
+
+
+def test_ink_only_places_are_white_backed_and_kept_light():
+    """칩 글 색만 쓰고 바탕은 고정색인 자리 — 어두운 화면 값(밝은 글)이 흰 바탕에 앉으면 대비 1.37 · 1.04(2026-11-24 검토 4).
+    그런 자리는 도면 공장 고르기 단추(.dsf-sel__b, 바탕 흰색 고정)뿐이고, 칩 파일이 .dsf-sel 을 '늘 밝은 자리'로 둔다."""
+    ink_only = set()
+    for path in (ROOT / "static/css").rglob("*.css"):
+        if path.name == CHIP.name:
+            continue
+        code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", code):
+            if re.search(r"(?<![-\w])color:\s*var\(--foms-fac[12]-ink\)", body) and "-fill)" not in body:
+                ink_only |= {s.strip() for s in sel.split(",")}
+    assert ink_only == {".dsf-sel__b.is-1", ".dsf-sel__b.is-2"}, ink_only
+    base = re.search(r"\.dsf-sel__b \{([^}]*)\}", _code("static/css/contexts/drawing/sheet-factory.css")).group(1)
+    assert "background: #fff" in base
+    assert "[data-theme='dark'] .dsf-sel {" in _code("static/css/components/foms-factory-chip.css")
+    for fac in ("fac1", "fac2"):
+        assert contrast_ratio(hex_rgb(LIGHT[fac]["ink"]), hex_rgb("#ffffff")) >= 4.5  # 고르기 전(흰 바탕)
+        assert contrast_ratio(hex_rgb(LIGHT[fac]["ink"]), hex_rgb(LIGHT[fac]["fill"])) >= 4.5  # 고른 뒤(칩 바탕)
+        assert contrast_ratio(hex_rgb(DARK[fac]["ink"]), hex_rgb("#ffffff")) < 2  # 음성 대조 — 어두운 값이면 안 읽힌다
+
+
+def test_line_filter_keeps_text_and_makes_one_chunk_per_factory():
+    from foms.services.production.factory_chip import factory_line_chips
+
+    text = "상차 1공장 2장(제작 중) · 2공장 1장(제작 중)"
+    out = str(factory_line_chips(text))
+    assert re.sub(r"<[^>]+>", "", out) == text  # 글은 그대로(이어 붙이면 같은 글)
+    assert out.count('class="foms-fac-seg"') == 2 and out.count('<span class="foms-fac-sep"> · </span>') == 1
+    assert ('<span class="foms-fac-seg">상차 <span class="foms-fac-nw"><em class="foms-fac foms-fac--1">1공장</em> 2장</span>'
+            '<wbr><span class="foms-fac-nw">(제작 중)</span></span>') in out  # "상차" 는 첫 몫 첫 줄 앞, "(제작 중)" 은 한 덩이
+    assert factory_line_chips(None) is None and factory_line_chips("") == ""
+    css = _code("static/css/components/foms-load-split.css")
+    # 줄이 갈리면 " · " 가 줄 머리 왼쪽 밖(1em)으로 밀려 가려진다 — 이 네 규칙이 같이 있어야 한다
+    for rule in (".foms-fac-line { display: block; overflow: hidden; }",
+                 ".foms-fac-line__in { display: block; margin-left: -1em; text-indent: 1em; }",
+                 ".foms-fac-seg + .foms-fac-seg { padding-left: 1em; text-indent: -1em; }",
+                 ".foms-fac-sep { display: inline-block; width: 1em; text-align: center; text-indent: 0; }"):
+        assert rule in css, rule
+    for rel in ("templates/shipment/partials/tablet_ship_grid.html", "templates/shipment/partials/dashboard_main.html",
+                "templates/shipment/partials/shipment_mobile_queue.html", "templates/shipment/partials/tablet_sheet.html",
+                "templates/construction/partials/tablet_first_body.html"):
+        assert "| factory_line_chips }}" in (ROOT / rel).read_text(encoding="utf-8"), rel

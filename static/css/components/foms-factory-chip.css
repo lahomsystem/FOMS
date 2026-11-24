@@ -16,7 +16,8 @@
   --foms-fac2-ink: #164e63;
 }
 
-/* 어두운 화면(폰 · 시스템 설정) — 어두운 바탕 칩 + 밝은 글. 생산 화면(.foms-prod-home · .foms-prod-page)은 늘 밝은 판이라 밝은 값 그대로. */
+/* 어두운 화면(폰 · 시스템 설정) — 어두운 바탕 칩 + 밝은 글. 늘 밝은 자리는 밝은 값 그대로: 생산 화면(.foms-prod-home · .foms-prod-page,
+   판이 늘 밝다) · 도면 공장 고르기 단추(.dsf-sel, 단추 바탕이 흰색 고정 — 칩 글 색만 쓰는 자리). */
 [data-theme='dark'] {
   --foms-fac1-fill: #701a75;
   --foms-fac1-line: #e879f9;
@@ -26,7 +27,8 @@
   --foms-fac2-ink: #ecfeff;
 }
 [data-theme='dark'] .foms-prod-home,
-[data-theme='dark'] .foms-prod-page {
+[data-theme='dark'] .foms-prod-page,
+[data-theme='dark'] .dsf-sel {
   --foms-fac1-fill: #f0abfc;
   --foms-fac1-line: #a21caf;
   --foms-fac1-ink: #86198f;
