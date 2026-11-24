@@ -321,3 +321,11 @@ def test_measurement_manager_update_does_not_create_channel_delivery_log(client)
     saved = db_session.get(Order, order_id)
     assert saved.manager_name == "망고"
     assert saved.structured_data["parties"]["manager"]["name"] == "망고"
+
+
+def test_manual_push_blocks_escape_html_special_chars():
+    """'<', '&' in ERP text made ChannelTalk reject the block (422 block value not parsable)."""
+    from foms.services.channel_policy import build_message_blocks
+
+    blocks = build_message_blocks("manual", {"order_id": 1, "text": "W<1500 & H>2400", "detail_url": "http://x"})
+    assert blocks[0]["value"] == "W＜1500 & H＞2400"
