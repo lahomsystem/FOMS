@@ -30,7 +30,7 @@ import re
 from typing import Any, Optional
 
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
-from foms.services.orders.drawing_factory import current_factories, factory_made, has_second_factory
+from foms.services.orders.drawing_factory import current_factories, factory_done_entry, factory_made, has_second_factory
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, factory_label, normalize_factory
 from foms.services.shipment.packing_access import FACTORY_FORBIDDEN_CODE, factory_forbidden_message
@@ -138,9 +138,13 @@ def _when(raw: Any) -> Optional[datetime.datetime]:
     return at if at.tzinfo else at.replace(tzinfo=datetime.timezone.utc)
 
 
-def _loaded_alive(packing: dict[str, Any], factory: int, lines: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+def _loaded_alive(packing: dict[str, Any], factory: int, lines: list[dict[str, Any]], made: bool = True,
+                  made_at: Any = None) -> Optional[dict[str, Any]]:
     """그 공장 상차 완료 기록이 살아 있으면 그 기록 — 출발 뒤면 기록만 있으면, 출발 전이면 열쇠 ⊆ 기록 · 줄 모두 체크 · 그 체크가
-    모두 기록 시각 이전일 때만(풀었다 다시 체크한 줄이 있으면 다시 눌러야 한다). 저장값은 고치지 않는다."""
+    모두 기록 시각 이전일 때만(풀었다 다시 체크한 줄이 있으면 다시 눌러야 한다). 저장값은 고치지 않는다.
+
+    출발 전에는 그 공장이 제작 완료(``made``)여야 하고, 완료 표지 시각(``made_at``)이 기록 시각 이후면(상차 완료 뒤 제작 완료를
+    취소했다가 다시 완료) 풀린 것으로 본다 — 체크 풀기와 같은 꼴(사장님 2026-11-24 "상차 완료도 풀림" · "제작 완료 뒤에만")."""
     record = (packing.get(LOADED_KEY) or {}).get(str(factory)) if isinstance(packing.get(LOADED_KEY), dict) else None
     if not isinstance(record, dict):
         return None
@@ -148,9 +152,11 @@ def _loaded_alive(packing: dict[str, Any], factory: int, lines: list[dict[str, A
         return record
     current = {l["key"] for l in lines}
     saved = {str(k) for k in record.get("keys") or [] if isinstance(k, str)}
-    if not current or not current <= saved or not all(l["checked"] for l in lines):
+    if not made or not current or not current <= saved or not all(l["checked"] for l in lines):
         return None
     loaded_at = _when(record.get("at"))
+    if loaded_at is not None and (_when(made_at) or loaded_at) > loaded_at:
+        return None
     if loaded_at is not None and any((_when(l.get("at")) or loaded_at) > loaded_at for l in lines):
         return None
     return record
@@ -166,11 +172,12 @@ def factory_groups(sd: Any, lines: Optional[list[dict[str, Any]]] = None) -> lis
         own = [l for l in lines if l["factory"] == f]
         if not own:
             continue
-        record = _loaded_alive(packing, f, own)
+        made = factory_made(sd, f)
+        record = _loaded_alive(packing, f, own, made, (factory_done_entry(sd, f) or {}).get("at"))
         groups.append({"factory": f, "label": factory_label(f), "lines": own,
                        "checked": sum(1 for l in own if l["checked"]), "total": len(own),
                        "loaded": {"at": record.get("at"), "by_name": record.get("by_name")} if record else None,
-                       "made": factory_made(sd, f)})
+                       "made": made})
     return groups
 
 

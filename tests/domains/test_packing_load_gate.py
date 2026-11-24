@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 from pathlib import Path
 
 import pytest
@@ -78,6 +79,43 @@ def test_load_after_order_left_production_without_marks(client):
     assert client.post(URL.format(oid), json={"loaded": 1}).status_code == 200
     gone = client.post(URL.format(oid), json={"loaded": 2}).get_json()["data"]
     assert gone["departed_at"]
+
+
+def _set_done(oid: int, marks: dict) -> None:
+    """생산 쪽 공장 완료 표지를 바꾼다(완료 취소 · 다시 완료 흉내 — 패킹 자료는 안 건드린다)."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data)
+    sd["production"] = {"factory_done": marks}
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+
+def test_factory_done_cancel_after_load_lapses_the_load(client):
+    """상차 완료 뒤 그 공장 제작 완료를 취소하면 상차 완료가 풀린다 — 다른 공장이 상차 완료해도 출발 보고 없음.
+
+    다시 제작 완료해도(표지 시각이 상차 기록 뒤) 저절로 살아나지 않고, 다시 눌러야 출발 보고가 된다(막다른 길 없음).
+    """
+    _user(client, team="SHIPMENT")
+    oid = _order(_making(done=(1, 2)))
+    data = client.get(URL.format(oid)).get_json()["data"]
+    _check(client, oid, _keys(data, 1) + _keys(data, 2))
+    assert client.post(URL.format(oid), json={"loaded": 1}).status_code == 200
+    marks = copy.deepcopy(_fresh(oid)["production"]["factory_done"])
+    _set_done(oid, {"2": marks["2"]})  # 1공장 제작 완료 취소
+    groups = client.get(URL.format(oid)).get_json()["data"]["groups"]
+    assert groups[0]["loaded"] is None and groups[0]["made"] is False
+    two = client.post(URL.format(oid), json={"loaded": 2})
+    assert two.status_code == 200 and two.get_json()["data"]["departed_at"] is None and _events(oid, "PACKING_DEPARTED") == 0
+    again = client.post(URL.format(oid), json={"loaded": 1})
+    assert again.status_code == 400 and again.get_json()["data"] == {"code": NOT_DONE, "factory": 1}
+    _set_done(oid, {"1": {**marks["1"], "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}, "2": marks["2"]})  # 다시 제작 완료(상차 기록 뒤)
+    groups = client.get(URL.format(oid)).get_json()["data"]["groups"]
+    assert groups[0]["made"] is True and groups[0]["loaded"] is None  # 저절로 안 살아남
+    done = client.post(URL.format(oid), json={"loaded": 1})
+    assert done.status_code == 200 and done.get_json()["data"]["departed_at"] and _events(oid, "PACKING_DEPARTED") == 1
 
 
 def test_old_depart_button_has_the_same_gate(client):
