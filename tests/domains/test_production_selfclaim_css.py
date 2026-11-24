@@ -17,11 +17,11 @@ from tests.support.color_contrast import contrast_ratio, hex_rgb, pair_distances
 
 ROOT = Path(__file__).resolve().parents[2]
 CSS_DIR = ROOT / "static/css/contexts/production"
-PIN = "20261123v"
+PIN = "20261124f"
 #: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다.
-PARTS_PIN = "20261124a"
+PARTS_PIN = "20261124f"
 #: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 · 셋째 판)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
-PC_PIN = "20261124r"
+PC_PIN = "20261124f"
 
 
 def _css(name: str) -> str:
@@ -88,8 +88,10 @@ def test_새_토큰_값() -> None:
     for line in ("--fph-holder: var(--fph-text2);", "--fph-holder-done: var(--fph-brand-dark);", "--fph-holder-none: var(--fph-text3);",
                  "--fph-step-w: calc(76px * var(--foms-fs, 1));"):
         assert line in home, line
-    # 1공장 · 남의 공장 토큰은 이번(P1)에 없다 — P3
-    assert "--fph-fac" not in parts + home
+    # 3단계(2공장, §10 새 토큰): 2공장 청록 넷은 home.css 에(parts.css 는 이 파일 뒤에 실려 같이 쓴다), 1공장 · 남의 공장 바탕 토큰은 없다
+    assert not re.search(r"--fph-fac[\w-]*\s*:", parts) and "--fph-fac1" not in home  # parts.css 는 정의 없이 쓰기만
+    for line in ("--fph-fac2-50: #cdf3ec;", "--fph-fac2-300: #7fd6c6;", "--fph-fac2-700: #0f6b63;", "--fph-fac2-line: #0d9488;"):
+        assert line in home, line
 
 
 def test_상태_색_짝은_정상_10_색약_6_이상이고_무채색이_없다() -> None:
@@ -243,8 +245,14 @@ def test_옮기지_말_것() -> None:
         # !important 는 늘리지 않는다(home.css 의 1곳은 전부터 있던 것)
         assert code.count("!important") == {"home.css": 1}.get(name, 0), name
         assert not re.search(r"\.v[23]-|--mk-z|\.fz\b|\.fz[12]\b", code), name
+        # 3단계 ⑤(2공장 생산 화면)가 쓰는 이름은 제 파일에만 — 목업 이름(.pp-partpick)은 어디에도 없다
+        p3_home = {"home.css": (".is-elsewhere", ".is-split", ".fph-fac-now"), "parts.css": (".is-elsewhere", ".pp-elsewhere-note",
+                   ".pp-otherg", ".pp-parts--fac", ".fph-fac--2"), "pc.css": (".is-split", ".fph-fac--2"), "sheet.css": (".fpp-fac",)}
         for p3 in (".fph-fac", ".is-elsewhere", ".pp-elsewhere-note", ".pp-otherg", ".pp-partpick", ".pp-parts--fac", ".is-split"):
-            assert p3 not in code, (name, p3)
+            allowed = any(p3 in owned for owned in p3_home[name]) or (p3 == ".fph-fac" and name != "sheet.css")
+            assert allowed or p3 not in code, (name, p3)
+        for owned in p3_home[name]:
+            assert owned in code, (name, owned)
         for old in (".pp-st-wait", ".pp-fin2", ".pp-facs", ".pp-mgo--free", ".pp-al--free", "is-otherfac"):
             assert old not in code, (name, old)
     parts_code = re.sub(r"/\*.*?\*/", "", files["parts.css"], flags=re.S)

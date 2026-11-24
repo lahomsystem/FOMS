@@ -6,7 +6,8 @@
  * 읽기 전용 직원도 싣는다(보기만 — 이 파일엔 쓰기 요청이 없다). 셸 조각 교체로 다시 실행된다(11-14): 화면마다 한 번
  * (window.__FOMS_PROD_PARTS_BOUND.sync = 지금 화면), 30초 타이머는 문서에 한 번(.syncTimer) 달고 지금 화면의 받기(.syncTick)를 부른다.
  * 화면이 문서에서 빠지면(다른 탭으로 셸 이동) 받지 않는다. 날을 받아 끼운 장의 카드도 화면 안이라 같이 받는다.
- * 2026-11-23: 받은 줄의 맡은 때 · 바뀐 기록 칸도 카드에 싣는다(고치기가 그린다). 까닭 말풍선이 열린 카드도 건너뛴다(held). */
+ * 2026-11-23: 받은 줄의 맡은 때 · 바뀐 기록 칸도 카드에 싣는다(고치기가 그린다). 까닭 말풍선이 열린 카드도 건너뛴다(held).
+ * 2공장(2026-11-23 §4-13): 남의 공장 카드([data-pp-elsewhere] — 누름 없음)도 같이 받아 글 한 줄 · 다른 파트 줄만 고친다. */
 (function () {
   'use strict';
 
@@ -40,7 +41,7 @@
   function orderIds() {
     var seen = {};
     var ids = [];
-    toArr(root.querySelectorAll('[data-pp-card]')).forEach(function (card) {
+    toArr(root.querySelectorAll('[data-pp-card], [data-pp-elsewhere]')).forEach(function (card) {
       var id = card.getAttribute('data-order-id');
       if (id && !seen[id]) { seen[id] = true; ids.push(id); }
     });
@@ -89,12 +90,27 @@
     span.appendChild(document.createTextNode(' ' + (mark.word || '')));
     return true;
   }
+  // 남의 공장 카드의 글 한 줄 — 서버 factory_scope.elsewhere_line 과 같은 글("담당 최가은" · "엣지 완료 · 최가은" · "기본 · 김재단" · "미정")
+  function elsewhereLine(m) {
+    if (m.state === 'need') { return m.picked_by_name ? '담당 ' + m.picked_by_name : '담당 있음'; }
+    if (m.state !== 'done' && m.state !== 'basic') { return '미정'; }
+    var head = m.state === 'done' ? (cfg.label || '') + ' 완료' : '기본';
+    return m.done_by_name ? head + ' · ' + m.done_by_name : head;
+  }
+  function applyElsewhere(mark) {
+    toArr(root.querySelectorAll('[data-pp-elsewhere][data-order-id="' + mark.order_id + '"]')).forEach(function (card) {
+      if (card.getAttribute('data-key') !== mark.drawing_key) { return; }
+      var text = card.querySelector('[data-pp-elsewhere-text]');
+      if (mark.part !== cfg.part) { setOther(card, mark); } else if (text) { text.textContent = elsewhereLine(mark); }
+    });
+  }
   // 받은 줄 → 바뀐 카드만 고친다. 건너뛴 카드가 있으면 false(since 를 옮기지 않는다)
   function applyMarks(marks) {
     var cards = window.FomsPartsCards;
     if (!cards) { return false; }
     var complete = true;
     marks.forEach(function (mark) {
+      applyElsewhere(mark);
       cards.find(mark.order_id, mark.drawing_key).forEach(function (card) {
         if (cards.held(card)) { complete = false; return; }
         if (mark.part !== cfg.part) {

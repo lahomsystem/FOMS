@@ -292,6 +292,21 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .pp-mpop a:active { background: var(--fph-old-50); }
 .pp-mpop a:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
 
+/* ── 남의 공장 카드(2공장, 설계서 2026-11-23 §4-13 · §8-1 · §10 F14) — 판 뒤 묶음 "2공장 작업 4장". 바탕은 흰 카드 그대로 · 2px 청록 점선,
+   그림만 흐림(.55), 색 칸 없이 글 한 줄 + 칩 "2공장 작업"(가장 센 것이 못 누르는 분홍 칸이 아니게 — K1 · K3). 누르면 까닭 말풍선.
+   '전체 도면' 칸에서만 보인다(내 담당 · 내가 완료 칸은 내 공장 카드만). 관리자 공장 고르기(.pp-parts--fac)는 파트 고르기와 같은 꼴. ── */
+.pp-elsewhere { display: flex; flex-direction: column; gap: 6px; }
+.fph-parts[data-pp-on="need"] .pp-elsewhere, .fph-parts[data-pp-on="done"] .pp-elsewhere { display: none; }
+.pp-otherg { margin: 12px 0 2px; padding-top: 10px; border-top: 2px dashed var(--fph-fac2-line); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-fac2-700); }
+.pp-card.is-elsewhere { border: 2px dashed var(--fph-fac2-line); padding: 7px 9px 9px; }
+.pp-card.is-elsewhere .pp-img { cursor: default; }
+.pp-card.is-elsewhere .pp-thumb { opacity: .55; }
+.fph-fac { display: inline-flex; align-items: center; font-style: normal; line-height: 1.5; }
+.fph-fac--2 { padding: 0 8px; border: 1px solid var(--fph-fac2-300); border-radius: 7px; background: var(--fph-fac2-50); color: var(--fph-fac2-700); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-wi.pp-elsewhere-note { gap: 8px; justify-content: flex-start; padding: 4px 12px; background: var(--fph-surface); border-color: var(--fph-line2); color: var(--fph-text); font-weight: 700; }
+.fph-wi.pp-elsewhere-note:hover { color: var(--fph-text); border-color: var(--fph-line2); }
+.fph-wi.pp-elsewhere-note span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ── 가로 터치 태블릿 누름 칸 · 틈(설계서 2026-11-23 §10 M4 · F3 · F4) — 화면 크기 80% 에서도 보이는 44px · 이웃 틈 8px.
    '÷ 배율' 규칙은 이 덩이 안에만(test_tablet_touch_targets_zoom.py). 지금 칸(거르개 · [기본][내가 자름] 짝 등)은 건드리지 않는다. ── */
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
@@ -311,4 +326,7 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
   /* 여러 파트 고르기(P2) — 보이는 44px · 이웃 틈 8px */
   .pp-pick { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
   .pp-picks { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+  /* 관리자 공장 고르기(2공장) — 보이는 44px · 이웃 틈 8px */
+  .pp-parts--fac .pp-part { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+  .pp-parts--fac { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
 }
