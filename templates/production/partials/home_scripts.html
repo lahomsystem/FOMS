@@ -12,6 +12,6 @@
 {% endif %}{% if pc_view and tab in ('date', 'all') %}{# PC 공정 칸 → 도면 목록 창(2026-11-24): 바뀐 기록 글 · 손 체크 확인 창은 작업 시트와 같은 파일(sheet-parts),
    보기 · 창은 pc-sheet, 쓰기(있는 쓰기 길만)는 [고치기] 켬일 때만 pc-sheet-write #}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261124p" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261124q" defer></script>
-{% if edit_on %}<script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261124q" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261124r" defer></script>
+{% if edit_on %}<script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261124r" defer></script>
 {% endif %}{% endif %}{% if edit_toggle %}{# PC [고치기] — 쿠키 foms_prod_edit 심기 · 지우기 + 다시 받기(설계서 2026-11-21-production-pc-viewer §7) #}<script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}

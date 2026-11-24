@@ -246,7 +246,7 @@
 .fpc-sheet .fpc-sheet__x { min-height: 46px; padding: 0 16px; font-size: calc(16px * var(--foms-fs, 1)); }
 .fpc-sheet__tools:empty + .fpc-sheet__x { margin-left: auto; }
 .fpc-sheet .fpc-sheet__btn { min-height: 46px; padding: 0 16px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
-.fpc-sheet .fpc-sheet__btn.is-wait { opacity: .6; cursor: wait; }
+.fpc-sheet .fpc-sheet__btn.is-wait, .fpc-sheet .fpc-sheet__x.is-wait { opacity: .6; cursor: wait; } /* 쓰는 중 — 닫기도 잠깐 잠금 */
 .fpc-sheet__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 18px 18px; }
 .fpc-sheet__note, .fpc-sheet__msg { margin: 0 0 10px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.4; word-break: keep-all; }
 .fpc-sheet__note { padding: 8px 12px; border: 1px solid var(--fpc-warn-soft); border-radius: 9px; background: var(--fpc-warn-50); color: var(--fpc-warn-ink); }
