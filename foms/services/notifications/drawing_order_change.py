@@ -204,7 +204,7 @@ _STRUCT_FIELD_LABELS: Dict[str, str] = {
     "construction_note": "시공 특이사항",
     "urgent": "긴급",
     "urgent_reason": "긴급사유",
-    "factory2": "2공장",
+    "factory2": "라홈시스템 계약",
     "self_measure": "자가실측",
     "special_notes": "특이사항",
     "special_note": "특이사항",
@@ -900,7 +900,7 @@ def compute_drawing_relevant_changes(
         for key, label in (
             ("urgent", "긴급"),
             ("urgent_reason", "긴급사유"),
-            ("factory2", "2공장"),
+            ("factory2", "라홈시스템 계약"),
             ("self_measure", "자가실측"),
             ("special_notes", "특이사항"),
             ("special_note", "특이사항"),

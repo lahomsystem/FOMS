@@ -77,7 +77,7 @@ def test_estimate_payment_info_has_multi_accounts_and_legacy_single_fields():
 
 
 def test_estimate_company_info_factory2_fields():
-    """2공장 공급자 정보는 라홈시스템 상호·대표·등록번호·소재지를 사용한다."""
+    """라홈시스템 계약 공급자 정보는 라홈시스템 상호·대표·등록번호·소재지를 사용한다."""
     assert ESTIMATE_COMPANY_INFO_FACTORY2["name"] == "라홈시스템"
     assert ESTIMATE_COMPANY_INFO_FACTORY2["ceo"] == "김은지"
     assert ESTIMATE_COMPANY_INFO_FACTORY2["business_number"] == "446-08-03252"
@@ -96,7 +96,7 @@ def test_resolve_estimate_company_info_switches_by_factory2_flag():
 
 
 def test_estimate_payment_info_factory2_single_account():
-    """2공장 결제정보는 기업은행 단일 계좌(김은지 라홈시스템)만 포함한다."""
+    """라홈시스템 계약 결제정보는 기업은행 단일 계좌(김은지 라홈시스템)만 포함한다."""
     assert len(ESTIMATE_PAYMENT_INFO_FACTORY2["accounts"]) == 1
     acc = ESTIMATE_PAYMENT_INFO_FACTORY2["accounts"][0]
     assert acc["bank"] == "기업은행"

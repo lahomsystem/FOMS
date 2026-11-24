@@ -1425,7 +1425,7 @@ def api_put_order_structured(order_id):
         is_self_measurement = payload.get('is_self_measurement')
         is_regional = payload.get('is_regional')
         construction_type = payload.get('construction_type')
-        # ORDER-FLAG-01: 라홈시스템(2공장)·지방주문은 CS(라홈팀/하우드팀)·관리자만 바꾼다.
+        # ORDER-FLAG-01: 라홈시스템 계약·지방주문은 CS(라홈팀/하우드팀)·관리자만 바꾼다.
         # 거부(403)가 아니라 **무시**다 — 이 PUT 은 저장 버튼 말고도 견적 미리보기·알림톡
         # 발송이 함께 태우므로, 403 으로 만들면 무권한 사용자의 정상 저장 전체가 막힌다.
         # 지방주문 구분(construction_type)은 체크박스와 한 몸이라 함께 잠근다 — 여기만
