@@ -249,3 +249,15 @@ def test_factory_move_event_shows_in_production_changes(client):
     alerts = collect_production_change_alerts(db_session, [order], None)[seed.id]["alerts"]
     assert [(a["label"], a["detail"], a["by_name"]) for a in alerts] == [("공장 바뀜", "도면 2/3 1공장 → 2공장", "오가람")]
     assert db_session.query(ProductionPartMark).count() == 0
+
+
+def test_other_factory_only_order_cards_read_their_marks(client, cohort):
+    """남의 공장 장만 있는 주문(날짜 줄 2공장 묶음)의 카드도 같은 표시 줄 읽기로 그린다 — 줄을 빼먹으면 '미정'으로 틀리게 보인다."""
+    only1 = mixed_order(2, f2=())
+    edge1 = factory_user("박엣지", part="edge")
+    put_mark(only1, 0, "edge", "DONE", edge1)
+    login(client, factory_user("최가은", factory=2, part="edge"))
+    set_cookies(client, TABLET)
+    html = _html(client)
+    card = html[html.index(f'data-pp-elsewhere data-order-id="{only1.id}" data-key="{only1.keys[0]}"'):]
+    assert "<span data-pp-elsewhere-text>엣지 완료 · 박엣지</span>" in card[:3000]

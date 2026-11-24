@@ -459,8 +459,12 @@ def test_파트_맡기_P1_새_누름_칸은_보이는_44_이웃_틈_8_지금_칸
     assert f"min-height: {TAP}" in _decl(t, ".pp-mchip") and f"min-height: {TAP}" in _decl(t, ".pp-mpop a")
     assert f"gap: max(8px, {GAP})" in _decl(t, ".foms-prod-home .pp-modal .foms-prod-change-modal__foot")
     assert f"gap: max(8px, {GAP})" in _decl(t, ".foms-prod-home .pp-modal .pp-mchoices")
-    # 지금 칸: 짝 단추 틈 · 파트 고르기 규칙은 이 덩이에 없다(지금 화면 그대로 — 전 · 후 그림 같음)
-    assert ".pp-two {" not in t and ".pp-two," not in t and ".pp-part" not in t
+    # 지금 칸: 짝 단추 틈 · 파트 고르기 규칙은 이 덩이에 없다(지금 화면 그대로 — 전 · 후 그림 같음). 3단계 관리자 공장 고르기
+    # (.pp-parts--fac — 새 칸, 2공장 그림이 켜졌을 때만)만 이 덩이에서 보이는 44 · 틈 8
+    assert ".pp-two {" not in t and ".pp-two," not in t
+    assert not [sel for sels in re.findall(r"([^{}]+)\{", t) for sel in sels.split(",")
+                if ".pp-part" in sel and not sel.strip().startswith(".pp-parts--fac")]
+    assert f"min-height: {TAP}" in _decl(t, ".pp-parts--fac .pp-part") and f"gap: max(8px, {GAP})" in _decl(t, ".pp-parts--fac")
     assert f"min-height: {TAP}" in _decl(_tablet_text("psheet"), ".fpp-loglink")
     # 판 머리 거르개(지휘 판정 2026-11-23 — CSS 일꾼이 남긴 둘): 키 보이는 44px · 고른 칸 숫자 흐리지 않음. 판 머리(.pp-tabs)에만 —
     # 위 화면 탭(home.css .foms-prod-home__tab)은 그대로
