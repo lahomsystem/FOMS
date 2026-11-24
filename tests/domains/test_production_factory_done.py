@@ -283,3 +283,27 @@ def test_work_sheet_factory_buttons(client, people):
     plain = mixed_order(2, f2=())
     html = _sheet(client, plain.id)
     assert "data-foms-sheet-factory" not in html and "foms-production-sheet-factory.js" not in html  # 한 공장 주문 그대로
+
+
+def test_sheet_factory_api_reads_the_same_done_mark(client, people):
+    """도면팀 공장 지정 API(3단계 ④)의 409 ``FACTORY_DONE`` 이 ⑥ 이 쓰는 표지(``production.factory_done``)를 같은 함수로 읽는다."""
+    seed = mixed_order(4, f2=(2, 3))
+    _all_done(seed, (2, 3), people["insp2"])  # 2공장 두 장 네 파트 완료, 1공장 두 장은 아무도 안 만짐
+    login(client, people["insp2"])
+    assert _api(client, seed.id, 2).status_code == 200  # 2공장 제작 완료(마지막 아님)
+    sheets = [f["sheet_id"] for f in fresh(seed.id).structured_data["drawing_current_files"]]
+    login(client, factory_user("오가람", team="DRAWING"))
+    url = f"/api/orders/{seed.id}/drawing/sheet-factory"
+    out = client.post(url, json={"items": [{"sheet_id": sheets[2], "factory": 1}]})  # 완료한 공장에서 빼기
+    body = out.get_json()
+    assert out.status_code == 409 and body["data"]["code"] == "FACTORY_DONE"
+    assert body["error"].startswith("2공장은 강검수가 ") and body["error"].endswith("에 제작 완료했어요. 옮기려면 2공장 완료부터 취소해 주세요.")
+    into = client.post(url, json={"items": [{"sheet_id": sheets[0], "factory": 2}]})  # 완료한 공장으로 넣기
+    assert into.status_code == 409 and into.get_json()["data"]["code"] == "FACTORY_DONE"
+    login(client, people["insp2"])
+    assert _api(client, seed.id, 2, done=False).status_code == 200  # 2공장 완료 취소
+    login(client, factory_user("오나래", team="DRAWING"))
+    moved = client.post(url, json={"items": [{"sheet_id": sheets[0], "factory": 2}]})
+    assert moved.status_code == 200 and moved.get_json()["data"]["changed"][0]["to"] == 2
+    worked = client.post(url, json={"items": [{"sheet_id": sheets[2], "factory": 1}]})  # 일한 장은 여전히 못 옮김(다른 까닭)
+    assert worked.status_code == 409 and worked.get_json()["data"]["code"] == "SHEET_HAS_WORK"
