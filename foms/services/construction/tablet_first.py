@@ -31,7 +31,7 @@ from foms.services.common.address_query import strip_sido
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.construction_read_model import CONSTRUCTION_ACTIVE_STAGE_CODES, CONSTRUCTION_ALL_STAGE_CODES
-from foms.services.datetime_kst import get_today_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.erp_permissions import (
     _current_dialect_name,
     _json_string_token_condition,
@@ -262,7 +262,10 @@ def _packing_fields(sd: dict) -> tuple[str, str]:
         return "포장 전", "none"
     departed = str(packing.get("departed_at") or "")
     if departed:
-        return (f"출발 {departed[11:16]}" if len(departed) >= 16 else "출발"), "departed"
+        # 한국 시각으로(패킹 API 는 UTC +00:00 으로 적는다 — 예전엔 글자를 그대로 잘라 14:48 이 05:48 로 보였다).
+        # 시간대 없는 옛 값은 한국 시각으로 본다(패킹 시트 머리 JS 의 new Date() 가 기기 시각 = 한국으로 읽는 것과 같게).
+        hm = format_datetime_kst(departed, "%H:%M", assume_utc_if_naive=False) if len(departed) >= 16 else None
+        return (f"출발 {hm}" if hm else "출발"), "departed"
     glance = packing_glance(sd)  # 2공장 장이 섞인 주문 — "포장 1공장 3/3 · 2공장 0/2"(설계서 2026-11-23 '승인 때 고친 것' 6)
     if glance is not None:
         # 공장 둘로 나뉜 글은 상태 split — 좁은 칸에서 말줄임 대신 두 줄(foms-packing-factory.css 의 .is-split)

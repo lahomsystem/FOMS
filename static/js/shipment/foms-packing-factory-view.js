@@ -28,7 +28,8 @@
   function hm(iso) {
     var d = new Date(iso);
     if (!iso || isNaN(d.getTime())) return '';
-    return d.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+    // hourCycle h23 — hour12:false 는 브라우저에 따라 자정을 '24:30'으로 그린다
+    return d.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   }
 
   function issueBox(it) {

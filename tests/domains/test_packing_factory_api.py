@@ -17,6 +17,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.services.construction.tablet_first import _packing_fields
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_display import get_today_kst
 from foms.services.shipment import packing_factory as pf
 from models import Order, OrderEvent, User
@@ -133,7 +134,7 @@ def test_two_factory_loads_then_departed_automatically(client):
     assert packing["layout"] == "factory" and set(packing["factory_loaded"]) == {"1", "2"}
     assert packing["factory_loaded"]["1"]["keys"] == f1
     # departed_at 을 읽는 시공 태블릿 '출고' 칸이 그대로 돈다(폰 카드 "출발 보고됨"은 test_packing_factory_screens.py)
-    assert _packing_fields(sd) == (f"출발 {packing['departed_at'][11:16]}", "departed")
+    assert _packing_fields(sd) == (f"출발 {format_datetime_kst(packing['departed_at'], '%H:%M')}", "departed")  # 한국 시각
 
 
 def test_uncheck_after_load_keeps_record_and_new_sheet_reopens_factory(client):
