@@ -11,6 +11,10 @@ factory_by_key, changed}, error}`` — 두 표는 2공장인 장만 열쇠로 �
   :mod:`foms.services.orders.drawing_factory`.
 * 한 tx(REV-00 :func:`execute_order_mutation` — 행 잠금 · If-Match · 버전 +1 · 멱등): 잠금 1 + 표시 줄 1(생산 단계 옮김만) + 쓰기 +
   이벤트 ``DRAWING_SHEET_FACTORY_CHANGED`` 1 + 감사 1. 막히면 되감고 감사에 거절 한 줄만.
+* 응답 ``data.mutation_version`` = 이 요청 뒤 주문 버전(읽기 전용) — 같은 화면이 들고 있는 If-Match 값을 맞춘다(3단계 ④ 검토).
+* 확인 창(§4-13 표 둘째 줄): 몸에 ``confirmed: false`` 를 실으면, 생산 단계에서 지금 확정 도면 장을 옮기는데 일이 시작 안 된 경우
+  409 ``CONFIRM_REQUIRED`` 로 돌려보낸다(쓰기 0 · 거절 감사 없음) — 화면이 확인 창을 띄운 뒤 ``confirmed: true`` 로 다시 보낸다.
+  화면이 연 때 값으로 "생산에 내려간 장"을 가르지 않게 서버가 정한다. ``confirmed`` 가 없으면 묻지 않는다(그대로 옮김).
 """
 from __future__ import annotations
 
@@ -47,6 +51,7 @@ from foms.services.orders.drawing_factory import (
 from foms.services.orders.erp_policy_permissions import can_set_sheet_factory
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.stage_override import STAGE_FORWARD_RANK
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.production.factory_constants import FACTORIES
 from foms.services.production.part_marks_query import order_marks
@@ -60,6 +65,9 @@ SHEET_FACTORY_POLICY_ID = "DRAWING_TEAM"
 SHEET_FACTORY_MUTATION_ID = "DRAWING_SHEET_FACTORY"
 MAX_ITEMS = 100
 _SAVE_FAILED = "저장하지 못했어요. 잠시 뒤 다시 해 주세요."
+#: 확인 창이 필요하다(쓰기 0) — 화면은 이 글 대신 확인 창을 띄운다. API 만 부르는 쪽이 읽을 글.
+CONFIRM_REQUIRED = "CONFIRM_REQUIRED"
+_CONFIRM_MESSAGE = "생산에 이미 내려간 도면이에요. 옮기면 1공장 · 2공장 화면에 '바뀜'으로 알려요."
 
 erp_orders_sheet_factory_bp = Blueprint('erp_orders_sheet_factory', __name__, url_prefix='/api/orders')
 
@@ -125,8 +133,16 @@ def _refusal_audit(db: Any, user: Any, order_id: int, refusal: SheetFactoryRefus
         logger.warning("[SHEET_FACTORY] refusal audit failed order=%s", order_id, exc_info=True)
 
 
-def _mutation(user: Any, items: list[dict[str, Any]], captured: dict[str, Any]):
-    """잠근 주문 위에서 계획 → 쓰기 → 이벤트 · 감사(막히면 :class:`SheetFactoryRefusal`, 같은 값이면 :class:`_Unchanged`)."""
+def _needs_confirm(stage: Any, changes: list[Any]) -> bool:
+    """생산 단계에서 지금 확정 도면 장(``keys`` 있음)을 옮기는지 — 확인 창 대상(§4-13 표 둘째 줄)."""
+    return STAGE_FORWARD_RANK.get(str(stage or "")) == STAGE_FORWARD_RANK["PRODUCTION"] and any(c.keys for c in changes)
+
+
+def _mutation(user: Any, items: list[dict[str, Any]], captured: dict[str, Any], *, ask_confirm: bool = False):
+    """잠근 주문 위에서 계획 → 쓰기 → 이벤트 · 감사(막히면 :class:`SheetFactoryRefusal`, 같은 값이면 :class:`_Unchanged`).
+
+    ``ask_confirm`` 이면 막힘 판정을 다 지난 뒤 확인 창 대상인지 보고 409 ``CONFIRM_REQUIRED``(쓰기 0).
+    """
 
     def _mutate(sess: Any, locked: list[Order]) -> dict[int, list[str]]:
         order = locked[0]
@@ -136,7 +152,10 @@ def _mutation(user: Any, items: list[dict[str, Any]], captured: dict[str, Any]):
         stage = read_main_stage(order)
         changes = plan_factory_changes(sd, items, stage=stage, load_marks=lambda: order_marks(sess, order.id))
         if not changes:
-            raise _Unchanged({"factory_by_sheet": factory_by_sheet(sd), "factory_by_key": factory_by_key(sd), "changed": []})
+            raise _Unchanged({"factory_by_sheet": factory_by_sheet(sd), "factory_by_key": factory_by_key(sd), "changed": [],
+                              "mutation_version": int(order.mutation_version or 0)})
+        if ask_confirm and _needs_confirm(stage, changes):
+            raise SheetFactoryRefusal(409, CONFIRM_REQUIRED, _CONFIRM_MESSAGE)
         rows = change_rows(sd, changes)
         apply_factory_changes(sd, changes, by_name=_actor_name(user), at_iso=now_utc_naive().isoformat())
         order.structured_data = sd
@@ -166,6 +185,7 @@ def api_order_sheet_factory(order_id: int):
         items = _items(payload)
     except SheetFactoryRefusal as refusal:
         return _fail(refusal)
+    ask_confirm = payload.get("confirmed") is False if isinstance(payload, dict) else False
     if_match = (request.headers.get("If-Match") or "").strip().strip('"')
     idem = (str(payload.get("idempotency_key") or "").strip() or (request.headers.get("Idempotency-Key") or "").strip())[:64]
     scope_hash, request_hash = _hashes(order_id, items)
@@ -174,7 +194,7 @@ def api_order_sheet_factory(order_id: int):
         execute_order_mutation(
             db, actor_user_id=user.id, policy_id=SHEET_FACTORY_MUTATION_ID, order_ids=[order_id],
             expected_versions={order_id: int(if_match)} if if_match.isdigit() else None, idempotency_key=idem or None,
-            scope_hash=scope_hash, request_hash=request_hash, mutation=_mutation(user, items, captured),
+            scope_hash=scope_hash, request_hash=request_hash, mutation=_mutation(user, items, captured, ask_confirm=ask_confirm),
         )
         db.commit()
     except _Unchanged as same:
@@ -182,7 +202,7 @@ def api_order_sheet_factory(order_id: int):
         return jsonify({"success": True, "data": same.data, "error": None})
     except SheetFactoryRefusal as refusal:
         db.rollback()
-        if refusal.status == 409:
+        if refusal.status == 409 and refusal.code != CONFIRM_REQUIRED:  # 확인 물음은 거절이 아니다
             _refusal_audit(db, user, order_id, refusal)
         return _fail(refusal)
     except RevisionError as rev:  # 주문 없음 404 · If-Match 어긋남 409 · 멱등 key 어긋남
@@ -201,4 +221,6 @@ def api_order_sheet_factory(order_id: int):
     if data is None and order is not None:  # 같은 멱등 key 다시 보냄 — 저장한 뒤 모습을 읽어 준다(쓰기 0)
         sd = order.structured_data if isinstance(order.structured_data, dict) else {}
         data = {"factory_by_sheet": factory_by_sheet(sd), "factory_by_key": factory_by_key(sd), "changed": []}
+    if data is not None and order is not None:
+        data["mutation_version"] = int(order.mutation_version or 0)  # 같은 화면의 If-Match 값을 맞춘다
     return jsonify({"success": True, "data": data or {}, "error": None})

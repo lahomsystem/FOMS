@@ -2,8 +2,10 @@
  * 도면 장의 공장(1공장 · 2공장) 지정 — 마법사(wizard-factory.js)와 작업실(workbench-sheet-factory.js)이 같이 쓴다.
  * 설계서 docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md §4-13 · §8-5.
  *
- * - post(orderId, items)  POST /api/orders/<id>/drawing/sheet-factory → { ok, data, code, message }
+ * - post(orderId, items, confirmed)  POST /api/orders/<id>/drawing/sheet-factory → { ok, data, code, message }
  *   (fetch 는 try/catch, data.success 로 판정. 거절 글은 서버 글 그대로 돌려준다.)
+ *   confirmed=false 로 보내면 생산에 내려간 장일 때 서버가 409 CONFIRM_REQUIRED 로 물어 온다(쓰기 0) — 확인 창 뒤 true 로 다시.
+ * - move(opts)            위 순서를 한 번에: 보냄 → (물으면) 확인 창 → 다시 보냄 → 결과(onDone) / 막힘 창.
  * - confirmMove(opts)     생산에 이미 내려간 장을 옮기기 전 확인 창 — [그대로] [2공장으로 옮기기]
  * - showBlocked(opts)     옮길 수 없을 때 창 — 서버 글 그대로, [닫기]
  * 지키는 일(누가 · 언제 옮길 수 있나)은 서버가 한다. 이 파일은 화면만 돕는다.
@@ -21,8 +23,8 @@
   }
 
   /** 공장 지정 API 한 번 — 하나라도 막히면 서버가 아무것도 안 바꾼다. */
-  async function post(orderId, items) {
-    var body = { items: items, idempotency_key: newKey() };
+  async function post(orderId, items, confirmed) {
+    var body = { items: items, idempotency_key: newKey(), confirmed: !!confirmed };
     var data = null;
     try {
       var res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/drawing/sheet-factory', {
@@ -122,5 +124,26 @@
     });
   }
 
-  window.FomsSheetFactory = { label: label, post: post, confirmMove: confirmMove, showBlocked: showBlocked };
+  /**
+   * 장 하나 옮기기 — opts {orderId, item, to, sub, anchor, before(on), after(res), onBlocked(res) → true 면 창을 안 띄움}.
+   * 생산에 내려간 장은 서버가 물어 오면 확인 창([그대로]면 아무것도 안 바꿈), 막히면 서버 글 그대로 창.
+   */
+  function move(opts) {
+    function send(confirmed) {
+      if (opts.before) opts.before(true);
+      return post(opts.orderId, [opts.item], confirmed).then(function (res) {
+        if (opts.before) opts.before(false);
+        if (res.ok) { if (opts.after) opts.after(res); return; }
+        if (!confirmed && res.code === 'CONFIRM_REQUIRED') {
+          confirmMove({ to: opts.to, sub: opts.sub, anchor: opts.anchor, onGo: function () { send(true); } });
+          return;
+        }
+        if (opts.onBlocked && opts.onBlocked(res)) return;
+        showBlocked({ to: opts.to, message: res.message, sub: opts.sub, anchor: opts.anchor });
+      });
+    }
+    return send(false);
+  }
+
+  window.FomsSheetFactory = { label: label, post: post, move: move, confirmMove: confirmMove, showBlocked: showBlocked };
 })();

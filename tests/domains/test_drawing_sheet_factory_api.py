@@ -144,7 +144,8 @@ def test_same_value_writes_nothing(client):
     before = fresh(seed.id).mutation_version
     login(client, _user())
     resp = _set(client, seed, [{"sheet_id": _sheets(seed)[0], "factory": 1}])
-    assert resp.status_code == 200 and resp.get_json()["data"] == {"factory_by_sheet": {}, "factory_by_key": {}, "changed": []}
+    assert resp.status_code == 200 and resp.get_json()["data"] == {"factory_by_sheet": {}, "factory_by_key": {}, "changed": [],
+                                                                    "mutation_version": before}  # 같은 화면 If-Match 값(④ 검토)
     order = fresh(seed.id)
     assert order.mutation_version == before and "drawing_factory" not in order.structured_data
     assert events(seed.id, "DRAWING_SHEET_FACTORY_CHANGED") == []
