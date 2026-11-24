@@ -1651,7 +1651,8 @@ class User(Base):
     production_parts = Column(JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), 'postgresql'), nullable=True)
     # PRODLEAD-01(설계서 2026-11-23 '승인 때 고친 것' 5): 반장 — 생산팀 계정에서 관리자가 체크한 사람만(네 파트 도면 대신 처리 ·
     # 공정 체크칸 손 체크). NULL · 거짓 = 반장 아님, 생산팀이 아니면 저장 때 비운다. 읽는 쪽은 part_constants.account_production_lead.
-    # 마이그레이션 prodlead_01 이 그 전의 '파트 없는 생산팀'(STAFF · MANAGER)을 참으로 채웠다. 기본값 · 색인 없음.
+    # 마이그레이션 prodlead_01 이 그 전의 '파트 없는 생산팀'(STAFF · MANAGER)을 참으로 채웠다가 prodlead_02 가 되돌렸다(사장님
+    # 2026-11-25 "자동 지정 없이 직접 지정" — 반장은 관리자가 지정한 계정만, 그 전까지 파트 없는 생산팀은 보기만). 기본값 · 색인 없음.
     production_lead = Column(Boolean, nullable=True)
     # PRODFACTORY-01(설계서 2026-11-23 §6-2 · C9): 생산팀 계정의 공장 — 한 사람 한 공장, NULL = 1공장(지금과 같음, 채우기 없음).
     # 관리자 화면은 2공장만 적고 1공장은 비운다(NULL — 저장해도 헛바뀜이 없게), 생산팀이 아니면 저장 때 비운다. 관리자는 칸과 상관없이
