@@ -10,8 +10,9 @@ Create Date: 2026-11-24
 
 upgrade(코드보다 먼저 도는 predeploy — 옛 코드는 이 칸을 모르고 그대로 돈다):
   1. 칸 더하기 ``production_lead`` Boolean NULL 허용 — 기본값 · 색인 없음(PG 는 표를 다시 쓰지 않는다, 잠금 짧음).
-  2. 채우기 — 생산팀 · 활성 여부 무관 · 파트 없음(옛 칸 ``production_part`` NULL 이고 새 칸 ``production_parts`` NULL 또는 빈 목록) ·
-     역할 STAFF · MANAGER(VIEWER 제외) 계정을 참으로. 지금 운영에서 이 계정들이 공정 체크칸 · [제작 시작] · [제작 완료]를 쓰고 있어,
+  2. 채우기 — 생산팀 · 활성 여부 무관 · 파트 없음 · 역할 STAFF · MANAGER(VIEWER 제외) 계정을 참으로. '파트 없음'은 앱 판정
+     (``part_constants.stored_production_parts``)과 같은 뜻 = 옛 칸 ``production_part`` NULL — 새 칸에 목록이 남아 있어도 옛 칸이
+     비면 앱은 파트 없음(옛 코드가 나중에 '없음'으로 고친 행)으로 본다. 지금 운영에서 이 계정들이 공정 체크칸 · [제작 시작] · [제작 완료]를 쓰고 있어,
      채우지 않으면 새 코드가 올라가는 순간 공정 체크가 막힌다. 다시 돌려도 같다(같은 행을 같은 값으로).
      팀 · 역할 글은 앱 판정과 같은 꼴로 견준다(앞뒤 빈칸 빼고 대문자 — ``order_mutation_policy.normalize_team`` · 생산 쓰기 판정).
 
@@ -35,24 +36,15 @@ depends_on: Union[str, Sequence[str], None] = None
 TABLE = 'users'
 COLUMN = 'production_lead'
 
-#: 채우기 조건 — 방언마다 '빈 목록' 견주기만 다르다(PG = jsonb, SQLite = json1).
-FILL_WHERE = {
-    'postgresql': ("upper(trim(team)) = 'PRODUCTION' AND upper(trim(role)) IN ('STAFF', 'MANAGER') "
-                   "AND production_part IS NULL AND (production_parts IS NULL OR production_parts = '[]'::jsonb)"),
-    'sqlite': ("upper(trim(team)) = 'PRODUCTION' AND upper(trim(role)) IN ('STAFF', 'MANAGER') "
-               "AND production_part IS NULL AND (production_parts IS NULL OR json_array_length(production_parts) = 0)"),
-}
-
-
-def _dialect() -> str:
-    """지금 연결의 방언 이름(postgresql · sqlite)."""
-    return op.get_bind().dialect.name
+#: 채우기 조건(두 방언 같은 글) — 옛 칸이 비면 파트 없음(앱 ``stored_production_parts`` 와 같은 판정).
+FILL_WHERE = ("upper(trim(team)) = 'PRODUCTION' AND upper(trim(role)) IN ('STAFF', 'MANAGER') "
+              "AND production_part IS NULL")
 
 
 def upgrade() -> None:
     """칸 더하기 → 지금 '파트 없는 생산팀'(STAFF · MANAGER)을 반장으로 채우기."""
     op.add_column(TABLE, sa.Column(COLUMN, sa.Boolean(), nullable=True))
-    op.execute(sa.text(f"UPDATE users SET production_lead = :lead WHERE {FILL_WHERE[_dialect()]}").bindparams(lead=True))
+    op.execute(sa.text(f"UPDATE users SET production_lead = :lead WHERE {FILL_WHERE}").bindparams(lead=True))
 
 
 def downgrade() -> None:

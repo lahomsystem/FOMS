@@ -19,8 +19,12 @@ STEPS_JS = "js/production/foms-production-home-steps.js"
 
 
 def login(client, name="이철호", *, part=None, team="PRODUCTION", role="STAFF", lead=None) -> User:
+    """가짜 계정으로 로그인. ``lead`` 를 안 주면 마이그레이션 ``prodlead_01`` 이 채운 지금 계정과 같게 — 파트 없는 생산팀
+    STAFF · MANAGER = 반장(설계서 2026-11-23 '승인 때 고친 것' 5). 보기만 계정은 ``lead=False``."""
+    if lead is None:
+        lead = part is None and team == "PRODUCTION" and role in ("STAFF", "MANAGER")
     user = User(username=f"sp_{name}_{part or ''}_{role}", password=generate_password_hash("pw"), role=role, team=team,
-                name=name, is_active=True, production_part=part, production_lead=lead)
+                name=name, is_active=True, production_part=part, production_lead=lead or None)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:

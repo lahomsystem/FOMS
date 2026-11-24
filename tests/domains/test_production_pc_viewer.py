@@ -51,7 +51,7 @@ def _login(client, who: str) -> User:
     team, role = {"admin": ("CS", "ADMIN"), "prod": ("PRODUCTION", "STAFF"), "cs": ("CS", "STAFF"),
                   "sales": ("SALES", "STAFF"), "drawing": ("DRAWING", "STAFF")}[who]
     user = User(username=f"pcv_{who}_{next(_seq)}", password=generate_password_hash("pw"), role=role, team=team,
-                name=f"{who}사람", is_active=True)
+                name=f"{who}사람", is_active=True, production_lead=True if who == "prod" else None)  # 생산팀 = 반장(승인 때 고친 것 5)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:
@@ -119,8 +119,8 @@ class _Req:
 
 
 class _U:
-    def __init__(self, role="STAFF", team=None, partner_org_id=None):
-        self.role, self.team, self.partner_org_id = role, team, partner_org_id
+    def __init__(self, role="STAFF", team=None, partner_org_id=None, production_lead=None):
+        self.role, self.team, self.partner_org_id, self.production_lead = role, team, partner_org_id, production_lead
 
 
 def test_쓰기_팀은_관리자와_생산팀만() -> None:
@@ -132,12 +132,12 @@ def test_쓰기_팀은_관리자와_생산팀만() -> None:
 
 def test_화면_판정_표() -> None:
     now = 1_800_000_000
-    admin, prod, cs = _U("ADMIN", "CS"), _U(team="PRODUCTION"), _U(team="CS")
+    admin, prod, cs = _U("ADMIN", "CS"), _U(team="PRODUCTION", production_lead=True), _U(team="CS")
     fresh = str(now - 60)
     # PC 보기 전용 — 쓰기 없음, [확인했어요]는 보는 사람 모두(§13 결정 5, 기기 무관), [고치기]는 쓰기 팀만
     assert production_screen_flags(admin, _Req(foms_ptr="fine"), now) == {
-        "pc_view": True, "can_act": False, "can_ack": True, "edit_on": False, "edit_toggle": True, "edit_now": now,
-        "write_omitted": False}
+        "pc_view": True, "can_act": False, "can_check_steps": False, "steps_lock_note": "", "can_ack": True, "edit_on": False,
+        "edit_toggle": True, "edit_now": now, "write_omitted": False}
     for ptr in ("fine", "coarse", "", "weird"):
         for user in (cs, _U(team="SALES"), _U(team="DRAWING"), _U(team="SHIPMENT"), prod):
             assert production_screen_flags(user, _Req(foms_ptr=ptr), now)["can_ack"] is True, (ptr, user.team)

@@ -1,7 +1,7 @@
 """PostgreSQL — 반장 칸 ``users.production_lead``(설계서 2026-11-23 '승인 때 고친 것' 5, 마이그레이션 ``prodlead_01``).
 
 마이그레이션 한 칸 왕복(새 부트스트랩 DB = create_all + stamp head): downgrade 가 반장 칸만 지우고(다른 칸 그대로) → upgrade 가 지금
-'파트 없는 생산팀'(STAFF · MANAGER, 활성 여부 무관, 옛 칸 NULL · 새 칸 NULL 또는 빈 목록)만 참으로 채운다. jsonb '빈 목록' 견주기와
+'파트 없는 생산팀'(STAFF · MANAGER, 활성 여부 무관, 옛 칸 NULL — 앱 판정과 같게 새 칸에 목록이 남아 있어도)만 참으로 채운다.
 Boolean 칸 꼴은 SQLite 레인이 못 본다. 채우기 조건 글은 운영에 올리기 전 셀 읽기 전용 집계와 같다(같은 글을 여기서 돌려 센다).
 
 ``FOMS_TEST_DATABASE_URL`` 미설정이면 레인을 건너뛴다(conftest). 이름은 모두 지어낸 값이다.
@@ -27,7 +27,7 @@ def _fill_where() -> str:
     spec = importlib.util.spec_from_file_location("prodlead_01_pg", MIGRATION)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.FILL_WHERE["postgresql"]
+    return module.FILL_WHERE
 
 
 def test_prodlead_01_round_trip_fills_only_partless_production_writers(
@@ -55,16 +55,18 @@ def test_prodlead_01_round_trip_fills_only_partless_production_writers(
                 "('plg_view', 'x', '조보기', 'VIEWER', 'PRODUCTION', true, 'ACTIVE', 0, 0, NULL, NULL),"
                 "('plg_cs', 'x', '상담', 'STAFF', 'CS', true, 'ACTIVE', 0, 0, NULL, NULL),"
                 "('plg_cut', 'x', '김재단', 'STAFF', 'PRODUCTION', true, 'ACTIVE', 0, 0, 'cut', '[\"cut\"]'),"
-                "('plg_admin', 'x', '가짜관리', 'ADMIN', 'PRODUCTION', true, 'ACTIVE', 0, 0, NULL, NULL)"))
+                "('plg_admin', 'x', '가짜관리', 'ADMIN', 'PRODUCTION', true, 'ACTIVE', 0, 0, NULL, NULL),"
+                # 새 칸만 남은 행(옛 코드가 옛 칸을 '없음'으로 고침) — 앱은 파트 없음으로 본다 → 반장
+                "('plg_left', 'x', '오남음', 'STAFF', 'PRODUCTION', true, 'ACTIVE', 0, 0, NULL, '[\"edge\"]')"))
             expected_count = conn.execute(text(f"SELECT count(*) FROM users WHERE {_fill_where()}")).scalar()
-        assert expected_count == 2  # 운영 전 집계와 같은 글 — 박반장 · 정반장(꺼진 계정 · 빈 목록 · 빈칸 섞인 팀 글)
+        assert expected_count == 3  # 운영 전 집계와 같은 글 — 박반장 · 정반장(꺼진 계정 · 빈 목록 · 빈칸 섞인 팀 글) · 오남음
 
         command.upgrade(config, "head")
         with engine.connect() as conn:
             got = dict(conn.execute(text(
                 "SELECT username, production_lead FROM users WHERE username LIKE 'plg_%'")).all())
             assert got == {"plg_boss": True, "plg_mgr": True, "plg_view": None, "plg_cs": None, "plg_cut": None,
-                           "plg_admin": None}
+                           "plg_admin": None, "plg_left": True}
             data_type, nullable, default = conn.execute(text(
                 "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
                 "WHERE table_name = 'users' AND column_name = 'production_lead'")).one()
