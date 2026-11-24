@@ -51,6 +51,7 @@ from foms.services.orders.schedule_row_kind import (
     row_is_as,
 )
 from foms.services.production_home_read_model import production_home_steps
+from foms.services.shipment.packing_factory import packing_glance
 from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
 from foms.services.orders.drawing_factory import load_split
 from foms.services.shipment_dashboard_helpers import (
@@ -262,6 +263,10 @@ def _packing_fields(sd: dict) -> tuple[str, str]:
     departed = str(packing.get("departed_at") or "")
     if departed:
         return (f"출발 {departed[11:16]}" if len(departed) >= 16 else "출발"), "departed"
+    glance = packing_glance(sd)  # 2공장 장이 섞인 주문 — "포장 1공장 3/3 · 2공장 0/2"(설계서 2026-11-23 '승인 때 고친 것' 6)
+    if glance is not None:
+        # 공장 둘로 나뉜 글은 상태 split — 좁은 칸에서 말줄임 대신 두 줄(foms-packing-factory.css 의 .is-split)
+        return f"포장 {glance['text']}", ("split" if glance["groups"] > 1 else "packing")
     items = [it for it in (packing.get("items") or []) if isinstance(it, dict)]
     if not items:
         return "포장 전", "none"
@@ -472,6 +477,8 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
         "days": strip, "selected_count": counts.get(sel, 0),
         "next_date": preview, "next_count": counts.get(preview, 0) if preview else 0,
         "worker": chosen,
+        # 공장 둘로 나뉜 포장 글이 있으면 그 모양 파일을 싣는다(없으면 응답 바이트 그대로).
+        "has_packing_split": any(r["packing_state"] == "split" for sec in sections for g in sec["groups"] for r in g["rows"]),
         "worker_options": _worker_options(worker_settings, sections, include_settings=not is_freelancer),
         "worker_colors": {p["name"]: p["color_index"] for sec in reversed(sections) for p in sec["people"]},  # 고른 날 색 우선
         "sections": sections, "cap": DAY_ROWS_CAP, "undated_count": counts.get(UNDATED_KEY, 0),

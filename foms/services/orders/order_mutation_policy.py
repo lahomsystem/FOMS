@@ -212,8 +212,12 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # (회계팀은 CS capability 별칭으로 함께). 사유 필수 · 생산 · 시공 단계 판정은 핸들러가 잠금 아래에서 한다.
     "ITEM_CONSTRUCTION_DONE_UNDO": _p("ITEM_CONSTRUCTION_DONE_UNDO", teams=("CS",),
                                       description="제품 '시공 끝' 되돌리기(items/<uid>/construction-done/undo) — ADMIN/MANAGER 또는 STAFF+CS(ACCOUNTING→CS). 영업 · 시공 · VIEWER deny."),
-    "PACKING_WRITE": _p("PACKING_WRITE", teams=("CS", "SALES", "SHIPMENT", "CONSTRUCTION"),
-                        description="packing write — SHIPMENT team-wide + assigned CONSTRUCTION(§2.1 packing 분리)."),
+    # 출고 패킹 체크(설계서 2026-11-23 '승인 때 고친 것' 6 ① — 사장님 "패킹 체크는 생산, 시공, 관리자"): 지금 팀(CS · 영업 · 출고 ·
+    # 시공) · ADMIN · MANAGER 그대로 + 카드 · 공정을 쓰는 생산팀 계정(파트 계정 · 반장 — 자기 공장 줄만). 팀만 보는 엔진 순서로는
+    # "생산팀 중 일부"를 못 그려 게이트 함수 하나가 판정한다 — 패킹 API 읽기 문(GET) · 화면 단추도 같은 모듈(packing_access)이다.
+    "PACKING_WRITE": _p("PACKING_WRITE", teams=("CS", "SALES", "SHIPMENT", "CONSTRUCTION", "PRODUCTION"),
+                        gate="foms.services.shipment.packing_access:can_write_packing",
+                        description="packing write — ADMIN · MANAGER, CS/SALES/SHIPMENT/CONSTRUCTION STAFF(§2.1 packing 분리), 생산팀 파트 계정 · 반장(자기 공장 줄만 — 줄 공장 판정은 핸들러, 2026-11-24). 파트도 반장도 아닌 생산팀 · VIEWER · 협력사 deny."),
 
     # --- 도면 (§2.1 line 166-168) -------------------------------------------
     "DRAWING_ASSIGNED": _p("DRAWING_ASSIGNED", teams=("DRAWING",), assignment="DRAWING",

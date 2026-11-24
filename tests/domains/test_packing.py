@@ -257,6 +257,7 @@ def test_departed_gate_400_leaves_no_write(client, app):
 
 # --------------------------------------------------------------------------
 # 권한 (AUTH-01 PACKING_WRITE) — SHIPMENT team-wide + CONSTRUCTION, 그 외 deny
+# (2026-11-24 생산팀 파트 계정 · 반장 허용 — 자기 공장 줄만: test_packing_factory_api.py · test_packing_factory_screens.py)
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("role,team", [
     ("STAFF", "SHIPMENT"),
@@ -283,10 +284,10 @@ def test_packing_allows_eligible_actors(client, app, policy_on, role, team):
     ("VIEWER", None),
     ("VIEWER", "SHIPMENT"),  # VIEWER 는 team 무관 hard deny(현 로컬 게이트의 team-only 허점 봉합)
     ("STAFF", "DRAWING"),
-    ("STAFF", "PRODUCTION"),
+    ("STAFF", "PRODUCTION"),  # 파트도 반장도 아닌 생산팀(보기만) — 파트 계정 · 반장은 2026-11-24 부터 허용
 ])
 def test_packing_denies_ineligible_actors(client, app, policy_on, role, team):
-    """VIEWER·타팀(DRAWING/PRODUCTION) STAFF 는 403 · DB/event/receipt 0."""
+    """VIEWER·타팀(DRAWING) · 보기만 생산팀 STAFF 는 403 · DB/event/receipt 0."""
     _login(client, username=f"no-{role}-{team}", role=role, team=team)
     oid = _make_order()
     resp = client.post(_url(oid), json={"updates": [{"key": "item0_body", "checked": True}]})
