@@ -23,7 +23,9 @@ from typing import Any, Iterable, Optional
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
+from foms.services.orders.drawing_factory import sheet_factory
 from foms.services.production.part_access import (
+    VIEW_ADMIN,
     VIEW_NONE,
     VIEW_PART,
     own_parts,
@@ -38,6 +40,7 @@ from foms.services.production.part_constants import (
     PRODUCTION_PART_KEYS,
     PRODUCTION_PART_LABELS,
 )
+from foms.services.production.factory_scope import board_factory, elsewhere_head, elsewhere_info, other_factories, scene_on
 from foms.services.production.part_card_state import claim_notes, hand_cell, inspect_block, order_block, sort_rank
 from foms.services.production.part_mark_rules import MarkSnapshot, mark_payload
 from foms.services.production_dashboard_display import _production_spec_display
@@ -353,15 +356,25 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
         ``{key, cards, hidden, counts, orders_total, drawn_orders, wait_rows, no_drawing_rows, wait_count, done_count}``.
     """
     cards: list[dict[str, Any]] = []
+    elsewhere: list[dict[str, Any]] = []
     no_drawing: list[dict[str, Any]] = []
-    for order_pos, row in enumerate(pane.get("make_rows") or []):
+    # 2공장(§4-13): 남의 공장 장만 있는 줄(elsewhere_rows)도 카드로 — 남의 공장 카드는 판 뒤 묶음(누름 없음 · 숫자 밖)
+    for order_pos, row in enumerate([*(pane.get("make_rows") or []), *(pane.get("elsewhere_rows") or [])]):
         files = ctx["files"][int(row["id"])]
         if not files:
             no_drawing.append(row)  # 생산 단계인데 확정 도면 0장 — '도면 없음' 으로 기다림 묶음에
             continue
+        sd = row.get("structured_data") or {}
         for index, entry in enumerate(files):
-            cards.append(build_card(row, entry, (order_pos, index + 1, len(files)), marks, ctx))
+            card = build_card(row, entry, (order_pos, index + 1, len(files)), marks, ctx)
+            factory = sheet_factory(sd, entry) if ctx["scene"] else ctx["factory"]
+            if factory != ctx["factory"]:
+                card["elsewhere"] = elsewhere_info(card, ctx["part"], factory)
+                elsewhere.append(card)
+            else:
+                cards.append(card)
     cards = sort_cards(cards, ctx["part"])
+    elsewhere = sorted(elsewhere, key=lambda c: (c["order_pos"], c["no"]))
     wait_rows = list(pane.get("wait_rows") or [])
     return {
         "key": pane.get("key"),
@@ -369,6 +382,8 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
         "hidden": max(0, len(cards) - PART_BOARD_CARD_CAP),
         "counts": card_counts(cards),
         "bulk": bulk_count(cards),
+        "elsewhere": elsewhere[:PART_BOARD_CARD_CAP],
+        "elsewhere_head": elsewhere_head(other_factories(ctx["factory"])[0], len(elsewhere)) if elsewhere else "",
         "orders_total": int(pane.get("total") or 0),
         "drawn_orders": len(pane.get("make_rows") or []) - len(no_drawing),
         "wait_rows": wait_rows,
@@ -409,7 +424,7 @@ def _order_marks(marks: Iterable[Any]) -> dict[int, list[Any]]:
 
 
 def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = None, marks: Optional[list[Any]] = None,
-                     today: Optional[datetime.date] = None) -> Optional[dict[str, Any]]:
+                     today: Optional[datetime.date] = None, factory: Any = None) -> Optional[dict[str, Any]]:
     """그날들(날짜 탭 ``panes`` 전부)의 파트 도면 카드 판. 쿼리는 표시 줄 읽기 한 번만 더한다.
 
     Args:
@@ -419,25 +434,31 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         part: 고른 파트(``?part=``). 관리자 · 대신 · 읽기 전용은 네 파트 중, 파트 계정은 내 파트일 때만(아니면 내 첫 파트).
         marks: 이미 읽은 그 주문들 표시 줄(넘기면 다시 읽지 않는다 — 칸 아래 이름과 같은 줄, 쿼리 0).
         today: KST 오늘(시험용, 없으면 지금) — "어제부터" 판정.
+        factory: 관리자가 고른 공장(``?factory=``, 3단계) — 그 밖 사람은 계정 공장.
 
     Returns:
-        ``{mode, part, part_label, parts, pick, url_part, writable, mine, cap, panes:{key: 장 판}}`` 또는 None(볼 수 없는 사람).
+        ``{mode, part, part_label, parts, pick, url_part, writable, mine, cap, factory, scene, factory_pick, url_factory,
+        panes:{key: 장 판}}`` 또는 None(볼 수 없는 사람). 2공장 그림이 켜지면 장 판마다 ``elsewhere``(남의 공장 카드) ·
+        ``elsewhere_head`` 가 차고, 칸 숫자는 내 공장 카드만 센다.
     """
     mode, board_part = resolve_board_part(user, part)
     if board_part is None:
         return None
     panes = list(days.get("panes") or [])
-    rows = [row for pane in panes for row in (pane.get("make_rows") or [])]
+    rows = [row for pane in panes for row in [*(pane.get("make_rows") or []), *(pane.get("elsewhere_rows") or [])]]
     files = {int(row["id"]): resolve_final_drawing_files(row.get("structured_data") or {}) for row in rows}
     if marks is None:
         marks = fetch_part_marks(db, (oid for oid, entries in files.items() if entries))
     by_slot, by_sheet = index_marks(marks)
     order_marks = _order_marks(marks)
+    factory = board_factory(user, factory)
+    scene = scene_on((r.get("structured_data") or {} for r in days.get("all_rows") or rows), factory)
     writable = board_part in writable_parts(user)
     parts = board_parts(mode, user)
     pick = mode == VIEW_PART and len(parts) > 1
     ctx = {
         "part": board_part, "mine": mode == VIEW_PART, "writable": writable, "user_id": getattr(user, "id", None),
+        "factory": factory, "scene": scene,
         "own_parts": own_parts(user),
         "files": files, "today": today or get_today_kst(), "order_marks": order_marks,
         "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in files.items()},
@@ -450,5 +471,8 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         # 고를 파트 · 여러 파트 고르기(파트 계정 둘 이상) · 주소에 실을 파트(파트 하나인 계정의 날짜 탭은 지금처럼 안 실음)
         "parts": parts, "pick": pick, "url_part": board_part if (mode != VIEW_PART or pick) else None,
         "writable": writable, "mine": ctx["mine"], "cap": PART_BOARD_CARD_CAP,
+        # 2공장(§4-13 · §19 열한째): 보는 공장 · 관리자 판 머리 공장 고르기(2공장 그림이 켜졌을 때만) · 주소에 실을 공장
+        "factory": factory, "scene": scene, "factory_pick": scene and mode == VIEW_ADMIN,
+        "url_factory": factory if scene and mode == VIEW_ADMIN else None,
         "panes": {pane.get("key"): build_pane_board(pane, by_slot, ctx) for pane in panes},
     }

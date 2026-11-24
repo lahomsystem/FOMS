@@ -23,6 +23,8 @@ from typing import Any, Optional
 
 from foms.services.datetime_kst import parse_datetime_utc
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
+from foms.services.production.factory_constants import FACTORIES, factory_label
 from foms.services.production.part_board import card_item_text, is_part_thumb_image, other_part_word
 from foms.services.production.part_card_state import hand_cell, inspect_block, order_block
 from foms.services.production.part_constants import PART_INSPECT, PRODUCTION_PART_LABELS
@@ -151,7 +153,24 @@ def _step_at(sd: dict[str, Any], part: str) -> Any:
     return None
 
 
-def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool, viewer_id: Any = None) -> dict[str, Any]:
+def _factory_rows(sd: dict[str, Any], entries: list[dict[str, Any]], rows: list[dict[str, Any]],
+                  writable: tuple[int, ...]) -> None:
+    """2공장(설계서 2026-11-23 §4-13 · §8-4) — 섞인 주문은 줄마다 공장(``factory`` · ``factory_label``), 쓸 수 없는 공장 줄은 단추 없음.
+
+    PC 는 감독용이라 두 공장 줄을 모두 자세히 보인다(담당 · 완료 · 바뀜 그대로). 2공장 장이 없고 쓸 수 있는 공장 장뿐이면 아무 칸도
+    안 더한다(지금 응답 그대로).
+    """
+    mixed = has_second_factory(sd)
+    for row, entry in zip(rows, entries):
+        factory = sheet_factory(sd, entry)
+        if mixed:
+            row["factory"], row["factory_label"] = factory, factory_label(factory)
+        if factory not in writable:
+            row["act"], row["other_factory"] = None, True
+
+
+def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool, viewer_id: Any = None,
+                     writable: tuple[int, ...] = FACTORIES) -> dict[str, Any]:
     """한 주문 · 한 파트의 도면 목록 창 자료.
 
     Args:
@@ -160,6 +179,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
         part: 파트 key.
         hold_active: 보류 중인지(첫 화면 행과 같은 판정 — ``production.hold.active``).
         viewer_id: 보는 사람 id(``undo_releases`` 판정 — 없으면 늘 거짓).
+        writable: 보는 사람이 쓸 수 있는 공장(3단계 — 남의 공장 줄은 ``act`` 없음). 기본 두 공장(지금 그대로).
 
     Returns:
         ``{part, label, total, done_n, uses_cards, notice, all, hand_off, hand, rows, keys}`` —
@@ -176,6 +196,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
            "order_block": order_block({"hold_active": hold_active, "structured_data": sd}),
            "step_at": _step_at(sd, part), "fallback": _fallback_row(sd), "viewer_id": viewer_id}
     rows = [sheet_row(sd, entry, i + 1, len(entries), ctx) for i, entry in enumerate(entries)]
+    _factory_rows(sd, entries, rows, writable)
     return {
         "part": part, "label": PRODUCTION_PART_LABELS[part], "total": len(entries), "done_n": progress["done_n"],
         "uses_cards": progress["uses_cards"],

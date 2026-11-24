@@ -1,0 +1,123 @@
+"""2공장 생산 쪽 한 곳 규칙 — 공장 문 · 보는 공장 · 2공장 그림 켬 · 남의 공장 카드 글(설계서 2026-11-23 §4-6 · §4-13 · §5 · C6 · C9).
+
+**순수 계산 · 쿼리 0** — 장의 공장은 주문 JSON(:mod:`foms.services.orders.drawing_factory`), 계정 공장은 이미 읽은 사용자 행
+(:mod:`foms.services.production.part_access`)에서 읽는다. 권한 판정은 ``part_access`` 한 곳(:func:`can_write_sheet` ·
+:func:`writable_factories`)만 부른다 — 역할 · 팀을 여기서 따로 견주지 않는다.
+
+* **공장 문**(§4-6 · C6): 쓰기 API 는 남의 공장 장을 403 ``OTHER_FACTORY`` 로 막는다(관리자는 두 공장). 내가 맡은 장의
+  맡기 취소는 된다(§4-6 '되는 것' — 맡은 뒤 장이 옮겨진 옛 담당).
+* **보는 공장**: 도면 판 = 관리자는 판 머리에서 고른 공장(주소 ``factory=``, 처음 = 계정 값 또는 1공장 — §19 열한째), 그 밖은
+  계정 공장(비면 1공장). 날짜 줄의 묶음(남의 공장 줄 · 내 공장 완료)은 한 공장 계정(파트 계정 · 반장)에게만 — 관리자 · 보기만
+  하는 직원 · PC 는 두 공장을 합쳐 본다(§19 열한째 · PC 는 감독용).
+* **2공장 그림 켬**(§3): 그날 읽은 행 중 2공장 장이 하나라도 있거나 보는 공장이 2공장일 때만. 꺼지면 모든 2공장 그림이 없고
+  화면이 지금과 같다.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Iterable, Optional
+
+from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
+from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, FACTORY_2, factory_label, normalize_factory
+from foms.services.production.part_access import VIEW_ADMIN, can_write_sheet, part_view_mode, user_factory, writable_factories
+from foms.services.production.part_constants import PRODUCTION_PART_LABELS
+from foms.services.production.part_mark_gates import Gate
+from foms.services.production.part_mark_rules import ACTION_RELEASE
+
+OTHER_FACTORY = "OTHER_FACTORY"
+
+
+def other_factory_note(factory: Any) -> str:
+    """남의 공장 카드를 누르면 뜨는 글(§9) — "2공장에서 작업하는 도면이에요."."""
+    return f"{factory_label(factory)}에서 작업하는 도면이에요."
+
+
+def other_factory_message(factory: Any) -> str:
+    """쓰기 API 거절 글(403 ``OTHER_FACTORY``) — 카드 글 + 다시 받기 안내(늦은 화면은 옮겨진 장을 아직 내 것으로 그린다)."""
+    return f"{other_factory_note(factory)} 위 [다시 받기]를 눌러 주세요."
+
+
+def factory_gate(user: Any, sd: Any, entry: dict[str, Any], *, action: str, row: Any = None) -> Optional[Gate]:
+    """남의 공장 장 쓰기를 막는다(§4-6 · C6) — 관리자는 두 공장, 파트 계정 · 반장은 자기 공장만.
+
+    Args:
+        user: 누른 사람(이미 읽은 행).
+        sd: 잠근 주문의 ``structured_data``.
+        entry: 누른 장(확정 도면 항목 — ``sheet_id`` · ``key``).
+        action: 누름.
+        row: 그 장 · 그 파트 표시 줄(없으면 None) — 내가 맡은 장의 맡기 취소는 막지 않는다.
+
+    Returns:
+        막히면 403 :class:`Gate`(``factory`` = 장의 공장), 아니면 None.
+    """
+    factory = sheet_factory(sd, entry)
+    if can_write_sheet(user, factory):
+        return None
+    me = getattr(user, "id", None)
+    if action == ACTION_RELEASE and row is not None and me is not None and getattr(row, "picked_by_user_id", None) == me:
+        return None
+    return Gate(403, OTHER_FACTORY, other_factory_message(factory), {"factory": factory})
+
+
+def board_factory(user: Any, requested: Any = None) -> int:
+    """도면 판을 볼 공장 — 관리자는 고른 공장(모르는 값 · 없음 = 계정 값 또는 1), 그 밖은 계정 공장(비면 1)."""
+    if part_view_mode(user) == VIEW_ADMIN:
+        try:
+            picked = normalize_factory(requested)
+        except ValueError:
+            picked = None
+        if picked is not None:
+            return picked
+    return user_factory(user)
+
+
+def home_factory(user: Any) -> Optional[int]:
+    """날짜 줄을 공장으로 묶어 볼 사람의 공장 — 한 공장만 쓰는 계정(파트 계정 · 반장)이면 그 공장, 그 밖은 None(두 공장 합침)."""
+    mine = writable_factories(user)
+    return mine[0] if len(mine) == 1 else None
+
+
+def scene_on(sds: Iterable[Any], viewer: Optional[int]) -> bool:
+    """2공장 그림을 켤지(§3) — 보는 공장이 2공장이거나 읽은 주문 중 2공장 장이 하나라도 있으면."""
+    return viewer == FACTORY_2 or any(has_second_factory(sd) for sd in sds)
+
+
+def other_factories(viewer: int) -> tuple[int, ...]:
+    """보는 공장이 아닌 공장들(화면 순서)."""
+    return tuple(f for f in FACTORIES if f != (viewer if viewer in FACTORIES else DEFAULT_FACTORY))
+
+
+def elsewhere_head(factory: int, count: int) -> str:
+    """남의 공장 카드 묶음 머리 — "2공장 작업 4장"."""
+    return f"{factory_label(factory)} 작업 {count}장"
+
+
+def elsewhere_line(part: str, state: str, *, picked: Optional[str], done: Optional[str],
+                   hand: Optional[dict[str, Any]] = None) -> str:
+    """남의 공장 카드의 글 한 줄(색 칸 없이, §4-13) — "담당 최가은" · "엣지 완료 · 최가은" · "기본 · 김재단" · "미정".
+
+    Args:
+        part: 보는 파트.
+        state: 카드 상태(none · need · basic · done · hand).
+        picked: 담당 이름. done: 완료한 사람 이름. hand: 손 체크 칸(:func:`~foms.services.production.part_card_state.hand_cell`).
+    """
+    if state == "hand" and hand:
+        return str(hand["text"])
+    if state == "need":
+        return f"담당 {picked}" if picked else "담당 있음"
+    if state in ("done", "basic"):
+        head = f"{PRODUCTION_PART_LABELS[part]} 완료" if state == "done" else "기본"
+        return f"{head} · {done}" if done else head
+    return "미정"
+
+
+def elsewhere_info(card: dict[str, Any], part: str, factory: int) -> dict[str, str]:
+    """카드 한 장의 남의 공장 칸 — 칩 "2공장 작업" · 글 한 줄 · 누르면 뜨는 글."""
+    return {"factory": str(factory), "chip": f"{factory_label(factory)} 작업",
+            "text": elsewhere_line(part, card["state"], picked=card.get("picked_by_name"), done=card.get("done_by_name"),
+                                   hand=card.get("hand")),
+            "why": other_factory_note(factory)}
+
+
+__all__ = ["OTHER_FACTORY", "board_factory", "elsewhere_head", "elsewhere_info", "elsewhere_line", "factory_gate",
+           "home_factory", "other_factories", "other_factory_message", "other_factory_note", "scene_on"]

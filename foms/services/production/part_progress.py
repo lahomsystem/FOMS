@@ -12,7 +12,9 @@
 * **파트가 실제로 완료됐다** = 카드를 쓴 파트면 지금 확정 도면 장이 모두 완료, 카드를 안 쓴 파트면 그 파트 공정 칸이
   체크됨. 지금 장이 0장이면 카드를 썼어도 칸이 기준이다(§4-3 끝).
 
-``factory`` 인자는 3단계(2공장, §4-14)를 위해 자리만 둔다 — 지금은 한 공장 주문만 판정하고, 공장을 주면 바로 알린다.
+``factory``(3단계 2공장, §4-14): 공장을 주면 **그 공장 장만** 센다 — 장의 공장은
+:func:`foms.services.orders.drawing_factory.current_factories` 한 곳(쿼리 0). '카드를 쓴 파트'는 주문 단위 그대로(공정 칸이
+주문에 하나 — C8)라, 카드를 안 쓴 파트는 주문 칸 체크가 두 공장 모두에 통한다. 공장을 안 주면(None) 지금 그대로 주문 전체다.
 """
 
 from __future__ import annotations
@@ -48,12 +50,6 @@ CARDS_LEFT_MESSAGE = "아직 미완료가 있어요"
 NO_DRAWINGS_MESSAGE = "도면이 없어요 — 공정 칸을 체크하거나 관리자에게 말해 주세요."
 
 
-def _single_factory(factory: Optional[int]) -> None:
-    """공장별 판정은 3단계에서 — 지금 공장을 넘기면 조용히 무시하지 않고 알린다."""
-    if factory is not None:
-        raise NotImplementedError("공장별 판정은 2공장 단계(P3)에서 연다 — 지금은 한 공장 주문만 판정한다.")
-
-
 def mark_finished(part: str, state: Optional[str]) -> bool:
     """장 하나가 그 파트에서 완료인지 — 재단은 DONE · BASIC, 그 밖 파트는 DONE.
 
@@ -84,9 +80,19 @@ def cards_used(marks: Iterable[Any]) -> set[str]:
 
 
 def current_keys(sd: Any, *, factory: Optional[int] = None) -> list[str]:
-    """지금 확정 도면 장 key 들(화면 순서) — :func:`resolve_final_drawing_files` 하나."""
-    _single_factory(factory)
-    return [entry["key"] for entry in resolve_final_drawing_files(sd if isinstance(sd, dict) else {})]
+    """지금 확정 도면 장 key 들(화면 순서) — :func:`resolve_final_drawing_files` 하나. ``factory`` 를 주면 그 공장 장만(§4-14).
+
+    Args:
+        sd: 주문 ``structured_data``(읽기만).
+        factory: 1 · 2 또는 None(주문 전체).
+
+    Returns:
+        장 key 목록(도면 번호 순).
+    """
+    sd = sd if isinstance(sd, dict) else {}
+    if factory is None:
+        return [entry["key"] for entry in resolve_final_drawing_files(sd)]
+    return [entry["key"] for entry, f in _drawing_factory.current_factories(sd) if f == factory]
 
 
 def marks_by_part(marks: Iterable[Any]) -> dict[str, dict[str, Any]]:
@@ -115,7 +121,7 @@ def part_progress(sd: Any, marks: Iterable[Any], part: str, *, factory: Optional
         sd: 주문 ``structured_data``(읽기만).
         marks: 그 주문 표시 줄들(네 파트 섞여도 된다).
         part: 파트 key.
-        factory: 3단계 자리(지금은 None 만).
+        factory: 1 · 2(그 공장 장만) 또는 None(주문 전체).
 
     Returns:
         ``{uses_cards, done, done_n, total_n, left_keys, via}`` — ``via`` 는 저장된 공정 칸의 표지
@@ -143,7 +149,7 @@ def part_done(sd: Any, marks: Iterable[Any], part: str, *, factory: Optional[int
 
 
 def complete_state(sd: Any, marks: Iterable[Any], *, factory: Optional[int] = None) -> dict[str, Any]:
-    """[제작 완료]를 누를 수 있는지(§4-3 — 한 공장 주문).
+    """[제작 완료]를 누를 수 있는지(§4-3 — 한 공장 주문) · 공장을 주면 그 공장 제작 완료를 누를 수 있는지(§4-14).
 
     * 카드를 안 쓴 주문은 지금 규칙 그대로(:func:`production_steps_missing` — 칸을 하나도 안 켰으면 막지 않고,
       하나라도 켰으면 4칸 모두).
@@ -152,7 +158,7 @@ def complete_state(sd: Any, marks: Iterable[Any], *, factory: Optional[int] = No
     Args:
         sd: 주문 ``structured_data``(읽기만).
         marks: 그 주문 표시 줄들(없으면 빈 것 — 카드를 안 쓴 주문).
-        factory: 3단계 자리(지금은 None 만).
+        factory: 1 · 2(그 공장 장만 — 카드를 안 쓴 주문 · 파트는 주문 칸 그대로) 또는 None(주문 전체).
 
     Returns:
         ``{ready, left: {part: 남은 장 수}, missing_steps: [{key, label}], uses_cards, sheets}``.
@@ -250,3 +256,8 @@ def step_api_extras(sd: Any, marks: Iterable[Any]) -> dict[str, Any]:
     """
     marks = list(marks)
     return {"sheets": len(current_keys(sd)), "parts": parts_progress(sd, marks)}
+
+
+# 장의 공장(3단계) — ``drawing_factory`` 가 이 모듈의 :func:`cards_used` 를 맨 위에서 import 한다(서로 부름). 그래서 모든 정의 뒤
+# 모듈 끝에서 붙인다: 어느 쪽을 먼저 import 해도 함수가 불릴 때는 둘 다 다 읽혀 있다. 함수 안 지연 import 는 늘리지 않는다(레이어 래칫).
+import foms.services.orders.drawing_factory as _drawing_factory  # noqa: E402

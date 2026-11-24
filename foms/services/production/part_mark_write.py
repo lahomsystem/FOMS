@@ -31,6 +31,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.revision import execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import is_part_admin
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PART,
@@ -329,11 +330,12 @@ def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool, user:
     return note + (" (관리자 덮어쓰기)" if is_part_admin(user) else " (대신 처리)")
 
 
-def _decide(req: MarkRequest, order: Order, rows: list[Any], row: Any, user: Any, admin: bool) -> Any:
+def _decide(req: MarkRequest, order: Order, entry: dict[str, Any], rows: list[Any], row: Any, user: Any,
+            admin: bool) -> Any:
     """전이 표 + 막는 까닭(§4-6) — apply · same(멱등) 결정을 돌려주고, 막히면 :class:`MarkRefusal` 로 거절한다.
 
-    순서: 잘못된 짝(400) → 멱등(막힘 안 봄) → 보류 · 도면 고치는 중 · 손 체크 칸(409) → 경합(409) · 남의 장 맡기 취소(403)
-    → 검수 순서(409). 경합 · 막힘 응답에는 서버의 지금 표시(``mark``)를 싣는다.
+    순서: 잘못된 짝(400) → 멱등(막힘 안 봄) → 남의 공장 장(403 ``OTHER_FACTORY``, 3단계 C6) → 보류 · 도면 고치는 중 · 손 체크
+    칸(409) → 경합(409) · 남의 장 맡기 취소(403) → 검수 순서(409). 경합 · 막힘 응답에는 서버의 지금 표시(``mark``)를 싣는다.
     """
     sd = order.structured_data
     decision = decide_mark(MarkSnapshot.from_row(row), action=req.action, seen=req.seen, actor_id=user.id, admin=admin,
@@ -343,7 +345,8 @@ def _decide(req: MarkRequest, order: Order, rows: list[Any], row: Any, user: Any
     if decision.kind == DECISION_SAME:
         return decision  # 같은 사람 · 같은 결과(멱등) — 막힘을 보지 않고 그대로 성공
     server_mark = {"mark": mark_body(row, req.order_id, req.key, req.part)}
-    gate = order_gate(sd, req.action) or hand_step_gate(sd, rows, req.part)
+    gate = (factory_gate(user, sd, entry, action=req.action, row=row) or order_gate(sd, req.action)
+            or hand_step_gate(sd, rows, req.part))
     if gate is not None:
         raise MarkRefusal.from_gate(gate, server_mark)
     if decision.kind == DECISION_CONFLICT:
@@ -366,7 +369,7 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     entry = current_entry(order, req.key)
     rows = order_marks(db, req.order_id)  # 네 파트 한 번(검수 순서 · 손 체크 · 완료 물음 — 쿼리 수는 그대로 1)
     row = next((r for r in rows if r.drawing_key == req.key and r.part == req.part), None)
-    decision = _decide(req, order, rows, row, user, admin)
+    decision = _decide(req, order, entry, rows, row, user, admin)
     if decision.kind != DECISION_APPLY:
         return {"mark": mark_body(row, req.order_id, req.key, req.part), "order_step": None, "changed": False,
                 "run_started": False, "order_ready": order_ready(order, rows, user, req, decision.target)}
@@ -397,7 +400,7 @@ def lock_orders(db: Any, order_ids: list[int]) -> dict[int, Order]:
 
 def _bulk_one(user: Any, admin: bool, order: Optional[Order], key: str, row: Any,
               cut_rows: list[Any]) -> Optional[MarkWrite]:
-    """일괄의 장 하나 — 한 장 쓰기와 같은 검사(보류 · 도면 고치는 중 · 손 체크 포함). → 쓸 것(이미 내가 기본이면 None).
+    """일괄의 장 하나 — 한 장 쓰기와 같은 검사(남의 공장 · 보류 · 도면 고치는 중 · 손 체크 포함). → 쓸 것(이미 내가 기본이면 None).
 
     Raises:
         MarkRefusal: 이 장만 건너뛸 까닭(``reason`` = 코드).
@@ -407,8 +410,9 @@ def _bulk_one(user: Any, admin: bool, order: Optional[Order], key: str, row: Any
     decision = decide_mark(MarkSnapshot.from_row(row), action=ACTION_BASIC, seen="none", actor_id=user.id, admin=admin)
     if decision.kind not in (DECISION_APPLY, DECISION_CONFLICT):
         return None
-    gate = order_gate(order.structured_data, ACTION_BASIC) or hand_step_gate(order.structured_data, cut_rows,
-                                                                              BASIC_ALLOWED_PART)
+    gate = (factory_gate(user, order.structured_data, entry, action=ACTION_BASIC)
+            or order_gate(order.structured_data, ACTION_BASIC)
+            or hand_step_gate(order.structured_data, cut_rows, BASIC_ALLOWED_PART))
     if gate is not None:
         raise MarkRefusal.from_gate(gate)
     if decision.kind == DECISION_CONFLICT:

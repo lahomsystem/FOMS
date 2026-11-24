@@ -29,7 +29,8 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.production.home_access import can_view_production_home
-from foms.services.production.part_access import can_override_marks
+from foms.services.production.factory_constants import FACTORIES
+from foms.services.production.part_access import can_override_marks, writable_factories
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import step_api_extras
@@ -98,13 +99,16 @@ def api_part_sheet():
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
     hold = production.get("hold") if isinstance(production.get("hold"), dict) else {}
-    sheet = build_part_sheet(sd, marks, part, hold_active=bool(hold.get("active")), viewer_id=getattr(user, "id", None))
+    can_write = can_override_marks(user)
+    # 2공장: 쓸 수 있는 사람(관리자 · 반장)은 자기 공장 줄만 단추(남의 공장 줄은 보기만 — C6). 보기만 하는 사람은 지금 그대로.
+    sheet = build_part_sheet(sd, marks, part, hold_active=bool(hold.get("active")), viewer_id=getattr(user, "id", None),
+                             writable=writable_factories(user) if can_write else FACTORIES)
     for row in sheet["rows"]:
         row["thumb"] = (url_for("erp_production_page.erp_production_part_thumb", order_id=order_id, key=row["key"])
                         if row["image"] else None)
     has_run = int(order.id) in starts
     in_production = read_main_stage(order) == "PRODUCTION"
-    data = {"order_id": order_id, "customer_name": _customer(order, sd), "can_write": can_override_marks(user),
+    data = {"order_id": order_id, "customer_name": _customer(order, sd), "can_write": can_write,
             "me": getattr(user, "id", None), "has_run": has_run,
             "start_note": START_NOTE if in_production and not has_run else None,
             **sheet, **step_api_extras(sd, marks), **_row_html(order, sd, marks, starts)}
