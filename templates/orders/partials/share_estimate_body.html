@@ -13,7 +13,7 @@
 {% set est_items = snap.get('items') or [] %}
 {% set free_lines = snap.get('free_input_lines') or [] %}
 {% set issued_date = snap.get('issued_date') or '' %}
-{# 발주사 분기 — 스냅샷 상호가 '라홈시스템'이면 2공장(선례: 구 share_estimate_view.html). #}
+{# 발주사 분기 — 스냅샷 상호가 '라홈시스템'이면 라홈시스템 계약(선례: 구 share_estimate_view.html). #}
 {% set is_factory2 = (company.get('name') == '라홈시스템') %}
 {# 계약번호는 스냅샷 필드가 아니다 — ERP(estimate-preview.js `_applyCustomerInfo`)와 같은
    식(발행일 YYYYMMDD + '_' + 연락처 숫자)으로 동결 스냅샷 값에서 그대로 재현한다.
@@ -36,7 +36,7 @@
 
     {# 헤더: 로고 + 웹사이트 #}
     <div class="erp-est-header">
-      {# 2공장(라홈) 로고 파일은 ERP 계약서 폼과 같은 것을 쓴다
+      {# 라홈시스템 계약 로고 파일은 ERP 계약서 폼과 같은 것을 쓴다
          (estimate_pane.html data-factory2-src = lahom-logo-en.png). #}
       {% if is_factory2 %}
         <img src="{{ url_for('static', filename='images/lahom-logo-en.png') }}"

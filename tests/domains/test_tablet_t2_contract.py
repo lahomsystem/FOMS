@@ -1564,4 +1564,4 @@ def test_measure_form_stage_options_have_no_letter_prefix() -> None:
     js = _read(MEASURE_FORM_JS)
     assert '["RECEIVED", "주문접수"]' in js
     assert "A. 주문접수" not in js
-    assert "tablet-measure-form.js') }}?v=20261119s" in _read(LAYOUT_SCRIPTS)
+    assert "tablet-measure-form.js') }}?v=20261124f" in _read(LAYOUT_SCRIPTS)  # 2026-11-24 라홈시스템 계약 이름(§8-7)

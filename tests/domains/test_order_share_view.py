@@ -359,7 +359,7 @@ def test_view_estimate_has_no_inline_style_or_script(client, db, r2):
 
 
 def test_view_estimate_factory2_uses_lahom_logo_and_stamp(client, db, r2):
-    """2공장(라홈시스템) 스냅샷이면 로고·인감이 라홈 자산으로 갈린다."""
+    """라홈시스템 계약 스냅샷이면 로고·인감이 라홈 자산으로 갈린다."""
     import copy as _copy
     order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
     # 라이브 렌더라 판정 SSOT 는 저장 스냅샷이 아니라 **주문 structured_data** 다.
@@ -946,7 +946,7 @@ def test_contract_export_uses_desktop_clone_not_screen_node(client, db, r2):
 
 
 def test_estimate_factory2_logo_matches_erp_form(client, db, r2):
-    """2공장 로고 파일이 ERP 계약서 폼(data-factory2-src)과 같아야 한다."""
+    """라홈시스템 계약 로고 파일이 ERP 계약서 폼(data-factory2-src)과 같아야 한다."""
     import pathlib
     root = pathlib.Path(__file__).resolve().parents[2]
     erp = (root / 'templates/orders/partials/estimate_pane.html').read_text(encoding='utf-8')

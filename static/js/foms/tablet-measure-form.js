@@ -659,7 +659,7 @@
   }
 
   //: 라홈시스템·지방주문 확인 문구 (ORDER-FLAG-01).
-  var ORDER_FLAG_LABELS = { regional: "지방 주문", factory2: "라홈시스템(2공장)" };
+  var ORDER_FLAG_LABELS = { regional: "지방 주문", factory2: "라홈시스템 계약" };
 
   function orderFlagsEditable(field) {
     if (!state) return true;
@@ -1088,7 +1088,7 @@
       checkboxField("긴급 발주", "urgent", urgent) +
       checkboxField("자가 실측", "self_measurement", !!state.top.is_self_measurement) +
       checkboxField("지방 주문", "regional", regional, orderFlagLock("regional")) +
-      checkboxField("라홈시스템(2공장)", "factory2", !!flagValue("factory2"), orderFlagLock("factory2")) +
+      checkboxField("라홈시스템 계약", "factory2", !!flagValue("factory2"), orderFlagLock("factory2")) +
       "</div>" +
       '<div class="foms-tmf__ffield foms-tmf__ffield--full" data-tmf-urgent-field' +
       (urgent ? "" : " hidden") +

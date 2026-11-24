@@ -82,7 +82,7 @@ def _payment_info_for_order(order: Order) -> dict:
 
 
 def _estimate_info_variants() -> dict:
-    """견적 프리뷰 UI에서 2공장 체크 토글 시 클라이언트가 즉시 전환할 수 있도록 변형 목록."""
+    """견적 프리뷰 UI에서 라홈시스템 계약 체크 토글 시 클라이언트가 즉시 전환할 수 있도록 변형 목록."""
     return {
         'company_info': {
             'default': resolve_estimate_company_info(False),

@@ -1,4 +1,4 @@
-"""ORDER-FLAG-01: 라홈시스템(2공장)·지방주문 권한 + 변경 원장 계약 테스트.
+"""ORDER-FLAG-01: 라홈시스템 계약·지방주문 권한 + 변경 원장 계약 테스트.
 
 고정하는 것 4가지.
 
@@ -150,7 +150,7 @@ def test_sales_can_toggle_factory2_but_not_regional():
 def test_factory2_is_audited_path_with_label():
     """``flags.factory2`` 가 감사 대상이고 한글 라벨이 있다."""
     assert "flags.factory2" in SCALAR_PATHS
-    assert PATH_LABELS["flags.factory2"] == "라홈시스템(2공장)"
+    assert PATH_LABELS["flags.factory2"] == "라홈시스템 계약"  # 2026-11-23 §8-7 — 실제 2공장과 다른 것
 
 
 def test_flat_regional_paths_have_labels():
@@ -177,7 +177,7 @@ def test_unauthorized_save_succeeds_but_keeps_both_values(client):
     assert res.status_code == 200, res.get_data(as_text=True)
     assert res.get_json()["success"] is True
     order = _fresh(oid)
-    assert order.structured_data["flags"]["factory2"] is True, "무권한 요청이 2공장을 껐다"
+    assert order.structured_data["flags"]["factory2"] is True, "무권한 요청이 라홈시스템 계약을 껐다"
     assert order.is_regional is True, "무권한 요청이 지방주문을 껐다"
     assert order.construction_type == "협력사 시공"
 

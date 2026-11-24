@@ -96,14 +96,14 @@
   </div>
   </div>
 
-  {# ── 클라이언트 필터 바(Phase G): 전 항목 상시 노출(접기 없음). 순서 = 공장 select(좌측)
+  {# ── 클라이언트 필터 바(Phase G): 전 항목 상시 노출(접기 없음). 순서 = 계약 회사 select(좌측 — flags.factory2, 2026-11-23 §8-7)
      · 검색 input · 변경 토글 · 초기화 · 전체화면. 상태 select 제거 — 검색은 무조건 전 열 대상
      (applyProdFilter status 분기 없음). 배선은 tablet-domain-sheets.js. ── #}
   <div class="tablet-prod-filter" role="group" aria-label="칸반 필터">
-    <select data-tablet-prod-factory aria-label="공장 필터">
+    <select data-tablet-prod-factory aria-label="계약 회사">
       <option value="" selected>전체</option>
-      <option value="1">1공장</option>
-      <option value="2">2공장</option>
+      <option value="1">다른 계약</option>
+      <option value="2">라홈시스템 계약</option>
     </select>
     <input type="search" data-tablet-prod-search placeholder="검색" aria-label="주문 검색">
     {# 변경 모아보기 토글 — data-changed="1" 카드만 필터(묘비는 항상 표시). changed_count>0 이면
@@ -245,8 +245,8 @@
             </span>
             {% endif %}
             {% if _flags.get('factory2') %}
-            <span class="foms-kanban-card__factory" title="라홈시스템(2공장) 발주">
-              <i class="fas fa-industry" aria-hidden="true"></i> 2공장
+            <span class="foms-kanban-card__factory" title="라홈시스템 계약 주문">
+              <i class="fas fa-industry" aria-hidden="true"></i> 라홈시스템 계약
             </span>
             {% endif %}
             {% if o.is_regional | default(false, true) %}
