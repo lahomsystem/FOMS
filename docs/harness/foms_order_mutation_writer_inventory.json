@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 91,
+    "total": 92,
     "external": 34
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 50,
+    "CANONICAL": 51,
     "EXTERNAL": 34,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 87,
+    "flag_modified_structured_data": 88,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -371,15 +371,22 @@
       "owner": "STATE-DRAWING-01"
     },
     {
+      "path": "foms/api/drawing/erp_orders_sheet_factory.py",
+      "lineno": 143,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 225,
+      "lineno": 226,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 986,
+      "lineno": 989,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"

@@ -35,6 +35,7 @@ from foms.services.orders.revision import (
 from foms.services.orders.drawing_key_safety import split_deletable_keys
 from foms.services.orders.drawing_assignee_write import maybe_auto_assign_wizard_saver
 from foms.services.orders.drawing_transfer import clean_sheet_id, clean_sheet_sig
+from foms.services.orders.drawing_factory import factory_by_sheet
 from foms.api.drawing.as_drawing import run_as_transfer
 from foms.services.orders.as_drawing import (
     apply_sheet_lock,
@@ -822,6 +823,8 @@ def api_get_drawing_wizard(order_id):
             'can_save': _can_save_wizard(current_user, order),
             'drew_default': current_user.name if current_user else '',
             'pending_count': len(_pending_list(sd)),
+            # 장의 공장(설계서 2026-11-23 §6-3) — 서버가 읽어 준다(마법사 상태에 안 넣음). 2공장 시트만 열쇠, 없으면 1공장.
+            'factory_by_sheet': factory_by_sheet(sd),
         },
     })
 
