@@ -78,8 +78,13 @@ from foms.services.production.part_mark_gates import GateRefusal, step_cell_gate
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras  # noqa: F401  # complete_block_body = 판정 한 곳 재노출(위치 고정 시험)
 from foms.services.production.complete_order import clear_factory_marks, complete_production, uncomplete_factories
-from foms.services.production.order_write_helpers import (  # 옮긴 조각 — 옛 이름 그대로(시작 · 재제작 · 취소 · 완료 취소 · 공정 · 보류)
+from foms.services.production.order_write_helpers import (  # noqa: F401  # 옮긴 조각 — 옛 이름 그대로 다시 내보냄(시험 · 다른 생산 API)
+    PRODUCTION_HOLD_HISTORY_CAP as _PRODUCTION_HOLD_HISTORY_CAP,
     _append_hold_history,
+    _close_current_production_run,
+    _enrich_production_completed_event,
+    _is_rework_completion,
+    _steps_incomplete_block,
     _current_production_run,
     _hold_active,
     _hold_block_response,
