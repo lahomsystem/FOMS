@@ -1,6 +1,6 @@
 # AI 작업 이력
 > 최근 20개만 유지. 이전 기록은 git log 참조.
-> 이 파일은 Cursor Hook(session_stop) 또는 Antigravity Workflow에 의해 자동 업데이트됩니다.
+> 이 파일은 Cursor Hook(session_stop)에 의해 자동 업데이트됩니다.
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|

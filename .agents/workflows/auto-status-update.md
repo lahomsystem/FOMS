@@ -5,8 +5,7 @@ description: 작업 완료 후 AI_STATUS.md와 AI_CHANGELOG.md를 자동 업데�
 # 자동 상태 업데이트
 
 > 이 워크플로우는 **git commit 직전**에 자동 실행됩니다.
-> Cursor에서는 Hook(session_stop)이 자동 실행하고,
-> Antigravity에서는 이 워크플로우를 참조합니다.
+> Cursor에서는 Hook(session_stop)이 자동 실행한다.
 
 ## 트리거
 - git commit 실행 직전
