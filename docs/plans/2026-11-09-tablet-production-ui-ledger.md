@@ -870,3 +870,13 @@
     - **내가 다시 확인**: 생산 · 도면 · 강제 변경 · 감사 · 문지기 시험 4302 통과. 세션 가지에 아홉 커밋 cherry-pick.
     - 알아 둘 것: 강제로 되돌린 주문은 회차가 닫혀 있어 "제작 대기" — 공장 완료 단추는 [제작 시작] 뒤에 뜸(강제 변경의 지금 동작) · `factory_done.py` 가 같은 꾸러미의 `orders._audit_production` 을 직접 가져옴.
   - **⑤ ⑥ 스테이징 올림(11-24)**: smoke `SMOKE_EXIT 0`(21230 passed, 820 skipped · 174 passed) → `PUSH_EXIT 0` deploy `c92d22b92..339be06dc` → CI 넷 초록(gh 직접 조회, PG 레인 · perf-gate 포함) → `check_deploy_drift` staging 339be06d 배포됨. 남은 것: ⑦ 상차 줄 + 패킹(`work/p3d-loading`, 바탕 1829a3b56 — 끝나면 세션 가지 위로 얹기).
+  - **⑦ 상차 줄 + 패킹 공장마다 일꾼 보고(받은 그대로 — 내가 확인 전, `work/p3d-loading` 커밋 둘 36a5e5a12(A 상차 줄) · a8ba8b660(B 패킹), 바탕 1829a3b56, 29파일 +2062 −60, 마이그레이션 · 새 라우트 없음)**:
+    - A: "상차 1공장 3장 · 2공장 2장"(생산 중이면 "(제작 중)")을 출고 태블릿 · PC · 폰 카드 · 옆 시트 · 시공 첫 화면 다섯 자리에. 쿼리 0 추가.
+    - B: `POST /api/erp/shipment/packing/<id>` 확장 — 몸에 `loaded: 1|2`(공장 상차 완료), 공장 꼴 응답에 `layout: "factory"` · `groups[…]`. 줄 열쇠 `sheet:<id>` · `file:<key>` · `hardware:<공장>`, 공장은 읽을 때 계산. 거절 `PACKING_FACTORY_FORBIDDEN`(403 "1공장 줄은 1공장에서 체크해요. 내 공장(2공장) 줄만 체크할 수 있어요.") · `PACKING_FACTORY_NOT_READY` · `PACKING_FACTORY_REQUIRED`. 둘째 공장 상차 완료 요청에서 `PACKING_DEPARTED`(출발 보고 자동). 권한 판정 `foms/services/shipment/packing_access.py` 한 곳 — 생산 파트 계정 · 반장이 새로 됨(자기 공장만), 보기만 생산팀 안 됨, 지금 권한 팀 그대로, 생산팀 매니저 GET 403 어긋남 맞춤.
+    - 바뀌는 경우 규칙: 옛 꼴 패킹이 있는 주문에 2공장 장이 생기면 공장 꼴 + 안내 "2공장 도면이 생기기 전에 체크한 2줄은 공장마다 다시 체크해 주세요." · 섞였다가 1공장만 되면 공장 꼴 유지 · 새 장이 오면 그 공장 상차 완료 풀림 · 상차 완료 취소 길 없음(지금 출발 보고와 같음).
+    - **출고 조각 바이트**: 바탕과 응답 20개 견줌 — 다른 바이트 0(gzip 크기도 같음).
+    - 시험 보고: 도메인 전체 17309 통과 · harness 687 · security 352 · JS 242 · 132줄 · APP_OK · scan 0. 실화면 a ~ f 통과(폰 390 넘침 0 · 누름 칸 44 ~ 48).
+    - 지금 화면이 바뀌는 곳: 2공장 장이 없으면 없음. 예외 = 생산 파트 계정 · 반장이 1공장뿐인 주문의 패킹도 체크할 수 있게 됨.
+    - 끼울 한 줄(내 몫): `templates/production/sheet.html` [보류] 단추 뒤에 `{% include 'shipment/partials/packing_prod_entry.html' %}`.
+    - 일꾼이 찾은 전부터 있던 결함: 시공 태블릿 "출발 HH:MM"이 UTC 시각 그대로(14:48 → 05:48) · `shipment.packing` 은 폼 저장 잠금 없음(`departed_at` 도 같은 처지, 이번 `factory_loaded` 도).
+  - **내 판정**: 세션 가지 위로 얹기 + 끼울 한 줄 넣기는 일꾼에게. 출발 시각 UTC 결함은 근본 고침(한국 시각으로, 따로 커밋) — 글이 아니라 값이 틀린 것. `shipment.packing` 잠금은 폼 저장이 `factory_loaded` · `departed_at` 을 못 덮게 같이 막음(공장 상차 완료가 출발 보고를 정하므로).
