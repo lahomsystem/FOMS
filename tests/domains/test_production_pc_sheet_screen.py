@@ -13,7 +13,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from tests.domains.test_production_pc_sheet import HOME, _edit, _login, _seed_five, _user, cohort  # noqa: F401 (cohort = 고정물)
+from tests.domains.test_production_pc_sheet import HOME, TABLET, _edit, _login, _order, _seed_five, _user, cohort  # noqa: F401
 from tests.support.color_contrast import contrast_ratio, hex_rgb, pair_distances
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +41,36 @@ def test_창_틀_스크립트는_PC_날짜_찾기만_쓰기는_고치기_켬만(
     assert html.index("foms-production-sheet-parts.js") < html.index("foms-production-pc-sheet.js") < html.index("pc-sheet-write.js")
 
 
+def _sheet(client, oid: int) -> str:
+    return client.get(f"/erp/production/sheet/{oid}").get_data(as_text=True)
+
+
+def test_PC_로_연_작업_시트_공정_칸은_같은_창_태블릿은_그대로(client, cohort) -> None:
+    """둘째 판(2026-11-24 지휘): 작업 시트의 PC/태블릿 가르기는 이 화면이 이미 쓰는 pc_view(pc.css · 보기 전용 표 · 시공일 D-n 과 같은 판정)."""
+    order, _ = _seed_five()
+    oid, bare_id = order.id, _order("빈도면", 0).id
+    admin = _login(client, _user("관리", role="ADMIN", team="CS"))
+    view = _sheet(client, oid)  # 보기 전용 — 칸은 div, 누르면 보기 창(단추 · 물음 · 쓰기 파일 없음)
+    assert view.count('tabindex="0" role="button" aria-haspopup="dialog" data-foms-pc-sheet="') == 4
+    assert view.count("data-foms-pc-sheet-box") == 1 and "foms-production-pc-sheet.js?v=" in view
+    assert "pc-sheet-write.js" not in view and "data-foms-pc-sheet-ask" not in view and "data-foms-sheet-confirm" not in view
+    _login(client, admin)
+    _edit(client)
+    edit = _sheet(client, oid)  # [고치기] — 칸은 지금 단추 그대로에 표지만, 확인 창은 시트 것 하나(겹치지 않음)
+    assert edit.count('aria-haspopup="dialog" data-foms-pc-sheet="') == 4 and 'data-foms-sheet-step="cut"' in edit
+    assert edit.count("data-foms-sheet-confirm hidden") == 1 and "pc-sheet-write.js?v=" in edit and "data-foms-pc-sheet-ask" in edit
+    assert edit.index("foms-production-sheet-page.js") < edit.index("foms-production-pc-sheet.js") < edit.index("pc-sheet-write.js")
+    assert "data-foms-pc-sheet" not in _sheet(client, bare_id)  # 도면 0장 = 지금 그대로(통째 손 체크)
+    part = _login(client, _user("재단", part="cut"))  # 파트 계정 — 잠금 안내 글 그대로, 칸은 보기 창
+    _edit(client)
+    locked = _sheet(client, oid)
+    assert "data-foms-sheet-steps-locked" in locked and locked.count('data-foms-pc-sheet="') == 4 and part.id
+    _login(client, admin, TABLET)  # 음성 대조 — 태블릿 시트에는 표지 · 창 · 스크립트 하나도 없다
+    tablet = _sheet(client, oid)
+    steps = tablet.split('aria-label="공정"', 1)[1].split("</section>", 1)[0]
+    assert "data-foms-pc-sheet" not in tablet and "foms-production-pc-sheet" not in tablet and "aria-haspopup" not in steps
+
+
 # --------------------------------------------------------------------------- #
 # 정적 — JS · CSS
 # --------------------------------------------------------------------------- #
@@ -55,6 +85,14 @@ def test_새_JS_는_300줄_아래_읽기는_try_catch_와_success_검사() -> No
     assert "'/api/production/part-marks'" in write and "/production/steps" in write and "sp.beforeToggle(page, btn, true, go)" in write
     assert "fetch(" not in write.replace("window.fomsMutationFetch", "") or "try {" in write
     assert "'release'" in write  # 완료가 막히면 맡기만 남지 않게 되돌린다
+    # [체크 해제] 뒤 담당이 나면 맡기 취소까지 · 남의 장은 완료 취소만(둘째 판)
+    assert "m.picked_by_user_id !== d.me" in write and "return mark(d, r.key, 'release', 'need', d.me);" in write
+    # "제작 완료할까요?" — 태블릿 창과 같은 본문 · 0.8초 잠금 · 지금 제작 완료 API
+    assert "장이 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요." in write and "var LOCK_MS = 800;" in write
+    assert "/production/complete" in write and "res.data.order_ready && W.ask(box, S.data)" in view
+    # 작업 시트: 칸 누름은 붙잡는 단계에서 받고 밖으로 안 보냄 · 쓰고 닫으면 공정 줄을 서버 값으로(단계가 바뀌면 통째)
+    assert "}, true);" in view and view.count("e.stopPropagation();") == 2 and "window.FomsPcSheetWrite.afterClose(root)" in view
+    assert "data-foms-prod-page-stage" in write and "window.location.reload()" in write
     sheet = (ROOT / "static/js/production/foms-production-sheet-parts.js").read_text(encoding="utf-8")
     assert "renderLog: renderLog" in sheet
     node = shutil.which("node")

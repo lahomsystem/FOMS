@@ -169,6 +169,7 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     d = body["data"]
     assert (d["label"], d["total"], d["done_n"], d["customer_name"], d["order_id"]) == ("재단", 5, 2, "구슬기", order.id)
     assert d["can_write"] is True and d["all"] is False and d["hand_off"] is False
+    assert d["has_run"] is True and d["start_note"] is None and isinstance(d["me"], int)
     assert d["notice"] == "도면 3장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 체크돼요."  # 거절 글 그대로(승인 때 고친 것 2)
     rows = d["rows"]
     assert [r["label"] for r in rows] == [f"도면 {i}/5" for i in range(1, 6)]
@@ -187,6 +188,16 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     # 다른 파트 = "아직", 담당 미정
     edge = _get(client, order, "edge").get_json()["data"]
     assert {r["word"] for r in edge["rows"]} == {"아직"} and edge["all"] is True and edge["notice"] is None
+
+
+def test_제작_회차_없는_주문은_창_머리_한_줄_태블릿과_같은_글(client, cohort) -> None:
+    oid = _order("노을빛", 2, run=False).id
+    me = _login(client, _user("반장"))
+    me_id = me.id
+    d = _get(client, oid, "cut").get_json()["data"]
+    assert d["has_run"] is False and d["start_note"] == "이 집 첫 도면이라 제작 시작도 같이 돼요." and d["me"] == me_id
+    modal = (ROOT / "static/js/production/foms-production-parts-modal.js").read_text(encoding="utf-8")
+    assert "'" + d["start_note"] + "'" in modal  # 태블릿 도면 판 창의 지금 글과 하나(새 글 없음)
 
 
 def test_손_체크_파트는_도면_판_손_체크_글과_통째_해제(client, cohort) -> None:

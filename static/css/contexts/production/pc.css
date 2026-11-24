@@ -281,6 +281,21 @@
 .fpc-sheet__log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .fpc-sheet__log li { padding: 6px 10px; border: 1px solid var(--fpc-line); border-radius: 9px; background: var(--fpc-brand-50); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; color: var(--fpc-text); word-break: keep-all; }
 .fpc-sheet__log li b { font-weight: 800; color: var(--fpc-brand-dark); }
+/* 창 머리 한 줄(제작 회차 없는 주문 — 첫 도면 체크 = 제작 시작, 태블릿과 같은 글)은 안내(파랑), 마지막 검수 뒤 "제작 완료할까요?"는 완료 색(태블릿 창과 같은 톤) */
+.fpc-sheet__note.is-start { border-color: var(--fpc-brand); background: var(--fpc-brand-50); color: var(--fpc-brand-dark); }
+.fpc-sheet__ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 12px; padding: 12px 14px; border: 2px solid var(--fpc-ok-dark); border-radius: 10px; background: var(--fpc-teal-50); }
+.fpc-sheet__ask[hidden] { display: none; }
+.fpc-sheet__asktitle { flex: 1 1 100%; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-text); }
+.fpc-sheet__askbody { flex: 1 1 20rem; margin: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fpc-text); word-break: keep-all; }
+.fpc-sheet__askbtns { display: inline-flex; gap: 8px; margin-left: auto; }
+/* PC 로 연 작업 시트(sheet.html — home.css 를 싣지 않는다): 창 단추를 첫 화면 단추(.foms-prod-home__btn)와 같은 꼴로 · 공정 칸은 누르면 창 */
+.foms-prod-page .fpc-sheet__btn, .foms-prod-page .fpc-sheet__x { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--fpc-line2); border-radius: 10px; background: #fff; color: var(--fpc-text); font-family: inherit; text-decoration: none; cursor: pointer; }
+.foms-prod-page .fpc-sheet__btn:hover, .foms-prod-page .fpc-sheet__x:hover, .foms-prod-page .fpc-sheet__btn:focus-visible, .foms-prod-page .fpc-sheet__x:focus-visible { background: var(--fpc-brand-50); color: var(--fpc-brand-dark); }
+.foms-prod-page .fpc-sheet .foms-prod-home__btn--pri, .foms-prod-page .fpc-sheet .foms-prod-home__btn--pri:hover, .foms-prod-page .fpc-sheet .foms-prod-home__btn--pri:focus-visible { background: var(--fpc-brand); border-color: var(--fpc-brand); color: #fff; }
+/* "제작 완료할까요?"의 [제작 완료] = 완료 색(첫 화면 · 작업 시트 단추 규칙보다 뒤 · 세 클래스라 두 화면 모두 이긴다) */
+.fpc-sheet .fpc-sheet__btn.fpc-sheet__go, .fpc-sheet .fpc-sheet__btn.fpc-sheet__go:hover, .fpc-sheet .fpc-sheet__btn.fpc-sheet__go:focus-visible { background: var(--fpc-ok-dark); border-color: var(--fpc-ok-dark); color: #fff; }
+.fpc-sheet .fpc-sheet__btn.fpc-sheet__go[aria-disabled="true"] { opacity: .6; cursor: wait; }
+.foms-prod-page__step[data-foms-pc-sheet], .foms-prod-page__step.is-view[data-foms-pc-sheet] { cursor: pointer; } /* 초점 테두리는 sheet.css 칸 규칙 그대로 */
 /* [모두 체크] 확인 창 = 작업 시트와 같은 조각(sheet_step_confirm.html) — 본문 한 줄은 sheet.css 와 같은 값(PC 첫 화면은 sheet.css 를 싣지 않는다) */
 .foms-prod-home .fpp-confirm-body { margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fpc-text); word-break: keep-all; }
 .foms-prod-home .fpp-confirm .foms-reason-sheet__actions > .foms-btn { font-size: calc(17px * var(--foms-fs, 1)); }

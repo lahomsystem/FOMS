@@ -4,7 +4,10 @@
    [고치기] 켬(data-edit="1")이고 서버가 쓸 수 있다고 한 사람(관리자 · 반장 — part_access.can_override_marks)만 줄마다 [체크] · [체크 해제]
    · 창 머리 [모두 체크] · 손 체크 [체크 해제] — 쓰기는 foms-production-pc-sheet-write.js(있는 쓰기 길만). [모두 체크]의 확인 창은 작업 시트와
    같은 조각(sheet_step_confirm.html) · 같은 글(foms-production-sheet-parts.js). 겉틀 = 공용 사유 시트(foms-reason-sheet.css), PC 폭 ·
-   가운데 · 줄 꼴만 pc.css. 인라인 style · script 없음. #}
+   가운데 · 줄 꼴만 pc.css. 인라인 style · script 없음.
+   2026-11-24 둘째 판: PC 로 연 작업 시트(sheet.html, pc_view)도 같은 조각을 싣는다 — 그 화면은 확인 창이 이미 있어 pc_sheet_confirm=false.
+   창 머리 한 줄(제작 회차 없는 주문 — 서버 글 start_note) · 마지막 검수 뒤 "제작 완료할까요?"(태블릿과 같은 글 · [나중에][제작 완료],
+   [고치기] 켬일 때만 — 보기 전용 응답에는 이 물음 단추가 없다). #}
 <div class="foms-reason-sheet fpc-sheet" data-foms-pc-sheet-box data-edit="{{ '1' if edit_on else '0' }}" hidden aria-hidden="true">
   <div class="foms-reason-sheet__backdrop" data-foms-pc-sheet-close></div>
   <div class="foms-reason-sheet__panel fpc-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="foms-pc-sheet-title" aria-describedby="foms-pc-sheet-sub">
@@ -16,6 +19,12 @@
     </div>
     <div class="fpc-sheet__body" data-foms-pc-sheet-body>
       <p class="fpc-sheet__note" data-foms-pc-sheet-note hidden></p>
+      <p class="fpc-sheet__note is-start" data-foms-pc-sheet-start hidden></p>
+      {% if edit_on %}<div class="fpc-sheet__ask" data-foms-pc-sheet-ask role="group" aria-labelledby="foms-pc-sheet-ask-title" hidden>
+        <b class="fpc-sheet__asktitle" id="foms-pc-sheet-ask-title">제작 완료할까요?</b>
+        <p class="fpc-sheet__askbody" data-foms-pc-sheet-ask-body></p>
+        <span class="fpc-sheet__askbtns"><button type="button" class="foms-prod-home__btn fpc-sheet__btn" data-foms-pc-sheet-act="ask-no" data-label="나중에">나중에</button><button type="button" class="foms-prod-home__btn fpc-sheet__btn fpc-sheet__go" data-foms-pc-sheet-act="ask-yes" data-label="제작 완료">제작 완료</button></span>
+      </div>{% endif %}
       <p class="fpc-sheet__msg" data-foms-pc-sheet-msg role="status" aria-live="polite"></p>
       <ol class="fpc-sheet__rows" data-foms-pc-sheet-rows></ol>
       <h3 class="fpc-sheet__lh" data-foms-pc-sheet-loghead hidden>바뀐 기록</h3>
@@ -24,4 +33,4 @@
     <div data-foms-sheet-parts="" hidden></div>
   </div>
 </div>
-{% if edit_on %}{% include 'production/partials/sheet_step_confirm.html' %}{% endif %}
+{% if edit_on and pc_sheet_confirm is not defined %}{% include 'production/partials/sheet_step_confirm.html' %}{% endif %}

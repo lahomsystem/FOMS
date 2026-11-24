@@ -7,7 +7,9 @@
   ``pc_steps`` · ``pc_status`` — 체크한 뒤 화면이 그 줄 칸만 바꿔 끼운다) + 반장 손 체크 확인 창 자료(``sheets`` · ``parts`` —
   공정 API GET 과 같은 :func:`step_api_extras`). 바뀐 기록 목록은 있는 ``GET /api/production/part-history`` 가 준다.
 * 쓰기는 없다 — 화면은 있는 쓰기 길(``POST /api/production/part-marks`` · ``POST /api/orders/<id>/production/steps``)만 쓴다.
-  ``can_write`` = 남의 장을 대신 처리할 수 있는 사람(:func:`can_override_marks` — 관리자 · 반장). 화면은 [고치기] 켬일 때만 단추를 그린다.
+  ``can_write`` = 남의 장을 대신 처리할 수 있는 사람(:func:`can_override_marks` — 관리자 · 반장). 화면은 [고치기] 켬일 때만 단추를 그리고
+  역할을 따로 추측하지 않는다([모두 체크]도 ``can_write`` · ``all`` 둘로만). ``me`` = 보는 사람 id([체크 해제] 뒤 담당이 나면 맡기 취소까지),
+  ``has_run`` · ``start_note`` = 제작 회차가 없는 생산 주문이면 창 머리 한 줄(첫 도면 체크 = 제작 시작, 태블릿과 같은 글).
 * 쿼리 3(로그인 사용자 읽기 빼고): 주문 1 + 표시 줄(네 파트) 1 + 지금 회차 1. 날짜 탭 · PC 쿼리 상한과 무관(누를 때만).
 * 문: 생산 첫 화면을 볼 수 있는 직원 + 주문 읽기 범위 — 바뀐 기록 API(``part_history.py``)와 같다. GET 이라 CSRF · 정책 가드 밖.
 * 같은 Blueprint(``production_part_marks``)에 라우트만 더한다 — ``foms/api/production/__init__.py`` 가 이 모듈을 import 한다.
@@ -30,7 +32,7 @@ from foms.services.production.part_access import can_override_marks
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import step_api_extras
-from foms.services.production.pc_sheet import build_part_sheet
+from foms.services.production.pc_sheet import START_NOTE, build_part_sheet
 from foms.services.production.pc_view import pc_row_view
 from foms.services.production_read_model import fetch_production_current_run_starts
 from models import Order
@@ -99,7 +101,11 @@ def api_part_sheet():
     for row in sheet["rows"]:
         row["thumb"] = (url_for("erp_production_page.erp_production_part_thumb", order_id=order_id, key=row["key"])
                         if row["image"] else None)
+    has_run = int(order.id) in starts
+    in_production = read_main_stage(order) == "PRODUCTION"
     data = {"order_id": order_id, "customer_name": _customer(order, sd), "can_write": can_override_marks(user),
+            "me": getattr(user, "id", None), "has_run": has_run,
+            "start_note": START_NOTE if in_production and not has_run else None,
             **sheet, **step_api_extras(sd, marks), **_row_html(order, sd, marks, starts)}
     response = jsonify({"success": True, "data": data, "error": None})
     response.headers["Cache-Control"] = "private, no-store"

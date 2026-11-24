@@ -20,8 +20,8 @@ CSS_DIR = ROOT / "static/css/contexts/production"
 PIN = "20261123v"
 #: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다.
 PARTS_PIN = "20261124a"
-#: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크")이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
-PC_PIN = "20261124p"
+#: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 판 작업 시트)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
+PC_PIN = "20261124q"
 
 
 def _css(name: str) -> str:

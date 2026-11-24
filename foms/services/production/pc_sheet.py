@@ -36,6 +36,9 @@ from foms.services.production_home_read_model import format_step_at_kst
 #: 줄 단추 — 미완료 장을 완료로 처리 · 완료한 장 완료 취소.
 ACT_CHECK = "check"
 ACT_UNCHECK = "uncheck"
+#: 제작 회차가 없는 주문(첫 도면을 체크하면 제작 시작도 같이 됨, 설계서 §4-8)의 창 머리 한 줄 — 태블릿 도면 판 확인 창의 지금 글
+#: (foms-production-parts-modal.js firstLine)과 같은 글 하나로 쓴다(새 글 안 만듦).
+START_NOTE = "이 집 첫 도면이라 제작 시작도 같이 돼요."
 
 
 def stamp(value: Any) -> str:
@@ -166,4 +169,4 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool)
     }
 
 
-__all__ = ["ACT_CHECK", "ACT_UNCHECK", "build_part_sheet", "sheet_row", "stamp", "state_word"]
+__all__ = ["ACT_CHECK", "ACT_UNCHECK", "START_NOTE", "build_part_sheet", "sheet_row", "stamp", "state_word"]
