@@ -13,8 +13,10 @@
   --dsf-hit: 36px;
 }
 
-/* ---- 2공장 표시(누구에게나) — 흰 바탕 · 청록 테두리 글(§8-9: 1공장 표시 없음, 무채색 아님) ---- */
-.dws-tab-fac,
+/* ---- 2공장 표시(누구에게나) — 흰 바탕 · 청록 테두리 글(§8-9: 1공장 표시 없음, 무채색 아님) ----
+   마법사 탭은 글 노드를 더하지 않고 ::before 로 그린다 — 이름 바꾸기(wizard.js renameSheet)가 탭의 첫 자식에 새 이름을
+   쓰므로 표시를 자식으로 넣으면 표시 글이 이름으로 바뀐다(3단계 ④ 검토). */
+.dws-tab.dws-tab-has-fac::before,
 .dsf-chip {
   display: inline-block;
   padding: 0 6px;
@@ -27,7 +29,7 @@
   line-height: 1.4;
   white-space: nowrap;
 }
-.dws-tab-fac { margin-right: 6px; }
+.dws-tab.dws-tab-has-fac::before { content: "2공장"; margin-right: 6px; vertical-align: baseline; }
 /* 표시가 붙은 탭은 그만큼 넓힌다 — 시트 이름이 지금보다 더 잘리지 않게(표시 폭 + 틈 ≈ 56px) */
 .dws-tab.dws-tab-has-fac { max-width: 256px; }
 
@@ -83,12 +85,14 @@
 .dsf-bar__label { font-weight: 800; color: var(--dsf-text); white-space: nowrap; }
 .dsf-bar .dsf-sel__b { min-width: 64px; }
 
-/* 작업실 타일 아래 한 줄(110px 칸 안) · 보낼 시트 칸 카드 아래 */
-.dsf-tile { margin-top: 4px; max-width: 110px; }
-.dsf-tile .dsf-sel { display: flex; }
+/* 작업실 타일 아래 한 줄 — 타일 칸(지금 112px 고정)이 단추 줄보다 좁으면 칸을 단추 줄만큼 넓힌다(글자 · 높이는 그대로,
+   글자 크기 150% 에서도 안 잘린다). 고르는 칸이 있는 타일에만 붙는 표지(.dsf-wrap)라 다른 갤러리는 그대로.
+   선택자 셋 = 태블릿 화면 규칙(body.erp-mobile-v2-layout .drawing-gateway-thumb-wrap, 0-2-1)보다 세게. */
+.erp-pro .drawing-gateway-thumb-wrap.dsf-wrap { width: auto; min-width: 112px; }
+.dsf-tile { margin-top: 4px; }
+.dsf-tile .dsf-sel__b { flex: 0 0 auto; min-width: 51px; padding: 0 4px; }
 .dsf-pending { margin-top: 6px; }
 .dsf-pending .dsf-sel { display: flex; }
-.dsf-tile .dsf-sel__b,
 .dsf-pending .dsf-sel__b { padding: 0 4px; }
 .dsf-send { margin: 0 0 8px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--dsf-fac2-700); }
 .dsf-split[hidden],
