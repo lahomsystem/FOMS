@@ -42,6 +42,7 @@
       {% include 'production/partials/home_date.html' %}
     {% endif %}
 {% if part_board %}    {% include 'production/partials/home_parts_overlays.html' %}
+{% endif %}{% if pc_view and tab in ('date', 'all') %}{# PC 공정 칸 → 도면 목록 창(2026-11-24, 줄이 공정 칸을 그리는 두 탭만) #}{% include 'production/partials/home_pc_sheet.html' %}
 {% endif %}  </section>
   {% if (tab == 'changes' and can_ack) or (step_panel and can_act) %}
   {# [확인했어요] = 옆 시트·묘비와 같은 change-ack 배선 · '내 공정' 판의 [보류](tablet-domain-sheets.js, 이 화면은 기기 무관) #}

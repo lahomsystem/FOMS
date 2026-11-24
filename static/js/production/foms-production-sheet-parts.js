@@ -209,5 +209,6 @@
       btns[(i + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
     });
   }
-  window.FomsSheetParts = { beforeToggle: beforeToggle, refused: refused, render: render, why: why, showWhy: showWhy };
+  // renderLog: PC 도면 목록 창(foms-production-pc-sheet.js, 2026-11-24)이 바뀐 기록을 작업 시트와 같은 글로 그린다
+  window.FomsSheetParts = { beforeToggle: beforeToggle, refused: refused, render: render, why: why, showWhy: showWhy, renderLog: renderLog };
 })();

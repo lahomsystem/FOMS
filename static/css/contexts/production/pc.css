@@ -29,6 +29,13 @@
   --fpc-hold-line: #f472b6;
   --fpc-tip: #1f2329;
   --fpc-old-700: #9a3412; /* 밤 넘긴 담당 이름(태블릿 --fph-old-700 과 같은 값, 설계서 2026-11-23 §4-9) */
+  /* 도면 목록 창 상태 칸(2026-11-24) — 도면 판(parts.css)의 상태 색과 같은 값, 자기 접두사(PC 는 parts.css 를 싣지 않는다) */
+  --fpc-need-50: #c5c9ff;
+  --fpc-need-700: #3a4490;
+  --fpc-done-50: #a7f3d0;
+  --fpc-done-800: #065f46;
+  --fpc-basic-50: #ccedff;
+  --fpc-basic-700: #075985;
 }
 
 /* ── 제목 줄: [보드 →] · 보기 전용 표 · [고치기] · 주황 띠 ── */
@@ -224,3 +231,56 @@
 .foms-prod-page .fpc-edit { min-height: 48px; }
 .foms-prod-page .fpc-view { min-height: 44px; }
 .foms-prod-page__step.is-view { cursor: default; }
+
+/* ── 공정 칸 → 도면 목록 창(사장님 2026-11-24 "PC 에서도 도면별로 체크, 감독용이라 세세한 정보") — templates/production/partials/home_pc_sheet.html.
+   칸 모양 · 줄 높이는 그대로(누를 수 있는 칸은 손가락 모양만). 겉틀 = 공용 사유 시트(foms-reason-sheet.css: 어두운 바탕 · 흰 판 · 머리 · 단추 줄),
+   여기는 PC 폭(가운데 · 최대 960px) · 판 안 굴림 · 도면 줄 꼴만. 글자 calc(Npx * 배율) 본문 15px 이상 · 단추 46px(80% 배율에서 보이는 36px 이상), 상태 색은 위 토큰 · 무채색 배지 없음. ── */
+.fpc-s[data-foms-pc-sheet] { cursor: pointer; }
+.foms-reason-sheet.fpc-sheet { justify-content: center; padding: 24px 16px; } /* 공용 시트(아래 붙음)보다 뒤에 실려도 이기게 두 클래스 */
+.fpc-sheet .fpc-sheet__panel { display: flex; flex-direction: column; width: 100%; max-width: 960px; max-height: calc(100vh / var(--foms-ui-zoom, 1) - 48px); padding: 0; overflow: hidden; border-radius: 14px; color: var(--fpc-text); }
+.fpc-sheet .fpc-sheet__head { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0; padding: 14px 18px; border-bottom: 1px solid var(--fpc-line); }
+.fpc-sheet .fpc-sheet__title { font-size: calc(21px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-text); }
+.fpc-sheet__sub { min-width: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text2); }
+.fpc-sheet__tools { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.fpc-sheet__tools:empty { display: none; }
+.fpc-sheet .fpc-sheet__x { min-height: 46px; padding: 0 16px; font-size: calc(16px * var(--foms-fs, 1)); }
+.fpc-sheet__tools:empty + .fpc-sheet__x { margin-left: auto; }
+.fpc-sheet .fpc-sheet__btn { min-height: 46px; padding: 0 16px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.fpc-sheet .fpc-sheet__btn.is-wait { opacity: .6; cursor: wait; }
+.fpc-sheet__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 18px 18px; }
+.fpc-sheet__note, .fpc-sheet__msg { margin: 0 0 10px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.4; word-break: keep-all; }
+.fpc-sheet__note { padding: 8px 12px; border: 1px solid var(--fpc-warn-soft); border-radius: 9px; background: var(--fpc-warn-50); color: var(--fpc-warn-ink); }
+.fpc-sheet__note[hidden], .fpc-sheet__lh[hidden], .fpc-sheet__log[hidden], .fpc-sheet__err[hidden] { display: none; }
+.fpc-sheet__msg { color: var(--fpc-text2); }
+.fpc-sheet__msg:empty { display: none; }
+.fpc-sheet__rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.fpc-sheet__row { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto auto; align-items: center; gap: 8px 14px; padding: 8px 12px 8px 8px; border: 1px solid var(--fpc-line); border-radius: 10px; background: #fff; word-break: keep-all; overflow-wrap: anywhere; }
+.fpc-sheet__pic { display: flex; align-items: center; justify-content: center; width: 112px; height: 80px; overflow: hidden; border: 1px solid var(--fpc-line); border-radius: 8px; background: var(--fpc-brand-50); color: var(--fpc-brand-dark); text-decoration: none; }
+.fpc-sheet__pic img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.fpc-sheet__pic.is-file b, .fpc-sheet__broken { padding: 4px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; text-align: center; line-height: 1.25; }
+.fpc-sheet__pic:focus-visible { outline: 3px solid var(--fpc-brand-dark); outline-offset: 2px; }
+.fpc-sheet__main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.fpc-sheet__main p { margin: 0; }
+.fpc-sheet__nm { font-size: calc(17px * var(--foms-fs, 1)); line-height: 1.3; color: var(--fpc-text); }
+.fpc-sheet__nm b { margin-right: 8px; font-weight: 800; white-space: nowrap; }
+.fpc-sheet__nm span { font-weight: 600; color: var(--fpc-text2); }
+.fpc-sheet__meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text2); }
+.fpc-sheet__chg { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-old-700); }
+.fpc-sheet__blk { width: fit-content; padding: 2px 10px; border: 1px solid var(--fpc-warn-soft); border-radius: 8px; background: var(--fpc-warn-50); color: var(--fpc-warn-ink); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+.fpc-sheet__blk.is-hold { border-color: var(--fpc-hold-line); background: var(--fpc-hold-50); color: var(--fpc-hold); }
+.fpc-sheet__blk.is-revise { border-color: var(--fpc-danger-line); background: var(--fpc-danger-50); color: var(--fpc-danger-ink); }
+.fpc-sheet__err { padding: 6px 10px; border: 1px solid var(--fpc-danger-line); border-radius: 8px; background: var(--fpc-danger-50); color: var(--fpc-danger-ink); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.4; }
+/* 상태 칸 — 도면 판 글 그대로. 안 봄 · 아직 은 배지 없이 글만(무채색 배지 금지) */
+.fpc-sheet__st { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 7.5rem; min-height: 44px; padding: 4px 12px; border-radius: 9px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; text-align: center; color: var(--fpc-text3); }
+.fpc-sheet__st small { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; }
+.fpc-sheet__st.is-need { background: var(--fpc-need-50); color: var(--fpc-need-700); }
+.fpc-sheet__st.is-done, .fpc-sheet__st.is-hand { background: var(--fpc-done-50); color: var(--fpc-done-800); }
+.fpc-sheet__st.is-basic { background: var(--fpc-basic-50); color: var(--fpc-basic-700); }
+/* 바뀐 기록 — 작업 시트와 같은 글(foms-production-sheet-parts.js renderLog: "재단 도면 1/5: 박엣지 맡음 11/23 09:10 → …") */
+.fpc-sheet__lh { margin: 16px 0 8px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-text); }
+.fpc-sheet__log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.fpc-sheet__log li { padding: 6px 10px; border: 1px solid var(--fpc-line); border-radius: 9px; background: var(--fpc-brand-50); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; color: var(--fpc-text); word-break: keep-all; }
+.fpc-sheet__log li b { font-weight: 800; color: var(--fpc-brand-dark); }
+/* [모두 체크] 확인 창 = 작업 시트와 같은 조각(sheet_step_confirm.html) — 본문 한 줄은 sheet.css 와 같은 값(PC 첫 화면은 sheet.css 를 싣지 않는다) */
+.foms-prod-home .fpp-confirm-body { margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fpc-text); word-break: keep-all; }
+.foms-prod-home .fpp-confirm .foms-reason-sheet__actions > .foms-btn { font-size: calc(17px * var(--foms-fs, 1)); }
