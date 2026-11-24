@@ -8,6 +8,8 @@
  *   CSS ::before 로 그린다 — 이름 바꾸기(wizard.js renameSheet)가 탭의 첫 자식 글을 새 이름으로 바꾸기 때문.
  * - 탭 줄 바로 아래 시트 도구 줄: "공장 지정 [1공장 | 2공장]" + "고르면 바로 저장돼요. [저장]을 안 눌러도 돼요." — 도면팀 누구나 · 관리자만.
  *   고르면 지금 시트를 API 로 바로 저장한다. 생산에 내려간 시트면 서버가 물어 와 확인 창을, 막히면 서버 글 그대로 창에.
+ * - 그 줄은 평소에 접혀 있고 탭 줄 오른쪽 [공장 지정] 단추로 펼친다(사장님 2026-11-25 — 그리는 자리 45px 를 되찾는다).
+ *   2공장 시트가 있는 주문은 처음부터 펼친다. 펼침은 이 화면 안에서만(저장 자료 · 자동 저장 · 지문에 안 넣는다).
  * - 서버가 모르는 새 시트(자동 저장 전)는 저장하지 않고 안내만 한다 — 마법사의 자동 저장 문지기(충돌 뒤 '내 것 유지' ·
  *   실패로 멈춤 · 고치는 중)를 이 파일이 건너뛰어 남의 새 작업을 덮지 않게. [저장]은 충돌을 사람에게 묻는다.
  */
@@ -27,6 +29,8 @@
   var core = null;
   var bar = null;
   var busy = false;
+  // 처음 펼침 = 이 주문에 2공장 시트가 있을 때(서버가 그린 표 — 2공장만 열쇠). 화면 상태라 어디에도 저장하지 않는다.
+  var unfolded = Object.keys(bySheet).some(function (k) { return Number(bySheet[k]) === 2; });
 
   function SF() { return window.FomsSheetFactory; }
   function factoryOf(sheet) { return sheet && Number(bySheet[String(sheet.id)]) === 2 ? 2 : 1; }
@@ -58,6 +62,7 @@
     if (!fac.can_set || !tabrow) return;
     var row = document.createElement('div');
     row.className = 'dsf-toolrow dws-ui';
+    row.id = 'dsf-toolrow';
     bar = document.createElement('div');
     bar.className = 'dsf-bar';
     var name = document.createElement('span');
@@ -87,6 +92,28 @@
     row.appendChild(bar);
     // 탭 줄 바로 아래 '시트 도구 줄'(설계서 §8-5 · 목업 3판) — 탭 줄 자리를 빼앗지 않게 따로 둔다(V2 알림 띠 · 시트 10장).
     tabrow.parentNode.insertBefore(row, tabrow.nextSibling);
+    buildFold(row);
+  }
+
+  /** 탭 줄 오른쪽(이미 있는 자리 — V1 [새 화면 V2 써 보기] · V2 저장 상태 칩 앞)에 [공장 지정] 펼침 단추. 새 줄을 만들지 않는다. */
+  function buildFold(row) {
+    var side = document.getElementById('dws-v2-tabstatus');
+    if (!side) return;   // 둘 자리가 없으면 지금처럼 펼친 채
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dsf-fold';
+    btn.id = 'dsf-fold';
+    btn.textContent = '공장 지정';
+    btn.setAttribute('aria-controls', row.id);
+    btn.addEventListener('click', function () { setOpen(row, btn, !unfolded); });
+    side.insertBefore(btn, side.firstChild);
+    setOpen(row, btn, unfolded);
+  }
+
+  function setOpen(row, btn, on) {
+    unfolded = !!on;
+    row.hidden = !unfolded;
+    btn.setAttribute('aria-expanded', unfolded ? 'true' : 'false');
   }
 
   function refocus(to) {
