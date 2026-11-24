@@ -257,17 +257,16 @@ def test_departed_gate_400_leaves_no_write(client, app):
 
 # --------------------------------------------------------------------------
 # 권한 (AUTH-01 PACKING_WRITE) — 사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만": ADMIN · 시공팀 STAFF/MANAGER ·
-# 생산팀 MANAGER · 파트 계정 · 반장(자기 공장 줄만: test_packing_factory_api.py · test_packing_factory_screens.py), 그 외 deny.
-# 출고 · CS · 영업 STAFF · 다른 팀 MANAGER 는 2026-11-24 판까지 200 이었다 — 아래 deny 표로 옮김(목록 보기는 그대로).
+# 생산팀 파트 계정 · 반장(직원 · 매니저 같음, 자기 공장 줄만: test_packing_factory_api.py · test_packing_factory_screens.py), 그 외 deny.
+# 출고 · CS · 영업 STAFF · 다른 팀 MANAGER · 파트도 반장도 아닌 생산팀 MANAGER 는 2026-11-24 판까지 200 이었다 — 아래 deny 표로 옮김.
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("role,team", [
     ("STAFF", "CONSTRUCTION"),
     ("MANAGER", "CONSTRUCTION"),
-    ("MANAGER", "PRODUCTION"),
     ("ADMIN", None),
 ])
 def test_packing_allows_eligible_actors(client, app, policy_on, role, team):
-    """시공팀 STAFF · MANAGER · 생산팀 MANAGER · ADMIN 은 packing 제출 200.
+    """시공팀 STAFF · MANAGER · ADMIN 은 packing 제출 200(파트 · 반장 생산팀 계정은 공장 시험 파일).
 
     파생 key 는 결정적(``item{idx}_body`` 등)이라 GET(로컬 read 게이트) 없이 직접 쓴다 —
     write 정책과 read 게이트의 대상 팀이 달라 GET 을 헬퍼로 쓰면 write 권한 판정이 오염된다.
@@ -291,9 +290,10 @@ def test_packing_allows_eligible_actors(client, app, policy_on, role, team):
     ("MANAGER", None),  # 팀 없는 · 다른 팀 MANAGER(전: 200)
     ("MANAGER", "SHIPMENT"),
     ("MANAGER", "DRAWING"),
+    ("MANAGER", "PRODUCTION"),  # 파트도 반장도 아닌 생산팀 매니저 — 보기만 생산팀 직원과 같음(전: 200, 2026-11-25 고침)
 ])
 def test_packing_denies_ineligible_actors(client, app, policy_on, role, team):
-    """VIEWER · 타팀(DRAWING) · 보기만 생산팀 STAFF · 출고 · CS · 영업 STAFF · 다른 팀 MANAGER 는 403 · DB/event/receipt 0."""
+    """VIEWER · 타팀(DRAWING) · 보기만 생산팀(직원 · 매니저) · 출고 · CS · 영업 STAFF · 다른 팀 MANAGER 는 403 · DB/event/receipt 0."""
     _login(client, username=f"no-{role}-{team}", role=role, team=team)
     oid = _make_order()
     resp = client.post(_url(oid), json={"updates": [{"key": "item0_body", "checked": True}]})
@@ -353,11 +353,30 @@ def test_packing_add_submit_guards_double_post(packing_js: str):
 
 
 def test_packing_js_version_bumped_in_dashboards():
-    """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a 이탈)."""
+    """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a · 20261019a 이탈 — 2026-11-25 보기만 꼴)."""
     entry = _SHIPMENT_ENTRY.read_text(encoding="utf-8")
-    assert "'/static/js/shipment/foms-packing.js?v=20261019a'" in entry
+    assert "'/static/js/shipment/foms-packing.js?v=20261125a'" in entry
     body = _CONSTRUCTION_BODY.read_text(encoding="utf-8")
-    assert "foms-packing.js') }}?v=20261019a" in body
+    assert "foms-packing.js') }}?v=20261125a" in body
+    prod_entry = (_REPO_ROOT / "templates" / "shipment" / "partials" / "packing_prod_entry.html").read_text(encoding="utf-8")
+    assert "foms-packing.js') }}?v=20261125a" in prod_entry  # 생산 작업 시트 [패킹]도 같은 핀
+    # entry CHAIN 안 핀이 바뀌었으니 entry 자신의 핀도 올린다(옛 entry 캐시가 옛 패킹 JS 를 부르지 않게).
+    scripts = (_REPO_ROOT / "templates" / "shipment" / "partials" / "dashboard_scripts.html").read_text(encoding="utf-8")
+    assert "shipment-entry.js') }}?v=20261125a" in scripts
     # JS 핀만 검사 — 무관한 foms-packing.css 핀(20260714a)까지 잡지 않도록 스코프한다.
-    for src, where in ((entry, _SHIPMENT_ENTRY), (body, _CONSTRUCTION_BODY)):
-        assert "foms-packing.js?v=20260714a" not in src and "foms-packing.js') }}?v=20260714a" not in src, f"구 JS 버전 핀 잔존: {where}"
+    for src, where in ((entry, _SHIPMENT_ENTRY), (body, _CONSTRUCTION_BODY), (prod_entry, "packing_prod_entry.html")):
+        for old in ("20260714a", "20261019a"):
+            assert f"foms-packing.js?v={old}" not in src and f"foms-packing.js') }}}}?v={old}" not in src, f"구 JS 버전 핀 잔존: {where}"
+
+
+def test_packing_js_view_only_when_no_factory_to_check(packing_js: str):
+    """옛 꼴(1공장뿐) 보기만(2026-11-25) — 응답 can_check 가 빈 목록이면 체크칸 꺼짐 · 누락 신고 · 줄 더하기 없음 · 출발 보고 꺼짐.
+
+    공장 꼴 보기만 화면과 같은 꼴이다. 칸이 없는 응답(옛 서버)은 지금처럼 쓰기 — 서버 문이 따로 막는다."""
+    assert "state.canCheck = !Array.isArray(data.can_check) || data.can_check.length > 0;" in packing_js
+    assert "input.disabled = !state.canCheck;" in packing_js  # 체크칸 꺼짐(상태는 보임)
+    assert "if (tplContent && state.canCheck) {" in packing_js  # 누락 신고 단추 없음
+    assert "addForm.classList.toggle('d-none', !state.canCheck);" in packing_js  # 줄 더하기 칸 없음
+    assert "btn.disabled = !state.canCheck || !(total > 0 && checked === total);" in packing_js  # 출발 보고 꺼짐
+    # 이미 출발 보고된 주문은 지금처럼 "출발 보고 완료"(canCheck 와 상관없이)
+    assert packing_js.index("setDepartLabel(btn, '출발 보고 완료');") < packing_js.index("btn.disabled = !state.canCheck ||")

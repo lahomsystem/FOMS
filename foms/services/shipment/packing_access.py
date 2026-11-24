@@ -4,11 +4,11 @@
 함수들을 본다. 둘이 어긋나면 단추는 있는데 서버가 막거나, 쓰기는 되는데 목록을 못 읽는다.
 
 * **체크(쓰기 — 줄 체크 · 누락 신고 · 줄 더하기 · 상차 완료 · 출발 보고)** = 관리자 · 시공팀(직원 · 매니저)
-  + 생산팀 중 카드 · 공정을 쓰는 계정(파트 계정 · 반장 — ``part_access.writable_factories`` 가 빈 것이 아닌 계정)과 생산팀 매니저
-  (2026-11-24 판 그대로, 자기 공장 줄만). 출고 · CS(회계 별칭) · 영업(켜진 프리랜서 포함) 팀 직원 · 매니저, 다른 팀 매니저는 2026-11-25 부터
-  보기만. 파트도 반장도 아닌 생산팀 직원 · VIEWER · 협력사 · 꺼진 계정은 안 된다.
+  + 생산팀 중 카드 · 공정을 쓰는 계정(파트 계정 · 반장 — ``part_access.writable_factories`` 가 빈 것이 아닌 계정, 직원 · 매니저 같음,
+  자기 공장 줄만). 출고 · CS(회계 별칭) · 영업(켜진 프리랜서 포함) 팀 직원 · 매니저, 다른 팀 매니저는 2026-11-25 부터 보기만.
+  파트도 반장도 아닌 생산팀(직원 · 매니저 모두) · VIEWER · 협력사 · 꺼진 계정은 안 된다.
 * **공장 몫** = 생산팀 계정(관리자 아님)은 자기 계정 공장 줄만(``part_access.user_factory``), 그 밖 체크하는 사람은 두 공장. 2공장 장이
-  없는 주문은 모든 줄이 1공장 몫이다(``packing_factory``).
+  없는 주문(옛 꼴)은 모든 줄이 1공장 몫이다(``packing_factory`` · :func:`single_factory_can_check` — 2공장 생산팀 계정은 보기만).
 * **보기(GET)** = 체크할 수 있는 사람 + 예전(3단계 전) 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 계정(직원 · 매니저 · 조회 전용)
   — 화면으로 보던 사람은 그대로 본다. 다른 팀(도면 등) 매니저는 예전에도 목록을 못 열었다(GET 403) — 쓰기가 닫히므로 다시 403.
 
@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.orders.order_mutation_policy import team_has_capability
-from foms.services.production.factory_constants import FACTORIES, factory_label
+from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, factory_label
 from foms.services.production.part_access import user_factory, writable_factories
 
 #: 체크(쓰기)하는 팀 — 두 공장(사장님 2026-11-25 "생산 · 시공 · 관리자"). 생산팀은 아래 공장 몫 규칙으로 따로.
@@ -58,8 +58,8 @@ def can_write_packing(user: Any) -> bool:
         user: 사용자 객체(None 허용). 이미 읽은 행의 칸만 본다 — 쿼리 0.
 
     Returns:
-        관리자, 시공팀 직원 · 매니저, 생산팀 매니저 · 카드 · 공정을 쓰는 생산팀 직원(파트 계정 · 반장)이면 True. 출고 · CS · 영업 ·
-        다른 팀은 False(보기만 — :func:`can_view_packing`).
+        관리자, 시공팀 직원 · 매니저, 카드 · 공정을 쓰는 생산팀 계정(파트 계정 · 반장 — 직원 · 매니저 같음)이면 True. 출고 · CS ·
+        영업 · 다른 팀은 False(보기만 — :func:`can_view_packing`). 파트도 반장도 아닌 생산팀은 매니저여도 False(사장님 2026-11-25).
     """
     if not _live(user):
         return False
@@ -72,7 +72,7 @@ def can_write_packing(user: Any) -> bool:
     if team_has_capability(team, PACKING_WRITE_TEAMS):
         return True
     if team_has_capability(team, PRODUCTION_TEAMS):
-        return role == "MANAGER" or bool(writable_factories(user))
+        return bool(writable_factories(user))
     return False
 
 
@@ -91,6 +91,15 @@ def packing_factories(user: Any) -> tuple[int, ...]:
     if is_production_account(user):
         return (user_factory(user),)
     return FACTORIES
+
+
+def single_factory_can_check(user: Any) -> list[int]:
+    """1공장뿐인 주문(옛 꼴) 응답의 ``can_check`` — 공장 꼴 응답의 ``can_check``(체크할 수 있는 공장들)와 같은 뜻.
+
+    모든 줄이 1공장 몫이라 1공장 줄을 체크하는 사람만 ``[1]``, 그 밖(보기만 · 2공장 생산팀 계정)은 ``[]``. 저장 문
+    (``packing_factory.require_first_factory``)과 같은 판정이다.
+    """
+    return [DEFAULT_FACTORY] if DEFAULT_FACTORY in packing_factories(user) else []
 
 
 def factory_forbidden_message(factory: int, mine: tuple[int, ...]) -> str:

@@ -101,12 +101,56 @@ def test_mixed_order_groups_sheet_lines_and_hardware(client):
 
 
 def test_plain_order_keeps_today_list_and_payload_keys(client):
-    """1공장뿐 — 지금 목록(제품마다 3줄), 응답 칸도 지금 그대로(공장 칸 없음)."""
+    """1공장뿐 — 지금 목록(제품마다 3줄), 응답 칸도 지금 그대로(공장 칸 없음) + 2026-11-25 can_check(체크할 수 있는 공장들) 하나."""
     _user(client, team="CONSTRUCTION")
     oid = _order(_sd(f2=()))
     data = client.get(URL.format(oid)).get_json()["data"]
-    assert set(data) == {"items", "checked_count", "issues_count", "total", "persisted", "departed_at", "departed_by_name"}
+    assert set(data) == {"items", "checked_count", "issues_count", "total", "persisted", "departed_at", "departed_by_name",
+                         "can_check"}
     assert [i["key"] for i in data["items"]][:3] == ["item0_body", "item0_door", "item0_hardware"]
+    assert data["can_check"] == [1]
+    saved = client.post(URL.format(oid), json={"updates": [{"key": "item0_body", "checked": True}]}).get_json()["data"]
+    assert saved["can_check"] == [1] and saved["checked_count"] == 1  # 저장 응답도 같은 칸
+
+
+@pytest.mark.parametrize("who,can_check,post_status", [
+    ({"role": "ADMIN", "team": "CS"}, [1], 200),
+    ({"team": "CONSTRUCTION"}, [1], 200),
+    ({"team": "PRODUCTION", "parts": ["cut"]}, [1], 200),  # 1공장 파트 계정
+    ({"role": "MANAGER", "team": "PRODUCTION", "lead": True}, [1], 200),  # 1공장 반장 매니저
+    ({"team": "PRODUCTION", "parts": ["edge"], "factory": 2}, [], 403),  # 2공장 생산 계정 = 옛 꼴은 보기만
+    ({"team": "SHIPMENT"}, [], 403),  # 보기만(출고 · CS · 영업)
+    ({"role": "MANAGER", "team": "SHIPMENT"}, [], 403),
+    ({"team": "CS"}, [], 403),
+    ({"team": "SALES"}, [], 403),
+    ({"role": "VIEWER", "team": "SHIPMENT"}, [], 403),
+])
+def test_plain_order_can_check_matches_save_gate(client, who, can_check, post_status):
+    """옛 꼴 GET can_check = 저장 문 판정 — 빈 목록이면 화면이 보기만 꼴(체크칸 꺼짐 · 누락 신고 · 줄 더하기 없음 · 출발 보고 꺼짐)."""
+    _user(client, **who)
+    oid = _order(_sd(f2=()))
+    res = client.get(URL.format(oid))
+    assert res.status_code == 200 and res.get_json()["data"]["can_check"] == can_check
+    saved = client.post(URL.format(oid), json={"updates": [{"key": "item0_body", "checked": True}]})
+    assert saved.status_code == post_status, saved.get_json()
+    if post_status == 403:
+        assert "packing" not in (_fresh(oid).get("shipment") or {})
+
+
+def test_production_manager_writes_only_as_part_or_lead(client):
+    """생산팀 매니저 — 파트 계정 · 반장일 때만 자기 공장 줄(사장님 규칙, 역할과 무관). 둘 다 아니면 보기만 생산팀 직원과 같게 GET · POST 403."""
+    oid = _order(_sd())
+    _user(client, role="MANAGER", team="PRODUCTION")
+    assert client.get(URL.format(oid)).status_code == 403
+    assert client.post(URL.format(oid), json={"updates": [{"key": "hardware:1", "checked": True}]}).status_code == 403
+    _user(client, role="MANAGER", team="PRODUCTION", parts=["edge"], factory=2)
+    data = client.get(URL.format(oid)).get_json()["data"]
+    assert data["can_check"] == [2] and [g["can_check"] for g in data["groups"]] == [False, True]
+    assert _check(client, oid, _keys(data, 2)[:1]).status_code == 200
+    refused = _check(client, oid, _keys(data, 1)[:1])
+    assert refused.status_code == 403 and refused.get_json()["data"]["code"] == "PACKING_FACTORY_FORBIDDEN"
+    _user(client, role="MANAGER", team="PRODUCTION", lead=True)
+    assert _check(client, oid, _keys(data, 1)[:1]).status_code == 200
 
 
 # --------------------------------------------------------------------------- #
@@ -304,7 +348,7 @@ def test_loaded_on_plain_order_is_refused(client):
 
 
 @pytest.mark.parametrize("role,team,status", [
-    ("MANAGER", "PRODUCTION", 200),  # 예전: POST 는 되는데 GET 403 — 이제 같이 됨
+    ("MANAGER", "PRODUCTION", 403),  # 파트도 반장도 아닌 생산팀 매니저 = 보기만 생산팀 직원과 같음(전판 200, 2026-11-25 고침)
     ("MANAGER", "DRAWING", 403),  # 2026-11-25: 쓰기가 닫혀 예전(3단계 전)처럼 목록도 못 엶(전판 200)
     ("VIEWER", "SHIPMENT", 200),  # 예전 읽기 문 그대로(조회 전용)
     ("STAFF", "SHIPMENT", 200),  # 2026-11-25 부터 보기만 — 목록은 그대로

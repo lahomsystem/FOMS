@@ -213,11 +213,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
     "ITEM_CONSTRUCTION_DONE_UNDO": _p("ITEM_CONSTRUCTION_DONE_UNDO", teams=("CS",),
                                       description="제품 '시공 끝' 되돌리기(items/<uid>/construction-done/undo) — ADMIN/MANAGER 또는 STAFF+CS(ACCOUNTING→CS). 영업 · 시공 · VIEWER deny."),
     # 출고 패킹 체크(사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만" — 2026-11-24 판의 출고 · CS · 영업 · 매니저 쓰기를 닫음):
-    # ADMIN · 시공팀 STAFF · MANAGER · 생산팀 파트 계정 · 반장 · 생산팀 MANAGER(자기 공장 줄만). 팀만 보는 엔진 순서로는 "생산팀 중 일부"를
+    # ADMIN · 시공팀 STAFF · MANAGER · 생산팀 파트 계정 · 반장(직원 · 매니저 같음, 자기 공장 줄만). 팀만 보는 엔진 순서로는 "생산팀 중 일부"를
     # 못 그려 게이트 함수 하나가 판정한다 — 패킹 API 읽기 문(GET) · 줄마다 공장 문 · 화면도 같은 모듈(packing_access)이다.
     "PACKING_WRITE": _p("PACKING_WRITE", teams=("CONSTRUCTION", "PRODUCTION"),
                         gate="foms.services.shipment.packing_access:can_write_packing",
-                        description="packing write(줄 체크 · 누락 신고 · 줄 더하기 · 상차 완료 · 출발 보고) — ADMIN, CONSTRUCTION STAFF · MANAGER, 생산팀 파트 계정 · 반장 · MANAGER(자기 공장 줄만 — 줄 공장 판정은 핸들러). 출고 · CS · 영업(프리랜서 포함) · 다른 팀 MANAGER · 파트도 반장도 아닌 생산팀 · VIEWER · 협력사 deny(2026-11-25)."),
+                        description="packing write(줄 체크 · 누락 신고 · 줄 더하기 · 상차 완료 · 출발 보고) — ADMIN, CONSTRUCTION STAFF · MANAGER, 생산팀 파트 계정 · 반장(STAFF · MANAGER 같음, 자기 공장 줄만 — 줄 공장 판정은 핸들러). 출고 · CS · 영업(프리랜서 포함) · 다른 팀 MANAGER · 파트도 반장도 아닌 생산팀(MANAGER 포함) · VIEWER · 협력사 deny(2026-11-25)."),
 
     # --- 도면 (§2.1 line 166-168) -------------------------------------------
     "DRAWING_ASSIGNED": _p("DRAWING_ASSIGNED", teams=("DRAWING",), assignment="DRAWING",

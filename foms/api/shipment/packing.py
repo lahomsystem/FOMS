@@ -44,7 +44,12 @@ from foms.services.orders.drawing_confirm_partial import is_item_cancelled
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.production.factory_constants import normalize_factory
 from foms.services.shipment import packing_factory as pf
-from foms.services.shipment.packing_access import PACKING_DENIED_MESSAGE, can_view_packing, packing_factories
+from foms.services.shipment.packing_access import (
+    PACKING_DENIED_MESSAGE,
+    can_view_packing,
+    packing_factories,
+    single_factory_can_check,
+)
 from foms.web.auth import get_request_user, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
@@ -53,8 +58,8 @@ from models import Order, OrderEvent
 logger = logging.getLogger(__name__)
 
 #: §2.1 canonical packing write 정책(AUTH-01). route manifest·UI 은닉·이 핸들러가 공유한다
-#: (사장님 2026-11-25 "생산 · 시공 · 관리자만": ADMIN · 시공팀 STAFF/MANAGER · 생산팀 파트 계정 · 반장 · MANAGER(자기 공장 줄);
-#: 출고 · CS · 영업 · 다른 팀 MANAGER · VIEWER deny — 판정 = 문지기 ``packing_access.can_write_packing``).
+#: (사장님 2026-11-25 "생산 · 시공 · 관리자만": ADMIN · 시공팀 STAFF/MANAGER · 생산팀 파트 계정 · 반장(자기 공장 줄);
+#: 출고 · CS · 영업 · 다른 팀 MANAGER · 파트도 반장도 아닌 생산팀 · VIEWER deny — 판정 = 문지기 ``packing_access.can_write_packing``).
 PACKING_WRITE_POLICY_ID = "PACKING_WRITE"
 
 
@@ -84,7 +89,7 @@ _ALLOWED_ISSUES = frozenset({"missing", "damaged", "short"})
 def _can_edit_packing(user: Any) -> bool:
     """출고 패킹 체크리스트를 열(GET) 수 있는 사용자인지 — ``packing_access.can_view_packing`` 한 곳.
 
-    쓰기 정책(``PACKING_WRITE`` 문지기 ``can_write_packing``)이 받는 사람은 모두 읽는다(생산팀 매니저 · 파트 계정 · 반장 포함). 거기에
+    쓰기 정책(``PACKING_WRITE`` 문지기 ``can_write_packing``)이 받는 사람은 모두 읽는다(생산팀 파트 계정 · 반장 포함). 거기에
     예전 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(VIEWER)은 보기만 그대로 둔다(2026-11-25).
     """
     return can_view_packing(user)
@@ -160,8 +165,13 @@ def _packing_payload(
     persisted: bool,
     departed_at: str | None = None,
     departed_by_name: str | None = None,
+    can_check: list[int] | None = None,
 ) -> dict[str, Any]:
-    """API 응답 data 블록을 구성한다(출발 보고 상태 departed_* 포함)."""
+    """API 응답 data 블록을 구성한다(출발 보고 상태 departed_* 포함).
+
+    ``can_check`` = 이 사람이 체크할 수 있는 공장들(``packing_access.single_factory_can_check`` — 공장 꼴 응답과 같은 뜻). 빈 목록이면
+    화면(``foms-packing.js``)이 보기만 꼴(체크칸 꺼짐 · 누락 신고 · 줄 더하기 없음 · 출발 보고 꺼짐)으로 그린다.
+    """
     checked = sum(1 for it in items if isinstance(it, dict) and it.get("checked"))
     issues = sum(1 for it in items if isinstance(it, dict) and it.get("issue"))
     return {
@@ -172,6 +182,7 @@ def _packing_payload(
         "persisted": persisted,
         "departed_at": departed_at,
         "departed_by_name": departed_by_name,
+        "can_check": list(can_check or []),
     }
 
 
@@ -189,14 +200,15 @@ def api_shipment_packing_get(order_id: int):
 
 def _read_payload(sd: dict[str, Any]) -> dict[str, Any]:
     """응답 data — 공장 꼴이면 공장 묶음(packing_factory, 이 요청이 이미 읽은 사용자로 공장 몫), 아니면 지금 꼴 그대로(칸 · 쿼리 그대로)."""
+    user = get_request_user(session.get("user_id"))
     if pf.is_factory_layout(sd):
-        return pf.factory_payload(sd, packing_factories(get_request_user(session.get("user_id"))))
+        return pf.factory_payload(sd, packing_factories(user))
     items, persisted = _load_packing_items(sd)
     shipment = sd.get("shipment") if isinstance(sd, dict) else None
     packing = shipment.get("packing") if isinstance(shipment, dict) else None
     departed_at = packing.get("departed_at") if isinstance(packing, dict) else None
     departed_by_name = packing.get("departed_by_name") if isinstance(packing, dict) else None
-    return _packing_payload(items, persisted, departed_at, departed_by_name)
+    return _packing_payload(items, persisted, departed_at, departed_by_name, single_factory_can_check(user))
 
 
 def _mutation_hashes(
@@ -467,13 +479,14 @@ def api_shipment_packing_save(order_id: int):
             items, _ = _load_packing_items(sd)
             packing = (sd.get("shipment") or {}).get("packing") or {}
             data = _packing_payload(
-                items, True, packing.get("departed_at"), packing.get("departed_by_name")
+                items, True, packing.get("departed_at"), packing.get("departed_by_name"), single_factory_can_check(user)
             )
     elif "data" in captured:
         data = captured["data"]
     else:
         data = _packing_payload(
-            captured["items"], True, captured.get("departed_at"), captured.get("departed_by_name")
+            captured["items"], True, captured.get("departed_at"), captured.get("departed_by_name"),
+            single_factory_can_check(user),
         )
     data["mutation_receipt"] = outcome.read_receipt_id
 

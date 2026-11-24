@@ -23,7 +23,12 @@ from db import db_session, engine
 from foms.services.construction.tablet_first import _packing_fields
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
-from foms.services.shipment.packing_access import can_view_packing, can_write_packing, packing_factories
+from foms.services.shipment.packing_access import (
+    can_view_packing,
+    can_write_packing,
+    packing_factories,
+    single_factory_can_check,
+)
 from models import Order, OrderScheduleDate, User
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,7 +52,11 @@ def _p(role="STAFF", team=None, *, parts=None, lead=False, factory=None, active=
     # 사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만" — 출고 · CS · 영업 · 다른 팀 매니저는 쓰기 True → False(전판 값은 줄 끝)
     (_p("MANAGER", "DRAWING"), False, False, ()),  # 전: True · True(GET 은 3단계 전처럼 다시 못 엶)
     (_p("MANAGER", None), False, False, ()),  # 팀 없는 매니저 — 전: True · True
-    (_p("MANAGER", "PRODUCTION"), True, True, (1,)),  # 생산팀 매니저는 그대로 · 자기 공장 몫
+    # 생산팀은 직원 · 매니저 모두 파트 계정 · 반장만 쓴다(사장님 규칙 — 역할과 무관, 2026-11-25 고침)
+    (_p("MANAGER", "PRODUCTION"), False, False, ()),  # 파트도 반장도 아님 = 보기만 생산팀 직원과 같음(전: True · True · (1,))
+    (_p("MANAGER", "PRODUCTION", parts=["cut"]), True, True, (1,)),  # 파트 있는 매니저 — 자기 공장 몫
+    (_p("MANAGER", "PRODUCTION", parts=["edge"], factory=2), True, True, (2,)),
+    (_p("MANAGER", "PRODUCTION", lead=True, factory=2), True, True, (2,)),  # 반장 매니저
     (_p("MANAGER", "CONSTRUCTION"), True, True, (1, 2)),
     (_p("MANAGER", "SHIPMENT"), False, True, ()),  # 보기만(전: True)
     (_p("MANAGER", "CS"), False, True, ()),
@@ -79,7 +88,9 @@ def test_permission_table(person, write, view, factories):
     (_p("STAFF", "PRODUCTION"), False),
     (_p("STAFF", "CONSTRUCTION"), True),
     (_p("MANAGER", "CONSTRUCTION"), True),
-    (_p("MANAGER", "PRODUCTION"), True),
+    (_p("MANAGER", "PRODUCTION"), False),  # 파트도 반장도 아닌 생산팀 매니저(전: True)
+    (_p("MANAGER", "PRODUCTION", parts=["cut"]), True),
+    (_p("MANAGER", "PRODUCTION", lead=True), True),
     (_p("ADMIN", None), True),
     (_p("VIEWER", "SHIPMENT"), False),
     (_p("STAFF", "DRAWING"), False),
@@ -93,6 +104,28 @@ def test_policy_gate_is_the_same_function(person, allowed):
     """정책 PACKING_WRITE 문지기 = can_write_packing(앞문 · 핸들러 · 화면이 한 함수)."""
     assert POLICY_REGISTRY["PACKING_WRITE"].gate == "foms.services.shipment.packing_access:can_write_packing"
     assert evaluate_policy(POLICY_REGISTRY["PACKING_WRITE"], person).allowed is allowed
+
+
+@pytest.mark.parametrize("person,can_check", [
+    (_p("ADMIN", None), [1]),
+    (_p("STAFF", "CONSTRUCTION"), [1]),
+    (_p("MANAGER", "CONSTRUCTION"), [1]),
+    (_p("STAFF", "PRODUCTION", parts=["cut"]), [1]),  # 1공장 파트 계정 — 옛 꼴 줄은 모두 1공장 몫
+    (_p("MANAGER", "PRODUCTION", lead=True), [1]),
+    (_p("STAFF", "PRODUCTION", parts=["edge"], factory=2), []),  # 2공장 생산 계정 = 옛 꼴은 보기만
+    (_p("MANAGER", "PRODUCTION", lead=True, factory=2), []),
+    (_p("MANAGER", "PRODUCTION"), []),
+    (_p("STAFF", "SHIPMENT"), []),  # 보기만(출고 · CS · 영업)
+    (_p("MANAGER", "SHIPMENT"), []),
+    (_p("STAFF", "CS"), []),
+    (_p("STAFF", "SALES"), []),
+    (_p("VIEWER", "SHIPMENT"), []),
+    (None, []),
+])
+def test_single_factory_can_check_table(person, can_check):
+    """옛 꼴(1공장뿐) 응답 can_check — 저장 문(require_first_factory: 1공장 몫)과 같은 판정, 공장 꼴 can_check 와 같은 뜻."""
+    assert single_factory_can_check(person) == can_check
+    assert (1 in packing_factories(person)) is bool(can_check)
 
 
 # --------------------------------------------------------------------------- #
