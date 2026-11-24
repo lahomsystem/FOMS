@@ -2155,7 +2155,7 @@
     {
       "path": "foms/api/shipment/packing.py",
       "endpoint": "api_shipment_packing_save",
-      "lineno": 232,
+      "lineno": 233,
       "methods": [
         "POST"
       ],

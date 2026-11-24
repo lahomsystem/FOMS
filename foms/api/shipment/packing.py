@@ -90,7 +90,8 @@ def _can_edit_packing(user: Any) -> bool:
     """출고 패킹 체크리스트를 열(GET) 수 있는 사용자인지 — ``packing_access.can_view_packing`` 한 곳.
 
     쓰기 정책(``PACKING_WRITE`` 문지기 ``can_write_packing``)이 받는 사람은 모두 읽는다(생산팀 파트 계정 · 반장 포함). 거기에
-    예전 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(VIEWER)은 보기만 그대로 둔다(2026-11-25).
+    예전 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(VIEWER)은 보기만 그대로 두고, 팀과 상관없이 켜진
+    MANAGER 도 보기만 연다(2026-11-25).
     """
     return can_view_packing(user)
 

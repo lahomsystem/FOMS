@@ -10,7 +10,10 @@
 * **공장 몫** = 생산팀 계정(관리자 아님)은 자기 계정 공장 줄만(``part_access.user_factory``), 그 밖 체크하는 사람은 두 공장. 2공장 장이
   없는 주문(옛 꼴)은 모든 줄이 1공장 몫이다(``packing_factory`` · :func:`single_factory_can_check` — 2공장 생산팀 계정은 보기만).
 * **보기(GET)** = 체크할 수 있는 사람 + 예전(3단계 전) 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 계정(직원 · 매니저 · 조회 전용)
-  — 화면으로 보던 사람은 그대로 본다. 다른 팀(도면 등) 매니저는 예전에도 목록을 못 열었다(GET 403) — 쓰기가 닫히므로 다시 403.
+  — 화면으로 보던 사람은 그대로 본다. + 역할이 MANAGER 인 켜진 계정(팀 무관 — 도면 · 팀 없음 · 파트도 반장도 아닌 생산팀 매니저 등).
+  이 매니저들은 운영(3단계 전)에는 POST 는 되고 GET 은 403 이던 사람들이다. 2026-11-25 부터 쓰기는 닫고 목록 보기는 연다
+  (사장님께 드린 선택지 "다른 팀 매니저는 패킹 목록을 보기만"). 파트도 반장도 아닌 생산팀 직원 · 도면 · 생산 · 팀 없는 조회 전용은
+  예전처럼 못 본다(GET 403 — 넓히지 않음).
 
 생산 쪽 규칙(``foms/services/production/part_access.py``)은 읽기만 한다(그 파일은 고치지 않는다).
 """
@@ -77,11 +80,16 @@ def can_write_packing(user: Any) -> bool:
 
 
 def can_view_packing(user: Any) -> bool:
-    """패킹 목록(GET)을 열 수 있는지 — 체크할 수 있는 사람 + 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(예전 읽기 문)."""
+    """패킹 목록(GET)을 열 수 있는지 — 체크할 수 있는 사람 + 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(예전 읽기 문)
+    + 팀과 상관없이 켜진 MANAGER(보기만 — 2026-11-25)."""
     if can_write_packing(user):
         return True
-    return (_live(user) and _role(user) in ("STAFF", "MANAGER", "VIEWER")
-            and team_has_capability(getattr(user, "team", None), PACKING_VIEW_TEAMS))
+    if not _live(user):
+        return False
+    role = _role(user)
+    if role == "MANAGER":
+        return True
+    return role in ("STAFF", "VIEWER") and team_has_capability(getattr(user, "team", None), PACKING_VIEW_TEAMS)
 
 
 def packing_factories(user: Any) -> tuple[int, ...]:

@@ -124,6 +124,9 @@ def test_plain_order_keeps_today_list_and_payload_keys(client):
     ({"team": "CS"}, [], 403),
     ({"team": "SALES"}, [], 403),
     ({"role": "VIEWER", "team": "SHIPMENT"}, [], 403),
+    ({"role": "MANAGER", "team": "DRAWING"}, [], 403),  # 매니저(팀 무관) = 보기만
+    ({"role": "MANAGER", "team": None}, [], 403),
+    ({"role": "MANAGER", "team": "PRODUCTION"}, [], 403),  # 파트도 반장도 아닌 생산팀 매니저
 ])
 def test_plain_order_can_check_matches_save_gate(client, who, can_check, post_status):
     """옛 꼴 GET can_check = 저장 문 판정 — 빈 목록이면 화면이 보기만 꼴(체크칸 꺼짐 · 누락 신고 · 줄 더하기 없음 · 출발 보고 꺼짐)."""
@@ -138,10 +141,11 @@ def test_plain_order_can_check_matches_save_gate(client, who, can_check, post_st
 
 
 def test_production_manager_writes_only_as_part_or_lead(client):
-    """생산팀 매니저 — 파트 계정 · 반장일 때만 자기 공장 줄(사장님 규칙, 역할과 무관). 둘 다 아니면 보기만 생산팀 직원과 같게 GET · POST 403."""
+    """생산팀 매니저 — 파트 계정 · 반장일 때만 자기 공장 줄(사장님 규칙, 역할과 무관). 둘 다 아니면 쓰기 403 · 목록은 매니저라 보기만."""
     oid = _order(_sd())
     _user(client, role="MANAGER", team="PRODUCTION")
-    assert client.get(URL.format(oid)).status_code == 403
+    seen = client.get(URL.format(oid))
+    assert seen.status_code == 200 and seen.get_json()["data"]["can_check"] == []
     assert client.post(URL.format(oid), json={"updates": [{"key": "hardware:1", "checked": True}]}).status_code == 403
     _user(client, role="MANAGER", team="PRODUCTION", parts=["edge"], factory=2)
     data = client.get(URL.format(oid)).get_json()["data"]
@@ -348,8 +352,11 @@ def test_loaded_on_plain_order_is_refused(client):
 
 
 @pytest.mark.parametrize("role,team,status", [
-    ("MANAGER", "PRODUCTION", 403),  # 파트도 반장도 아닌 생산팀 매니저 = 보기만 생산팀 직원과 같음(전판 200, 2026-11-25 고침)
-    ("MANAGER", "DRAWING", 403),  # 2026-11-25: 쓰기가 닫혀 예전(3단계 전)처럼 목록도 못 엶(전판 200)
+    ("MANAGER", "PRODUCTION", 200),  # 매니저는 팀과 상관없이 목록 보기만(p3k — 바로 앞 판 403)
+    ("MANAGER", "DRAWING", 200),  # 운영(3단계 전): POST 됨 · GET 403 → 2026-11-25 부터 쓰기 닫고 보기 엶
+    ("MANAGER", None, 200),
+    ("VIEWER", "DRAWING", 403),  # 도면 · 생산 · 팀 없는 조회 전용은 예전처럼 못 봄
+    ("VIEWER", None, 403),
     ("VIEWER", "SHIPMENT", 200),  # 예전 읽기 문 그대로(조회 전용)
     ("STAFF", "SHIPMENT", 200),  # 2026-11-25 부터 보기만 — 목록은 그대로
     ("MANAGER", "SHIPMENT", 200),
@@ -362,6 +369,20 @@ def test_loaded_on_plain_order_is_refused(client):
 def test_get_gate_matches_write_policy(client, role, team, status):
     _user(client, role=role, team=team)
     assert client.get(URL.format(_order(_sd()))).status_code == status
+
+
+@pytest.mark.parametrize("team", ["DRAWING", None, "PRODUCTION"])
+def test_any_team_manager_sees_factory_layout_view_only(client, team):
+    """매니저 × (도면 · 팀 없음 · 생산 파트 없음) — 공장 꼴도 GET 200 · can_check 빈 목록(묶음마다 거짓) · 줄 체크 · 상차 완료 403."""
+    _user(client, role="MANAGER", team=team)
+    oid = _order(_sd())
+    res = client.get(URL.format(oid))
+    assert res.status_code == 200, res.get_json()
+    data = res.get_json()["data"]
+    assert data["can_check"] == [] and [g["can_check"] for g in data["groups"]] == [False, False]
+    assert _check(client, oid, _keys(data, 1)[:1]).status_code == 403
+    assert client.post(URL.format(oid), json={"loaded": 1}).status_code == 403
+    assert "packing" not in (_fresh(oid).get("shipment") or {})
 
 
 # --------------------------------------------------------------------------- #
