@@ -5480,7 +5480,7 @@
     },
     {
       "path": "foms/services/production/complete_order.py",
-      "lineno": 235,
+      "lineno": 238,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -5489,7 +5489,7 @@
     },
     {
       "path": "foms/services/production/factory_complete.py",
-      "lineno": 200,
+      "lineno": 204,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
