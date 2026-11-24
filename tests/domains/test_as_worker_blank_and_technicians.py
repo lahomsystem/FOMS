@@ -99,3 +99,21 @@ def test_screens_are_wired() -> None:
     assert "as_technicians=settings.get('as_technicians')" in route
     api = _read("foms/api/cs/as_orders.py")
     assert "_confirmed_construction_worker_name" not in api and "cw_name" not in api
+
+
+def test_order_screen_adopts_the_cleared_workers_before_it_saves() -> None:
+    """주문 화면 AS 접수: 접수 응답의 시공자 값(비웠으면 빈 배열)을 화면 칸에 반영한 **뒤에** 주문을 저장한다.
+
+    2026-11-24 운영 제보 — 접수가 비운 직후(1초 뒤) 화면 저장이 칸에 남은 옛 시공자를 다시 써 넣었다
+    (원장: AS_RECEIVED 로 비움 → ORDER_STRUCTURED_SAVED 로 다시 채움).
+    """
+    js = _read("static/js/orders/erp-order-shared.js")
+    assert "function erpApplyAsRegisterWorkers(workers)" in js
+    helper = js[js.index("function erpApplyAsRegisterWorkers(workers)"):]
+    helper = helper[:helper.index("function erpConfirmConstructionWorkerOverwrite()")]
+    assert 'getElementById("erp-construction-workers")' in helper and "sd.shipment.construction_workers = names;" in helper
+    flow = js[js.index("/as/register`"):]
+    apply_at = flow.index("erpApplyAsRegisterWorkers(regData.construction_workers);")
+    assert apply_at < flow.index("await erpSaveStructured({ redirect: false });")
+    api = _read("foms/api/cs/as_orders.py")
+    assert '"construction_workers": shipment.get("construction_workers") or [],' in api  # 응답이 지금 값을 돌려준다

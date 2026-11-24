@@ -490,6 +490,19 @@ function erpConstructionWorkersEqual(left, right) {
     return true;
 }
 
+// AS 접수 응답의 시공자 값(서버가 비웠으면 빈 배열)을 주문 화면의 시공자 칸과 직전 저장값 기억에 반영한다.
+function erpApplyAsRegisterWorkers(workers) {
+    if (!Array.isArray(workers)) return;
+    var names = erpNormalizeConstructionWorkers(workers);
+    var inputEl = document.getElementById("erp-construction-workers");
+    if (inputEl) inputEl.value = erpFormatConstructionWorkers(names);
+    var sd = window.__erpLastStructuredData;
+    if (sd && typeof sd === "object") {
+        if (!sd.shipment || typeof sd.shipment !== "object" || Array.isArray(sd.shipment)) sd.shipment = {};
+        sd.shipment.construction_workers = names;
+    }
+}
+
 function erpConfirmConstructionWorkerOverwrite() {
     var inputEl = document.getElementById("erp-construction-workers");
     if (!inputEl) return true;
@@ -3841,6 +3854,10 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     if (typeof regData.mutation_version === 'number') {
                         window.__erpLastMutationVersion = regData.mutation_version;
                     }
+                    // 접수는 시공자 칸을 비운다(AS 는 원래 시공자가 갈 수도, 다른 시공자 · AS 기사가 갈 수도 있다 — 설계서
+                    // 2026-11-23-as-worker-blank-and-as-technicians). 서버가 돌려준 값으로 화면 칸과 기억해 둔 값을 맞춘다 —
+                    // 안 맞추면 바로 아래 저장(erpSaveStructured)이 화면에 남은 옛 시공자를 다시 써 넣는다(2026-11-24 운영 제보).
+                    erpApplyAsRegisterWorkers(regData.construction_workers);
                     if (isRegionalNow && shipDateVal) {
                         window.__erpShippingScheduledDate = shipDateVal;
                     }
