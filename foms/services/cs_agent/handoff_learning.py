@@ -24,6 +24,7 @@ WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 부르고, **밤(KST :d
    읽고, 그 상담의 차례들이 읽은 손님 사진 설명(:func:`.image_summaries.summaries_by_turn`)을 그 사진이 온 글 자리에 ``▶`` 줄로
    끼운다. 자 수 상한 안이면 전체를 한 번만 싣고 같은 상담의 다른 사례는 그 대화를 가리킨다. 넘으면 사례마다 그 손님 글을 가운데
    둔 앞뒤 대화 창. 대화를 못 읽으면 질문 앞 6줄. 조각마다 가림 검사 — 하나라도 걸리면 그 사례만 뺀다(``mask_dropped``).
+   이번 묶음 상담의 손님 사진 · 직원 그림은 사진 그 자체도 같이 보낸다(:mod:`.handoff_learning_photos` — 사장님 11-24).
 4. **두뇌**: 회사 지식 · 온톨로지 목록 · 이미 모아 둔 다른 말과 견줘 안을 구조화 출력으로. 부르기가 끝나면 보낸 차례를 '읽음'으로
    적는다(부르기가 실패하면 적지 않아 다음 바퀴 · 다음 밤에 다시 본다).
 5. **관문 · 넣기**(:mod:`.handoff_learning_route` · :mod:`.handoff_learning_onto`): 꼴 · 가림 · 근거 · 숫자 · 대상 · 같음 · 겹침 ·
@@ -56,6 +57,7 @@ from foms.services.cs_agent.full_conversation import MIN_CASE_CHARS, case_limit,
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD, EDIT_LEARN_FIELD, HANDOFF_LEARN_FIELD
 from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, open_cards, seen_proposals
 from foms.services.cs_agent.handoff_learning_onto import file_ontology
+from foms.services.cs_agent.handoff_learning_photos import BatchPhotos, batch_photos
 from foms.services.cs_agent.handoff_learning_pick import model_for, pick_batch
 from foms.services.cs_agent.handoff_learning_route import file_proposals
 from foms.services.cs_agent.handoff_learning_prompt import (
@@ -380,7 +382,7 @@ def _known(session: Any) -> str:
 
 
 def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], used: list[int], *, cfg: Any,
-             now: datetime.datetime, client: Any, counts: dict[str, Any], tier: str) -> None:
+             now: datetime.datetime, client: Any, counts: dict[str, Any], tier: str, images: Sequence[Any] = ()) -> None:
     """두뇌 → 읽음 표 → 관문 → 제안 길 · 바로 반영(모듈 설명 3 · 4)."""
     rows = knowledge_rows(session)
     knowledge, approved = knowledge_lines(rows), [row.text for row in rows if row.text]
@@ -389,7 +391,7 @@ def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], 
                              if status == CHANGE_OPEN][:MAX_PENDING])
     model, effort = model_for(tier)
     params = build_params(blocks, knowledge, pending, model=model, cfg=cfg, ontology=ontology,
-                          differs=differs_lines(open_cards(session)), effort=effort)
+                          differs=differs_lines(open_cards(session)), effort=effort, images=images)
     session.commit()
     called = call_learning(session, params, cfg=cfg, now=now, timeout_s=TIMEOUT_S, client=client)
     if not complete(called.response):  # 출력 상한에 끊김 · 거절 — 읽음으로 적지 않는다(안이 통째로 사라지지 않게)
@@ -433,13 +435,14 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     tier, cases = pick_batch(pool, photos, _cap(cfg))
     cases = cases[:max(1, len(cases) >> shrink)]  # 앞 바퀴 답이 끊겼으면 반씩 줄여 다시
     session.commit()  # 채널톡 읽기 동안 읽기 트랜잭션을 열어 두지 않는다
-    talks = _talks(reader, cfg, cases, photos)
+    pics = batch_photos(session, reader, cfg, cases, photos, brand=SEND_BRAND)  # 이 묶음 상담의 사진 그 자체
+    talks = _talks(pics.reader, cfg, cases, pics.marks)
     counts: dict[str, Any] = {"day": day, "tier": tier, "left": len(pool) - len(cases), "cases": len(cases),
                               "talks": len(talks), "mask_dropped": 0, "sent": 0, "proposed": 0, "filed": 0, "applied": 0,
                               "cards": 0, "fixed": 0, "new": 0, "added": 0, "same": 0, "decided": 0, "not_rule": 0,
-                              "held": 0, "promoted": 0, "blocked": {}, "halted": None}
+                              "held": 0, "promoted": 0, "blocked": {}, "halted": None, "photos": 0, "photo_skipped": {}}
     try:
-        _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts, tier=tier)
+        _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts, tier=tier, pics=pics)
     except Exception:  # 뜻밖의 오류 — 그 밤을 닫고 잠금을 푼 뒤 그대로 올린다(학습 몫이 길 이름 · 예외 종류만 적는다)
         session.rollback()
         close_day(session, day)
@@ -456,25 +459,28 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     release(session)
     logger.info("[CS 넘김 학습] day=%s tier=%s left=%d cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d "
                 "applied=%d cards=%d fixed=%d new=%d added=%d same=%d decided=%d not_rule=%d held=%d promoted=%d "
-                "blocked=%s halted=%s", day, tier, counts["left"], counts["cases"], counts["talks"], counts["mask_dropped"],
-                counts["sent"], counts["proposed"], counts["filed"], counts["applied"], counts["cards"], counts["fixed"],
-                counts["new"], counts["added"], counts["same"], counts["decided"], counts["not_rule"], counts["held"],
-                counts["promoted"], counts["blocked"], counts["halted"])
+                "blocked=%s halted=%s photos=%d photo_skipped=%s", day, tier, counts["left"], counts["cases"],
+                counts["talks"], counts["mask_dropped"], counts["sent"], counts["proposed"], counts["filed"],
+                counts["applied"], counts["cards"], counts["fixed"], counts["new"], counts["added"], counts["same"],
+                counts["decided"], counts["not_rule"], counts["held"], counts["promoted"], counts["blocked"],
+                counts["halted"], counts["photos"], counts["photo_skipped"])
     return counts
 
 
 def _run(session: Any, cases: list[dict[str, Any]], talks: dict[int, dict[str, Any]], *, cfg: Any,
-         now: datetime.datetime, client: Any, counts: dict[str, Any], tier: str) -> None:
-    """사례 줄 → 두뇌 → 넣기(:func:`run_handoff_learning` 의 가운데 — 수는 ``counts`` 에 채운다)."""
+         now: datetime.datetime, client: Any, counts: dict[str, Any], tier: str, pics: Optional[BatchPhotos] = None) -> None:
+    """사례 줄 → 두뇌 → 넣기(:func:`run_handoff_learning` 의 가운데 — 수는 ``counts`` 에 채운다). 사진은 보낼 사례 줄에 든
+    번호만 같이 보낸다(:meth:`.handoff_learning_photos.BatchPhotos.pick`)."""
     sent, blocks, dropped = _blocks(cases, talks)
     counts.update(mask_dropped=len(dropped), sent=len(sent))
     if len({case["chat_id"] for case in sent}) < EVIDENCE_MIN_CHATS:
         mark_used(session, dropped)
         counts["halted"] = "too_few_customers" if sent else None
     else:
+        images, counts["photos"], counts["photo_skipped"] = pics.pick(blocks) if pics is not None else ([], 0, {})
         try:
             _propose(session, sent, blocks, [*(case["turn_id"] for case in sent), *dropped], cfg=cfg, now=now,
-                     client=client, counts=counts, tier=tier)
+                     client=client, counts=counts, tier=tier, images=images)
         except MaskLeak:
             session.rollback()
             counts["halted"] = "mask_leak"

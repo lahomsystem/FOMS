@@ -3,7 +3,8 @@
 모두 메모리에서만 한다 — 임시 파일 · 로그 · 예외 글에 바이트를 싣지 않는다(D89). 결과는 보낼 바이트(:class:`Prepared`) 또는
 건너뜀 코드 하나다.
 
-- **그림**: JPEG · PNG · WebP 만(HEIC · GIF · 동영상은 ``skipped_format``). 원본 :data:`MAX_BYTES` 넘음 · 픽셀
+- **그림**: JPEG · PNG · WebP 만(HEIC · GIF · 동영상은 ``skipped_format``). 폰 카메라가 JPEG 뒤에 덧그림(깊이 · 밝기 지도)을
+  붙인 파일(Pillow 가 ``MPO`` 로 읽는다 — 운영 11-24: 꼴 탓 건너뜀의 큰 몫)은 첫 장만 JPEG 로 읽는다. 원본 :data:`MAX_BYTES` 넘음 · 픽셀
   :data:`MAX_PIXELS` 넘음은 ``skipped_size``(압축 폭탄 — 열기 전에 머리만 본다). JPEG 는 줄여 읽고(``draft``), 방향(EXIF)을
   바로잡고, 투명한 칸은 흰 바탕에 얹어(검은 칸이 되지 않게) 긴 변 :data:`LONG_EDGE` JPEG 로 다시 그린다 — 위치 정보 등 덧붙은
   칸은 이때 빠진다. 줄인 그림에서 얼굴을 세어 하나라도 있으면 ``skipped_face``, 거르기 고장이면 ``skipped_face_check``.
@@ -35,7 +36,9 @@ LONG_EDGE = 2000  # 시험과 같은 크기(Sonnet 계열 상한 2,576px 안)
 JPEG_QUALITY = 90
 SKIP_FORMAT, SKIP_SIZE, SKIP_CAP = "skipped_format", "skipped_size", "skipped_cap"
 SKIP_FACE, SKIP_FACE_CHECK, SKIP_PDF = "skipped_face", "skipped_face_check", "skipped_pdf"
-_PIL_FORMATS = frozenset(IMAGE_TYPES.values())
+#: 여러 장을 담은 JPEG(MPO — 폰 카메라 사진). 첫 장이 보통 사진이고 나머지 덧그림은 다시 그릴 때 빠진다.
+_MULTI_JPEG = "MPO"
+_PIL_FORMATS = frozenset({*IMAGE_TYPES.values(), _MULTI_JPEG})
 
 
 @dataclass(frozen=True)
@@ -78,8 +81,8 @@ def _faces(image) -> Optional[str]:
         return SKIP_FACE_CHECK
 
 
-def _redraw(data: bytes) -> Union[str, tuple[bytes, int, int, object]]:
-    """원본 → (JPEG 바이트, 가로, 세로, RGB 그림). 꼴 · 크기가 틀리면 건너뜀 코드."""
+def _redraw(data: bytes, long_edge: int = LONG_EDGE) -> Union[str, tuple[bytes, int, int, object]]:
+    """원본 → (긴 변 ``long_edge`` JPEG 바이트, 가로, 세로, RGB 그림). 꼴 · 크기가 틀리면 건너뜀 코드."""
     from PIL import Image, ImageOps, UnidentifiedImageError  # noqa: PLC0415
 
     try:
@@ -88,15 +91,15 @@ def _redraw(data: bytes) -> Union[str, tuple[bytes, int, int, object]]:
                 return SKIP_FORMAT
             if source.width * source.height > MAX_PIXELS:
                 return SKIP_SIZE
-            if source.format == "JPEG":
-                source.draft("RGB", (LONG_EDGE, LONG_EDGE))  # 줄여 읽기(메모리)
+            if source.format in ("JPEG", _MULTI_JPEG):
+                source.draft("RGB", (long_edge, long_edge))  # 줄여 읽기(메모리)
             image = ImageOps.exif_transpose(source)
             if image.mode in ("RGBA", "LA", "PA") or (image.mode == "P" and "transparency" in image.info):
                 rgba = image.convert("RGBA")
                 image = Image.new("RGB", rgba.size, (255, 255, 255))
                 image.paste(rgba, mask=rgba.getchannel("A"))
             image = image.convert("RGB")
-            image.thumbnail((LONG_EDGE, LONG_EDGE), Image.Resampling.LANCZOS)
+            image.thumbnail((long_edge, long_edge), Image.Resampling.LANCZOS)
             out = io.BytesIO()
             image.save(out, format="JPEG", quality=JPEG_QUALITY)
             return out.getvalue(), image.width, image.height, image
@@ -146,14 +149,16 @@ def _prepare_pdf(ref: FileRef, data: bytes, digest: str, *, page_cap: int, pdf_m
     return Prepared(ref=ref, kind="document", media_type=PDF_TYPE, data=data, sha256=digest, pages=scan.pages)
 
 
-def prepare(ref: FileRef, data: bytes, *, page_cap: int, pdf_max_bytes: int) -> Union[str, Prepared]:
-    """받은 바이트 → 보낼 준비(:class:`Prepared`) 또는 건너뜀 코드. 바이트는 이 함수 밖으로 그대로 넘기지 않는다."""
+def prepare(ref: FileRef, data: bytes, *, page_cap: int, pdf_max_bytes: int,
+            long_edge: int = LONG_EDGE) -> Union[str, Prepared]:
+    """받은 바이트 → 보낼 준비(:class:`Prepared`) 또는 건너뜀 코드. 바이트는 이 함수 밖으로 그대로 넘기지 않는다.
+    ``long_edge`` 는 그림의 긴 변(처음 값 :data:`LONG_EDGE` — 밤 배우기는 더 작게 준다)."""
     if len(data) > MAX_BYTES:
         return SKIP_SIZE
     digest = hashlib.sha256(data).hexdigest()
     if ref.content_type == PDF_TYPE:
         return _prepare_pdf(ref, data, digest, page_cap=page_cap, pdf_max_bytes=pdf_max_bytes)
-    drawn = _redraw(data)
+    drawn = _redraw(data, long_edge)
     if isinstance(drawn, str):
         return drawn
     jpeg, width, height, image = drawn

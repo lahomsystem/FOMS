@@ -82,6 +82,23 @@ def test_transparent_png_pixels_become_white_not_black(no_faces):
         assert again.convert("RGB").getpixel((150, 100))[0] > 240
 
 
+def test_a_phone_camera_photo_with_extra_frames_is_read_as_its_first_frame(no_faces):
+    """폰 카메라 사진(JPEG 뒤에 덧그림이 붙은 MPO) — 꼴 탓으로 버리지 않고 첫 장만 JPEG 로 다시 그린다(운영 11-24: 현장 사진이
+    통째로 버려졌다)."""
+    first, second = plan_image(3024, 4032), Image.new("RGB", (640, 480), (0, 0, 0))
+    out = io.BytesIO()
+    first.save(out, format="MPO", save_all=True, append_images=[second])
+    data = out.getvalue()
+    with Image.open(io.BytesIO(data)) as opened:
+        assert opened.format == "MPO" and opened.n_frames == 2  # Pillow 는 JPEG 가 아니라 MPO 라고 한다
+    got = run(data)
+    assert isinstance(got, prep.Prepared) and (got.kind, got.media_type) == ("image", "image/jpeg")
+    assert (got.width, got.height) == (1500, 2000)
+    with Image.open(io.BytesIO(got.data)) as sent:
+        assert sent.format == "JPEG" and getattr(sent, "n_frames", 1) == 1  # 덧그림은 나가지 않는다
+    assert no_faces == [(2000, 1500, 3)]  # 얼굴 거르기는 보내는 첫 장을 본다
+
+
 def test_formats_and_pixel_bombs_are_refused_after_opening(no_faces):
     assert run(encoded(plan_image(100, 100), "GIF"), "image/jpeg") == prep.SKIP_FORMAT  # 글은 JPEG 라 해도 실제 꼴로
     assert run(b"not an image") == prep.SKIP_FORMAT
