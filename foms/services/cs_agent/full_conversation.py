@@ -104,9 +104,10 @@ def next_page(data: Mapping[str, Any], params: Mapping[str, Any]) -> Optional[di
     return None
 
 
-def _pages(reader: Any, brand: str, chat_id: str, cap: int,
-           left: Optional[Callable[[], float]]) -> Optional[tuple[list[ChatLine], bool]]:
-    """새 글부터 쪽을 넘겨 ``cap`` 개까지 — (글들, 앞 글을 덜 읽었나). 첫 쪽이 실패하면 ``None``."""
+def _pages(reader: Any, brand: str, chat_id: str, cap: int, left: Optional[Callable[[], float]], *,
+           staff_files: bool = False) -> Optional[tuple[list[ChatLine], bool]]:
+    """새 글부터 쪽을 넘겨 ``cap`` 개까지 — (글들, 앞 글을 덜 읽었나). 첫 쪽이 실패하면 ``None``. ``staff_files`` 는
+    :func:`.drafting_read.parse_lines` 와 같다(공개 직원 글의 파일 정보도 — 밤 배우기만)."""
     path = f"/open/user-chats/{quote(chat_id, safe='')}/messages"
     params: dict[str, Any] = {"limit": min(MESSAGE_PAGE_LIMIT, cap), "sortOrder": "desc"}
     found: dict[str, ChatLine] = {}
@@ -120,7 +121,7 @@ def _pages(reader: Any, brand: str, chat_id: str, cap: int,
         items = data.get("messages") if isinstance(data.get("messages"), list) else []
         read += len(items)
         before = len(found)
-        for line in parse_lines(brand, chat_id, items):
+        for line in parse_lines(brand, chat_id, items, staff_files=staff_files):
             found.setdefault(line.meta.message_id, line)
         following = next_page(data, params)
         if following is None:

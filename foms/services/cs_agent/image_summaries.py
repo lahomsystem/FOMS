@@ -24,7 +24,7 @@ from foms.services.cs_agent.image_store import DONE
 from foms.services.cs_agent.masking import leak_counts
 from models import CsAgentImageRead
 
-__all__ = ["CHUNK", "LINE_LIMIT", "PER_TURN", "PhotoSummary", "row_note", "summaries_by_turn"]
+__all__ = ["CHUNK", "LINE_LIMIT", "PER_TURN", "PhotoSummary", "row_note", "row_summary", "summaries_by_turn"]
 
 LINE_LIMIT, PER_TURN, CHUNK = 120, 4, 500
 
@@ -59,6 +59,12 @@ def _summary(row: Any, limit: int) -> Optional[PhotoSummary]:
     body = " — ".join(part for part in (note.summary, note.about) if part)
     text = f"{KIND_LABELS[note.kind]}: {body}"[:limit].strip()
     return PhotoSummary(note.kind, text, str(row.message_id or "")) if not any(leak_counts(text).values()) else None
+
+
+def row_summary(row: Any, limit: int = LINE_LIMIT) -> Optional[PhotoSummary]:
+    """그림 줄 하나(상태 · sha256 · 결과 · 메시지 id 칸) → 그 사진의 한 줄(``limit`` 자). 밤 배우기(:mod:`.handoff_learning_photos`)
+    가 상담의 그림 줄을 차례 번호 없이 읽을 때 쓴다(직원 화면 줄은 그대로 :data:`LINE_LIMIT`)."""
+    return _summary(row, limit)
 
 
 def summaries_by_turn(session: Any, turn_ids: Sequence[int], *, per_turn: int = PER_TURN,

@@ -88,7 +88,8 @@ class ChatLine:
 
     ``person_id`` 는 공개 직원 글을 쓴 상담원 id(채널톡 ``personId`` — 사례 기억의 '직접 답한 상담원', ADMIN 만 본다)다.
     ``request_id`` 는 글을 쓴 쪽이 붙인 채널톡 ``requestId``(꼴이 맞을 때만) — [보내기] 결과를 모를 때 맞추는 표지다(C10-3).
-    ``files`` 는 손님 공개 글의 파일 정보(그림 읽기 — 설계서 17.11 (a))다. 파일 key 는 이 바퀴 메모리에만 있다.
+    ``files`` 는 손님 공개 글의 파일 정보(그림 읽기 — 설계서 17.11 (a))다(밤 배우기가 읽을 때만 공개 직원 글도 —
+    :func:`parse_lines`). 파일 key 는 이 바퀴 메모리에만 있다.
     ``store_product`` 는 톡톡 상품 문의 봇 글이면 그 상품 이름(:func:`store_product`), 아니면 빈 글이다.
     """
 
@@ -126,10 +127,12 @@ def read_lines(reader: Any, brand: str, chat_id: str) -> list[ChatLine]:
     return sorted(parse_lines(brand, chat_id, data.get("messages")), key=lambda line: line.key)
 
 
-def parse_lines(brand: str, chat_id: str, items: Any) -> list[ChatLine]:
+def parse_lines(brand: str, chat_id: str, items: Any, *, staff_files: bool = False) -> list[ChatLine]:
     """Open API 글 목록 한 쪽(``messages``) → 글들(받은 차례 그대로 — 꼴이 틀린 글 · 다른 상담 글은 뺀다).
 
-    :func:`read_lines` 와 전체 대화 읽기(:mod:`.full_conversation`)가 같이 쓴다.
+    :func:`read_lines` 와 전체 대화 읽기(:mod:`.full_conversation`)가 같이 쓴다. 파일 정보(``files``)는 손님 공개 글에만
+    붙인다. ``staff_files`` 면 공개 직원 글(:attr:`.channel_read.DerivedMessage.is_answer`)에도 붙인다 — 밤 배우기만 쓴다
+    (:mod:`.handoff_learning_photos`). 내부 메모 · 봇 · 기록 글에는 늘 붙이지 않는다.
 
     Raises:
         ValueError: 모르는 브랜드.
@@ -144,7 +147,8 @@ def parse_lines(brand: str, chat_id: str, items: Any) -> list[ChatLine]:
         if meta is not None and meta.chat_id == chat_id:
             text, person, request = item.get("plainText"), item.get("personId"), item.get("requestId")
             person_id = str(person).strip() if meta.is_answer and person is not None else ""
-            files = parse_files(meta.message_id, item) if meta.is_customer_signal and meta.has_file else ()
+            carries = meta.is_customer_signal or (staff_files and meta.is_answer)
+            files = parse_files(meta.message_id, item) if carries and meta.has_file else ()
             store = store_product(item) if meta.person_type == "bot" and not (meta.is_private or meta.is_log) else ""
             lines.append(ChatLine(meta, text if isinstance(text, str) else "",
                                   person_id if _PERSON_ID.fullmatch(person_id) else None,
