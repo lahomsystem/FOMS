@@ -78,14 +78,14 @@ def test_day_sheet_people_mark_as_technicians() -> None:
     people = {p["name"]: p for p in sheet["people"]}
     assert list(people) == ["가짜시공자", "가짜떠돌이", "가짜AS기사"]
     # 시공자 설정에도 있는 이름은 시공자다(자수 · 쉬는 날이 붙는다) — AS 기사 표식 없음.
-    assert people["가짜시공자"]["as_tech"] is False and people["가짜시공자"]["in_settings"] is True
+    assert "as_tech" not in people["가짜시공자"] and people["가짜시공자"]["in_settings"] is True
     assert people["가짜떠돌이"]["as_tech"] is True
     tech = people["가짜AS기사"]
     assert tech["as_tech"] is True and tech["count"] == 0 and tech["capacity"] is None and tech["off"] is False
     assert 1 <= tech["color_index"] <= 10
     # 안 넘기면(시공 탭 · 협력사 출고 탭) 지금 그대로 — AS 기사 줄이 없다.
     plain = build_tablet_day_sheet([_row(1, ["가짜시공자"])], settings, "2026-11-23")
-    assert [p["name"] for p in plain["people"]] == ["가짜시공자"] and plain["people"][0]["as_tech"] is False
+    assert [p["name"] for p in plain["people"]] == ["가짜시공자"] and "as_tech" not in plain["people"][0]
 
 
 def test_screens_are_wired() -> None:
@@ -117,3 +117,23 @@ def test_order_screen_adopts_the_cleared_workers_before_it_saves() -> None:
     assert apply_at < flow.index("await erpSaveStructured({ redirect: false });")
     api = _read("foms/api/cs/as_orders.py")
     assert '"construction_workers": shipment.get("construction_workers") or [],' in api  # 응답이 지금 값을 돌려준다
+
+
+def test_unassigned_as_rows_go_to_the_bottom_group() -> None:
+    """시공자 없는 시공 줄은 맨 위, 시공자 없는 AS 줄은 맨 아래 묶음(사장님 2026-11-24 "배정 안 된 AS 건은 하단 배치")."""
+    from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet, pc_card_rows
+
+    rows = [_row(1, [], status="AS_RECEIVED"), _row(2, ["가짜시공자"]), _row(3, []), _row(4, ["가짜시공자"], status="AS_RECEIVED"),
+            _row(5, [], status="AS_RECEIVED")]
+    sheet = build_tablet_day_sheet(rows, [{"name": "가짜시공자", "capacity": 60, "off_dates": []}], "2026-11-24")
+    order = [[r["order"].id for r in g["rows"]] for g in sheet["groups"]]
+    assert order == [[3], [2, 4], [1, 5]]
+    assert [(g["unassigned"], g["as_unassigned"]) for g in sheet["groups"]] == [(True, False), (False, False), (True, True)]
+    assert [r["no"] for g in sheet["groups"] for r in g["rows"]] == [1, 2, 3, 4, 5]
+    assert sheet["unassigned"] == 3  # 위 알약 숫자는 둘을 합친 수 그대로
+    cards = {o.id: o.pc_card for o in pc_card_rows(sheet)}
+    assert cards[3]["miss"] and not cards[3]["as_miss"] and cards[1]["miss"] and cards[1]["as_miss"] and cards[1]["count"] == 2
+    # 시공자 없는 줄이 AS 뿐이면 위 묶음 없이 아래 묶음만.
+    only_as = build_tablet_day_sheet([_row(1, [], status="AS_RECEIVED"), _row(2, ["가짜시공자"])], [], "2026-11-24")
+    assert [[r["order"].id for r in g["rows"]] for g in only_as["groups"]] == [[2], [1]]
+    assert "AS · " in _read("templates/shipment/partials/dashboard_main.html") and "g.as_unassigned" in _read("templates/shipment/partials/tablet_ship_grid.html")

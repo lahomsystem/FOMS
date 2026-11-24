@@ -53,7 +53,7 @@
   {# 밀도 토글(foms_density_target) 대상 id — 카드 묶음 전체에 data-foms-density 가 붙는다. #}
   <div id="foms-tablet-ship-grid" class="foms-tablet-shipgrid__list">
     {% for g in _sheet.groups %}
-    {% if g.unassigned %}<div class="foms-tablet-shipgrid__lbl">시공자 없음 {{ g.rows|length }}건</div>{% endif %}
+    {% if g.unassigned %}<div class="foms-tablet-shipgrid__lbl">{% if g.as_unassigned %}AS · {% endif %}시공자 없음 {{ g.rows|length }}건</div>{% endif %}
     <table class="foms-tablet-shipgrid foms-tablet-shipgrid__card{% if g.unassigned %} foms-tablet-shipgrid__card--miss{% endif %}">
       {{ _ship_cols() }}
       <tbody>
