@@ -1,12 +1,11 @@
 {#- 도면 장의 공장 — 고르는 칸 [1공장 | 2공장] · 2공장 표시(설계서 2026-11-23 §8-5, 3단계 ④).
     sf = workbench_factory_view 값(None 이면 부르지 않는다 — 화면 그대로). 고르는 칸은 도면팀 누구나 · 관리자이고 주문이
     아직 옮길 수 있는 단계일 때만(sf.can_set), 그 밖에는 2공장 장에만 표시(1공장은 표시 없음).
-    누르면 static/js/drawing/workbench-sheet-factory.js 가 API 로 바로 저장한다(confirm = 생산에 내려간 장 — 확인 창 먼저). -#}
-{% macro sf_control(sf, current, key='', sheet_id='', label='', confirm=false, wrap='dsf-tile') -%}
+    누르면 static/js/drawing/workbench-sheet-factory.js 가 API 로 바로 저장한다(생산에 내려간 장이면 서버가 확인을 물어 온다). -#}
+{% macro sf_control(sf, current, key='', sheet_id='', label='', wrap='dsf-tile') -%}
 {%- if sf.can_set -%}
 <div class="{{ wrap }}"><div class="dsf-sel" role="group" aria-label="공장 지정" data-dsf-sel data-order-id="{{ sf.order_id }}"
-  {%- if key %} data-key="{{ key }}"{% endif %}{% if sheet_id %} data-sheet-id="{{ sheet_id }}"{% endif %}
-  {%- if confirm %} data-confirm="1"{% endif %} data-label="{{ label }}"><button type="button" class="dsf-sel__b is-1" data-fac="1" aria-pressed="{{ 'false' if current == 2 else 'true' }}">1공장</button><button type="button" class="dsf-sel__b is-2" data-fac="2" aria-pressed="{{ 'true' if current == 2 else 'false' }}">2공장</button></div></div>
+  {%- if key %} data-key="{{ key }}"{% endif %}{% if sheet_id %} data-sheet-id="{{ sheet_id }}"{% endif %} data-label="{{ label }}"><button type="button" class="dsf-sel__b is-1" data-fac="1" aria-pressed="{{ 'false' if current == 2 else 'true' }}">1공장</button><button type="button" class="dsf-sel__b is-2" data-fac="2" aria-pressed="{{ 'true' if current == 2 else 'false' }}">2공장</button></div></div>
 {%- elif current == 2 -%}
 <div class="{{ wrap }}"><span class="dsf-chip">2공장</span></div>
 {%- endif -%}

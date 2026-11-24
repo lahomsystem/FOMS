@@ -3,16 +3,15 @@
 * 2공장 장이 하나도 없고 공장을 지정할 수도 없는 사람이면 ``None`` — 화면에 공장 그림이 하나도 생기지 않는다(지금 모습 그대로).
 * 고르는 칸(``can_set``)은 도면팀 누구나 + 관리자(:func:`~foms.services.orders.erp_policy_permissions.can_set_sheet_factory`)
   이고, 주문이 아직 옮길 수 있는 단계(생산까지)일 때만이다. 시공 대기 이후는 서버가 막으므로(409 ``ORDER_DONE``) 표시만 보인다.
-* 생산 단계에서 지금 확정 도면 장을 옮기면 확인 창을 먼저 띄운다(§4-13 표 둘째 줄) — 그 장의 시트 신원 · key 를 내려 준다.
-  막을지는 서버가 정한다(일이 시작된 장 · 공장 완료 · 단계) — 화면은 서버 글을 그대로 보인다.
+* 생산에 내려간 장인지(확인 창 §4-13 표 둘째 줄)는 화면이 연 때 값으로 가르지 않는다 — 화면이 ``confirmed: false`` 로 보내면
+  서버가 409 ``CONFIRM_REQUIRED`` 로 물어 온다(그 화면에서 새로 보낸 시트도 맞게). 막을지도 서버가 정한다(일이 시작된 장 · 공장
+  완료 · 단계) — 화면은 서버 글을 그대로 보인다.
 """
 from __future__ import annotations
 
 from typing import Any, Optional
 
-from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_factory import current_factories, factory_by_key, factory_by_sheet, has_second_factory
-from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.orders.stage_override import STAGE_FORWARD_RANK
 from foms.services.production.factory_constants import FACTORIES, factory_label
 
@@ -39,18 +38,6 @@ def split_text(sd: Any) -> str:
     return " · ".join(f"{factory_label(f)} {counts[f]}장" for f in FACTORIES if counts[f])
 
 
-def _production_sheet_ids(sd: Any, stage: Optional[str]) -> list[str]:
-    """생산 단계 주문의 지금 확정 도면 시트 신원(옮기기 전에 확인 창) — 생산이 아니면 빈 목록."""
-    if _stage_rank(stage) != _PRODUCTION_RANK:
-        return []
-    out: list[str] = []
-    for entry in resolve_final_drawing_files(sd):
-        sid = clean_sheet_id(entry.get("sheet_id"))
-        if sid and sid not in out:
-            out.append(sid)
-    return out
-
-
 def wizard_factory_view(sd: Any, *, can_set: bool, stage: Optional[str]) -> Optional[dict[str, Any]]:
     """마법사 페이지 설정 ``factory`` — 탭 앞 2공장 표시 · 도구 줄 공장 지정(§8-5 첫 두 줄).
 
@@ -60,13 +47,13 @@ def wizard_factory_view(sd: Any, *, can_set: bool, stage: Optional[str]) -> Opti
         stage: 주문 큰 단계(``read_main_stage``).
 
     Returns:
-        ``{can_set, by_sheet: {sheet_id: 2}, confirm_sheet_ids}`` 또는 None(2공장 시트가 없고 고를 수도 없음 — 화면 그대로).
+        ``{can_set, by_sheet: {sheet_id: 2}}`` 또는 None(2공장 시트가 없고 고를 수도 없음 — 화면 그대로).
     """
     by_sheet = factory_by_sheet(sd)
     can = bool(can_set and can_move_stage(stage))
     if not can and not by_sheet:
         return None
-    return {"can_set": can, "by_sheet": by_sheet, "confirm_sheet_ids": _production_sheet_ids(sd, stage) if can else []}
+    return {"can_set": can, "by_sheet": by_sheet}
 
 
 def workbench_factory_view(sd: Any, *, order_id: int, can_set: bool, stage: Optional[str]) -> Optional[dict[str, Any]]:
@@ -79,16 +66,13 @@ def workbench_factory_view(sd: Any, *, order_id: int, can_set: bool, stage: Opti
         stage: 주문 큰 단계(``read_main_stage``).
 
     Returns:
-        ``{order_id, can_set, by_key, by_sheet, split_text, production, confirm_sheet_ids}`` 또는 None
-        (2공장 장 · 시트가 없고 고를 수도 없음 — 화면 그대로).
+        ``{order_id, can_set, by_key, by_sheet, split_text}`` 또는 None(2공장 장 · 시트가 없고 고를 수도 없음 — 화면 그대로).
     """
     by_key, by_sheet = factory_by_key(sd), factory_by_sheet(sd)
     can = bool(can_set and can_move_stage(stage))
     if not can and not by_key and not by_sheet:
         return None
-    confirm_ids = _production_sheet_ids(sd, stage) if can else []
-    return {"order_id": int(order_id), "can_set": can, "by_key": by_key, "by_sheet": by_sheet, "split_text": split_text(sd),
-            "production": bool(can and _stage_rank(stage) == _PRODUCTION_RANK), "confirm_sheet_ids": confirm_ids}
+    return {"order_id": int(order_id), "can_set": can, "by_key": by_key, "by_sheet": by_sheet, "split_text": split_text(sd)}
 
 
 def pending_split_text(pending: list[dict[str, Any]], by_sheet: dict[str, int]) -> str:

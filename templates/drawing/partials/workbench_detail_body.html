@@ -68,7 +68,7 @@
     lower.endswith('.gif') or lower.endswith('.webp') or lower.endswith('.bmp') or lower.endswith('.svg') or
     lower.endswith('.heic') or lower.endswith('.heif') %}
     {% set is_rev = f.get('is_revision') if f is mapping else False %}
-    <div class="drawing-gateway-thumb-wrap me-2 mb-2 position-relative">
+    <div class="drawing-gateway-thumb-wrap me-2 mb-2 position-relative{% if sf and fkey %} dsf-wrap{% endif %}">
       {% if is_rev %}
       <span class="badge bg-danger position-absolute top-0 start-0 m-1 shadow-sm"
         style="font-size: 0.65rem; z-index: 5; opacity: 0.9;">수정완료</span>
@@ -87,7 +87,7 @@
       </div>
       {% endif %}
       <div class="small text-truncate mt-1" title="{{ fname }}" style="max-width: 110px;">{{ fname }}</div>
-      {%- if sf and fkey %}{{ sf_control(sf, sf.by_key.get(fkey, 1), key=fkey, label='도면 ' ~ loop.index ~ '/' ~ files|length ~ ' · ' ~ fname, confirm=sf.production) }}{% endif %}
+      {%- if sf and fkey %}{{ sf_control(sf, sf.by_key.get(fkey, 1), key=fkey, label='도면 ' ~ loop.index ~ '/' ~ files|length ~ ' · ' ~ fname) }}{% endif %}
       {% if download_url %}
       <a href="{{ download_url }}" target="_blank" rel="noopener" class="small text-muted">
         <i class="fas fa-download"></i>
@@ -1831,7 +1831,7 @@
                   <input type="checkbox" class="form-check-input dw-pending-checkbox" value="{{ p.sheet_id }}" checked>
                 </div>
               </label>
-              {%- if sheet_factory %}{{ sf_control(sheet_factory, sheet_factory.by_sheet.get(p.sheet_id, 1), sheet_id=p.sheet_id, label=p.sheet_name, confirm=(p.sheet_id in sheet_factory.confirm_sheet_ids), wrap='dsf-pending') }}{% endif %}
+              {%- if sheet_factory %}{{ sf_control(sheet_factory, sheet_factory.by_sheet.get(p.sheet_id, 1), sheet_id=p.sheet_id, label=p.sheet_name, wrap='dsf-pending') }}{% endif %}
             </div>
             {% endfor %}
           </div>
