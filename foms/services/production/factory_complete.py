@@ -99,7 +99,7 @@ def _factory_gate(db: Any, order: Optional[Order], user: Any, factory: int, done
 
 def _write_mark(db: Any, order: Order, user: Any, factory: int, done: bool, body: dict[str, Any],
                 idem_key: Optional[str], audit: AuditFn) -> Any:
-    """마지막이 아닌 공장 완료 · 공장 완료 취소 — 표지만(단계 그대로, 버전 +1, 이벤트 · 감사)."""
+    """마지막이 아닌 공장 완료 · 공장 완료 취소 — 표지만(단계 그대로, 버전 +1, 이벤트 · 감사). 다시 보냄(replay)은 바뀜 없음 · 감사 0."""
     order_id = int(order.id)
     user_id = getattr(user, "id", None)
     label = factory_label(factory)
@@ -120,18 +120,19 @@ def _write_mark(db: Any, order: Order, user: Any, factory: int, done: bool, body
         return {order_id: [f"ORDER_DETAIL:{order_id}", "ORDERS_INDEX"]}
 
     try:
-        execute_order_mutation(db, actor_user_id=user_id, policy_id=POLICY_FACTORY_DONE, order_ids=[order_id],
-                               scope_hash=_scope_hash(f"PRODUCTION_FACTORY_DONE:{factory}", order_id),
-                               request_hash=_request_hash(body), idempotency_key=idem_key, mutation=_mutate)
+        result = execute_order_mutation(db, actor_user_id=user_id, policy_id=POLICY_FACTORY_DONE, order_ids=[order_id],
+                                        scope_hash=_scope_hash(f"PRODUCTION_FACTORY_DONE:{factory}", order_id),
+                                        request_hash=_request_hash(body), idempotency_key=idem_key, mutation=_mutate)
     except RevisionError as exc:
         db.rollback()
         return _transition_error_response(exc)
-    audit(order, FACTORY_COMPLETED_EVENT if done else FACTORY_UNCOMPLETED_EVENT, user_id,
-          note=f"{label} 제작 완료" if done else f"{label} 완료 취소", extra={"factory": factory})
+    if not result.replayed:  # 같은 멱등 열쇠로 다시 온 요청(쓰기 0)은 감사 줄을 더 쓰지 않는다
+        audit(order, FACTORY_COMPLETED_EVENT if done else FACTORY_UNCOMPLETED_EVENT, user_id,
+              note=f"{label} 제작 완료" if done else f"{label} 완료 취소", extra={"factory": factory})
     db.commit()
     sd = _ensure_dict(order.structured_data)
     return jsonify({"success": True, "data": {"factory_done": factory_done_payload(sd), "stage": "PRODUCTION", "final": False,
-                                              "changed": True}, "error": None})
+                                              "changed": not result.replayed}, "error": None})
 
 
 def _final_complete(db: Any, order: Order, user: Any, sd: dict[str, Any], marks: list[Any], body: dict[str, Any],

@@ -49,6 +49,7 @@ from foms.services.orders.order_transition_service import TransitionError, trans
 from foms.services.orders.revision import RevisionError, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.production.factory_constants import FACTORIES
+from foms.services.production.factory_marks import clear_factory_marks, done_table
 from foms.services.production.order_write_helpers import (
     _close_current_production_run,
     _enrich_production_completed_event,
@@ -119,18 +120,12 @@ def factory_keys(sd: Any, factory: int) -> list[str]:
     return [entry["key"] for entry, f in current_factories(sd) if f == factory]
 
 
-def _done_table(sd: dict[str, Any]) -> dict[str, Any]:
-    production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
-    table = production.get(FACTORY_DONE_KEY)
-    return dict(table) if isinstance(table, dict) else {}
-
-
 def write_factory_done(sd: dict[str, Any], factory: int, user: Any, *, at_iso: Optional[str] = None) -> dict[str, Any]:
     """표지 하나를 ``sd``(부르는 쪽 deepcopy)에 쓴다 — 그때 그 공장 지금 장 key · 때 · 누른 사람(이름 스냅샷 · id)."""
     entry = {"keys": factory_keys(sd, factory), "at": at_iso or datetime.datetime.now(datetime.timezone.utc).isoformat(),
              "by_name": getattr(user, "name", None) or getattr(user, "username", None),
              "by_user_id": getattr(user, "id", None)}
-    table = _done_table(sd)
+    table = done_table(sd)
     table[str(factory)] = entry
     production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
     production[FACTORY_DONE_KEY] = table
@@ -153,25 +148,8 @@ def mark_remaining_factories(sd: dict[str, Any], user: Any) -> list[int]:
     return wrote
 
 
-def clear_factory_marks(sd: dict[str, Any], factories: Optional[Iterable[int]] = None) -> list[int]:
-    """표지를 지운다(제자리) — ``factories`` 가 None 이면 모두(재제작 · 제작 취소), 아니면 그 공장만(완료 취소).
-
-    Returns:
-        지운 공장 번호들(표지가 없던 공장은 빠진다).
-    """
-    table = _done_table(sd)
-    if not table:
-        return []
-    keys = [str(f) for f in (FACTORIES if factories is None else factories)]
-    removed = [int(k) for k in keys if table.pop(k, None) is not None]
-    if removed:
-        production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
-        if table:
-            production[FACTORY_DONE_KEY] = table
-        else:
-            production.pop(FACTORY_DONE_KEY, None)
-        sd["production"] = production
-    return removed
+#: 옛 이름(공장 완료 본문이 읽는다) — 표 사본은 아래층 한 곳(:mod:`foms.services.production.factory_marks`).
+_done_table = done_table
 
 
 def uncomplete_factories(user: Any, sd: Any, requested: Any) -> Optional[tuple[int, ...]]:
@@ -185,6 +163,28 @@ def uncomplete_factories(user: Any, sd: Any, requested: Any) -> Optional[tuple[i
         picked = tuple(f for f in FACTORIES if isinstance(requested, list) and f in requested)
         return picked or FACTORIES
     return (account_production_factory(user) or FACTORIES[0],)
+
+
+def reopen_after_uncomplete(user: Any, sd: dict[str, Any], requested: Any) -> list[int]:
+    """완료 취소(시공 대기 → 생산)가 공장 표지를 지운다 — 다시 열린 공장이 하나도 없으면 주문에 있는 공장을 모두 연다.
+
+    누른 사람 공장(관리자는 고른 공장)만 지우는 게 기본이다(§19 여섯째). 그 공장 장이 주문에 없으면(예: 장이 모두 2공장인데 1공장
+    계정이 누름) 아무것도 안 지워져 생산으로 돌아왔는데 모든 공장이 '완료'인 막다른 길이 된다 — 그때만 있는 공장 표지를 모두 지운다.
+
+    Args:
+        user: 누른 사람. sd: 부르는 쪽 deepcopy(제자리). requested: 몸 ``factories``(관리자만 뜻 있음).
+
+    Returns:
+        지운 공장 번호들(한 공장 주문은 빈 목록).
+    """
+    picked = uncomplete_factories(user, sd, requested)
+    if picked is None:
+        return []
+    removed = clear_factory_marks(sd, picked)
+    present = present_factories(sd)
+    if present and all(factory_done_entry(sd, f) is not None for f in present):
+        removed += [f for f in clear_factory_marks(sd, present) if f not in removed]
+    return removed
 
 
 # --------------------------------------------------------------------------- #

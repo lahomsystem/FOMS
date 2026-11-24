@@ -94,6 +94,7 @@
     return stepMsg(page, body.error || body.message || result.message);
   }
   function render(page, payload) {
+    page.dispatchEvent(new CustomEvent('foms:sheet-steps', { detail: payload || {} })); // 공정 응답 — 공장 단추(sheet-factory)가 다시 그린다
     stepMsg(page, '');
     var h = holder(page);
     var info = data(page);

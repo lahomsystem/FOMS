@@ -77,7 +77,8 @@ from foms.services.production.steps import (
 from foms.services.production.part_mark_gates import GateRefusal, step_cell_gate
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras  # noqa: F401  # complete_block_body = 판정 한 곳 재노출(위치 고정 시험)
-from foms.services.production.complete_order import clear_factory_marks, complete_production, uncomplete_factories
+from foms.services.production.complete_order import clear_factory_marks, complete_production, reopen_after_uncomplete
+from foms.services.production.factory_home import factory_step_fields
 from foms.services.production.order_write_helpers import (  # noqa: F401  # 옮긴 조각 — 옛 이름 그대로 다시 내보냄(시험 · 다른 생산 API)
     PRODUCTION_HOLD_HISTORY_CAP as _PRODUCTION_HOLD_HISTORY_CAP,
     _append_hold_history,
@@ -473,11 +474,11 @@ def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: An
     IN_PROGRESS 로, 없으면 신규 발급) — 버킷 = 단계 + run 이라 run 없이는 제작대기로 떨어진다.
 
     2공장(설계서 2026-11-23 §4-14 · §19 여섯째): 섞인 주문은 누른 사람 공장 표지만 지운다(관리자는 몸 ``factories`` 로 고름 — 기본
-    둘 다). 다른 공장은 완료 그대로 남는다. 한 공장 주문은 표지가 없어 지금 그대로.
+    둘 다). 다른 공장은 완료 그대로 남는다. 다시 열린 공장이 없으면 있는 공장을 모두 연다(막다른 길 막기). 한 공장 주문은 그대로.
     """
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     _append_stage_history(sd, "PRODUCTION", "완료 취소 (제작중 복귀)", user)
-    reopened = clear_factory_marks(sd, uncomplete_factories(user, sd, requested_factories) or ())
+    reopened = reopen_after_uncomplete(user, sd, requested_factories)
 
     production = sd.get("production") if isinstance(sd.get("production"), dict) else None
     rework = production.get("rework") if isinstance(production, dict) else None
@@ -1123,6 +1124,7 @@ def api_production_steps_get(order_id: int):
                 "locked": lock is not None,
                 "locked_note": lock.message if lock else None,
                 **step_api_extras(sd, marks),  # sheets(손 체크 확인 창 장 수) · parts(카드 3/5)
+                **factory_step_fields(sd, marks),  # 섞인 주문만 공장마다 준비 · 까닭(2공장 §4-14)
             },
         }
     )
@@ -1176,7 +1178,7 @@ def api_production_steps(order_id: int):
                                          "action": "PRODUCTION_STEP_CHECKED", "via": STEP_VIA_SHEET, "by_name": name}))
             captured["steps"] = steps
             captured["complete_ready"] = complete_ready(sd, marks)
-            captured["extras"] = step_api_extras(sd, marks)
+            captured["extras"] = {**step_api_extras(sd, marks), **factory_step_fields(sd, marks)}  # 공장 단추 다시 그리기(섞인 주문만)
             return {o.id: []}
 
         try:

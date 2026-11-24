@@ -5,7 +5,9 @@
  *  · 관리자 제작완료 단계 [1공장 완료 취소] · [2공장 완료 취소](data-foms-sheet-reopen = 공장) → POST …/production/uncomplete {factories:[공장]}
  *      (지금 [완료 취소]는 그대로 = 둘 다).
  * 묻기는 지금 [제작 완료] · [완료 취소]처럼 브라우저 확인 창 한 번. 성공하면 다시 받기(단계 · 공장 줄 · 단추가 서버 값으로).
- * 거절 · 연결 끊김은 상태 줄에 서버 글 그대로. 시트 루트마다 한 번 묶는다(data-foms-sheet-factory-bound). */
+ * 거절 · 연결 끊김은 상태 줄에 서버 글 그대로. 시트 루트마다 한 번 묶는다(data-foms-sheet-factory-bound).
+ * 공정 칸 손 체크 · 해제 뒤: 공정 API 응답의 factories({"2": {ready, why}})로 [N공장 제작 완료] 색 · 회색 까닭을 다시 그린다
+ * (sheet-parts.js 가 응답마다 'foms:sheet-steps' 를 시트 루트에 쏜다 — 작업 시트 본체 JS 는 손대지 않는다). */
 (function () {
   'use strict';
 
@@ -44,6 +46,18 @@
         say(r.text || OFFLINE, true);
       });
     }
+    page.addEventListener('foms:sheet-steps', function (e) {
+      var facs = (e.detail || {}).factories || {};
+      [].slice.call(page.querySelectorAll('[data-foms-sheet-factory][data-done="1"]')).forEach(function (btn) {
+        var info = facs[btn.getAttribute('data-foms-sheet-factory')];
+        if (!info) { return; }
+        btn.classList.toggle('foms-prod-page__btn--pri', !!info.ready);
+        btn.classList.toggle('foms-prod-page__btn--off', !info.ready);
+        if (info.ready) { btn.removeAttribute('aria-disabled'); btn.removeAttribute('data-foms-sheet-factory-why'); return; }
+        btn.setAttribute('aria-disabled', 'true');
+        btn.setAttribute('data-foms-sheet-factory-why', info.why || '');
+      });
+    });
     page.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || typeof t.closest !== 'function') { return; }
