@@ -194,8 +194,8 @@ def _screen_marks(db, tab: str, pane, rows: list, pc_view: bool, today):
 
     '도면 카드' 탭(판만)은 판이 그 장 줄을 읽게 None 을 돌려준다(쿼리 수 그대로). 그 밖 탭은 0.
     """
-    if tab == 'date' and pane is not None:
-        return read_screen_marks(db, list(pane.get('make_rows') or []), today)
+    if tab == 'date' and pane is not None:  # 남의 공장 줄(2공장 묶음)도 같은 한 번에 — 판이 그 카드 글을 같은 줄로 그린다
+        return read_screen_marks(db, [*(pane.get('make_rows') or []), *(pane.get('elsewhere_rows') or [])], today)
     if tab == 'all' and pc_view:
         read_screen_marks(db, rows, today)
     return None
