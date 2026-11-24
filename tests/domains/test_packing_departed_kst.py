@@ -41,7 +41,7 @@ def test_tablet_departed_time_is_kst(raw, shown):
 
 def test_tablet_departed_after_real_report_matches_kst_clock(client):
     """실제 출발 보고(API) 뒤 — 태블릿 글 = 저장한 UTC 시각을 한국 시각으로."""
-    u = User(username="kst-ship", password=generate_password_hash("x"), role="STAFF", team="SHIPMENT", name="가짜출고",
+    u = User(username="kst-ship", password=generate_password_hash("x"), role="STAFF", team="CONSTRUCTION", name="가짜시공",
              is_active=True)
     db_session.add(u)
     o = Order(received_date=get_today_kst().isoformat(), customer_name="가짜", phone="010-0000-0000", address="가짜시",

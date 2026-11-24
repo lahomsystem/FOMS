@@ -111,7 +111,7 @@ def _derived_keys(client, oid):
 # --------------------------------------------------------------------------
 def test_packing_save_bumps_version_and_writes_receipt(client, app):
     """체크 저장은 mutation_version++ · receipt 1 · OrderEvent(PACKING_UPDATED) 1 을 한 tx 에."""
-    _login(client, username="pk-onetx", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-onetx", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -136,7 +136,7 @@ def test_packing_save_bumps_version_and_writes_receipt(client, app):
 
 def test_packing_save_leaves_other_axes_unchanged(client, app):
     """packing 갱신 후 canonical 5축(main/logistics/hold/AS/delete) 완전 불변(orthogonal)."""
-    _login(client, username="pk-orth", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-orth", role="STAFF", team="CONSTRUCTION")
     oid = _make_order(
         structured_data={
             "workflow": {"stage": "SHIPMENT", "hold": {"active": True, "reason": "대기"}},
@@ -163,7 +163,7 @@ def test_packing_save_leaves_other_axes_unchanged(client, app):
 # --------------------------------------------------------------------------
 def test_packing_save_same_idempotency_key_writes_once(client, app):
     """같은 Idempotency-Key 재요청은 replay — 항목 추가 1 · event 1 · version 1회 bump."""
-    _login(client, username="pk-idem", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-idem", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     base_total = client.get(_url(oid)).get_json()["data"]["total"]
@@ -194,7 +194,7 @@ def test_packing_save_same_idempotency_key_writes_once(client, app):
 # --------------------------------------------------------------------------
 def test_packing_save_stale_if_match_conflicts_and_no_change(client, app):
     """stale If-Match → 409 · packing/version/event 완전 불변."""
-    _login(client, username="pk-stale", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-stale", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -214,7 +214,7 @@ def test_packing_save_stale_if_match_conflicts_and_no_change(client, app):
 
 def test_packing_save_matching_if_match_succeeds(client, app):
     """정확한 If-Match(현재 version) → 200 저장."""
-    _login(client, username="pk-match", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-match", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     current = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -233,7 +233,7 @@ def test_packing_save_matching_if_match_succeeds(client, app):
 # --------------------------------------------------------------------------
 def test_departed_gate_400_leaves_no_write(client, app):
     """전 항목 체크 전 출발 보고 → 400 · departed 미기록 · version 불변 · event 0(우회 차단)."""
-    _login(client, username="pk-depart-gate", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-depart-gate", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -256,19 +256,18 @@ def test_departed_gate_400_leaves_no_write(client, app):
 
 
 # --------------------------------------------------------------------------
-# 권한 (AUTH-01 PACKING_WRITE) — SHIPMENT team-wide + CONSTRUCTION, 그 외 deny
-# (2026-11-24 생산팀 파트 계정 · 반장 허용 — 자기 공장 줄만: test_packing_factory_api.py · test_packing_factory_screens.py)
+# 권한 (AUTH-01 PACKING_WRITE) — 사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만": ADMIN · 시공팀 STAFF/MANAGER ·
+# 생산팀 MANAGER · 파트 계정 · 반장(자기 공장 줄만: test_packing_factory_api.py · test_packing_factory_screens.py), 그 외 deny.
+# 출고 · CS · 영업 STAFF · 다른 팀 MANAGER 는 2026-11-24 판까지 200 이었다 — 아래 deny 표로 옮김(목록 보기는 그대로).
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("role,team", [
-    ("STAFF", "SHIPMENT"),
     ("STAFF", "CONSTRUCTION"),
-    ("STAFF", "CS"),
-    ("STAFF", "SALES"),
+    ("MANAGER", "CONSTRUCTION"),
+    ("MANAGER", "PRODUCTION"),
     ("ADMIN", None),
-    ("MANAGER", None),
 ])
 def test_packing_allows_eligible_actors(client, app, policy_on, role, team):
-    """SHIPMENT/CONSTRUCTION/CS/SALES STAFF · ADMIN · MANAGER 는 packing 제출 200.
+    """시공팀 STAFF · MANAGER · 생산팀 MANAGER · ADMIN 은 packing 제출 200.
 
     파생 key 는 결정적(``item{idx}_body`` 등)이라 GET(로컬 read 게이트) 없이 직접 쓴다 —
     write 정책과 read 게이트의 대상 팀이 달라 GET 을 헬퍼로 쓰면 write 권한 판정이 오염된다.
@@ -285,9 +284,16 @@ def test_packing_allows_eligible_actors(client, app, policy_on, role, team):
     ("VIEWER", "SHIPMENT"),  # VIEWER 는 team 무관 hard deny(현 로컬 게이트의 team-only 허점 봉합)
     ("STAFF", "DRAWING"),
     ("STAFF", "PRODUCTION"),  # 파트도 반장도 아닌 생산팀(보기만) — 파트 계정 · 반장은 2026-11-24 부터 허용
+    ("STAFF", "SHIPMENT"),  # 2026-11-25 부터 보기만(전: 200)
+    ("STAFF", "CS"),
+    ("STAFF", "ACCOUNTING"),  # CS 별칭
+    ("STAFF", "SALES"),
+    ("MANAGER", None),  # 팀 없는 · 다른 팀 MANAGER(전: 200)
+    ("MANAGER", "SHIPMENT"),
+    ("MANAGER", "DRAWING"),
 ])
 def test_packing_denies_ineligible_actors(client, app, policy_on, role, team):
-    """VIEWER·타팀(DRAWING) · 보기만 생산팀 STAFF 는 403 · DB/event/receipt 0."""
+    """VIEWER · 타팀(DRAWING) · 보기만 생산팀 STAFF · 출고 · CS · 영업 STAFF · 다른 팀 MANAGER 는 403 · DB/event/receipt 0."""
     _login(client, username=f"no-{role}-{team}", role=role, team=team)
     oid = _make_order()
     resp = client.post(_url(oid), json={"updates": [{"key": "item0_body", "checked": True}]})

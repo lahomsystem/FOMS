@@ -53,8 +53,8 @@ from models import Order, OrderEvent
 logger = logging.getLogger(__name__)
 
 #: §2.1 canonical packing write 정책(AUTH-01). route manifest·UI 은닉·이 핸들러가 공유한다
-#: (CS/SALES/SHIPMENT/CONSTRUCTION team-wide 또는 ADMIN/MANAGER + 생산팀 파트 계정 · 반장(자기 공장 줄); VIEWER hard deny —
-#: 판정 = 문지기 ``packing_access.can_write_packing``).
+#: (사장님 2026-11-25 "생산 · 시공 · 관리자만": ADMIN · 시공팀 STAFF/MANAGER · 생산팀 파트 계정 · 반장 · MANAGER(자기 공장 줄);
+#: 출고 · CS · 영업 · 다른 팀 MANAGER · VIEWER deny — 판정 = 문지기 ``packing_access.can_write_packing``).
 PACKING_WRITE_POLICY_ID = "PACKING_WRITE"
 
 
@@ -84,8 +84,8 @@ _ALLOWED_ISSUES = frozenset({"missing", "damaged", "short"})
 def _can_edit_packing(user: Any) -> bool:
     """출고 패킹 체크리스트를 열(GET) 수 있는 사용자인지 — ``packing_access.can_view_packing`` 한 곳.
 
-    쓰기 정책(``PACKING_WRITE`` 문지기 ``can_write_packing``)이 받는 사람은 모두 읽는다(예전엔 다른 팀 매니저 · 생산팀이 POST 는 되는데
-    GET 이 403 이었다). 거기에 예전 읽기 문이 열어 주던 출고 · CS · 영업 · 시공 팀 조회 전용(VIEWER)을 그대로 둔다.
+    쓰기 정책(``PACKING_WRITE`` 문지기 ``can_write_packing``)이 받는 사람은 모두 읽는다(생산팀 매니저 · 파트 계정 · 반장 포함). 거기에
+    예전 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(VIEWER)은 보기만 그대로 둔다(2026-11-25).
     """
     return can_view_packing(user)
 
