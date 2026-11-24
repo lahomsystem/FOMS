@@ -87,11 +87,17 @@ def test_새_JS_는_300줄_아래_읽기는_try_catch_와_success_검사() -> No
     assert "'release'" in write  # 완료가 막히면 맡기만 남지 않게 되돌린다
     # [체크 해제] 뒤 담당이 나면 맡기 취소까지 · 남의 장은 완료 취소만(둘째 판)
     assert "m.picked_by_user_id !== d.me" in write and "return mark(d, r.key, 'release', 'need', d.me);" in write
+    assert "if (!r.undo_releases ||" in write  # 맡기 취소까지는 서버가 준 판정(2분)일 때만(셋째 판 4)
+    assert "return rel.ok ? fin : rel;" in write  # [체크] 완료가 막히면 맡기 취소 결과까지 기다리고, 그것도 막히면 뒤 글(셋째 판 5)
+    # 쓰는 중에는 닫기 · Esc · 바깥 누름 모두 막고 10초 넘으면 푼다(셋째 판 2) · 첫 화면 제작 완료 뒤 닫으면 [다시 받기] 길(셋째 판 3)
+    assert "if (box.hidden || S.busy) { return; }" in view and "var BUSY_MS = 10000;" in view and "'[data-foms-pc-sheet-act], .fpc-sheet__x'" in view
+    assert "res.reload = true;" in write and "root.querySelector('[data-foms-home-reload]')" in write
+    assert "if (writer() && r.act)" in view  # 단추는 서버 act 만 따른다(막힌 장은 서버가 비움)
     # "제작 완료할까요?" — 태블릿 창과 같은 본문 · 0.8초 잠금 · 지금 제작 완료 API
     assert "장이 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요." in write and "var LOCK_MS = 800;" in write
     assert "/production/complete" in write and "res.data.order_ready && W.ask(box, S.data)" in view
     # 작업 시트: 칸 누름은 붙잡는 단계에서 받고 밖으로 안 보냄 · 쓰고 닫으면 공정 줄을 서버 값으로(단계가 바뀌면 통째)
-    assert "}, true);" in view and view.count("e.stopPropagation();") == 2 and "window.FomsPcSheetWrite.afterClose(root)" in view
+    assert "}, true);" in view and view.count("e.stopPropagation();") == 2 and "window.FomsPcSheetWrite.afterClose(root, S.reload)" in view
     assert "data-foms-prod-page-stage" in write and "window.location.reload()" in write
     sheet = (ROOT / "static/js/production/foms-production-sheet-parts.js").read_text(encoding="utf-8")
     assert "renderLog: renderLog" in sheet

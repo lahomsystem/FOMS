@@ -2,6 +2,6 @@
    parts.css = 도면 카드 판(.pp-modal 확인 창 꼴 포함). '내 공정' 판은 확인 창을 뺐다(2026-11-22 — 두 번 누름 + 되돌리기). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261123v">
 {% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261124a">
-{% endif %}{% if pc_view %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261124q">
+{% endif %}{% if pc_view %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261124r">
 {% if tab in ('date', 'all') %}{# PC 도면 목록 창 겉틀 = 공용 사유 시트(2026-11-24) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">
 {% endif %}{% endif %}

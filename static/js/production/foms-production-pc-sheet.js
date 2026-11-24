@@ -18,8 +18,9 @@
 
   var OFFLINE = '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.';
   var WAIT = '불러오는 중…', SAVING = '저장하는 중…';
+  var BUSY_MS = 10000; // 쓰는 중 닫기를 막는 가장 긴 시간 — 요청이 이보다 오래 안 끝나면 닫기 · 단추를 푼다
   var LABELS = { cut: '재단', edge: '엣지', assemble: '조립', inspect: '검수' };
-  var S = { id: '', part: '', opener: null, data: null, seq: 0, busy: false, dirty: false, sig: {} };
+  var S = { id: '', part: '', opener: null, data: null, seq: 0, busy: false, dirty: false, reload: false, busyTimer: 0, sig: {} };
   function toArr(list) { return [].slice.call(list || []); }
   function q(sel) { return box.querySelector(sel); }
   function el(tag, cls, text) { var n = document.createElement(tag); n.className = cls || ''; if (text != null) { n.textContent = text; } return n; }
@@ -64,22 +65,17 @@
     li.setAttribute('data-key', r.key);
     li.appendChild(picNode(r));
     var main = el('div', 'fpc-sheet__main');
-    var nm = el('p', 'fpc-sheet__nm');
+    var nm = main.appendChild(el('p', 'fpc-sheet__nm'));
     nm.appendChild(el('b', '', r.label));
     nm.appendChild(el('span', '', r.item));
-    main.appendChild(nm);
     var meta = [r.holder, r.done].filter(Boolean);
-    if (meta.length) {
-      var m = el('p', 'fpc-sheet__meta');
-      meta.forEach(function (t) { m.appendChild(el('span', '', t)); });
-      main.appendChild(m);
-    }
+    var m = meta.length ? main.appendChild(el('p', 'fpc-sheet__meta')) : null;
+    meta.forEach(function (t) { m.appendChild(el('span', '', t)); });
     if (r.handed) { main.appendChild(el('p', 'fpc-sheet__chg', r.handed)); }
-    if (r.block) { main.appendChild(el('p', 'fpc-sheet__blk is-' + r.block.kind, r.block.text)); }
-    var err = el('p', 'fpc-sheet__err');
+    // 막힌 미완료 장 = 막힘 글(+ 까닭은 마우스 글)만 — 서버가 act 를 비워 단추가 없다(태블릿 판과 같은 뜻, 셋째 판)
+    if (r.block) { main.appendChild(el('p', 'fpc-sheet__blk is-' + r.block.kind, r.block.text)).title = r.block.why || ''; }
+    var err = main.appendChild(Object.assign(el('p', 'fpc-sheet__err'), { hidden: true }));
     err.setAttribute('role', 'alert');
-    err.hidden = true;
-    main.appendChild(err);
     li.appendChild(main);
     var st = el('span', 'fpc-sheet__st is-' + r.state, r.word);
     if (r.note) { st.appendChild(el('small', '', r.note)); }
@@ -123,16 +119,11 @@
   function renderLog(r) {
     var list = q('[data-foms-pc-sheet-log]');
     var sp = window.FomsSheetParts;
-    var show = !!(sp && sp.renderLog);
-    list.hidden = !show;
-    q('[data-foms-pc-sheet-loghead]').hidden = !show;
-    if (!show) { return; }
-    if (!ok(r)) {
-      list.textContent = '';
-      list.appendChild(el('li', '', r && r.status === 0 ? OFFLINE : '기록을 못 불러왔어요. 다시 눌러 주세요.'));
-      return;
-    }
-    sp.renderLog(list, r.body.data.items || [], (S.data && S.data.keys) || []);
+    list.hidden = q('[data-foms-pc-sheet-loghead]').hidden = !(sp && sp.renderLog);
+    if (list.hidden) { return; }
+    if (ok(r)) { sp.renderLog(list, r.body.data.items || [], (S.data && S.data.keys) || []); return; }
+    list.textContent = '';
+    list.appendChild(el('li', '', r && r.status === 0 ? OFFLINE : '기록을 못 불러왔어요. 다시 눌러 주세요.'));
   }
 
   // 뒤의 PC 줄 — 서버가 첫 화면과 같은 매크로로 그린 공정 칸 · 상태 칸을 바꿔 끼운다(늦음 · 빠듯 테두리도)
@@ -172,7 +163,8 @@
     S.opener = cell;
     S.data = null;
     S.sig = {};
-    S.busy = S.dirty = false;
+    S.busy = S.dirty = S.reload = false;
+    window.clearTimeout(S.busyTimer);
     var name = row.querySelector('.fpc-nm b');
     q('[data-foms-pc-sheet-title]').textContent = LABELS[S.part] || S.part;
     q('[data-foms-pc-sheet-sub]').textContent = (name ? name.textContent : '') + ' #' + S.id;
@@ -193,13 +185,13 @@
   function cellOf(id, part) {
     return root.querySelector((root.hasAttribute('data-foms-prod-home') ? '[data-foms-home-dayrow="' + id + '"] ' : '') + '[data-foms-pc-sheet="' + part + '"]');
   }
-  function close() {
-    if (box.hidden) { return; }
+  function close() { // 쓰는 중(단추 · Esc · 바깥 누름 모두)에는 닫지 않는다 — 끝나야 뒤 줄 · 작업 시트 다시 그리기 · 물음이 이어진다(셋째 판 2)
+    if (box.hidden || S.busy) { return; }
     S.seq += 1;
     box.hidden = true;
     box.setAttribute('aria-hidden', 'true');
     q('[data-foms-pc-sheet-tools]').textContent = ''; // [모두 체크](data-foms-sheet-step)를 남기지 않는다
-    if (S.dirty && window.FomsPcSheetWrite) { window.FomsPcSheetWrite.afterClose(root); } // 작업 시트는 공정 줄을 서버 값으로
+    if (S.dirty && window.FomsPcSheetWrite) { window.FomsPcSheetWrite.afterClose(root, S.reload); } // 작업 시트 공정 줄 · 제작 완료 뒤 첫 화면
     var back = S.opener && document.contains(S.opener) ? S.opener : cellOf(S.id, S.part); // 칸을 바꿔 끼웠으면 새 칸으로
     if (back) { back.focus(); }
   }
@@ -207,7 +199,9 @@
   // ── 쓰기 단추 — 쓰기는 foms-production-pc-sheet-write.js(있는 쓰기 길). 두 번 누름은 버리고, 끝나면 다시 받아 서버 모습으로 ──
   function setBusy(on, btn) {
     S.busy = on;
-    toArr(box.querySelectorAll('[data-foms-pc-sheet-act]')).forEach(function (b) {
+    window.clearTimeout(S.busyTimer);
+    if (on) { S.busyTimer = window.setTimeout(function () { setBusy(false); }, BUSY_MS); }
+    toArr(box.querySelectorAll('[data-foms-pc-sheet-act], .fpc-sheet__x')).forEach(function (b) {
       b.classList.toggle('is-wait', on);
       if (on) { b.setAttribute('aria-disabled', 'true'); } else { b.removeAttribute('aria-disabled'); b.textContent = b.getAttribute('data-label'); }
     });
@@ -232,6 +226,7 @@
     var W = window.FomsPcSheetWrite;
     return promise.then(function (res) {
       S.dirty = true;
+      S.reload = S.reload || !!(res && res.reload); // 첫 화면에서 제작 완료 — 줄이 생산을 벗어나 닫을 때 [다시 받기] 길로
       return load(true).then(function () {
         if (seq !== S.seq) { return; }
         setBusy(false);

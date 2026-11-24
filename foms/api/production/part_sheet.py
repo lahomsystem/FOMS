@@ -10,6 +10,7 @@
   ``can_write`` = 남의 장을 대신 처리할 수 있는 사람(:func:`can_override_marks` — 관리자 · 반장). 화면은 [고치기] 켬일 때만 단추를 그리고
   역할을 따로 추측하지 않는다([모두 체크]도 ``can_write`` · ``all`` 둘로만). ``me`` = 보는 사람 id([체크 해제] 뒤 담당이 나면 맡기 취소까지),
   ``has_run`` · ``start_note`` = 제작 회차가 없는 생산 주문이면 창 머리 한 줄(첫 도면 체크 = 제작 시작, 태블릿과 같은 글).
+  줄마다 ``act``(막힌 미완료 장은 없음) · ``undo_releases``([체크 해제] 뒤 맡기 취소까지 — 서버 UTC 시각으로 판정)도 서버가 정한다.
 * 쿼리 3(로그인 사용자 읽기 빼고): 주문 1 + 표시 줄(네 파트) 1 + 지금 회차 1. 날짜 탭 · PC 쿼리 상한과 무관(누를 때만).
 * 문: 생산 첫 화면을 볼 수 있는 직원 + 주문 읽기 범위 — 바뀐 기록 API(``part_history.py``)와 같다. GET 이라 CSRF · 정책 가드 밖.
 * 같은 Blueprint(``production_part_marks``)에 라우트만 더한다 — ``foms/api/production/__init__.py`` 가 이 모듈을 import 한다.
@@ -97,7 +98,7 @@ def api_part_sheet():
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
     hold = production.get("hold") if isinstance(production.get("hold"), dict) else {}
-    sheet = build_part_sheet(sd, marks, part, hold_active=bool(hold.get("active")))
+    sheet = build_part_sheet(sd, marks, part, hold_active=bool(hold.get("active")), viewer_id=getattr(user, "id", None))
     for row in sheet["rows"]:
         row["thumb"] = (url_for("erp_production_page.erp_production_part_thumb", order_id=order_id, key=row["key"])
                         if row["image"] else None)

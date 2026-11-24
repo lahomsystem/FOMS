@@ -10,11 +10,15 @@
   :mod:`~foms.services.production.part_mark_gates`). 새 글은 칸 이름 "담당" · "완료"(빈 담당 "미정")뿐이다.
 * PC 는 감독용이라 맡은 때 · 완료한 때 · 바뀐 때를 숨기지 않는다("M/D HH:MM", KST) — 태블릿 글은 건드리지 않는다.
 * 누름 종류(``act``): 미완료 장 = ``check``(완료로 처리), 완료 · 기본 장 = ``uncheck``(완료 취소), 손으로 통째 체크한 파트는
-  줄 단추 없이 창 머리 한 단추(공정 칸 끄기 길). 쓸지 말지는 화면 · 서버가 정한다(여기는 자료만).
+  줄 단추 없이 창 머리 한 단추(공정 칸 끄기 길). 보류 · 도면 고치는 중 · 검수 순서로 막힌 미완료 장은 ``act`` 없음(서버가 늘 409 —
+  태블릿 판처럼 막힌 표시만, 2026-11-24 셋째 판). 완료 취소는 막힌 중에도 되므로 그대로. 화면은 이 값만 따른다.
+* ``undo_releases``: [체크 해제]가 완료 취소 뒤 맡기 취소까지 이을지 — 보는 사람이 맡고 완료한 장이고 맡은 때 → 완료한 때가
+  :data:`UNDO_RELEASE_WINDOW` 안(PC [체크]가 맡기 → 완료를 잇달아 한 흔적, 서버 UTC 로 견줌)일 때만. 그 밖은 완료 취소만.
 """
 
 from __future__ import annotations
 
+import datetime
 from typing import Any, Optional
 
 from foms.services.datetime_kst import parse_datetime_utc
@@ -39,6 +43,8 @@ ACT_UNCHECK = "uncheck"
 #: 제작 회차가 없는 주문(첫 도면을 체크하면 제작 시작도 같이 됨, 설계서 §4-8)의 창 머리 한 줄 — 태블릿 도면 판 확인 창의 지금 글
 #: (foms-production-parts-modal.js firstLine)과 같은 글 하나로 쓴다(새 글 안 만듦).
 START_NOTE = "이 집 첫 도면이라 제작 시작도 같이 돼요."
+#: [체크 해제]가 맡기 취소까지 잇는 문턱 — 같은 사람이 맡은 뒤 이 안에 완료했으면 PC [체크](맡기 → 완료)의 흔적으로 본다(셋째 판 4).
+UNDO_RELEASE_WINDOW = datetime.timedelta(minutes=2)
 
 
 def stamp(value: Any) -> str:
@@ -92,6 +98,14 @@ def _lines(state: str, snap: MarkSnapshot, row: Any, hand: Optional[dict[str, An
     return {"holder": holder, "done": done, "handed": handed}
 
 
+def undo_releases(state: str, snap: MarkSnapshot, row: Any, viewer_id: Any) -> bool:
+    """[체크 해제] 뒤 맡기 취소까지 할지 — 보는 사람이 맡고 완료했고, 맡은 때 → 완료한 때가 2분 안(서버 UTC)."""
+    if state != "done" or viewer_id is None or snap.picked_by_user_id != viewer_id or snap.done_by_user_id != viewer_id:
+        return False
+    picked, done = parse_datetime_utc(snap.picked_at), parse_datetime_utc(getattr(row, "done_at", None))
+    return picked is not None and done is not None and datetime.timedelta(0) <= done - picked <= UNDO_RELEASE_WINDOW
+
+
 def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: dict[str, Any]) -> dict[str, Any]:
     """도면 한 장 줄.
 
@@ -100,11 +114,12 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
         entry: 확정 도면 항목.
         no: 장 번호(1부터).
         of: 장 수.
-        ctx: ``{part, rows(장 key → 그 파트 표시 줄), marks(네 파트), hand, order_block, step_at, fallback}``.
+        ctx: ``{part, rows(장 key → 그 파트 표시 줄), marks(네 파트), hand, order_block, step_at, fallback, viewer_id}``.
 
     Returns:
         ``{key, no, of, label, item, image, filename, view_url, state, word, note, holder, done, handed, block, act, seen,
-        seen_by}`` — ``block`` 은 ``{kind, text, why}``(보류 · 도면 고치는 중 · 검수 전) 또는 None.
+        seen_by, undo_releases}`` — ``block`` 은 ``{kind, text, why}``(보류 · 도면 고치는 중 · 검수 전) 또는 None.
+        막힌 미완료 장은 ``act`` 가 None(단추 없음 — 막힌 표시만).
     """
     part, key = ctx["part"], entry["key"]
     row = ctx["rows"].get(key)
@@ -115,7 +130,7 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
     if state in ("none", "need"):
         block = ctx["order_block"] or (inspect_block(sd, ctx["marks"], key) if part == PART_INSPECT else None)
     name, spec = card_item_text(sd, entry, ctx["fallback"])
-    act = None if state == "hand" else (ACT_UNCHECK if state in ("done", "basic") else ACT_CHECK)
+    act = None if state == "hand" or block else (ACT_UNCHECK if state in ("done", "basic") else ACT_CHECK)
     return {
         "key": key, "no": no, "of": of, "label": f"도면 {no}/{of}",
         "item": f"{name or '품목 없음'}{f' · {spec}' if spec else ''}",
@@ -124,6 +139,7 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
         **_lines(state, snap, row, hand, ctx["step_at"]),
         "block": {k: block[k] for k in ("kind", "text", "why")} if block else None,
         "act": act, "seen": snap.seen_key, "seen_by": snap.picked_by_user_id,
+        "undo_releases": undo_releases(state, snap, row, ctx["viewer_id"]),
     }
 
 
@@ -135,7 +151,7 @@ def _step_at(sd: dict[str, Any], part: str) -> Any:
     return None
 
 
-def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool) -> dict[str, Any]:
+def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool, viewer_id: Any = None) -> dict[str, Any]:
     """한 주문 · 한 파트의 도면 목록 창 자료.
 
     Args:
@@ -143,6 +159,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool)
         marks: 그 주문 표시 줄 전부(네 파트 — 검수 순서 판정이 같이 본다).
         part: 파트 key.
         hold_active: 보류 중인지(첫 화면 행과 같은 판정 — ``production.hold.active``).
+        viewer_id: 보는 사람 id(``undo_releases`` 판정 — 없으면 늘 거짓).
 
     Returns:
         ``{part, label, total, done_n, uses_cards, notice, all, hand_off, hand, rows, keys}`` —
@@ -157,7 +174,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool)
     left = len(progress["left_keys"])
     ctx = {"part": part, "rows": marks_by_part(marks).get(part, {}), "marks": marks, "hand": hand,
            "order_block": order_block({"hold_active": hold_active, "structured_data": sd}),
-           "step_at": _step_at(sd, part), "fallback": _fallback_row(sd)}
+           "step_at": _step_at(sd, part), "fallback": _fallback_row(sd), "viewer_id": viewer_id}
     rows = [sheet_row(sd, entry, i + 1, len(entries), ctx) for i, entry in enumerate(entries)]
     return {
         "part": part, "label": PRODUCTION_PART_LABELS[part], "total": len(entries), "done_n": progress["done_n"],
@@ -169,4 +186,5 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool)
     }
 
 
-__all__ = ["ACT_CHECK", "ACT_UNCHECK", "START_NOTE", "build_part_sheet", "sheet_row", "stamp", "state_word"]
+__all__ = ["ACT_CHECK", "ACT_UNCHECK", "START_NOTE", "UNDO_RELEASE_WINDOW", "build_part_sheet", "sheet_row", "stamp", "state_word",
+           "undo_releases"]

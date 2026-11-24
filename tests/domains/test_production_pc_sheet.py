@@ -200,6 +200,28 @@ def test_제작_회차_없는_주문은_창_머리_한_줄_태블릿과_같은_�
     assert "'" + d["start_note"] + "'" in modal  # 태블릿 도면 판 창의 지금 글과 하나(새 글 없음)
 
 
+def test_막힌_주문도_완료한_장의_체크_해제는_남고_되돌림_판정은_서버_2분(client, cohort) -> None:
+    """셋째 판 1 · 4: 보류 중에도 완료 취소는 되므로 [체크 해제]는 남는다. undo_releases = 보는 사람이 맡고 2분 안에 완료한 장만."""
+    boss, kim = _user("반장"), _user("김재단")
+    order = _order("한빛", 4, hold="자재 기다림")
+    oid, name = order.id, order.customer_name
+    ids = (boss.id, kim.id)
+    quick = T0 + datetime.timedelta(seconds=40)
+
+    def add(j: int, uid: int, uname: str, done_at: datetime.datetime) -> None:
+        db_session.add(ProductionPartMark(order_id=oid, drawing_key=f"orders/pcs/{name}_{j}.png", part="cut", state="DONE",
+                                          picked_by_user_id=uid, picked_by_name=uname, picked_at=T0, done_by_user_id=uid,
+                                          done_by_name=uname, done_at=done_at, updated_by_user_id=uid, updated_at=done_at))
+    add(0, ids[0], "반장", quick)  # 내가 맡고 40초 뒤 완료 = PC [체크] 흔적
+    add(1, ids[0], "반장", T1)  # 내가 맡고 66분 뒤 완료 = 진짜 맡았던 장
+    add(2, ids[1], "김재단", quick)  # 남이 맡고 완료
+    db_session.commit()
+    _login(client, db_session.get(User, ids[0]))
+    rows = _get(client, oid, "cut").get_json()["data"]["rows"]
+    assert [r["act"] for r in rows] == ["uncheck", "uncheck", "uncheck", None]
+    assert [r["undo_releases"] for r in rows] == [True, False, False, False]
+
+
 def test_손_체크_파트는_도면_판_손_체크_글과_통째_해제(client, cohort) -> None:
     order = _order("황보민재", 3, done=("cut",))
     _login(client, _user("반장"))
@@ -219,9 +241,10 @@ def test_막힘은_서버_글_그대로(client, cohort) -> None:
     _login(client, _user("관리", role="ADMIN", team="CS"))
     held = _get(client, hold_id, "cut").get_json()["data"]
     assert {(r["block"] or {}).get("text") for r in held["rows"]} == {"보류 · 자재 기다림"}
+    assert {r["act"] for r in held["rows"]} == {None}  # 막힌 미완료 장 = 단추 없음(서버가 늘 409, 셋째 판 1)
     assert held["rows"][0]["block"]["why"] == "보류된 주문이라 지금은 못 눌러요. 보류가 풀리면 다시 돼요."
     insp = _get(client, oid, "inspect").get_json()["data"]
-    assert [r["block"]["text"] for r in insp["rows"]] == ["엣지 · 조립 미완료"] * 2
+    assert [r["block"]["text"] for r in insp["rows"]] == ["엣지 · 조립 미완료"] * 2 and {r["act"] for r in insp["rows"]} == {None}
     assert insp["rows"][0]["block"]["why"].startswith("아직 검수할 수 없어요. 엣지(담당 미정) · 조립(담당 미정)")
 
 
