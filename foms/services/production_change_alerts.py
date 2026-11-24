@@ -40,10 +40,12 @@ from foms.services.production_dashboard_display import (
     _production_stage_label_from_stage,
 )
 from foms.services.production_read_model import fetch_production_current_run_ids
+from foms.services.production.factory_constants import factory_label
 
 __all__ = [
     "PROD_STAGES",
     "PRODUCTION_CHANGE_EVENT_TYPES",
+    "SHEET_FACTORY_CHANGE_EVENT",
     "collect_production_change_alerts",
     "collect_production_tombstones",
     "compute_window_start",
@@ -62,10 +64,14 @@ _DOWNSTREAM_STAGES: frozenset[str] = frozenset({"생산", "PRODUCTION", "시공"
 #: 단계를 옮기며 payload ``from``/``to`` 를 남기는 이벤트 — 일반·일괄 단계 변경(``STAGE_CHANGED``) · 강제 단계 변경
 #: (``STAGE_OVERRIDE``) · 고객 컨펌 끝(``CUSTOMER_CONFIRMED``) · 컨펌에서 바로 제작 시작(``PRODUCTION_STARTED``).
 _STAGE_MOVE_EVENT_TYPES = ("STAGE_CHANGED", "STAGE_OVERRIDE", "CUSTOMER_CONFIRMED", "PRODUCTION_STARTED")
+#: 장의 공장 바뀜(설계서 2026-11-23 §11) — 도면팀이 생산에 내려간 도면을 다른 공장으로 옮김. ``drawing_factory.SHEET_FACTORY_EVENT``
+#: 와 같은 값(글자로 둔다 — 도면 규칙 모듈이 생산 모듈을 읽어 거꾸로 가져오면 돌고 돈다).
+SHEET_FACTORY_CHANGE_EVENT = "DRAWING_SHEET_FACTORY_CHANGED"
 _RELEVANT_EVENT_TYPES = (
     "PRODUCTION_CHANGE_ACK",
     *_STAGE_MOVE_EVENT_TYPES,
     "CONSTRUCTION_DATE_CHANGED",
+    SHEET_FACTORY_CHANGE_EVENT,
 )
 #: 변경 감지가 읽는 이벤트 종류 — 렌더 전 304 키(production_fragment_version)가 같은 필터로 지문을 뜬다.
 PRODUCTION_CHANGE_EVENT_TYPES = _RELEVANT_EVENT_TYPES
@@ -236,6 +242,13 @@ def _build_change_lists(
             },
         )
 
+    for e in events:
+        if e.event_type != SHEET_FACTORY_CHANGE_EVENT or e.created_at is None:
+            continue
+        factory_item = _factory_change_item(e)
+        if factory_item is not None:
+            _classify(e.created_at, factory_item)
+
     dth = sd.get("drawing_transfer_history")
     for entry in dth if isinstance(dth, list) else []:
         ts = _parse_drawing_entry_time(entry)
@@ -263,6 +276,30 @@ def _build_change_lists(
             },
         )
     return alerts, history
+
+
+def _factory_change_item(event: OrderEvent) -> dict[str, Any] | None:
+    """장의 공장 바뀜 한 건 → '바뀜' 항목 "공장 바뀜" · "도면 2/2 1공장 → 2공장"(설계서 2026-11-23 §11, 쿼리 0).
+
+    생산에 내려간 장(도면 번호가 있는 줄)만 싣는다 — 아직 안 보낸 시트만 옮긴 것은 생산 일이 아니라 None. 바꾼 사람은 이벤트의
+    ``created_by_user_id``(팀 글은 화면이 붙인다) · payload ``by_name``.
+    """
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    rows = [r for r in payload.get("changes") or [] if isinstance(r, dict) and isinstance(r.get("index"), int)]
+    if not rows:
+        return None
+    detail = ", ".join(
+        f"도면 {r['index']}/{r.get('total') or r['index']} {factory_label(r.get('from'))} → {factory_label(r.get('to'))}"
+        for r in rows
+    )
+    by_name = payload.get("by_name")
+    return {
+        "kind": "factory",
+        "label": "공장 바뀜",
+        "detail": detail,
+        "by_id": event.created_by_user_id,
+        "by_name": by_name.strip() if isinstance(by_name, str) else "",
+    }
 
 
 def collect_production_change_alerts(
