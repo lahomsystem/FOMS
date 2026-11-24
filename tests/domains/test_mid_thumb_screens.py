@@ -361,8 +361,10 @@ _PIN = "20261120m"
 
 def test_changed_assets_repinned():
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    for name in ("erp-dashboard-core.js", "erp-dashboard-gateway.js", "erp-dashboard-attachments.js"):
+    for name in ("erp-dashboard-gateway.js", "erp-dashboard-attachments.js"):
         assert f"{name}?v={_PIN}" in entry, name
+    # core 는 뒤 작업이 정당하게 올린다(2026-11-25 MY_ROLE 빈 값 덮기 고침, 20261125a) — "이 작업 핀보다 오래되지 않았다".
+    assert entry.split("erp-dashboard-core.js?v=", 1)[1].split("'", 1)[0] >= _PIN
     # entry 는 뒤 작업이 정당하게 올린다(2026-11-21 일괄 바꾸기 검수 전 알림, 20261121a) — "이 작업 핀보다 오래되지 않았다".
     entry_pin = _read("templates/partials/shared/layout_scripts.html").split(
         "erp-dashboard-entry.js') }}?v=", 1)[1].split('"', 1)[0]
