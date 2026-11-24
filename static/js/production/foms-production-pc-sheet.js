@@ -1,28 +1,25 @@
-/* 생산 PC 첫 화면 — 공정 칸을 누르면 그 주문 · 그 파트의 도면 목록 창(사장님 2026-11-24 "PC 에서도 도면별로 체크, PC 는 감독 성격이
- * 강해 세세한 정보를 볼 수 있어야 돼"). 설계서 docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md §4-2 · §4-5 · §4-7 ·
- * §4-11 · §5 · §8-4 에 PC 창을 더한 것.
- *  · 칸 = home_pc_macros.pc_steps 의 [data-foms-pc-sheet="<파트>"](확정 도면 1장 이상인 줄만). 누름 · Enter · Space 로 연다.
- *  · 열 때 GET 두 번(같이): /api/production/part-sheet(도면마다 상태 · 담당 · 완료 · 바뀜 · 막힘 — 글은 서버 글 그대로) ·
- *    /api/production/part-history(바뀐 기록 — 작업 시트와 같은 글, foms-production-sheet-parts.js renderLog). 페이지 · 날짜 탭 요청은 그대로.
- *  · [고치기] 켬(data-edit="1") + 서버 can_write(관리자 · 반장) + 쓰기 파일(foms-production-pc-sheet-write.js)이 있을 때만 줄마다
- *    [체크] · [체크 해제], 창 머리 [모두 체크](아무도 안 맡은 파트) · [체크 해제](손으로 통째 체크한 파트). 누르면 그 파트를 다시 받아
- *    바뀐 줄만 다시 그리고, 뒤의 PC 줄 공정 칸 · 상태 칸을 서버가 그린 HTML(같은 매크로)로 바꿔 끼운다. 막히면 서버 글을 그 줄에.
- *  · 창 = 공용 사유 시트 겉틀(home_pc_sheet.html). Esc 닫기 · 초점 가둠 · 닫으면 누른 칸으로. 반장 손 체크 확인 창(sheet-parts)이 위에
- *    열려 있으면 키는 그 창 몫. 셸 조각 교체로 다시 실행돼도 화면마다 한 번(data-foms-pc-sheet-bound), 문서 키 리스너는 한 번. */
+/* 생산 PC — 공정 칸을 누르면 그 주문 · 그 파트의 도면 목록 창(사장님 2026-11-24 "PC 에서도 도면별로 체크, PC 는 감독 성격이 강해
+ * 세세한 정보를"). 설계서 docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md §4-2 · §4-5 · §4-7 · §4-11 · §5 · §8-4 에 더함.
+ *  · 칸 = [data-foms-pc-sheet="<파트>"](확정 도면 1장 이상): PC 첫 화면 줄(home_pc_macros.pc_steps) · PC 로 연 작업 시트(sheet.html, pc_view —
+ *    이 파일은 그때만 실린다). 누름 · Enter · Space. 누름은 붙잡는 단계에서 받아 작업 시트 JS 의 통째 손 체크까지 안 보내고, 창 안 누름도 밖으로 안 보낸다.
+ *  · 열 때 GET 두 번: /api/production/part-sheet(상태 · 담당 · 완료 · 바뀜 · 막힘 — 서버 글 그대로) · /api/production/part-history(작업 시트와
+ *    같은 글, sheet-parts renderLog). [고치기] 켬(data-edit) + 서버 can_write + 쓰기 파일이 있을 때만 단추([체크] · [체크 해제] · [모두 체크] ·
+ *    손 체크 [체크 해제] · "제작 완료할까요?"). 누르면 다시 받아 바뀐 줄만 다시 그리고 뒤의 PC 줄 칸 · 상태 칸을 서버 매크로 HTML 로 바꿔 끼운다.
+ *  · 창 = 공용 사유 시트 겉틀(home_pc_sheet.html). Esc · 초점 가둠 · 닫으면 누른 칸으로(손 체크 확인 창이 위면 키는 그 창 몫). 셸 조각 교체로
+ *    다시 실행돼도 화면마다 한 번(data-foms-pc-sheet-bound), 문서 키 리스너는 한 번. 쓰고 닫으면 쓰기 파일이 작업 시트 공정 줄을 서버 값으로. */
 (function () {
   'use strict';
 
-  var root = document.querySelector('[data-foms-prod-home]');
+  var root = document.querySelector('[data-foms-prod-home]') || document.querySelector('[data-foms-prod-sheet-page]');
   var box = root && root.querySelector('[data-foms-pc-sheet-box]');
   if (!root || !box || root.getAttribute('data-foms-pc-sheet-bound') === '1') { return; }
   root.setAttribute('data-foms-pc-sheet-bound', '1');
   var G = window.__FOMS_PC_SHEET = window.__FOMS_PC_SHEET || {};
 
   var OFFLINE = '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.';
-  var WAIT = '불러오는 중…';
-  var SAVING = '저장하는 중…';
+  var WAIT = '불러오는 중…', SAVING = '저장하는 중…';
   var LABELS = { cut: '재단', edge: '엣지', assemble: '조립', inspect: '검수' };
-  var S = { id: '', part: '', opener: null, data: null, seq: 0, busy: false, sig: {} };
+  var S = { id: '', part: '', opener: null, data: null, seq: 0, busy: false, dirty: false, sig: {} };
   function toArr(list) { return [].slice.call(list || []); }
   function q(sel) { return box.querySelector(sel); }
   function el(tag, cls, text) { var n = document.createElement(tag); n.className = cls || ''; if (text != null) { n.textContent = text; } return n; }
@@ -94,9 +91,8 @@
     var w = writer();
     q('[data-foms-pc-sheet-title]').textContent = d.label + ' · 도면 ' + d.total + '장';
     q('[data-foms-pc-sheet-sub]').textContent = d.customer_name + ' #' + d.order_id;
-    var note = q('[data-foms-pc-sheet-note]');
-    note.textContent = w && d.notice ? d.notice : '';
-    note.hidden = !(w && d.notice);
+    setNote('[data-foms-pc-sheet-note]', w && d.notice);
+    setNote('[data-foms-pc-sheet-start]', w && d.start_note); // 제작 회차 없는 주문 — 첫 도면 체크 = 제작 시작(서버 글)
     var tools = q('[data-foms-pc-sheet-tools]');
     tools.textContent = '';
     if (w && d.all) {
@@ -123,6 +119,7 @@
     S.sig = sigs;
   }
   function msg(text) { q('[data-foms-pc-sheet-msg]').textContent = text || ''; }
+  function setNote(sel, text) { var n = q(sel); n.textContent = text || ''; n.hidden = !text; }
   function renderLog(r) {
     var list = q('[data-foms-pc-sheet-log]');
     var sp = window.FomsSheetParts;
@@ -168,19 +165,20 @@
     });
   }
   function open(cell) {
-    var row = cell.closest('[data-foms-home-dayrow]');
-    if (!row) { return; }
+    var row = cell.closest('[data-foms-home-dayrow]') || root; // 작업 시트는 루트가 그 주문
     S.seq += 1;
-    S.id = row.getAttribute('data-foms-home-dayrow');
+    S.id = row.getAttribute('data-foms-home-dayrow') || root.getAttribute('data-order-id');
     S.part = cell.getAttribute('data-foms-pc-sheet');
     S.opener = cell;
     S.data = null;
     S.sig = {};
-    S.busy = false;
+    S.busy = S.dirty = false;
     var name = row.querySelector('.fpc-nm b');
     q('[data-foms-pc-sheet-title]').textContent = LABELS[S.part] || S.part;
     q('[data-foms-pc-sheet-sub]').textContent = (name ? name.textContent : '') + ' #' + S.id;
-    q('[data-foms-pc-sheet-note]').hidden = true;
+    setNote('[data-foms-pc-sheet-note]', '');
+    setNote('[data-foms-pc-sheet-start]', '');
+    if (window.FomsPcSheetWrite) { window.FomsPcSheetWrite.hideAsk(box); }
     q('[data-foms-pc-sheet-tools]').textContent = '';
     q('[data-foms-pc-sheet-rows]').textContent = '';
     q('[data-foms-pc-sheet-log]').hidden = true;
@@ -192,12 +190,16 @@
     q('.fpc-sheet__x').focus();
     load(false);
   }
-  function cellOf(id, part) { return root.querySelector('[data-foms-home-dayrow="' + id + '"] [data-foms-pc-sheet="' + part + '"]'); }
+  function cellOf(id, part) {
+    return root.querySelector((root.hasAttribute('data-foms-prod-home') ? '[data-foms-home-dayrow="' + id + '"] ' : '') + '[data-foms-pc-sheet="' + part + '"]');
+  }
   function close() {
     if (box.hidden) { return; }
     S.seq += 1;
     box.hidden = true;
     box.setAttribute('aria-hidden', 'true');
+    q('[data-foms-pc-sheet-tools]').textContent = ''; // [모두 체크](data-foms-sheet-step)를 남기지 않는다
+    if (S.dirty && window.FomsPcSheetWrite) { window.FomsPcSheetWrite.afterClose(root); } // 작업 시트는 공정 줄을 서버 값으로
     var back = S.opener && document.contains(S.opener) ? S.opener : cellOf(S.id, S.part); // 칸을 바꿔 끼웠으면 새 칸으로
     if (back) { back.focus(); }
   }
@@ -227,11 +229,14 @@
     msg('');
     setBusy(true, btn);
     var seq = S.seq;
+    var W = window.FomsPcSheetWrite;
     return promise.then(function (res) {
+      S.dirty = true;
       return load(true).then(function () {
         if (seq !== S.seq) { return; }
         setBusy(false);
-        if (!res || !res.ok) { showError(key, (res && res.message) || OFFLINE); }
+        if (!res || !res.ok) { showError(key, (res && res.message) || OFFLINE); } else if (res.notice) { msg(res.notice); }
+        if (res && res.ok && res.data && res.data.order_ready && W.ask(box, S.data)) { return; } // 마지막 검수 → "제작 완료할까요?"
         focusAfter(key);
       });
     });
@@ -244,19 +249,23 @@
     var r = S.data.rows.filter(function (x) { return x.key === key; })[0];
     if (kind === 'all') { W.askAll(box, btn, function () { track(btn, '', W.stepSet(S.data, true)); }); return; }
     if (kind === 'hand-off') { track(btn, '', W.stepSet(S.data, false)); return; }
+    if (kind === 'ask-no') { W.hideAsk(box); focusAfter(''); return; }
+    if (kind === 'ask-yes') { track(btn, '', W.complete(box, S.data)); return; }
     if (r) { track(btn, key, kind === 'check' ? W.check(S.data, r) : W.uncheck(S.data, r)); }
   }
 
-  // ── 누름 · 키(이 화면 안 위임) ──
+  // ── 누름 · 키(이 화면 안 위임, 붙잡는 단계 — 작업 시트 JS 의 공정 칸 누름보다 먼저 받고 거기까지 안 보낸다) ──
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== 'function') { return; }
     var cell = t.closest('[data-foms-pc-sheet]');
-    if (cell && !box.contains(cell)) { e.preventDefault(); open(cell); return; }
+    if (cell && !box.contains(cell)) { e.preventDefault(); e.stopPropagation(); open(cell); return; }
+    if (!box.contains(t)) { return; }
+    e.stopPropagation();
     var b = t.closest('[data-foms-pc-sheet-act]');
-    if (b && box.contains(b)) { act(b); return; }
+    if (b) { act(b); return; }
     if (t.closest('[data-foms-pc-sheet-close]')) { close(); }
-  });
+  }, true);
   root.addEventListener('keydown', function (e) {
     var cell = e.target && typeof e.target.closest === 'function' ? e.target.closest('[data-foms-pc-sheet]') : null;
     if (cell && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(cell); }

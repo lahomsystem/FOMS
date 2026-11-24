@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261123v">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% if pc_view %}
 {# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261124p">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261124q">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -94,7 +94,7 @@
           <div class="foms-prod-page__steps">
             {% for s in order.steps %}
             {% if can_act %}<button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
-                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
+                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} aria-disabled="true"{% endif %}{% if pc_view and order.final_sheet_count %} aria-haspopup="dialog" data-foms-pc-sheet="{{ s.key }}"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"{% if pc_view and order.final_sheet_count %} tabindex="0" role="button" aria-haspopup="dialog" data-foms-pc-sheet="{{ s.key }}"{% endif %}>{% endif %}
               <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
               <span>{{ s.label }}</span>
               {% set _note = order.step_notes[s.key] if order.step_notes and s.key in order.step_notes else none %}{% if _note %}<small class="fpp-note {{ _note.cls }}" data-foms-sheet-step-meta data-foms-sheet-cardnote>{{ _note.text }}</small>{% else %}<small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>{% endif %}
@@ -207,7 +207,8 @@
         </div>
         </div>{% endif %}
       </div>
-    </div>
+    </div>{% if pc_view and order.final_sheet_count %}{# PC(마우스)로 연 작업 시트 — 공정 칸을 누르면 첫 화면과 같은 도면 목록 창(2026-11-24 지휘 둘째 판).
+       태블릿 · 옆 시트는 이 조각이 없다(지금 그대로). 손 체크 확인 창은 아래 시트 것 하나를 같이 쓴다(pc_sheet_confirm=false). #}{% with pc_sheet_confirm = false %}{% include 'production/partials/home_pc_sheet.html' %}{% endwith %}{% endif %}
   </section>
   {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
   {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>{% endif %}
@@ -219,6 +220,8 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261124p" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer></script>{% if edit_toggle %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261123u" defer></script>{% if pc_view and order.final_sheet_count %}
+<script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261124q" defer></script>{% if edit_on %}
+<script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261124q" defer></script>{% endif %}{% endif %}{% if edit_toggle %}
 <script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}
 {% endblock %}
