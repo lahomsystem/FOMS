@@ -199,3 +199,48 @@ def test_fill_where_matches_the_app_meaning_of_no_parts():
     from foms.services.production.part_constants import stored_production_parts
     for parts in (None, [], ["edge"], ["cut", "edge"]):
         assert stored_production_parts(SimpleNamespace(production_part=None, production_parts=parts)) == ()
+
+
+# --------------------------------------------------------------------------- #
+# 마이그레이션 prodlead_02 — 자동 채우기 되돌림(사장님 2026-11-25 "자동 지정 없이 직접 지정")
+# --------------------------------------------------------------------------- #
+UNFILL = ROOT / "migrations" / "versions" / "prodlead_02_users_production_lead_unfill.py"
+
+
+def _unfill():
+    spec = importlib.util.spec_from_file_location("prodlead_02_unit", UNFILL)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_unfill_chains_last_and_freezes_the_same_condition():
+    module = _unfill()
+    assert (module.revision, module.down_revision) == ("prodlead_02", "prodfactory_01")
+    assert module.FILL_WHERE == _migration().FILL_WHERE  # prodlead_01 채우기 조건과 글자 그대로(그 행만 되돌린다)
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    assert ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini"))).get_heads() == ["prodlead_02"]
+
+
+def test_fresh_chain_ends_with_no_automatic_lead_and_hand_set_leads_outside_the_condition_stay():
+    """새 DB(체인 처음부터 — 운영 predeploy 와 같은 차례): prodlead_01 채움 → prodlead_02 비움 = 아무도 자동 반장 아님.
+    스테이징 꼴(이미 채워진 DB)도 prodlead_02 만 돌아 같은 끝. 조건 밖에서 손으로 지정한 반장(파트 있는 계정)은 그대로."""
+    fill, unfill = _migration(), _unfill()
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn, Operations.context(MigrationContext.configure(conn)):
+        conn.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, role VARCHAR, team VARCHAR(50), is_active BOOLEAN, "
+                          "production_part VARCHAR(16), production_parts JSON)"))
+        conn.execute(text(
+            "INSERT INTO users VALUES (1, 'STAFF', 'PRODUCTION', 1, NULL, NULL), (2, 'MANAGER', ' production ', 0, NULL, '[]'),"
+            "(3, 'VIEWER', 'PRODUCTION', 1, NULL, NULL), (5, 'STAFF', 'PRODUCTION', 1, 'cut', '[\"cut\"]'),"
+            "(7, 'STAFF', 'PRODUCTION', 1, NULL, '[\"edge\"]')"))
+        fill.upgrade()  # 스테이징에 이미 돈 모습
+        conn.execute(text("UPDATE users SET production_lead = 1 WHERE id = 5"))  # 관리자가 손으로 지정(조건 밖 — 파트 있음)
+        filled = dict(conn.execute(text("SELECT id, production_lead FROM users")).all())
+        assert filled == {1: 1, 2: 1, 3: None, 5: 1, 7: 1}
+        unfill.upgrade()
+        got = dict(conn.execute(text("SELECT id, production_lead FROM users")).all())
+        assert got == {1: None, 2: None, 3: None, 5: 1, 7: None}  # 파트 없는 생산팀은 반장 아님(보기만) · 손 지정은 그대로
+        unfill.downgrade()
+        assert dict(conn.execute(text("SELECT id, production_lead FROM users")).all()) == filled  # 되돌리면 채운 모습

@@ -158,7 +158,7 @@ def test_order_주소는_숫자만() -> None:
 # ② 문 — 태블릿 가로만, 판 없는 화면은 지금 그대로
 # --------------------------------------------------------------------------- #
 def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> None:
-    login(client)  # 반장(파트 없는 생산팀 — 마이그레이션 prodlead_01 이 채운 지금 계정)
+    login(client)  # 반장(파트 없는 생산팀 — 관리자가 반장으로 지정한 계정)
     a, b, c, d, e = seed_cut_queue()
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")

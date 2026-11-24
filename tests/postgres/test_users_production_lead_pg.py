@@ -1,4 +1,4 @@
-"""PostgreSQL — 반장 칸 ``users.production_lead``(설계서 2026-11-23 '승인 때 고친 것' 5, 마이그레이션 ``prodlead_01``).
+"""PostgreSQL — 반장 칸 ``users.production_lead``(설계서 2026-11-23 '승인 때 고친 것' 5, 마이그레이션 ``prodlead_01`` · 되돌림 ``prodlead_02``).
 
 마이그레이션 한 칸 왕복(새 부트스트랩 DB = create_all + stamp head): downgrade 가 반장 칸만 지우고(다른 칸 그대로) → upgrade 가 지금
 '파트 없는 생산팀'(STAFF · MANAGER, 활성 여부 무관, 옛 칸 NULL — 앱 판정과 같게 새 칸에 목록이 남아 있어도)만 참으로 채운다.
@@ -61,17 +61,32 @@ def test_prodlead_01_round_trip_fills_only_partless_production_writers(
             expected_count = conn.execute(text(f"SELECT count(*) FROM users WHERE {_fill_where()}")).scalar()
         assert expected_count == 3  # 운영 전 집계와 같은 글 — 박반장 · 정반장(꺼진 계정 · 빈 목록 · 빈칸 섞인 팀 글) · 오남음
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "prodlead_01")  # 스테이징에 이미 돈 모습(채움)
         with engine.connect() as conn:
             got = dict(conn.execute(text(
                 "SELECT username, production_lead FROM users WHERE username LIKE 'plg_%'")).all())
             assert got == {"plg_boss": True, "plg_mgr": True, "plg_view": None, "plg_cs": None, "plg_cut": None,
                            "plg_admin": None, "plg_left": True}
+        with engine.begin() as conn:  # 관리자가 손으로 지정한 반장(조건 밖 — 파트 있는 계정)은 prodlead_02 가 건드리지 않는다
+            conn.execute(text("UPDATE users SET production_lead = true WHERE username = 'plg_cut'"))
+
+        command.upgrade(config, "head")  # prodlead_02 — 자동 채우기 되돌림(사장님 2026-11-25 "자동 지정 없이 직접 지정")
+        with engine.connect() as conn:
+            got = dict(conn.execute(text(
+                "SELECT username, production_lead FROM users WHERE username LIKE 'plg_%'")).all())
+            assert got == {"plg_boss": None, "plg_mgr": None, "plg_view": None, "plg_cs": None, "plg_cut": True,
+                           "plg_admin": None, "plg_left": None}
             data_type, nullable, default = conn.execute(text(
                 "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
                 "WHERE table_name = 'users' AND column_name = 'production_lead'")).one()
             assert (data_type, nullable, default) == ("boolean", "YES", None)
             parts = dict(conn.execute(text("SELECT username, production_part FROM users WHERE username LIKE 'plg_%'")).all())
             assert parts["plg_cut"] == "cut"  # 다른 칸은 그대로
+        command.downgrade(config, "prodfactory_01")  # 되돌림을 되돌리면 채운 모습
+        with engine.connect() as conn:
+            back = dict(conn.execute(text(
+                "SELECT username, production_lead FROM users WHERE username LIKE 'plg_%'")).all())
+            assert back == {"plg_boss": True, "plg_mgr": True, "plg_view": None, "plg_cs": None, "plg_cut": True,
+                            "plg_admin": None, "plg_left": True}
     finally:
         engine.dispose()

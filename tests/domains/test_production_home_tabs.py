@@ -29,7 +29,7 @@ HOME = "/erp/production/home"
 
 
 def _make_user(client, username: str, team: str | None, role: str = "STAFF") -> User:
-    # 생산팀 = 마이그레이션 prodlead_01 이 채운 지금 계정(반장, 설계서 2026-11-23 '승인 때 고친 것' 5)
+    # 생산팀 = 관리자가 반장으로 지정한 계정(설계서 2026-11-23 '승인 때 고친 것' 5 — 자동 채우기 없음, prodlead_02)
     user = User(username=username, password=generate_password_hash("pw"), role=role, team=team, name=username, is_active=True,
                 production_lead=True if team == "PRODUCTION" else None)
     db_session.add(user)
