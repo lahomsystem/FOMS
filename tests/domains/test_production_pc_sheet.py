@@ -42,9 +42,11 @@ def cohort(monkeypatch):
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
 
 
-def _user(name: str, *, role: str = "STAFF", team: str = "PRODUCTION", part: str | None = None) -> User:
+def _user(name: str, *, role: str = "STAFF", team: str = "PRODUCTION", part: str | None = None, lead: bool | None = None) -> User:
+    """시험 계정 — 이름이 "반장"이면 반장으로 지정한다('승인 때 고친 것' 5 — 파트 없는 생산팀이 저절로 반장이 아니다)."""
+    lead = (name == "반장") if lead is None else lead
     user = User(username=f"pcsh_{next(_seq)}", password=generate_password_hash("x"), role=role, team=team, name=name,
-                is_active=True, production_part=part)
+                is_active=True, production_part=part, production_lead=lead or None)
     db_session.add(user)
     db_session.commit()
     return user
@@ -127,6 +129,10 @@ def _seed_five() -> tuple[Order, dict[str, int]]:
 def _get(client, order, part: str):
     oid = order if isinstance(order, int) else order.id
     return client.get(f"{API}?order_id={oid}&part={part}")
+
+
+def _post(client, url: str, body: dict):
+    return client.post(url, json=body)
 
 
 def _row(html: str, order_id: int) -> str:
@@ -249,10 +255,13 @@ def test_막힘은_서버_글_그대로(client, cohort) -> None:
 
 
 @pytest.mark.parametrize("who,status,write", [("admin", 200, True), ("boss", 200, True), ("part", 200, False),
-                                              ("cs", 200, False), ("noteam", 403, False), ("partner", 403, False)])
+                                              ("plain", 200, False), ("cs", 200, False), ("noteam", 403, False),
+                                              ("partner", 403, False)])
 def test_권한_보기는_생산_화면_보는_직원_쓰기는_관리자_반장(client, cohort, who, status, write) -> None:
     order, _ = _seed_five()
+    # plain = 파트도 반장도 아닌 생산팀(보기만) — 반장 따로 지정 뒤 단추 없음(공정 칸 잠금 steps_lock 과 같은 한 규칙)
     user = {"admin": lambda: _user("관리", role="ADMIN", team="CS"), "boss": lambda: _user("반장"),
+            "plain": lambda: _user("생산보기"),
             "part": lambda: _user("재단", part="cut"), "cs": lambda: _user("상담", team="CS"),
             "noteam": lambda: _user("팀없음", team=None), "partner": lambda: _partner()}[who]()
     _login(client, user)
@@ -260,6 +269,22 @@ def test_권한_보기는_생산_화면_보는_직원_쓰기는_관리자_반장
     assert resp.status_code == status, resp.get_json()
     if status == 200:
         assert resp.get_json()["data"]["can_write"] is write
+
+
+def test_창_단추_권한은_쓰기_길과_한_규칙_보기만_생산팀은_둘_다_막힘(client, cohort) -> None:
+    """can_write(단추) = 공정 칸 손 체크([모두 체크] · 통째 해제) = 도면마다 [체크] — 반장 · 관리자만(반장 따로 지정 뒤)."""
+    oid = _order("가온", 2).id
+    key = "orders/pcs/가온_0.png"
+    _login(client, _user("생산보기"))
+    assert _get(client, oid, "cut").get_json()["data"]["can_write"] is False
+    assert _post(client, f"/api/orders/{oid}/production/steps", {"key": "cut", "done": True}).status_code == 403
+    assert _post(client, "/api/production/part-marks", {"order_id": oid, "drawing_key": key, "part": "cut", "action": "take",
+                                                       "seen": "none"}).status_code == 403
+    _login(client, _user("반장"))  # 대조군 — 반장은 단추가 있고 두 길 모두 된다
+    assert _get(client, oid, "cut").get_json()["data"]["can_write"] is True
+    assert _post(client, "/api/production/part-marks", {"order_id": oid, "drawing_key": key, "part": "cut", "action": "take",
+                                                       "seen": "none"}).status_code == 200
+    assert _post(client, f"/api/orders/{oid}/production/steps", {"key": "edge", "done": True}).status_code == 200
 
 
 def test_질의가_틀리면_400_없는_주문_404_쿼리_셋(client, cohort) -> None:
@@ -276,8 +301,6 @@ def test_질의가_틀리면_400_없는_주문_404_쿼리_셋(client, cohort) ->
 # --------------------------------------------------------------------------- #
 # 쓰기 = 있는 길만 — 창 JS 가 보내는 순서대로
 # --------------------------------------------------------------------------- #
-def _post(client, url: str, body: dict):
-    return client.post(url, json=body)
 
 
 def test_체크_맡기_완료_뒤_칸이_3_5_그리고_해제(client, cohort) -> None:
