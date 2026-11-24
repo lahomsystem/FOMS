@@ -8,6 +8,8 @@ DB 를 읽지 않는다(쿼리 0개 더함). 금액은 싣지 않는다(D7). 엣
   붙이고, ``order=`` 가 선 공정 탭 열쇠를 돌려준다(그 탭이 첫 화면 탭 — 마지막 탭 기억보다 앞).
 - :func:`step_panel_for` — 다른 줄을 누를 때 받는 판 하나 조각(``view=panel&step=&order=``)의 자료. 같은 공정 줄에서 만들어
   '끝내면 다음은' 이 한 화면에 다 그릴 때와 같다.
+- :func:`step_confirm_ids` · :func:`attach_step_confirm` — [<공정> 끝] 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번
+  묻기"). 표시 줄은 부르는 쪽(``foms.web.production.home``)이 한 번에 읽어 넘긴다 — 이 모듈은 그대로 DB 를 읽지 않는다.
 
 2026-11-22 터치 점검: 숨은 판을 줄마다 다 그리면(주문 150건 · 판 96개) 조각이 396KB · DOM 13,100 이 되어 탭 바꾸기 ·
 [다시 받기] · [끝] 뒤 화면이 1~2초 얼고 그동안 누름이 버려졌다 — 날짜 탭(11-14)처럼 고른 판만 그리고 나머지는 누를 때 받는다.
@@ -20,6 +22,7 @@ from typing import Any
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.files.list_thumb import mid_thumb_url
+from foms.services.production.part_progress import step_api_extras
 from foms.services.production_dashboard_display import _production_first_item
 from foms.services.production_home_read_model import PRODUCTION_HOME_STEP_DEFS
 from foms.services.production_sheet_view import _PROD_SHEET_IMG_EXT, _format_at_kst
@@ -134,6 +137,7 @@ def production_home_step_panel(row: dict[str, Any], key: str, next_row: dict[str
         'hold_active': bool(row.get('hold_active')),
         'hold_reason': _hold_reason(sd),
         'revise_block': row.get('revise_block'),  # 도면 고치는 중 — [끝] 대신 까닭(보류와 같은 자리, 2026-11-25)
+        'confirm': row.get('step_confirm'),  # [끝] 확인 창 자료(도면 있는 줄만, attach_step_confirm — 없으면 지금처럼 바로 저장)
         'latest_defect': _latest_defect(sd),
         'next_id': next_row['id'] if next_row else None,
         'next_name': (next_row.get('customer_name') or '-') if next_row else '',
@@ -197,3 +201,29 @@ def step_panel_for(queues: dict[str, Any], key: str, order_id: int | None) -> di
         ids = [r['id'] for r in q.get('rows') or []]
         return _panel_at(q, ids.index(order_id)) if order_id in ids else None
     return None
+
+
+def step_confirm_ids(queues: dict[str, Any]) -> list[int]:
+    """[<공정> 끝] 확인 창이 필요할 수 있는 줄 — [끝]이 있고(보류 · 도면 고치는 중이 아님) 확정 도면이 1장 이상. 도면 없는 줄은
+    묻지 않으니(사장님 2026-11-25) 표시 줄을 읽지 않는다."""
+    return [r['id'] for q in queues.get('queues') or [] for r in q.get('rows') or []
+            if not _blocked(r) and resolve_final_drawing_files(r.get('structured_data') or {})]
+
+
+def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]]) -> None:
+    """줄 행에 ``step_confirm`` = [<공정> 끝] 확인 창 자료(단추 ``data-foms-sheet-parts``) — 작업 시트 · 공정 API 와 같은 함수
+    :func:`step_api_extras` 의 값(``sheets`` = 확정 도면 장 수, 2공장 계정도 주문 전체 장 수 — 작업 시트와 같다)에서 그 줄 공정의
+    ``uses_cards`` 만 싣는다(카드를 쓴 파트는 묻지 않고 서버가 판정 — 작업 시트 ``beforeToggle`` 과 같은 규칙, 판정은 JS 한 곳).
+
+    Args:
+        queues: :func:`production_home_step_queues` 결과(행을 그 자리에서 고친다).
+        marks: :func:`step_confirm_ids` 주문들의 표시 줄(``marks_by_order`` — 열쇠가 있는 주문만 싣는다).
+    """
+    for q in queues.get('queues') or []:
+        for row in q.get('rows') or []:
+            if row['id'] not in marks:
+                continue
+            extras = step_api_extras(row.get('structured_data') or {}, marks[row['id']])
+            if extras['sheets']:
+                row['step_confirm'] = {'sheets': extras['sheets'],
+                                       'parts': {q['key']: {'uses_cards': extras['parts'][q['key']]['uses_cards']}}}

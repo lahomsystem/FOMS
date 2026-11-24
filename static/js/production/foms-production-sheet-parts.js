@@ -3,6 +3,9 @@
  *  · beforeToggle: 반장 · 관리자가 카드를 안 쓴 파트의 공정 칸을 **켤 때**(끌 때는 아님), 확정 도면이 1장 이상이면 먼저 묻는다
  *    "재단을 작업 완료로 처리할까요?" · "이 주문의 도면 5장이 모두 재단 완료로 처리돼요." [취소] [작업 완료]. 카드를 쓴 파트는 묻지 않고 보낸다
  *    (서버가 남은 장을 세어 막는다 — 409 PART_USES_CARDS). 확정 도면 0장이면 지금처럼 바로.
+ *    '내 공정' [<공정> 끝](foms-production-home-steps.js 판 · foms-production-home.js 줄, 사장님 2026-11-25 "도면이 있는 주문만 한 번
+ *    묻기")도 이 함수 하나 — 단추에 서버가 실은 자료(data-foms-sheet-parts, 열쇠 = data-step-key), [취소] · Esc · 바깥이면 no().
+ *    창을 연 뒤 OPEN_GUARD_MS 안의 누름은 버린다(두 번 누름의 둘째가 [작업 완료] · 바깥에 떨어지지 않게).
  *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "아직 미완료가 있어요 — 재단 1장 · 검수 3장".
  *    카드를 안 쓴 주문은 null(시트 JS 가 지금 글을 그대로 쓴다).
@@ -26,7 +29,7 @@
     var day = (d.getUTCMonth() + 1) + '/' + d.getUTCDate();
     return prev && prev.getUTCDate() === d.getUTCDate() && prev.getUTCMonth() === d.getUTCMonth() ? hm : day + ' ' + hm;
   }
-  function holder(page) { return page.querySelector('[data-foms-sheet-parts]'); }
+  function holder(page) { return page.hasAttribute('data-foms-sheet-parts') ? page : page.querySelector('[data-foms-sheet-parts]'); }
   function data(page) { var h = holder(page); return h ? safeJsonParse(h.getAttribute('data-foms-sheet-parts'), null) : null; }
   // 옆 시트는 자료가 안 실려 있다 — 칸을 켤 때만 공정 API GET 한 번(읽기)
   function load(page) {
@@ -42,24 +45,32 @@
   }
 
   // ── 반장 손 체크 확인 창 ──
-  var dlg = { box: null, yes: null, opener: null };
+  // 창 상태 · 문서 리스너는 문서에 하나 — 셸 조각 교체로 이 파일이 다시 돌아도 리스너(한 번)는 마지막으로 돈 함수(S.api)와 같은 창 상태를
+  // 본다(예전엔 리스너가 첫 실행의 창 상태만 봐서, 조각 교체 뒤 연 창의 [작업 완료] · [취소]가 먹지 않았다 — 2026-11-25 찾음).
+  var S = window.__FOMS_SHEET_PARTS = window.__FOMS_SHEET_PARTS || { dlg: { box: null, yes: null, no: null, opener: null, at: 0 } };
+  var dlg = S.dlg;
+  var OPEN_GUARD_MS = 400;
   function closeDialog(run) {
     var box = dlg.box;
     if (!box || box.hidden) { return; }
     box.hidden = true;
     box.setAttribute('aria-hidden', 'true');
     var yes = dlg.yes;
+    var no = dlg.no;
     var opener = dlg.opener;
     dlg.yes = null;
+    dlg.no = null;
     if (opener && document.contains(opener)) { opener.focus(); }
-    if (run && yes) { yes(); }
+    if (run && yes) { yes(); } else if (!run && no) { no(); }
   }
-  function ask(label, sheets, opener, go) {
+  function ask(label, sheets, opener, go, no) {
     var box = document.querySelector('[data-foms-sheet-confirm]');
     if (!box) { go(); return; }
     dlg.box = box;
     dlg.yes = go;
+    dlg.no = no || null;
     dlg.opener = opener;
+    dlg.at = Date.now();
     box.querySelector('[data-foms-sheet-confirm-title]').textContent = obj(label, '를', '을') + ' 작업 완료로 처리할까요?';
     box.querySelector('[data-foms-sheet-confirm-body]').textContent = '이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.';
     box.hidden = false;
@@ -67,15 +78,15 @@
     var no = box.querySelector('[data-foms-sheet-confirm-no].foms-btn');
     if (no) { no.focus(); }
   }
-  function beforeToggle(page, btn, done, go) {
+  function beforeToggle(page, btn, done, go, no) {
     if (!done) { go(); return; }
-    var key = btn.getAttribute('data-foms-sheet-step');
+    var key = btn.getAttribute('data-foms-sheet-step') || btn.getAttribute('data-step-key'); // 공정 칸 · '내 공정' [<공정> 끝]
     btn.disabled = true;
     load(page).then(function (info) {
       btn.disabled = false;
       var part = info && info.parts ? info.parts[key] : null;
       if (!info || !info.sheets || !part || part.uses_cards) { go(); return; } // 카드 쓴 파트 · 도면 0장 · 자료 없음 = 서버가 판정
-      ask(LABELS[key] || key, info.sheets, btn, go);
+      ask(LABELS[key] || key, info.sheets, btn, go, no);
     });
   }
 
@@ -187,21 +198,25 @@
     } catch (e) { wait.textContent = '기록을 못 불러왔어요. 다시 눌러 주세요.'; }
   }
 
-  if (!window.__FOMS_SHEET_PARTS_BOUND) {
-    window.__FOMS_SHEET_PARTS_BOUND = true;
+  S.api = { close: closeDialog, toggleLog: toggleLog };
+  if (!S.bound) {
+    S.bound = true;
     document.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || typeof t.closest !== 'function') { return; }
-      if (t.closest('[data-foms-sheet-confirm-yes]')) { closeDialog(true); return; }
-      if (t.closest('[data-foms-sheet-confirm-no]')) { closeDialog(false); return; }
+      var hit = t.closest('[data-foms-sheet-confirm-yes], [data-foms-sheet-confirm-no]');
+      if (hit) { // 지금 연 창의 단추만 · 연 뒤 OPEN_GUARD_MS 안 누름은 버린다(두 번 누름)
+        if (dlg.box && dlg.box.contains(hit) && Date.now() - dlg.at >= OPEN_GUARD_MS) { S.api.close(hit.hasAttribute('data-foms-sheet-confirm-yes')); }
+        return;
+      }
       var log = t.closest('[data-foms-sheet-loglink]');
       var page = log && log.closest('[data-foms-prod-sheet-page]');
-      if (page) { toggleLog(page, log); }
+      if (page) { S.api.toggleLog(page, log); }
     });
     document.addEventListener('keydown', function (e) {
       var box = dlg.box;
-      if (!box || box.hidden) { return; }
-      if (e.key === 'Escape') { closeDialog(false); return; }
+      if (!box || box.hidden || !document.contains(box)) { return; } // 조각 교체로 떠난 창은 키를 가두지 않는다
+      if (e.key === 'Escape') { S.api.close(false); return; }
       if (e.key !== 'Tab') { return; }
       var btns = toArr(box.querySelectorAll('button.foms-btn'));
       if (!btns.length) { return; }

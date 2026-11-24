@@ -117,8 +117,10 @@ def test_새_JS_는_화면에_한_번_묶고_문서_리스너는_없다() -> Non
 # ⑤ 쿼리 수 — '내 공정' 탭 계약(판을 그려도 0개 더함)
 # --------------------------------------------------------------------------- #
 # 실측(2026-11-21, SQLite 레인, 파트 없는 생산팀): 판 없음(PC) small 9 · big 9, 판 있음(태블릿) small 9 · big 9 → 차이 0, 판 더함 0.
+# 2026-11-25 [<공정> 끝] 확인 창 자료(도면 있는 줄의 표시 줄 한 번, [끝]을 그리는 사람만)가 +1 — 판 없음(폰 · 세로 쓰기) small 10 · big 10,
+# 판 있음 small 10 · big 10 → 차이 0, 판 더함 0 그대로. 보기만(PC [고치기] 끔)은 9 그대로(test_production_my_steps_confirm.py).
 STEPS_ALLOWED_DELTA = 2
-STEPS_ABS_QUERY_CAP = 11  # 실측 9 + 30%
+STEPS_ABS_QUERY_CAP = 11  # 실측 9 + 30%(10 이 되어도 그대로 둔다)
 
 
 def _count(fn):
@@ -140,7 +142,8 @@ def test_내_공정_탭_쿼리_수는_주문이_늘어도_같고_판은_0개_더
     for i in range(4):
         add_order(f"적은{i}", i % 3, done=("cut",) if i % 2 else (), pngs=2)
     counts = {}
-    for label, cookies in (("plain", {"foms_ptr": "fine", "foms_vw": "wide"}), ("panel", TABLET)):
+    # 판 없음 = 같은 쓰기 계정의 폰 · 세로 꼴([끝]이 있다 — 확인 창 자료 +1 이 양쪽에 같다)
+    for label, cookies in (("plain", {"foms_ptr": "coarse", "foms_vw": "narrow"}), ("panel", TABLET)):
         set_cookies(client, cookies)
         assert client.get(HOME + "?tab=steps").status_code == 200  # warmup
         resp, n = _count(lambda: client.get(HOME + "?tab=steps"))
@@ -148,7 +151,7 @@ def test_내_공정_탭_쿼리_수는_주문이_늘어도_같고_판은_0개_더
         counts[(label, "small")] = n
     for i in range(8):
         add_order(f"많은{i}", i % 5, done=("cut", "edge") if i % 3 == 0 else (), hold="자재" if i == 5 else None, pngs=3)
-    for label, cookies in (("plain", {"foms_ptr": "fine", "foms_vw": "wide"}), ("panel", TABLET)):
+    for label, cookies in (("plain", {"foms_ptr": "coarse", "foms_vw": "narrow"}), ("panel", TABLET)):
         set_cookies(client, cookies)
         resp, n = _count(lambda: client.get(HOME + "?tab=steps"))
         body = resp.get_data(as_text=True)
@@ -229,10 +232,10 @@ def test_판_CSS_반반_문_밖은_숨김_끝_단추는_늘_판_안() -> None:
 
 def test_핀과_화면_HTML(client, cohort) -> None:
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
-    assert "home.css') }}?v=20261124h" in styles and "{% if part_board %}" in styles  # parts.css = 도면 카드 판만(11-22 확인 창 뺌)
+    assert "home.css') }}?v=20261125a" in styles and "{% if part_board %}" in styles  # parts.css = 도면 카드 판만(11-22 확인 창 뺌)
     early = (ROOT / "templates/production/partials/home_early.html").read_text(encoding="utf-8")
-    assert f"filename='{STEPS_JS}') }}}}?v=20261123u" in early
+    assert f"filename='{STEPS_JS}') }}}}?v=20261125a" in early
     login(client)
     seed_cut_queue()
     set_cookies(client, TABLET)
-    assert "home.css?v=20261124h" in get_html(client, HOME + "?tab=steps")
+    assert "home.css?v=20261125a" in get_html(client, HOME + "?tab=steps")
