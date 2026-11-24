@@ -29,6 +29,7 @@ from foms.services.audit_message_display import action_label, describe_order_act
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
 from foms.services.orders.revision import execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.orders.drawing_factory import has_second_factory
@@ -304,15 +305,20 @@ def _hold_active(sd: Any) -> bool:
     return bool(isinstance(hold, dict) and hold.get("active"))
 
 
+def _complete_blocked(sd: Any) -> bool:
+    """제작 완료가 막힌 주문 — 보류 · 도면 고치는 중(사장님 2026-11-25 "제작 완료도 막기", 제작 완료 API 와 같은 판정)."""
+    return _hold_active(sd) or drawing_revision_in_progress(sd)
+
+
 def order_ready(order: Order, views: list[Any], user: Any, req: MarkRequest, target: Optional[str]) -> Optional[dict]:
     """검수 카드를 완료한 뒤 "제작 완료할까요?"를 물을지(§4-4 한 공장 주문) — 쿼리 0(읽은 줄 · 잠근 주문).
 
-    검수 완료 쓰기 · 완료 판정 참 · 생산 단계 · 보류 아님 · 누른 사람이 생산 쓰기 가능일 때만 ``{order_id}``.
+    검수 완료 쓰기 · 완료 판정 참 · 생산 단계 · 보류 · 도면 고치는 중 아님 · 누른 사람이 생산 쓰기 가능일 때만 ``{order_id}``.
     """
     if req.part != PART_INSPECT or target != MARK_STATE_DONE:
         return None
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-    if read_main_stage(order) != "PRODUCTION" or _hold_active(sd) or not can_write_production(user):
+    if read_main_stage(order) != "PRODUCTION" or _complete_blocked(sd) or not can_write_production(user):
         return None
     if has_second_factory(sd):  # 섞인 주문은 공장마다 묻는다(factory_ready, 2026-11-23 §4-4 · §4-14)
         return None
@@ -324,7 +330,7 @@ def _factory_ready(order: Order, entry: dict[str, Any], views: list[Any], user: 
     """섞인 주문의 "2공장 제작 완료할까요?"(:func:`~foms.services.production.factory_home.factory_ready`) — 쿼리 0."""
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     return factory_ready(sd, entry, views, user, order_id=int(order.id), part=req.part, target=target,
-                         stage=read_main_stage(order), hold=_hold_active(sd))
+                         stage=read_main_stage(order), hold=_complete_blocked(sd))  # 보류 · 도면 고치는 중이면 묻지 않는다
 
 
 def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool, user: Any = None) -> str:

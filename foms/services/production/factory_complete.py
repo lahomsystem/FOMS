@@ -4,7 +4,8 @@
 공장 문(:func:`~foms.services.production.part_access.can_finish_factory` — 403 ``FACTORY_FORBIDDEN``) → 그 공장 장이 있음
 (409 ``NO_FACTORY_SHEETS``) → 생산 단계(409 ``INVALID_STAGE`` — 이미 시공 대기면 "그사이 윤검수가 제작 완료했어요. …") →
 완료 취소면 그 공장 표지만 지움 → 이미 살아 있으면 같은 사람 200(바뀜 없음) · 다른 사람 409 ``FACTORY_DONE_ALREADY`` → 보류(409
-``HOLD_ACTIVE``) → 그 공장 장 네 파트 완료(409 ``FACTORY_NOT_READY`` + ``left``) → 다른 있는 공장이 모두 살아 있으면 **마지막** =
+``HOLD_ACTIVE``) → 도면 고치는 중(409 ``DRAWING_REVISING`` — 사장님 2026-11-25 "제작 완료도 막기", 보류와 같은 자리 · 같은 꼴 · 글은
+``REVISING_MESSAGE``, 완료 취소는 보류처럼 된다) → 그 공장 장 네 파트 완료(409 ``FACTORY_NOT_READY`` + ``left``) → 다른 있는 공장이 모두 살아 있으면 **마지막** =
 제작 완료 길 그대로(:func:`~foms.services.production.complete_order._apply_complete_side_effects` 가 남은 표지를 같이 씀) → 시공
 대기, 아니면 표지만(버전 +1 · 이벤트 ``PRODUCTION_FACTORY_COMPLETED``).
 
@@ -21,6 +22,7 @@ from flask import jsonify
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.erp_display import _ensure_dict
+from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
 from foms.services.orders.drawing_factory import factory_done_entry, present_factories
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError, execute_order_mutation, lock_order_row
@@ -48,7 +50,7 @@ from foms.services.production.order_write_helpers import (
     _transition_error_response,
 )
 from foms.services.production.part_access import can_finish_factory
-from foms.services.production.part_mark_gates import HOLD_MESSAGE
+from foms.services.production.part_mark_gates import DRAWING_REVISING, HOLD_MESSAGE, REVISING_MESSAGE
 from foms.services.production.part_mark_rules import subject_particle
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_state
@@ -189,6 +191,8 @@ def finish_factory(db: Any, order_id: int, user: Any, body: dict[str, Any], idem
                                                       "final": False, "changed": False}, "error": None})
         if _hold_active(sd)[0]:
             return _fail(409, "HOLD_ACTIVE", HOLD_MESSAGE)
+        if drawing_revision_in_progress(sd):  # 보류와 같은 자리(2026-11-25) — 마지막 공장(= 주문 제작 완료)도 여기서 막힌다
+            return _fail(409, DRAWING_REVISING, REVISING_MESSAGE)
         marks = order_marks(db, order_id)
         state = complete_state(sd, marks, factory=factory)
         if not state["ready"]:

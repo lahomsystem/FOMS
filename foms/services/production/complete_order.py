@@ -59,6 +59,7 @@ from foms.services.production.order_write_helpers import (
     _is_rework_completion,
     _punch_or_return,
     _release_hold_in_sd,
+    _revising_block_response,
     _request_hash,
     _scope_hash,
     _stage_quest_block,
@@ -66,6 +67,7 @@ from foms.services.production.order_write_helpers import (
     _transition_error_response,
 )
 from foms.services.production.part_access import account_production_factory, is_part_admin
+from foms.services.production.part_mark_gates import DRAWING_REVISING
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.start_run import append_stage_history
 from models import Order
@@ -195,7 +197,8 @@ def complete_production(db: Any, order_id: int, user: Any, user_id: Any, body: d
     """제작 완료 (제작중/PRODUCTION → CONSTRUCTION), transition_order(PRODUCTION_COMPLETE) 경유 — 응답 튜플을 돌려준다.
 
     게이트 순서 · 글 · 응답 꼴은 옮기기 전 ``api_production_complete`` 그대로: 존재(404) → 제작중 stage(INVALID_STAGE 409) →
-    보류(HOLD_ACTIVE 409, release_hold 예외) → 현재 stage quest 완료(QUEST_INCOMPLETE 409) → **검수까지 끝남**(STEPS_INCOMPLETE
+    보류(HOLD_ACTIVE 409, release_hold 예외) → 도면 고치는 중(DRAWING_REVISING 409 — 사장님 2026-11-25 "제작 완료도 막기", 보류와
+    같은 자리 · 같은 꼴 · 관리자 뚫기도 같다) → 현재 stage quest 완료(QUEST_INCOMPLETE 409) → **검수까지 끝남**(STEPS_INCOMPLETE
     409 — 판정 = :func:`complete_block_body` 한 곳, 카드를 쓴 주문은 표시 줄로). ADMIN ``admin_override``(사유)로 게이트 뚫기.
     same-key 재요청은 전이/side-effect 없이 replay. 섞인 주문은 남은 공장 표지를 누른 사람 이름으로 모두 쓴다(곁일).
     """
@@ -238,13 +241,18 @@ def complete_production(db: Any, order_id: int, user: Any, user_id: Any, body: d
 
 
 def _complete_gates(db: Any, order: Order, sd: dict[str, Any], release_hold: bool, override: Any, punched: list) -> Any:
-    """[제작 완료] 업무 게이트 넷(단계 · 보류 · 승인 · 검수까지) — 막히면 응답 튜플, 지나면 None(관리자 뚫기는 ``punched`` 에)."""
+    """[제작 완료] 업무 게이트 다섯(단계 · 보류 · 도면 고치는 중 · 승인 · 검수까지) — 막히면 응답 튜플, 지나면 None(관리자 뚫기는
+    ``punched`` 에). 도면 고치는 중은 보류 바로 뒤(도면 한 장 누름 ``order_gate`` 와 같은 차례) — ``release_hold`` 여도 막히면 보류를
+    풀지 않는다(아무것도 안 씀)."""
     if order.erp_stage_code not in ("생산", "PRODUCTION"):
         if override is None:
             return jsonify({"success": False, "code": "INVALID_STAGE",
                             "message": "제작중 상태에서만 제작을 완료할 수 있습니다."}), 409
         punched.append("INVALID_STAGE")
     blocked = _punch_or_return(_hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
+    if blocked is not None:
+        return blocked
+    blocked = _punch_or_return(_revising_block_response(sd), DRAWING_REVISING, override, punched)
     if blocked is not None:
         return blocked
     blocked = _punch_or_return(_stage_quest_block(sd, "PRODUCTION", "생산"), "QUEST_INCOMPLETE", override, punched)
