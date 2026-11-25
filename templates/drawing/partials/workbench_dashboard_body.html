@@ -80,7 +80,7 @@
         </div>
 
         {# '생산 중'(설계서 2026-11-25 §2-1) — 생산 단계 + 시공일이 오늘이거나 남은 시공 대기. 누적 완료처럼 떨어진 칸(전체에 안 더함). #}
-        <div class="erp-pro-pipeline__stage erp-pro-pipeline__stage--detached ms-2 {% if (filters.get('status') or '') == 'PRODUCTION' %}erp-pro-pipeline__stage--active{% endif %}" data-status="PRODUCTION" role="button" tabindex="0" title="생산 중만 보기">
+        <div class="erp-pro-pipeline__stage erp-pro-pipeline__stage--detached ms-2 {% if (filters.get('status') or '') == 'PRODUCTION' %}erp-pro-pipeline__stage--active{% endif %}" data-status="PRODUCTION" role="button" tabindex="0">
           <div class="erp-pro-pipeline__count">{{ stats.PRODUCTION|default(0) }}</div>
           <div class="erp-pro-pipeline__label">생산 중</div>
         </div>
@@ -163,7 +163,7 @@
     <div class="card-body foms-drawing-legacy-table">
       {%- if production_tab %}
       {#- '생산 중' 칸 줄 모양(설계서 2026-11-25 §2-1, D3) · 공장 칩 — 다른 칸 · 기본 목록은 싣지 않는다 #}
-      <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125d3">
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125d">
       <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">
       {%- endif %}
       {% if rows %}

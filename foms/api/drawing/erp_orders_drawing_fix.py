@@ -7,8 +7,8 @@
   처리기가 도면팀 STAFF · MANAGER + 관리자만 남긴다 — 403 ``FIX_FORBIDDEN``). [수정 시작]은 생산 단계만(409 ``FIX_STAGE``).
 * 한 tx: 행 잠금(:func:`~foms.services.orders.revision.lock_order_row`) → 판정 → deepcopy 사본 고침 →
   :func:`~foms.services.orders.revision.execute_single_order_write`(재대입 · ``flag_modified`` · 버전 +1) → ``OrderEvent``
-  (``DRAWING_FIX_STARTED`` · ``DRAWING_FIX_STOPPED`` — 생산 '바뀐 것' 한 줄, 폰 알림 없음) → 감사(``SecurityLog`` 한 줄 —
-  ``log_access`` 와 같은 칸, api → web import 금지라 공장 지정 API 처럼 직접) → 커밋.
+  (``DRAWING_FIX_STARTED`` · ``DRAWING_FIX_STOPPED`` — 생산 '바뀐 것' 한 줄, 폰 알림 없음) → 감사(``log_access`` — 대신 로그인 표지 ·
+  detail 정규화 그대로) → 커밋.
 * 멱등: 바뀐 장이 없으면(이미 그 상태) 쓰지 않고 200 ``changed:false`` — 버전 · 이벤트 · 감사 0.
 * 쓴 뒤 도면 · 생산 캐시 무효화(작업실 목록 · 생산 화면이 새 막힘을 본다).
 """
@@ -24,6 +24,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
+# 감사 = log_access(대신 로그인 impersonated_by · detail 정규화 · 감사 행만 되감는 savepoint). api → web 새 import 는 레이어 래칫이
+# 막으므로 같은 패키지에서 이미 그 길을 쓰는 전달 API 모듈에서 가져온다(공장 완료 API factory_done.py 가 _audit_production 을 쓰는 길).
+from foms.api.drawing.erp_orders_drawing import log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.common.dashboard_cache import (
     DASHBOARD_FAMILY_DRAWING,
@@ -45,7 +48,7 @@ from foms.services.orders.drawing_fix_marks import (
     stop_fixing,
 )
 from foms.services.orders.revision import RevisionError, execute_single_order_write, lock_order_row
-from models import OrderEvent, SecurityLog
+from models import OrderEvent
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +75,9 @@ def _record(db: Any, order: Any, user: Any, rows: list[dict[str, Any]], *, start
     payload = {"numbers": [r["no"] for r in rows], "idents": [r["ident"] for r in rows], "by_name": _actor_name(user)}
     db.add(OrderEvent(order_id=order.id, event_type=event_type, created_by_user_id=user.id, payload=payload))
     context = order_audit_context(order)
-    # 감사 한 줄 = log_access 와 같은 SecurityLog 모양(api → web import 는 레이어 래칫이 막는다 — 공장 지정 API 와 같은 길).
-    db.add(SecurityLog(user_id=user.id, action=event_type, target_type="order", target_id=int(order.id),
-                       message=describe_order_action(order_id=order.id, action=event_type, note=numbers_note(rows), **context),
-                       detail={**payload, **context}))
+    log_access(describe_order_action(order_id=order.id, action=event_type, note=numbers_note(rows), **context), user.id,
+               auto_commit=False, action=event_type, target_type="order", target_id=int(order.id),
+               detail={**payload, **context}, db=db)  # 호출자 세션 — get_db() 를 새로 붙이지 않게
 
 
 def _write(db: Any, user: Any, order_id: int, payload: Any, *, starting: bool) -> dict[str, Any]:

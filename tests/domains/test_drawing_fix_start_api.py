@@ -18,9 +18,12 @@ import pytest
 from db import db_session
 from foms.services.orders import drawing_fix as fx
 from foms.services.orders.drawing_fix_marks import FIX_STARTED_EVENT, FIX_STOPPED_EVENT, confirm_text
+from foms.services.orders.order_mutation_policy import load_policy_manifest
+from foms.services.request_write_guard import load_write_guard_manifest
+from foms.services.sales_commission.settings import load_settings, save_freelancer
 from foms.services.production_change_alerts import collect_production_change_alerts
-from models import Notification, Order, OrderEvent, SecurityLog
-from tests.support.drawing_fix_workbench_seed import key, login, make_order, patch, people, sd_of
+from models import Notification, Order, OrderEvent, PartnerOrg, SecurityLog, User
+from tests.support.drawing_fix_workbench_seed import key, login, make_order, make_user, patch, people, sd_of
 
 ALLOWED = ("staff", "manager", "assignee", "admin")
 REFUSED = ("sales", "lead", "part", "viewer", "prod_manager")
@@ -227,9 +230,6 @@ def test_server_owned_field_survives_other_requests_and_unknown_shape(client, wh
 
 
 def test_routes_are_in_both_manifests_as_drawing_team_guard():
-    from foms.services.orders.order_mutation_policy import load_policy_manifest
-    from foms.services.request_write_guard import load_write_guard_manifest
-
     policy, guard = load_policy_manifest()["routes"], load_write_guard_manifest()["routes"]
     for act in ("start", "stop"):
         endpoint = f"erp_orders_drawing_fix.api_drawing_fix_{act}"
@@ -258,3 +258,67 @@ def test_front_policy_lets_drawing_team_through_and_handler_stops_production_man
     login(client, who.sales)
     assert _stop(client, oid, "s1").status_code == 403                  # 앞문 또는 처리기 — 어느 쪽이든 막힘
     assert list(sd_of(oid)["drawing_fix"]["fixing"]) == ["sheet:s1"]
+
+
+# --- 권한 표 가장자리(D3 검토 8) --------------------------------------------------
+
+
+def _refused_and_untouched(res, oid: int, before: int) -> None:
+    assert res.status_code == 403, res.status_code
+    assert "drawing_fix" not in sd_of(oid) and _version(oid) == before and not _events(oid, FIX_STARTED_EVENT)
+
+
+def test_assignee_outside_drawing_team_is_refused(client):
+    """설계서 §4-1 술어 문단 그대로 — 도면팀 STAFF · MANAGER + 관리자만(지정 담당이라도 도면팀이 아니면 403)."""
+    sales_assignee = make_user("최영업", team="SALES")
+    oid = make_order(assignees=(sales_assignee.id,))
+    login(client, sales_assignee)
+    res = _start(client, oid, "s1")
+    assert _code(res) == "FIX_FORBIDDEN"
+    _refused_and_untouched(res, oid, _version(oid))
+
+
+def test_partner_account_is_refused_even_in_drawing_team(client):
+    partner = PartnerOrg(name="가짜협력사")
+    db_session.add(partner)
+    db_session.commit()
+    outsider = make_user("허협력", team="DRAWING", role="PARTNER", partner_org_id=partner.id)
+    oid = make_order()
+    before = _version(oid)
+    login(client, outsider)
+    _refused_and_untouched(_start(client, oid, "s1"), oid, before)
+
+
+def test_freelancer_is_refused(client):
+    freelancer = make_user("가짜프리도면", team="SALES")
+    save_freelancer(db_session, freelancer.id, {"match_name": "가짜프리도면", "start_month": "2020-01", "tax_type": "NONE",
+                                                "active": True}, base_version=load_settings(db_session)[0], actor_user_id=None)
+    db_session.commit()
+    oid = make_order()
+    before = _version(oid)
+    login(client, freelancer)
+    _refused_and_untouched(_start(client, oid, "s1"), oid, before)
+
+
+def test_inactive_drawing_staff_is_refused(client):
+    """비활성 계정은 로그인 문(before_request)이 세션을 비워 401 AUTH_REQUIRED — 처리기까지 오지 않는다(쓰기 0)."""
+    inactive = make_user("휴면도면", team="DRAWING")
+    oid = make_order()
+    before = _version(oid)
+    login(client, inactive)
+    db_session.get(User, inactive.id).is_active = False
+    db_session.commit()
+    res = _start(client, oid, "s1")
+    assert res.status_code == 401 and _code(res) == "AUTH_REQUIRED"
+    assert "drawing_fix" not in sd_of(oid) and _version(oid) == before and not _events(oid, FIX_STARTED_EVENT)
+
+
+def test_audit_keeps_impersonation_mark(client, who):
+    """감사는 log_access 길 — 대리 로그인 세션이면 원 관리자 id 가 detail 에 남는다(D3 검토 5)."""
+    oid = make_order()
+    login(client, who.staff)
+    with client.session_transaction() as sess:
+        sess["impersonating_from"] = who.admin.id
+    assert _start(client, oid, "s1").status_code == 200
+    audit = db_session.query(SecurityLog).filter_by(action=FIX_STARTED_EVENT, target_id=oid).one()
+    assert audit.user_id == who.staff.id and audit.detail["impersonated_by"] == who.admin.id

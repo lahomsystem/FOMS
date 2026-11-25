@@ -231,19 +231,25 @@ def fetch_production_tab_order_ids(orders_query: Any, *, today: str, cap: int = 
     return {"order_ids": ids, "hidden": hidden}
 
 
-def count_workbench_tiles(base_query: Any, *, today: str) -> dict[str, int]:
-    """'누적 완료' · '생산 중' 칸 숫자 — 한 문장(쿼리 1, 기본 목록 쿼리 수가 늘지 않게).
+def production_tab_count_column(orders_query: Any, *, today: str):
+    """'생산 중' 칸 숫자 식 — 모집단 수 스칼라 하위 질의(바깥과 묶지 않는다, ``orders_query`` 범위 = 내 것만 · 협력사 거르개)."""
+    return (orders_query.filter(build_production_tab_filter(today)).with_entities(func.count(Order.id))
+            .statement.correlate(None).scalar_subquery())
 
-    '누적 완료'는 :func:`count_confirmed_drawing_orders` 와 같은 술어(최상위 상태 우선), '생산 중'은 :func:`build_production_tab_filter`
-    (스칼라 하위 질의 — 바깥과 묶지 않는다). 둘 다 ``base_query`` 의 범위(내 것만 · 협력사 거르개)를 그대로 따른다.
+
+def hydrate_with_production_count(orders_query: Any, order_ids: list[int], *, today: str) -> tuple[list[Order], int]:
+    """하이드레이트(:func:`hydrate_drawing_orders_by_ids` 와 같은 결과) + '생산 중' 칸 숫자를 **한 문장**으로(캐시 밖).
+
+    칸 숫자는 5분 캐시(seed 블롭)에 두지 않는다 — 생산 · 시공 단계 쓰기(제작 완료 · 시공 시작 · 시공일 · [수정 시작] 등)는
+    도면 캐시 갈래를 지우지 않아 숫자가 낡고 줄 수와 어긋났다(D3 검토 4). 하이드레이트 문장에 스칼라 하위 질의로 실어 요청마다 새
+    값이면서 쿼리 수는 그대로다. 줄이 하나도 없으면(빈 큐) 숫자만 한 번 센다.
 
     Returns:
-        ``{"confirmed_count": n, "production_count": m}``.
+        ``(주문 목록 — order_ids 순서, 모집단 수)``.
     """
-    nested, flat = _drawing_status_exprs()
-    production = (base_query.filter(build_production_tab_filter(today)).with_entities(func.count(Order.id))
-                  .statement.correlate(None).scalar_subquery())
-    confirmed, produced = base_query.filter(
-        or_(flat == 'CONFIRMED', and_(or_(flat.is_(None), flat == ''), nested == 'CONFIRMED'))
-    ).with_entities(func.count(Order.id), production).one()
-    return {"confirmed_count": int(confirmed or 0), "production_count": int(produced or 0)}
+    count_col = production_tab_count_column(orders_query, today=today)
+    rows = orders_query.filter(Order.id.in_(order_ids)).add_columns(count_col).all() if order_ids else []
+    if not rows:
+        return [], int(orders_query.session.query(count_col).scalar() or 0)
+    by_id = {int(order.id): order for order, _count in rows}
+    return [by_id[i] for i in order_ids if i in by_id], int(rows[0][1] or 0)

@@ -84,8 +84,8 @@ from foms.services.orders.as_drawing import is_as_drawing_stage
 from foms.services.drawing_workbench_read_model import (
     fetch_drawing_seed_order_ids,
     fetch_production_tab_order_ids,
-    hydrate_drawing_orders_by_ids,
-    count_workbench_tiles,
+    hydrate_with_production_count,
+    count_confirmed_drawing_orders,
 )
 from foms.services.drawing_workbench_production import (
     PRODUCTION_TAB_STATUS,
@@ -737,8 +737,6 @@ def erp_drawing_workbench_dashboard():
         "mine": bool(mine_only),
         "partner_org": partner_org,
         "confirmed": bool(include_confirmed),
-        # '생산 중' 칸 숫자 · 모집단은 오늘(KST) 시공일로 가른다(설계서 2026-11-25 §2-1) — 날이 바뀌면 새 키.
-        "today": _today,
     }
     # 켜진 프리랜서는 "내 것"이 연결 표라(FCOMM-01 §6.1) 표시를 하나 더 넣는다 — 같은 계정이 프리랜서로 지정된
     # 직후 TTL 동안 직원 범위로 센 '누적 완료' 숫자를 받지 않게. 다른 사용자의 키는 그대로다.
@@ -765,8 +763,7 @@ def erp_drawing_workbench_dashboard():
             ),
             # '완료' 타일 숫자는 모집단(컨펌 제외)과 무관한 전체 큐 기준이라 따로 센다.
             # seed 와 같은 캐시 슬라이스에 담아 요청당 추가 쿼리가 생기지 않게 한다.
-            # '생산 중' 칸 숫자도 같은 한 문장(스칼라 하위 질의)으로 센다 — 기본 목록 쿼리 수 그대로.
-            **count_workbench_tiles(orders_query, today=_today),
+            "confirmed_count": count_confirmed_drawing_orders(orders_query),
         },
         page="drawing",
         slice_name="workbench_queue_ids",
@@ -774,18 +771,15 @@ def erp_drawing_workbench_dashboard():
     order_ids = [int(x) for x in (_seed_blob.get("order_ids") or [])]
     # '생산 중' 칸: 모집단 SQL 두 번(요청 · 고치는 중 전부 + 나머지 시공일 순 1,000건) — 하이드레이트는 기본 큐와 한 번에
     # (프로세스 맵 다른 칸 숫자는 기본 큐 줄로 그대로 센다). 다른 칸 · 기본 목록은 이 길을 타지 않는다(쿼리 0 증가).
-    _production_blob = get_or_compute_dashboard_slice(
-        build_dashboard_cache_key("drawing", "workbench_production_ids", _seed_fp),
-        TTL_PANEL_ROWS,
-        lambda: fetch_production_tab_order_ids(orders_query, today=_today),
-        page="drawing",
-        slice_name="workbench_production_ids",
-    ) if production_tab else {}
+    # 캐시에 두지 않는다 — 생산 · 시공 단계 쓰기는 도면 캐시 갈래를 지우지 않아 5분까지 낡는다(D3 검토 4).
+    _production_blob = fetch_production_tab_order_ids(orders_query, today=_today) if production_tab else {}
     production_ids = [int(x) for x in (_production_blob.get("order_ids") or [])]
     production_id_set = set(production_ids)
     record_phase("seed", (time.perf_counter() - _t_phase) * 1000)
     _t_phase = time.perf_counter()
-    orders = hydrate_drawing_orders_by_ids(orders_query, list(dict.fromkeys(order_ids + production_ids)))
+    # '생산 중' 칸 숫자는 하이드레이트 문장의 스칼라 하위 질의로 — 요청마다 새 값(캐시 밖), 쿼리 수 그대로.
+    orders, production_count = hydrate_with_production_count(
+        orders_query, list(dict.fromkeys(order_ids + production_ids)), today=_today)
 
     # 검색 카드 딥링크(?focus_order=)는 seed 캡·필터와 무관하게 해당 주문이 착지해야 한다.
     # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
@@ -1097,8 +1091,8 @@ def erp_drawing_workbench_dashboard():
     # 카운트로 읽는다(목록과 같은 최상위 우선 판정). 컨펌 포함 모드에서도 같은 값을 써서
     # 토글·검색에 따라 숫자가 바뀌지 않게 한다(구 캐시 블롭이면 0 폴백).
     stats['CONFIRMED'] = int(_seed_blob.get('confirmed_count') or 0)
-    # '생산 중' 칸 숫자 = 그 사람 범위(내 것만 · 협력사 거르개)의 모집단 수 — 같은 캐시 블롭의 SQL 카운트(목록 필터와 무관).
-    stats['PRODUCTION'] = int(_seed_blob.get('production_count') or 0)
+    # '생산 중' 칸 숫자 = 그 사람 범위(내 것만 · 협력사 거르개)의 모집단 수 — 캐시 밖 SQL 카운트(목록 필터와 무관).
+    stats['PRODUCTION'] = production_count
 
     if focus_order_id:
         # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
