@@ -74,7 +74,7 @@ if (input.hotfix) {
     setChanged: () => {},
     gate: (id, opts, text) => Promise.resolve(opts).then((o) => {
       calls.push({ url: 'gate', method: 'CALL', body: o });
-      return { ok: true, ack: (input.warnings || []).length > 0 };
+      return { ok: true, ack: { idents: (input.warnings || []).map((w) => w.ident).filter(Boolean), orderMade: false } };
     }),
     post: (url, body) => { calls.push({ url, method: 'POST', body }); return Promise.resolve({ success: true }); },
   };

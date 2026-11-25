@@ -1754,7 +1754,8 @@ def api_post_drawing_wizard_transfer_pending(order_id):
             note=note, mode=mode, files=files,
             prepare_structured=lambda sd: stage_pending_snapshot(
                 sd, order_id, current_user, sheet_ids=None, stale_keys=stale_keys),
-            ack_worked=bool(data.get('ack_worked')),  # 생산·시공 단계 보내기 전 확인(설계서 2026-11-25 §2-3)
+            # 생산·시공 단계 보내기 전 확인(설계서 2026-11-25 §2-3) — 물어본 도면 열쇠 목록 · 시공 대기 표지
+            ack_worked=data.get('ack_worked'), ack_order_made=bool(data.get('ack_order_made')),
         )
         if not payload.get('success'):
             return jsonify(payload), status

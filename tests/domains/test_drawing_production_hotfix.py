@@ -8,9 +8,7 @@
 - D: 생산팀 활성 계정 전원에게 알림 + 폰 알림, 앞 알림과 합치지 않는다.
 - A: 도면팀(담당 아님 포함)이 도면 칸 사본을 지우고 되살린다. 실측 사진·협력사 원본·최종 도면은 안 된다.
 
-2026-11-25 D2 로 뜻이 바뀜: 생산·시공 단계 전달은 메모 · 직접 올린 파일의 고른 도면(``replace_of``) · 보내기 전 확인(``ack_worked``)을
-싣고(보내기 도우미가 싣는다), 담당 아닌 도면팀도 보낸다(그 밖 단계는 지금 그대로).
-"""
+2026-11-25 D2: 생산·시공 단계는 메모 · 파일의 고른 도면(도우미가 싣는다) · 시공 대기 확인 409(시험마다 묻고 다시) · 비담당 도면팀도 보냄."""
 
 from __future__ import annotations
 
@@ -95,8 +93,7 @@ NOTE = "치수 고침"
 def _send(client, oid, name="fix.png", replace_of=None, **body):
     """직접 올린 파일 한 장 보내기 — 고른 도면 기본값 = 첫 확정 도면(옛 '한 장이면 교체'와 같은 뜻, D2 §3-5)."""
     payload = {"files": [{"key": f"orders/{oid}/drawing_wizard/exports/{name}", "filename": name,
-                          "replace_of": replace_of or f"orders/{oid}/drawing_gateway/final1.png"}], "note": NOTE, "ack_worked": True}
-    payload.update(body)
+                          "replace_of": replace_of or f"orders/{oid}/drawing_gateway/final1.png"}], "note": NOTE, **body}
     return client.post(f"/api/orders/{oid}/transfer-drawing", json=payload)
 
 
@@ -132,6 +129,9 @@ def test_hotfix_confirms_immediately_and_replaces_single(client, people, pushes,
     oid = _order(people.drawer.id, people.sales.id, stage=stage)
     _login(client, people.drawer)
     res = _send(client, oid)
+    if stage == "CONSTRUCTION":   # 시공 대기 = 보내기 전 확인(D2 §2-3) — 409 를 받고 표지를 실어 다시
+        assert res.status_code == 409 and res.get_json()["data"]["code"] == "ORDER_MADE" and _sd(oid)[1]["drawing_status"] == "CONFIRMED"
+        res = _send(client, oid, ack_order_made=True)
     body = res.get_json()
     assert res.status_code == 200, body
     assert body["hotfix"] is True and "바로 반영" in body["message"]
@@ -406,7 +406,7 @@ def _send_sheets(client, oid, *sheets, manual=(), pick="NEW", **body):
     """시트 파일 + 직접 올린 파일 보내기 — 메모 · 보내기 전 확인 · 직접 올린 파일의 고른 도면(D2)을 싣는다."""
     files = [{"key": _sheet_key(oid, s), "filename": f"{s}.png", "sheet_id": s} for s in sheets]
     files += [{"key": f"orders/{oid}/drawing/{name}", "filename": name, "replace_of": pick} for name in manual]
-    return client.post(f"/api/orders/{oid}/transfer-drawing", json={"files": files, "note": NOTE, "ack_worked": True, **body})
+    return client.post(f"/api/orders/{oid}/transfer-drawing", json={"files": files, "note": NOTE, "ack_order_made": True, **body})
 
 
 def _names(sd):

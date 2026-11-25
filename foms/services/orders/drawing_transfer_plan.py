@@ -8,6 +8,9 @@
   또는 ``"NEW"`` 를 받는다. 고른 도면은 그 자리에서 바뀌고 ``"NEW"`` 는 끝에 더한다. 지금 규칙(방식 · 교체 대상)은 나머지 파일에만.
 * **짝**(``pairs`` — 새 key → 옛 key): 같은 시트 자리 교체 · 고른 도면 · 교체 대상(차례대로) · 한 장 교체. '바뀐 도면' 번호
   (:func:`changed_numbers`)와 건드린 열쇠(:func:`touched_idents`)가 이것을 읽는다.
+* **파일마다 고르는 전달**(고른 파일이 하나라도 있으면): 전달 모드의 '교체 대상'과 "한 장이면 교체"를 쓰지 않는다 — 자리는 고른
+  도면 · 같은 시트 새 판 · 새 시트(끝에 더함)뿐이고, 보내는 창이 말하는 것도 '바뀐 도면' 계산 하나뿐이다(2026-11-25 D2 검토 C).
+  두 파일이 같은 도면을 고르거나 이번 시트 새 판이 이미 바꾸는 도면을 고르면 400 ``PICK_TARGET``(검토 D).
 """
 
 from __future__ import annotations
@@ -24,6 +27,8 @@ MISSING_TARGET_MESSAGE = '일부 교체 대상 도면을 찾을 수 없습니다
 PICK_ONE_MESSAGE = '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'
 NEED_FILE_MESSAGE = '수정본 재전송 시 도면 파일 업로드가 필요합니다.'
 NO_FILE_MESSAGE = '전달할 도면이 없습니다. 도면 파일을 먼저 업로드해주세요.'
+PICK_TARGET = "PICK_TARGET"
+PICK_TARGET_MESSAGE = "바꿀 도면을 골라 주세요."
 
 
 @dataclass
@@ -39,6 +44,7 @@ class FilePlan:
     sheet_replaced_numbers: list[int] = field(default_factory=list)
     pairs: dict[str, str] = field(default_factory=dict)
     error: Optional[str] = None
+    error_code: Optional[str] = None   # 있으면 거절 code(``PICK_TARGET``) — 없으면 지금 글만(지금 규칙의 400)
 
 
 def _key(entry: Any) -> str:
@@ -79,14 +85,16 @@ def _place_targets(plan: FilePlan, base: list, rest: list, target_keys: list[str
         plan.updated_files.insert(first_index + offset, nf)
 
 
-def _place_rest(plan: FilePlan, base: list, rest: list) -> None:
-    """같은 시트 자리 교체 뒤 남은 파일 — 지금 규칙(교체 대상 · 한 장이면 교체 · 더하기)."""
+def _place_rest(plan: FilePlan, base: list, rest: list, *, pick_mode: bool) -> None:
+    """같은 시트 자리 교체 뒤 남은 파일 — 지금 규칙(교체 대상 · 한 장이면 교체 · 더하기). 파일마다 고르는 전달이면 더하기만."""
     base_keys = {_key(f) for f in base}
     target_keys = [k for k in plan.replace_target_keys if k in base_keys or not plan.sheet_replaced_numbers]
     plan.updated_files = list(base)
     if not rest:
         return
-    if target_keys:
+    if pick_mode:
+        plan.updated_files = list(base) + list(rest)
+    elif target_keys:
         _place_targets(plan, base, rest, target_keys)
     elif plan.is_retransfer and not plan.sheet_replaced_numbers and not plan.other_sheet_only:
         if len(base) > 1:
@@ -99,8 +107,20 @@ def _place_rest(plan: FilePlan, base: list, rest: list) -> None:
         plan.updated_files = list(base) + list(rest)
 
 
+def _pick_refused(plan: FilePlan) -> None:
+    plan.error, plan.error_code = PICK_TARGET_MESSAGE, PICK_TARGET
+
+
 def _apply_picks(plan: FilePlan, picked: list[dict[str, Any]], picks: dict[str, str], old_keys: list[str]) -> None:
-    """고른 파일 — 고른 도면 자리에서 바꾸고 '새 도면'은 끝에 더한다(전체 교체면 자리는 그대로 두고 짝만)."""
+    """고른 파일 — 고른 도면 자리에서 바꾸고 '새 도면'은 끝에 더한다(전체 교체면 자리는 그대로 두고 짝만).
+
+    한 도면은 한 번만 바뀐다: 두 파일이 같은 도면을 고르거나, 이번 시트 새 판이 이미 바꾼(짝지은) 도면 · 빠지는 도면을 고르면
+    400 ``PICK_TARGET``(화면은 그 도면 단추를 끈다 — 검토 D).
+    """
+    targets = [picks.get(_key(nf)) for nf in picked if picks.get(_key(nf)) != NEW_TARGET]
+    if len(set(targets)) != len(targets) or set(targets) & set(plan.pairs.values()):
+        _pick_refused(plan)
+        return
     if plan.mode == "REPLACE_ALL":
         for nf in picked:
             if picks.get(_key(nf)) in old_keys:
@@ -114,7 +134,7 @@ def _apply_picks(plan: FilePlan, picked: list[dict[str, Any]], picks: dict[str, 
             continue
         index = next((i for i, f in enumerate(plan.updated_files) if _key(f) == target), None)
         if index is None:
-            plan.error = MISSING_TARGET_MESSAGE
+            _pick_refused(plan)
             return
         plan.updated_files[index] = nf
         plan.pairs[_key(nf)] = target
@@ -147,13 +167,15 @@ def plan_transfer_files(old_files: list, new_files: list, sd: Any, *, drawing_st
         mode = "REPLACE_ALL"
     is_retransfer = is_retransfer or drawing_status == "RETURNED"
     rest_new, picked = _split(new_files, picks)
+    pick_mode = bool(picked)   # 파일마다 고르는 전달 — 교체 대상 · "한 장이면 교체"를 쓰지 않는다(검토 C)
+    targets = [] if pick_mode else list(replace_target_keys)
     # 바로 반영인데 방식이 없고 확정 도면이 한 장뿐이면 그 장을 바꾼다(주문 5690) — 단 이번 파일이 모두 다른 마법사 시트로
     # 증명되면 더한다(2026-11-20 M19). 생산 · 시공 단계는 직접 올린 파일이 고른 도면으로 신원이 정해지므로 시트 파일만 본다.
-    other = bool(hotfix and mode in ("", "APPEND") and not replace_target_keys
+    other = bool(hotfix and mode in ("", "APPEND") and not targets
                  and sends_only_other_sheets(old_files, rest_new if picks is not None else new_files, sd))
-    if hotfix and not mode and not replace_target_keys and not is_retransfer and len(old_files) == 1 and not other:
+    if hotfix and not mode and not targets and not is_retransfer and len(old_files) == 1 and not other and not pick_mode:
         is_retransfer = True
-    plan = FilePlan(list(old_files), mode, is_retransfer, other, list(replace_target_keys))
+    plan = FilePlan(list(old_files), mode, is_retransfer, other, targets)
     if is_retransfer and not new_files:
         plan.error = NEED_FILE_MESSAGE
     elif not new_files and not old_files:   # 결과 0장 전달 막기(2026-09-08 운영 24건 — 대시보드 길은 빈 files 를 보낸다)
@@ -170,7 +192,7 @@ def plan_transfer_files(old_files: list, new_files: list, sd: Any, *, drawing_st
         base, rest, plan.sheet_replaced_numbers = replace_same_sheet_files(old_files, rest_new, sd)
         plan.replaced_numbers.extend(plan.sheet_replaced_numbers)
         _pair_same_sheets(plan, old_files, rest_new)
-        _place_rest(plan, base, rest)
+        _place_rest(plan, base, rest, pick_mode=pick_mode)
     if picked and not plan.error:
         _apply_picks(plan, picked, picks or {}, old_keys)
     plan.replaced_numbers = sorted(set(plan.replaced_numbers))
@@ -191,20 +213,29 @@ def _pair_same_sheets(plan: FilePlan, old_files: list, new_files: list) -> None:
 
 
 def changed_numbers(old_files: list, updated_files: list, pairs: dict[str, str]) -> dict[str, list[int]]:
-    """바뀐 도면 번호(§3-4 ``changed``) — ``replaced`` = 옛 도면 대신 들어온 새 판(새 번호), ``added`` = 짝 없는 새 도면(새 번호),
-    ``removed`` = 새 목록에 없고 대신 들어온 판도 없는 옛 도면(옛 번호)."""
-    old_keys = [_key(f) for f in old_files]
-    kept = set(old_keys)
+    """바뀐 도면 번호(§3-4 ``changed``) — ``replaced`` = 새 판이 들어온 옛 도면(**옛 번호**), ``added`` = 짝 없는 새 도면(새 번호),
+    ``removed`` = 새 목록에 없고 대신 들어온 판도 없는 옛 도면(**옛 번호**).
+
+    고침 · 빠짐은 보내기 전 모두가 아는 번호(경고 글 · 공장 화면과 같은 번호)라 "도면 2 (고침) · 도면 2 (빠짐)" 처럼 겹치지 않는다
+    (2026-11-25 D2 검토 E). 보내는 창 줄 · 공장 '바뀐 것' · 알림 글 · 이력 ``changed`` 가 모두 이 값 하나를 쓴다.
+    """
+    old_no: dict[str, int] = {}
+    for no, entry in enumerate(old_files, 1):
+        old_no.setdefault(_key(entry), no)
     succeeded = set(pairs.values())
     replaced, added = [], []
     for no, entry in enumerate(updated_files, 1):
         key = _key(entry)
-        if key in kept:
+        if key in old_no:
             continue
-        (replaced if pairs.get(key) in kept else added).append(no)
+        prev = pairs.get(key)
+        if prev in old_no:
+            replaced.append(old_no[prev])
+        else:
+            added.append(no)
     new_keys = {_key(f) for f in updated_files}
-    removed = [no for no, key in enumerate(old_keys, 1) if key not in new_keys and key not in succeeded]
-    return {"replaced": replaced, "added": added, "removed": removed}
+    removed = [no for key, no in old_no.items() if key not in new_keys and key not in succeeded]
+    return {"replaced": sorted(set(replaced)), "added": added, "removed": sorted(removed)}
 
 
 def changed_old_entries(old_files: list, updated_files: list) -> list[tuple[int, dict[str, Any]]]:
@@ -248,6 +279,6 @@ def changed_line(changed: Optional[dict[str, list[int]]]) -> str:
 
 
 __all__ = [
-    "FilePlan", "NEW_TARGET", "changed_detail", "changed_line", "changed_numbers", "changed_old_entries", "changed_words",
+    "FilePlan", "NEW_TARGET", "PICK_TARGET", "PICK_TARGET_MESSAGE", "changed_detail", "changed_line", "changed_numbers", "changed_old_entries", "changed_words",
     "is_manual_file", "plan_transfer_files", "touched_idents",
 ]

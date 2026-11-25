@@ -65,7 +65,7 @@ def test_release_clears_only_touched_fixing_in_the_same_write(client, quiet, tea
 def test_hand_part_keeps_unchanged_drawings_done_and_makes_only_the_fixed_one_work(client, quiet, team, path):
     oid = make_order(assignees=(team.drawer.id,), steps_done=("cut", "inspect"), step_by="박반장")
     login(client, team.drawer)
-    res = send(client, path, oid, "s1", ack_worked=True)               # 손 처리 파트 = 작업이 닿은 도면 → ack
+    res = send(client, path, oid, "s1", ack_worked=["sheet:s1"])      # 손 처리 파트 = 작업이 닿은 도면 → ack
     assert res.status_code == 200, res.get_json()
     rows = marks(oid)
     step_at = datetime.datetime.fromisoformat(STEP_AT).replace(tzinfo=None)
@@ -112,24 +112,27 @@ def test_packing_check_of_the_fixed_drawing_is_released_until_departure(client, 
 
 
 def test_changed_numbers_feed_the_factory_line_and_notices(client, quiet, team):
+    """고침 · 빠짐 = 옛 번호(보내기 전 모두가 아는 번호 · 경고 글과 같은 번호), 새 도면 = 새 번호 — 빠짐이 앞에 있어도(D2 검토 E).
+    보내는 창 줄 · 공장 '바뀐 것' · 알림 글 · 이력 ``changed`` 가 같은 값이다."""
     oid = make_order(4, assignees=(team.drawer.id,))
     wizard = dict(sd_of(oid)["drawing_wizard"])
-    wizard["sheets"] = [s for s in wizard["sheets"] if s["id"] != "s3"] + [{"id": "s9", "name": "현관", "form": {}, "objects": []}]
-    patch(oid, drawing_wizard=wizard)                                  # 시트 s3 지움(빠짐) · s9 새로 만듦(새 도면)
+    wizard["sheets"] = [s for s in wizard["sheets"] if s["id"] != "s0"] + [{"id": "s9", "name": "현관", "form": {}, "objects": []}]
+    patch(oid, drawing_wizard=wizard)                                  # 시트 s0 지움(도면 1 빠짐) · s9 새로 만듦(새 도면)
     login(client, team.drawer)
-    assert send(client, "drawing", oid, "s1", "s9").status_code == 200
+    preview = client.get(f"/api/orders/{oid}/drawing/fix/progress?sheet=s2&sheet=s9&mode=APPEND").get_json()["data"]["plan"]
+    assert preview["changed_line"] == "바뀐 도면: 도면 3 (고침) · 도면 4 (새 도면) · 도면 1 (빠짐)"
+    assert send(client, "drawing", oid, "s2", "s9").status_code == 200
     sd = sd_of(oid)
-    assert _names(sd) == ["s0.png", "s1-v2.png", "s2.png", "s9-v2.png"]
-    assert _last_transfer(sd)["changed"] == {"replaced": [2], "added": [4], "removed": [4]}
+    assert _names(sd) == ["s1.png", "s2-v2.png", "s3.png", "s9-v2.png"]
+    assert _last_transfer(sd)["changed"] == preview["changed"] == {"replaced": [3], "added": [4], "removed": [1]}
+    words = "도면 3 바뀜 · 도면 4 새로 추가 · 도면 1 빠짐 · 메모: 상판 깊이 600 → 580"
     alerts, _history = _build_change_lists([], sd, SINCE, SINCE)
-    line = next(a for a in alerts if a["label"] == "도면 바뀜(바로 반영)")
-    assert line["detail"] == "도면 2 바뀜 · 도면 4 새로 추가 · 도면 4 빠짐 · 메모: 상판 깊이 600 → 580"
+    assert next(a for a in alerts if a["label"] == "도면 바뀜(바로 반영)")["detail"] == words
     notes = db_session.query(Notification).filter(Notification.order_id == oid).all()
     prod = [n for n in notes if n.notification_type == NOTIFICATION_TYPE and n.target_team == "PRODUCTION"]
-    assert prod and prod[0].message.endswith("새 도면으로 만들어 주세요. 도면 2 바뀜 · 도면 4 새로 추가 · 도면 4 빠짐 · "
-                                              "메모: 상판 깊이 600 → 580)")
+    assert prod and prod[0].message.endswith(f"새 도면으로 만들어 주세요. {words})")
     sales = next(n for n in notes if n.notification_type == "DRAWING_TRANSFERRED")
-    assert sales.message.endswith("확인할 필요 없습니다. 도면 2 바뀜 · 도면 4 새로 추가 · 도면 4 빠짐 · 메모: 상판 깊이 600 → 580")
+    assert sales.message.endswith(f"확인할 필요 없습니다. {words}")
 
 
 def test_old_transfer_line_without_numbers_keeps_memo_only():
@@ -147,7 +150,8 @@ def test_uploaded_file_inherits_factory_fix_and_replaced_pair(client, quiet, tea
     put_mark(oid, old, "cut", "DONE", name="김재단")
     login(client, team.drawer)
     new = manual_key(oid, "up2-fixed")
-    res = send(client, "drawing", oid, manual=[{"key": new, "filename": "up2-fixed.pdf", "replace_of": old}], ack_worked=True)
+    res = send(client, "drawing", oid, manual=[{"key": new, "filename": "up2-fixed.pdf", "replace_of": old}],
+               ack_worked=[f"file:{old}"])
     assert res.status_code == 200, res.get_json()
     sd = sd_of(oid)
     entries = resolve_final_drawing_files(sd)

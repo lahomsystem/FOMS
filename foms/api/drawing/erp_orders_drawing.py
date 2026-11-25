@@ -52,11 +52,13 @@ from foms.services.orders.drawing_transfer import (
     order_by_wizard_sheets,
 )
 from foms.services.orders.drawing_fix_transfer import (
+    ack_idents,
     apply_fix_writes,
     can_fix_production_drawing,
     collect_picks,
     manual_picks,
     precheck,
+    refusal,
     worked_refusal,
 )
 from foms.services.orders.drawing_transfer_plan import changed_detail, changed_numbers, plan_transfer_files
@@ -155,14 +157,15 @@ def perform_drawing_transfer(
     note='', mode='', files=None, is_retransfer=False,
     replace_target_key='', replace_target_keys=None,
     emergency_override=False, override_reason='', prepare_structured=None,
-    ack_worked=False,
+    ack_worked=None, ack_order_made=False,
 ):
     """도면 전달 핵심 처리 — ``transfer-drawing`` 및 작업실 ``transfer-pending`` 공용.
 
     생산 · 시공 단계(바로 반영)는 두 길이 같은 차례로 수정본 규칙을 거친다(설계서 2026-11-25 D2 §5 —
     ``drawing_fix_transfer``): 권한(도면팀 누구나 · 담당 없음 통과) → 메모 → 파일 바꿀 도면(``files[].replace_of``) → 열린 공장
-    요청 → 지금 검사들 → 작업이 닿은 도면 · 시공 단계 409(``ack_worked`` 면 지나감) → 같은 사본에 풀림 · 이어받기 · 손 처리
-    풀기 · 패킹 풀기. 이력 ``TRANSFER`` 줄에 ``changed``. 그 밖 단계는 지금 그대로다.
+    요청 → 지금 검사들 → 작업이 닿은 도면 409(그 도면 열쇠가 모두 ``ack_worked`` 목록에 있으면 지나감) · 시공 단계 409
+    (``ack_order_made`` 면 지나감) → 같은 사본에 풀림 · 요청 닫기 · 이어받기 · 손 처리 풀기 · 패킹 풀기. 이력 ``TRANSFER`` 줄에
+    ``changed``. 그 밖 단계는 지금 그대로다.
 
     drawing_current_files 갱신·drawing_status='TRANSFERRED'·전달 히스토리 append·담당자
     알림(fan_out+push+realtime)·SecurityLog·대시보드 캐시 무효화를 한 트랜잭션으로 수행하고
@@ -276,15 +279,19 @@ def perform_drawing_transfer(
         picks=manual_picks(new_files, picks) if hotfix else None,
     )
     if plan.error:
+        if plan.error_code:   # 파일마다 고른 도면이 겹침(같은 도면 두 번 · 이번 시트 새 판이 이미 바꾸는 도면) — 400 PICK_TARGET
+            return refusal(400, plan.error_code, plan.error)
         return {'success': False, 'message': plan.error}, 400
     mode, is_retransfer, other_sheet_only = plan.mode, plan.is_retransfer, plan.other_sheet_only
+    replace_target_keys = plan.replace_target_keys   # 파일마다 고르는 전달은 교체 대상을 쓰지 않는다(이력도 그대로 적음)
     updated_files = plan.updated_files
     replaced_target_numbers = plan.replaced_numbers
     sheet_replaced_numbers = plan.sheet_replaced_numbers
     # 보내기 전 확인(§2-3) — 시공 단계 409 ORDER_MADE · 작업이 닿은 도면 409 WORKED_DRAWING(ack_worked 면 지나감).
     marks = None
     if hotfix:
-        refused, marks = worked_refusal(db, order, s_data, plan, old_files, ack=bool(ack_worked))
+        refused, marks = worked_refusal(db, order, s_data, plan, old_files, acked=ack_idents(ack_worked),
+                                        ack_order_made=bool(ack_order_made))
         if refused is not None:
             return refused
 
@@ -488,7 +495,8 @@ def perform_drawing_transfer(
         action="DRAWING_DELIVERED", target_type="order", target_id=int(order_id),
         detail={"note": note or None, "target_team": target_team,
                 "target_manager_name": target_manager_name,
-                "target_role": target_role, "hotfix": hotfix, "changed": changed, **context},
+                "target_role": target_role, "hotfix": hotfix,
+                **({"changed": changed} if changed is not None else {}), **context},
         db=db,  # 호출자 소유 세션 — get_db() 를 부르면 teardown 이 호출자 인스턴스를 detach 한다.
     )
     db.commit()
@@ -633,7 +641,8 @@ def api_order_transfer_drawing(order_id):
             emergency_override=bool(data.get('emergency_override')),
             override_reason=data.get('override_reason') or '',
             prepare_structured=prepare,
-            ack_worked=bool(data.get('ack_worked')),
+            ack_worked=data.get('ack_worked'),   # 보내기 전 확인 창에서 물어본 도면 열쇠 목록
+            ack_order_made=bool(data.get('ack_order_made')),
         )
         if payload.get('success') and stale_keys:
             delete_stale_version_files(stale_keys)  # 커밋 뒤에만
