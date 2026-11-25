@@ -1604,3 +1604,9 @@
 - 말투: 태블릿 화면은 해요체(101, 합쇼체 0). 합쇼체는 옛 생산 API 34 · 공용 작업 시트 확인 창 6 · 옛 보드 5. 반말 0.
 - 잘 쓴 글: 보류 막힘 글 · 경합 글 · [수정 시작] 확인 글 · "도면팀에 수정 요청을 보냈어요." · "이 집 첫 도면이라 제작 시작도 같이 돼요."
 - 일꾼이 확신 낮다고 한 것: 35 실화면 미확인 / `start_run.py:34` 는 태블릿에 안 뜬다고 추측 / 영문 · 숫자 이름은 드물다고 추측 / 수량 단위 · '기본'은 사장님 낱말일 수 있음.
+
+## M1 작은 고침 둘 보고(mh-m1) · 내 확인 (11-25)
+
+- 커밋 3532d9af3('대신' 기록에 이번에 완료된 사람만 — `part_mark_notes.py` · 새 시험 `test_production_multi_holder_proxy_names.py`) · 018865022(문장 속 이름 "외 n명" + 토씨 — `mark_crew.name_sentence` · `part_mark_rules.py` · `part_mark_decide.py` · `part_mark_gates.py` · `drawing_factory.py` · `drawing_fix_progress.py` · 새 시험 `test_production_multi_holder_sentences.py`) · ec20fab0d(설계서 §14).
+- 시험 주장: tests/domains 17847 passed EXIT=0 · 인벤토리 다섯 0 · 래칫 5 passed.
+- 고친 문장 예: "이시영 · 김재단 외 1명이 먼저 시작했어요." · "…외 1명이 엣지 작업 중인 도면입니다." · "…김민준 · 박엣지 외 1명에게 시작 취소를 부탁한 뒤 다시 해 주세요." 둘까지는 지금 글 그대로. '내 작업' 꼬리 "…과 같이"는 M2 몫.
