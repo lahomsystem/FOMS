@@ -11,7 +11,8 @@
  * 2026-11-25 multi-holder: 받은 줄에 작업하는 사람 칸(mark.crew — 이름 줄 · 내 몫, 서버 글)이 실린다. 같은 표시인지는 사람 · 완료 표지(sig)까지 견준다.
  * 2026-11-26(비평 C06): 응답의 주문마다 지금 막힘(data.blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 서버 sync_blocks)으로 그 주문 카드를
  * 이미 있는 막힘 칸으로 다시 그린다(그 장만 막힘이 먼저 · 풀리면 단추가 돌아온다 — FomsPartsCards.block). 받을 때마다 'foms:prod-parts-synced'
- * 를 쏴 머리 줄 받은 때 글 · 점(foms-production-home.js)을 새로 한다. 거절(409 보류 · 고치는 중 · 생산 단계 아님)이면 parts.js 가 바로 부른다. */
+ * 를 쏴 머리 줄 받은 때 글 · 점(foms-production-home.js)을 새로 한다. 거절(409 보류 · 고치는 중 · 생산 단계 아님)이면 parts.js 가 바로 부른다
+ * (syncTick(true) — 그때는 확인 창에 걸린 카드도 막힘으로, 30초 받아 오기는 표시 줄처럼 건너뛴다). */
 (function () {
   'use strict';
 
@@ -133,17 +134,23 @@
     return complete;
   }
 
-  // 주문마다 지금 막힘 → 그 주문 카드(그 장만 막힘 keys 가 먼저, 없으면 주문 통째 all, 둘 다 없으면 막힘을 걷는다)
-  function applyBlocks(blocks) {
+  // 주문마다 지금 막힘 → 그 주문 카드(그 장만 막힘 keys 가 먼저, 없으면 주문 통째 all, 둘 다 없으면 막힘을 걷는다). 확인 창 · 저장 중 ·
+  // 말풍선 카드는 표시 줄처럼 건너뛰고 false(그 판은 since 를 안 옮겨 다음 번에 다시). force = 거절(409) 바로 뒤 — 저장이 끝난 카드라 그린다
+  function applyBlocks(blocks, force) {
     var cards = window.FomsPartsCards;
-    if (!cards || !cards.block) { return; }
+    if (!cards || !cards.block) { return true; }
+    var complete = true;
     Object.keys(blocks).forEach(function (id) {
       var b = blocks[id] || {};
-      cards.find(id).forEach(function (card) { cards.block(card, (b.keys || {})[card.getAttribute('data-key')] || b.all || null); });
+      cards.find(id).forEach(function (card) {
+        if (!force && cards.held(card)) { complete = false; return; }
+        cards.block(card, (b.keys || {})[card.getAttribute('data-key')] || b.all || null);
+      });
     });
+    return complete;
   }
 
-  function tick() {
+  function tick(force) {
     if (running || !canSync()) { return; }
     var ids = orderIds();
     if (!ids.length) { return; }
@@ -159,8 +166,8 @@
         Object.keys(r.blocks || {}).forEach(function (id) { blocks[id] = r.blocks[id]; });
         if (r.server_time < next) { next = r.server_time; } // 나눠 받으면 가장 이른 서버 시각부터 다음에
       });
-      applyBlocks(blocks); // 막힘 먼저 — 받은 표시를 그릴 때 새 막힘을 읽는다
-      if (applyMarks(marks)) { since = next; }
+      var settled = applyBlocks(blocks, force === true); // 막힘 먼저 — 받은 표시를 그릴 때 새 막힘을 읽는다
+      if (applyMarks(marks) && settled) { since = next; }
       document.dispatchEvent(new CustomEvent('foms:prod-parts-synced'));
     }).then(function () { running = false; }, function () { running = false; });
   }

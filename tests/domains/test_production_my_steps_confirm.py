@@ -172,7 +172,7 @@ def test_part_that_uses_cards_shows_left_sheets_instead_of_a_finish_that_is_alwa
     page = get_html(client, HOME + f"?tab=steps&order={drawn.id}")  # 막힌 줄은 처음 고른 줄에서 빠진다 — 주소로 고른다
     pane = pane_html(page, drawn.id)
     assert "data-foms-step-finish" not in pane and "data-foms-sheet-parts" not in pane
-    assert "<b>재단 0/3 · 3장 미완료</b><span>도면 3장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요.</span>" in pane
+    assert "<b>재단 0/3 · 3장 미완료</b><span>도면 3장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요.</span>" in pane
     refused = client.post(f"/api/orders/{drawn.id}/production/steps", json={"key": "cut", "done": True})
     assert refused.status_code == 409 and refused.get_json()["error"] in pane  # 판 글 = 서버 거절 글 그대로
     assert f'data-foms-home-step-done data-order-id="{bare.id}"' in _row(page, bare.id)  # 대조군

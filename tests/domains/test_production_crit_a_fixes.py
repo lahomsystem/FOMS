@@ -217,15 +217,18 @@ def _hold_flow(client, tmp_path):
     login(client, kim)
     page = tmp_path / "kim.html"
     page.write_text(_page(client, HOME_NONE), encoding="utf-8")
-    patch_sd(order.id, hold={"active": True, "reason": "자재 기다림"})  # 사무실이 보류로 돌림(화면은 모름)
+    held = client.post(f"/api/orders/{order.id}/production/hold", json={"active": True, "reason": "자재 기다림"})
+    assert held.status_code == 200, held.get_json()  # 사무실이 보류로 돌림(진짜 보류 API — 화면은 모름)
     return order, kim, page
 
 
 def test_js_sync_redraws_the_orders_cards_as_held_and_back(client, cohort, tmp_path):
     order, _kim, page = _hold_flow(client, tmp_path)
     held = _synced(client, order.id)
-    patch_sd(order.id, hold={"active": False})
+    released = client.post(f"/api/orders/{order.id}/production/hold", json={"active": False})  # 보류 풀기 = 버전 +1(막힘 캐시 새로)
+    assert released.status_code == 200, released.get_json()
     free = _synced(client, order.id)
+    assert free["data"]["blocks"][str(order.id)]["all"] is None
     res = _node(page, {"sync": True, "gets": [held, free],
                        "steps": [{"do": "sync"}, {"do": "card", "key": order.keys[0]}, {"do": "card", "key": order.keys[1]},
                                  {"do": "sync"}, {"do": "card", "key": order.keys[0]}]})
@@ -235,6 +238,31 @@ def test_js_sync_redraws_the_orders_cards_as_held_and_back(client, cohort, tmp_p
     back = res["out"][4]["card"]["act"][0]  # 보류가 풀리면 단추가 돌아온다
     assert [k["act"] for k in back["kids"]] == ["basic", "take"]
     assert res["out"][4]["counts"]["unseen"] == ["2"]
+
+
+def test_js_sync_skips_a_card_in_the_confirm_window_and_draws_it_on_the_next_sync(client, cohort, tmp_path):
+    """30초 받아 오기의 막힘 칸도 표시 줄처럼 확인 창 · 저장 중 카드는 건너뛴다(누르는 칸이 바뀌지 않게) — 저장이 끝난 뒤 다음 받아 오기에서
+    막힘 칸. 같은 판의 다른 카드는 바로 막힘 칸."""
+    order = make_order(2)
+    kim = make_user("김재단", part="cut")
+    login(client, kim)
+    page = tmp_path / "kim.html"
+    page.write_text(_page(client, HOME_NONE), encoding="utf-8")
+    took = mark(client, order, 0, "cut", "take", "none")  # 확인 창에서 누를 [작업 시작]의 진짜 답(보류 전에 저장됨)
+    assert took.status_code == 200
+    patch_sd(order.id, hold={"active": True, "reason": "자재 기다림"})  # 그사이 사무실이 보류
+    held = _synced(client, order.id)
+    hold_chip = {"tag": "button", "cls": "fph-wi pp-act pp-st-hold", "act": None, "text": "보류 · 자재 기다림", "kids": []}
+    res = _node(page, {"sync": True, "posts": [took.get_json()], "gets": [held, held],
+                       "steps": [{"do": "card", "key": order.keys[0]}, {"do": "click", "key": order.keys[0], "act": "take"},
+                                 {"do": "sync"}, {"do": "card", "key": order.keys[0]}, {"do": "card", "key": order.keys[1]},
+                                 {"do": "run"}, {"do": "sync"}, {"do": "card", "key": order.keys[0]}]})
+    out = res["out"]
+    assert out[3]["card"]["act"] == out[0]["card"]["act"]  # 확인 창에 걸린 카드 = 단추 칸 그대로
+    assert out[4]["card"]["act"] == [hold_chip]  # 같은 주문 다른 카드는 바로
+    assert out[5]["sent"] == 1 and out[5]["modal"]["hidden"]
+    after = out[7]["card"]["act"][0]  # 저장이 끝난 뒤 다음 받아 오기 = 막힘 칸(내 작업 한 층 — 시작 취소는 보류에도 된다)
+    assert after["cls"] == "pp-two is-mine" and [k["text"] for k in after["kids"]] == ["시작 취소", "보류 · 자재 기다림"]
 
 
 def test_js_refusal_redraws_every_card_of_that_order_at_once(client, cohort, tmp_path):

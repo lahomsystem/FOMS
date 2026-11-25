@@ -7,10 +7,10 @@
 * 문: 생산 첫 화면을 볼 수 있는 사람(:func:`can_view_production_home`) + 주문 읽기 범위(:func:`user_can_read_order`).
   협력사 · 켜진 프리랜서는 주문마다 판정이 갈리는 계정이라 이 화면 목록을 받지 않는다(403). 우리 직원은 주문 읽기가
   전역이라, 살아 있는 ERP 주문 · 생산 첫 화면 단계가 아닌 id(지운 주문 · 초안 · ERP 밖 주문 · 없는 id)는 **조용히 뺀다**.
-* 쿼리 1(주문 수와 무관): 주문(기본 키) ⟕ 표시 줄(``updated_at > since``) — 표시 줄 쪽은 유일 제약
-  ``uq_production_part_marks_order_key_part``(앞머리 ``order_id``)를 탄다. 같은 한 번에 주문마다 지금 막힘(``blocks`` — 보류 · 도면
-  고치는 중 · 생산 단계 아님, :mod:`foms.services.production.sync_blocks`)을 싣는다(비평 C06). 주문 JSON 은 주문마다 한 줄에만
-  싣는다(``row_number() = 1`` — 바뀐 표시 줄이 여럿인 주문도 JSON 을 한 번만 보낸다).
+* 쿼리 1(주문 수와 무관): 주문(기본 키 · ``status`` · ``erp_stage_code`` · ``mutation_version``) ⟕ 표시 줄(``updated_at > since``) —
+  표시 줄 쪽은 유일 제약 ``uq_production_part_marks_order_key_part``(앞머리 ``order_id``)를 탄다. 주문 JSON 은 싣지 않는다.
+* 주문마다 지금 막힘(``blocks`` — 보류 · 도면 고치는 중 · 생산 단계 아님, 비평 C06)은 :func:`~foms.services.production.sync_blocks.cached_blocks`
+  캐시에서(열쇠에 ``mutation_version`` — 버전이 오른 주문 · 수명 5분이 지난 주문만 쿼리 2 로 그 주문 JSON 을 읽는다). 평소 = 쿼리 1.
 * 응답 ``server_time`` = 다음 ``since``(:func:`part_sync_cursor` — 커밋 지연만큼 되감은 서버 시각). 기기 시계는 쓰지 않는다.
 * 읽기라 쓰기 정책 가드 · CSRF 대상이 아니다(GET). 한 태블릿 시간당 120번(§15.6).
 """
@@ -21,7 +21,7 @@ import datetime
 from typing import Any
 
 from flask import g, jsonify, request
-from sqlalchemy import and_, case, func, null
+from sqlalchemy import and_
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
@@ -32,7 +32,7 @@ from foms.services.production.part_access import own_parts
 from foms.services.production.part_board import mine_other, other_part_word, part_sync_cursor
 from foms.services.production.part_card_crew import attach_crew
 from foms.services.production.part_mark_rules import mark_payload
-from foms.services.production.sync_blocks import order_sync_block
+from foms.services.production.sync_blocks import cached_blocks
 from foms.services.production_home_read_model import PRODUCTION_HOME_STAGE_CODES
 from models import Order, ProductionPartMark
 
@@ -92,18 +92,16 @@ def parse_since(raw: Any) -> datetime.datetime:
 
 
 def fetch_sync(db: Any, order_ids: list[int], since: datetime.datetime) -> tuple[list[ProductionPartMark], dict[str, Any]]:
-    """그 주문들 표시 줄 중 ``updated_at > since`` 인 줄 + 주문마다 지금 막힘 — 쿼리 한 번(주문 수와 무관).
+    """그 주문들 표시 줄 중 ``updated_at > since`` 인 줄 + 주문마다 지금 막힘 — 쿼리 한 번(+ 바뀐 주문이 있을 때만 그 주문 JSON 한 번).
 
     살아 있는 ERP 주문 · 생산 첫 화면 단계(``PRODUCTION_HOME_STAGE_CODES``, 첫 화면 행 쿼리와 같은 범위)만 남긴다. 주문 ⟕ 표시 줄이라 바뀐
-    표시 줄이 없는 주문도 한 줄로 와서 막힘을 싣는다(보류는 표시 줄을 안 바꾼다). 주문 JSON 은 주문마다 첫 줄에만 실린다.
+    표시 줄이 없는 주문도 한 줄로 와서 막힘을 싣는다(보류는 표시 줄을 안 바꾼다).
 
     Returns:
         (바뀐 표시 줄 — ``updated_at`` · ``id`` 순, ``{주문 id 글: {all, keys}}``).
     """
-    first = func.row_number().over(partition_by=Order.id, order_by=ProductionPartMark.id) == 1
     rows = (
-        db.query(Order.id, Order.status, Order.erp_stage_code,
-                 case((first, Order.structured_data), else_=null()).label("sd"), ProductionPartMark)
+        db.query(Order.id, Order.mutation_version, Order.status, Order.erp_stage_code, ProductionPartMark)
         .select_from(Order)
         .outerjoin(ProductionPartMark, and_(ProductionPartMark.order_id == Order.id,
                                             ProductionPartMark.order_id.in_(sorted(order_ids)),  # 유일 제약 앞머리를 타게
@@ -117,15 +115,13 @@ def fetch_sync(db: Any, order_ids: list[int], since: datetime.datetime) -> tuple
         .order_by(ProductionPartMark.updated_at.asc(), ProductionPartMark.id.asc())
         .all()
     )
-    marks = [mark for *_order, mark in rows if mark is not None]
-    heads: dict[int, tuple[Any, Any]] = {}
-    sds: dict[int, Any] = {}
-    for oid, status, flat_stage, sd, _mark in rows:
-        heads[int(oid)] = (status, flat_stage)
-        if sd is not None:
-            sds[int(oid)] = sd
-    blocks = {str(oid): order_sync_block(sds.get(oid), status, flat_stage) for oid, (status, flat_stage) in heads.items()}
-    return marks, blocks
+    marks = [mark for *_head, mark in rows if mark is not None]
+    heads = {int(oid): (version, status, flat_stage) for oid, version, status, flat_stage, _mark in rows}
+
+    def _load(ids: list[int]) -> dict[int, Any]:  # 캐시에 없는 주문만 — 쿼리 2
+        return {int(oid): sd for oid, sd in db.query(Order.id, Order.structured_data).filter(Order.id.in_(sorted(ids))).all()}
+
+    return marks, cached_blocks(heads, _load)
 
 
 def sync_mark_body(row: ProductionPartMark, viewer_id: Any = None, viewer_parts: tuple[str, ...] = ()) -> dict[str, Any]:

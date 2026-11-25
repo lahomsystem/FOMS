@@ -209,7 +209,8 @@ def _count(fn):
 
 
 #: 실측(2026-11-13, SQLite 레인): 요청 하나 = 2(로그인 사용자 · 표시 줄 ⋈ 주문 한 번). 상한 = 실측 + 30% 내림.
-#: 2026-11-26(비평 C06): 주문 ⟕ 표시 줄 한 번으로 주문마다 막힘(blocks)도 같이 — 그대로 2.
+#: 2026-11-26(비평 C06 · 검토 고침): 주문 ⟕ 표시 줄 한 번 + 주문마다 막힘(blocks)은 캐시 — 캐시가 찬 뒤 그대로 2(주문 JSON 0).
+#: 캐시에 없는 주문이 있을 때만 그 주문 JSON 읽기 +1(test_production_sync_block_cache.py).
 SYNC_QUERY_CAP = 2
 
 
@@ -225,7 +226,8 @@ def test_query_count_is_one_read_whatever_the_order_count(client):
             bucket.append(oid)
     _login(client, _user("김재단", part="cut"))
     since = now_utc_naive().isoformat()
-    _get(client, small, since)  # 세션 첫 요청의 last_login 쓰기를 미리 치운다(요청마다 나는 쿼리가 아니다)
+    _get(client, small, since)  # 세션 첫 요청의 last_login 쓰기를 미리 치운다(요청마다 나는 쿼리가 아니다) · 막힘 캐시 채우기
+    _get(client, large, since)
     resp4, q4 = _count(lambda: _get(client, small, since))
     resp40, q40 = _count(lambda: _get(client, large, since))
     assert len(_marks(resp4)) == 8 and len(_marks(resp40)) == 80
@@ -233,7 +235,9 @@ def test_query_count_is_one_read_whatever_the_order_count(client):
     reads = [s for s in q40["sql"] if "production_part_marks" in s]
     assert len(reads) == 1 and "FROM orders LEFT OUTER JOIN production_part_marks" in reads[0]
     assert "production_part_marks.order_id IN" in reads[0]  # 표시 줄 쪽은 유일 제약 앞머리(order_id)를 탄다
-    assert all(str(oid) in _blocks(resp40) for oid in large)  # 막힘은 주문마다 — 표시 줄과 같은 한 번(C06)
+    # 주문 JSON 을 싣는 읽기는 캐시가 찬 뒤 0(WHERE 의 초안 거르개는 부분 인덱스 서브쿼리 — 주문 JSON 을 싣지 않는다, 전과 같다)
+    assert not any("orders.structured_data AS" in s for s in q4["sql"] + q40["sql"])
+    assert all(str(oid) in _blocks(resp40) for oid in large)  # 막힘은 주문마다(C06)
 
 
 # --------------------------------------------------------------------------- #
@@ -283,7 +287,7 @@ def test_sync_js_every_30s_only_when_visible_and_online():
     assert "if (!bound.syncTimer) {" in src and "bound.syncTick = tick;" in src
     assert "document.visibilityState === 'visible'" in src and "navigator.onLine !== false" in src
     assert "document.contains(root)" in src[src.index("function canSync()"):]  # 떠난 화면은 받지 않는다
-    tick = src[src.index("function tick()"):]
+    tick = src[src.index("function tick("):]
     assert tick.index("!canSync()") < tick.index("fetchChunk(")
     assert "window.__FOMS_PROD_PARTS_BOUND" in src and "if (bound.sync === root) { return; }" in src
     assert "body.success === true" in src and "try {" in src and ".catch(" in src
@@ -307,7 +311,8 @@ def test_sync_js_reuses_parts_card_fixer_not_a_copy():
         assert f"function {name}(" not in sync, f"{name} 를 받아 오기 JS 에 복사하면 안 된다"
     # 내 확인 창 · 저장 중 카드는 건너뛰고, 그 판은 since 를 옮기지 않는다
     assert "if (cards.held(card)) { complete = false; return; }" in sync
-    assert "if (applyMarks(marks)) { since = next; }" in sync
+    assert "if (applyMarks(marks) && settled) { since = next; }" in sync  # 막힘 칸도 걸린 카드를 건너뛰면 since 를 안 옮긴다
+    assert "if (!force && cards.held(card)) { complete = false; return; }" in sync
     assert "pending.cards.indexOf(card) >= 0" in parts
 
 
