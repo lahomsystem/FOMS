@@ -7,7 +7,8 @@
 응답 ``data.expanded``(``part · part_label · done_n · total_n · skipped_numbers · tail · hold · note``). 막힌 장뿐이면 409.
 화면: 확인 창 본문 "이 주문의 도면 3장 중 2장이 재단 완료로 처리돼요. 도면 2는 고치는 중이라 빼요."(작업 시트 · '내 공정' · PC 창) ·
 '내 공정' [끝] 뒤 알림 "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."(되돌리기 없음) · 남은 장이 고치는
-도면뿐인 공정 줄은 [끝] 자리에 "도면 2 고치는 중"(폰 · 가로 판 · PC 줄, [끝]이 없는 사람도).
+도면뿐인 공정 줄은 [끝] 자리에 "도면 2 고치는 중"(폰 · 가로 판 · PC 줄, [끝]이 없는 사람도) — 그 줄도 다음 공정 '곧 올 것'에는 남는다.
+둘째 판: 알림 글은 [되돌리기]와 같은 8초 시계로 지운다 · 검수 풀어 쓰기는 장마다 카드 검수 문(준비 안 된 장이 있으면 쓰기 0 · 409).
 
 되돌리면 실패: 막힌 장까지 완료 · 칸이 켜짐 · 기본 줄을 덮음 · 누른 사람 공장 장만 씀 · 장마다 INSERT · 칸이 꺼진 채 ``done: True`` 이벤트 ·
 되돌리기가 남음 · 다시 누르면 "도면 1장이 아직 미완료예요". 대조군: 막힌 도면 없는 주문은 전과 똑같이(섞인 주문도 1공장 반장 한 번에 칸 켬).
@@ -31,8 +32,15 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import db_session, engine
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders import drawing_fix as fx
-from foms.services.production.part_mark_gates import DRAWING_REVISING, PART_USES_CARDS, REVISING_MESSAGE
+from foms.services.production.part_mark_gates import (
+    DRAWING_REVISING,
+    INSPECT_NOT_READY,
+    PART_USES_CARDS,
+    REVISING_MESSAGE,
+    inspect_gate,
+)
 from foms.services.production.pc_view import EDIT_COOKIE
+from foms.services.production import step_expand
 from foms.services.production.step_expand import VIA_STEP_EXPAND, expand_hand_step
 from models import Order, ProductionPartMark, SecurityLog
 from tests.domains.test_production_my_steps_confirm import NODE_CHECK, PHONE
@@ -198,7 +206,13 @@ class SimpleUser:
         self.id, self.name, self.username = uid, name, name
 
 
-def test_duplicate_key_order_expands_through_the_api(client):
+def test_duplicate_key_order_expands_through_the_api(client, monkeypatch):
+    """판결 G — 같은 key 가 지금 도면에 두 번이어도 한 문장에 실린 값 줄은 key 마다 하나(SQLite 는 두 번 실려도 통과해 PG 만 500 —
+    그래서 문장에 들어간 값 자체를 센다)."""
+    sent: list[list[str]] = []
+    real = step_expand._upsert_marks
+    monkeypatch.setattr(step_expand, "_upsert_marks", lambda db, values: (sent.append([v["drawing_key"] for v in values]),
+                                                                          real(db, values))[1])
     seed = make_order(2)
     order = db_session.get(Order, seed.id)
     sd = copy.deepcopy(order.structured_data)
@@ -210,6 +224,7 @@ def test_duplicate_key_order_expands_through_the_api(client):
     login(client, make_user("가짜반장", lead=True))
     res = check_step(client, seed.id, "cut", True)
     assert res.status_code == 200 and set(_marks(seed.id)) == {(seed.keys[0], "cut")}
+    assert sent == [[seed.keys[0]]]  # 지금 도면 3줄(같은 key 둘) → 값 줄 하나
 
 
 def test_only_blocked_drawings_is_refused_like_the_whole_block(client):
@@ -236,6 +251,44 @@ def test_card_parts_whole_block_and_turned_on_cells_keep_today_rules(client):
     on = make_order(3, steps_done=("cut",))
     _fixing(on.id, 1)
     assert check_step(client, on.id, "cut", True).status_code == 200 and _marks(on.id) == {}  # 이미 켠 칸은 풀어 쓰지 않는다
+
+
+def test_inspect_expand_passes_each_drawing_through_the_inspect_gate_or_writes_nothing(client):
+    """둘째 판 3 — 검수 풀어 쓰기는 장마다 카드 검수 완료와 같은 문(``inspect_gate``). 하나라도 준비 안 되면 쓰기 0 · 지금 code · 글."""
+    login(client, make_user("가짜반장", lead=True))
+    early = make_order(3)
+    _fixing(early.id, 1)
+    res = check_step(client, early.id, "inspect", True)
+    sd = fresh(early.id).structured_data
+    want = inspect_gate(sd, [], sd["drawing_current_files"][0]["key"], "inspect", "done")
+    assert res.status_code == 409 and code(res) == INSPECT_NOT_READY == want.code
+    assert res.get_json()["error"] == want.message and _marks(early.id) == {} and events(early.id, "PRODUCTION_PART_MARKED") == []
+    ready = make_order(3, steps_done=("cut", "edge", "assemble"))  # 앞 세 공정 손 칸 완료 = 모든 장 검수 준비됨
+    _fixing(ready.id, 1)
+    ok = check_step(client, ready.id, "inspect", True)
+    assert ok.status_code == 200 and ok.get_json()["data"]["expanded"]["done_n"] == 2
+    plain = make_order(3)  # 대조군: 막힌 도면 없는 주문의 검수 손 칸은 전과 똑같이(문 없이 칸만 켬)
+    assert check_step(client, plain.id, "inspect", True).status_code == 200 and step(plain.id, "inspect")["done"] is True
+    assert _marks(plain.id) == {}
+
+
+def test_stuck_row_stays_in_the_next_steps_incoming(client, cohort):
+    """둘째 판 1 — 남은 장이 고치는 도면뿐인 재단 줄도 엣지 '곧 올 것'에 남는다(끝난 장은 다음 공정으로 — "나머지는 계속 작업").
+    통째 막힘 줄만 지금처럼 빠진다(대조군)."""
+    stuck = add_order("가짜끝집", 1, pngs=3).id
+    whole = add_order("가짜통째집", 2, pngs=3).id
+    _fixing(stuck, 1)
+    order = db_session.get(Order, whole)
+    order.structured_data = {**order.structured_data, "drawing_status": "RETURNED"}
+    db_session.commit()
+    login(client, make_user("가짜반장", lead=True))
+    assert "expanded" in check_step(client, stuck, "cut", True).get_json()["data"]
+    home_login(client)
+    set_cookies(client, PHONE)
+    page = get_html(client, HOME + "?tab=steps")
+    edge = page.split('data-foms-home-stepq="edge"', 1)[1].split('data-foms-home-stepq="', 1)[0]
+    assert "가짜끝집" in edge and "가짜통째집" not in edge
+    assert '<span class="fph-qr__hold">도면 2 고치는 중</span>' in _row(page, stuck)  # 그 줄 자체는 [끝] 자리 막힘 그대로
 
 
 # --------------------------------------------------------------------------- #
@@ -345,7 +398,9 @@ const document = { body, readyState: 'complete', referrer: '', querySelector: (s
   querySelectorAll: (s) => body.querySelectorAll(s), getElementById: (id) => body.querySelector('#' + id),
   createElement: (t) => D.makeEl(t.toLowerCase()), addEventListener(t, f) { (D.docListeners[t] = D.docListeners[t] || []).push(f); },
   removeEventListener() {}, contains: (n) => body.contains(n), dispatchEvent() { return true; }, importNode: (n) => n };
-const ctx = { console, URL, JSON, Promise, Date, Math, Object, Array, String, Number, Boolean, RegExp, Error, Set, Map, setTimeout,
+const slow = []; // 5초 넘는 시계(알림 · 되돌리기 8초 · 다시 받기 10초)는 잡아 두고 시험이 부른다
+const later = (f, ms) => (ms >= 5000 ? (slow.push({ f, ms }), 0) : setTimeout(f, ms));
+const ctx = { console, URL, JSON, Promise, Date, Math, Object, Array, String, Number, Boolean, RegExp, Error, Set, Map, setTimeout: later,
   clearTimeout, setInterval: () => 0, clearInterval() {}, document, navigator: { onLine: true }, performance: { timeOrigin: Date.now() },
   location: { href: 'http://127.0.0.1/erp/production/home?tab=steps', origin: 'http://127.0.0.1', pathname: '/erp/production/home',
     search: '?tab=steps', reload() { calls.reload += 1; }, replace(u) { calls.replace.push(u); }, assign(u) { calls.replace.push(u); } },
@@ -401,6 +456,10 @@ def test_node_row_finish_after_expand_shows_the_done_words_keeps_the_row_and_no_
   const row = $('[data-foms-home-qrow="{ready}"]');
   assert.ok(!row.querySelector('[data-foms-home-step-done]') && row.classList.contains('is-revise'));
   assert.strictEqual(row.querySelector('.fph-qr__hold').textContent, '도면 2 고치는 중');
+  const clock = slow.filter((t) => t.ms === 8000);
+  assert.strictEqual(clock.length, 1, '알림 글 시계 = 8초(되돌리기와 같다)');
+  clock[0].f();
+  assert.strictEqual($('[data-foms-home-status]').textContent, '', '8초 뒤 알림 글을 지운다');
 """
     _run_js(tmp_path, page, {f"/api/orders/{ready}/production/steps": answer},
             ["static/js/production/foms-production-home.js", "static/js/production/foms-production-sheet-parts.js"], steps)
@@ -425,6 +484,10 @@ def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(clien
   assert.strictEqual(status.textContent, {json.dumps(DONE, ensure_ascii=False)});
   assert.ok(!status.querySelector('[data-foms-step-undo]') && !status.classList.contains('is-undo'), '되돌리기 없음');
   assert.ok(calls.replace.length === 1 && calls.replace[0].indexOf('order={nxt}') > 0, '다음 손님으로');
+  const clock = slow.filter((t) => t.ms > 7000 && t.ms <= 8000);
+  assert.strictEqual(clock.length, 1, '알림 글도 되돌리기와 같은 8초 시계');
+  clock[0].f();
+  assert.strictEqual(status.textContent, '', '8초 뒤 알림 글을 지운다');
 """
     scripts = ["static/js/production/foms-production-home-steppane.js", "static/js/production/foms-production-home-steps.js",
                "static/js/production/foms-production-home.js", "static/js/production/foms-production-sheet-parts.js"]

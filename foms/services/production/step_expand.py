@@ -26,8 +26,10 @@ from foms.services.production.part_constants import (
     MARK_STATE_BASIC,
     MARK_STATE_DONE,
     MARK_STATE_NEED,
+    PART_INSPECT,
     PRODUCTION_PART_LABELS,
 )
+from foms.services.production.part_mark_gates import GateRefusal, inspect_gate
 from foms.services.production.part_mark_rules import ACTION_DONE, MARK_COLUMNS
 from foms.services.production.part_mark_write import MarkWrite, actor_name, plan_write, step_note, write_audit
 from foms.services.production.part_progress import cards_used, mark_finished, marks_by_part, part_progress
@@ -127,6 +129,17 @@ def step_expand_plan(sd: Any, marks: Iterable[Any], part: str) -> Optional[dict[
     return expand_plan(sd)
 
 
+def _check_inspect_ready(sd: Any, marks: list[Any], part: str, keys: Iterable[str]) -> None:
+    """검수 풀어 쓰기 전 장마다 지금 검수 문(:func:`~foms.services.production.part_mark_gates.inspect_gate` — 카드 검수 완료와 같은
+    판정). 하나라도 막히면 그 거절로 멈춘다(쓰기 0). 재단 · 엣지 · 조립은 검사 없음(지금 카드 규칙과 같다)."""
+    if part != PART_INSPECT:
+        return
+    for key in keys:
+        gate = inspect_gate(sd, marks, key, PART_INSPECT, ACTION_DONE)
+        if gate is not None:
+            raise GateRefusal(gate)
+
+
 def apply_step_expand(db: Any, order: Any, sd: dict[str, Any], marks: list[Any], part: str, plan: dict[str, Any], *,
                       user: Any) -> tuple[list[Any], dict[str, Any]]:
     """통째 작업 풀어 쓰기 — 장마다 표시 줄 + 이벤트 · 감사 한 줄 · 칸 동기화.
@@ -141,7 +154,12 @@ def apply_step_expand(db: Any, order: Any, sd: dict[str, Any], marks: list[Any],
 
     Returns:
         (쓴 뒤 표시 줄 모습, 응답 ``expanded`` = ``{part, part_label, done_n, total_n, skipped_numbers, tail, hold}``).
+
+    Raises:
+        GateRefusal: 검수를 풀어 쓸 때 쓸 장 중 하나라도 검수 준비가 안 됨(409 ``INSPECT_NOT_READY`` — 카드로 누를 때와 같은 판정 ·
+            같은 글, 둘째 판 3). 아무것도 쓰지 않는다.
     """
+    _check_inspect_ready(sd, marks, part, plan["keys"])
     writes = expand_hand_step(db, order, sd, marks, part, exclude_keys=plan["skip_keys"], user=user)
     views = with_written_marks(marks, [w.values for w in writes])
     changes = plan_part_step_changes(sd, views, (part,))

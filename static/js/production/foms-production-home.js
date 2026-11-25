@@ -135,6 +135,12 @@
     sp.beforeToggle(btn, btn, true, function () { asking = false; if (document.contains(btn)) { saveStep(btn); } },
       function () { asking = false; });
   }
+  // 풀어 쓴 [끝] 알림 — '내 공정' 판 [되돌리기] 알림과 같은 시계(8초)로 지운다(그사이 다른 글이 왔으면 그대로, 둘째 판 2)
+  var NOTICE_MS = 8000;
+  function notice(text) {
+    setStatus(text);
+    window.setTimeout(function () { if (statusEl && statusEl.textContent === text) { setStatus(''); } }, NOTICE_MS);
+  }
   // 남은 장이 고치는 도면뿐 — 서버가 다시 그릴 모습과 같게 [끝] 자리에 막힘 글(통째 '도면 고치는 중'과 같은 자리 · 꼴, 판결 D)
   function holdInPlace(btn, text) {
     var span = document.createElement('span');
@@ -158,7 +164,7 @@
         }
         var ex = ((result.data || {}).data || {}).expanded; // 막힌 도면을 빼고 처리됨(판결 B) — 알림 글 · 줄은 그 자리 그대로
         var sp = window.FomsSheetParts;
-        if (ex && sp && sp.doneText) { setStatus(sp.doneText(ex)); holdInPlace(btn, ex.hold); return; }
+        if (ex && sp && sp.doneText) { notice(sp.doneText(ex)); holdInPlace(btn, ex.hold); return; }
         setStatus('끝냈어요. 다음 공정으로 옮겨요');
         window.location.reload(); // 줄·숫자는 서버가 다시 그린다(탭은 기억됨)
       });

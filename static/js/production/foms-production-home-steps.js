@@ -193,6 +193,11 @@
   function showUndo() {
     var u = G.undo;
     if (!statusBox || !u || Date.now() >= u.until) { return; }
+    window.clearTimeout(G.undoTimer); // 알림 글(풀어 쓴 [끝])도 [되돌리기]와 같은 시계로 지운다(둘째 판 2)
+    G.undoTimer = window.setTimeout(function () {
+      if (G.undo === u && !u.busy) { G.undo = null; }
+      if (G.api) { G.api.clearUndo(u); }
+    }, u.until - Date.now());
     if (u.notice) { setStatus(u.notice); return; }
     statusBox.textContent = '';
     statusBox.classList.remove('is-bad');
@@ -208,14 +213,10 @@
     btn.disabled = !!u.busy;
     statusBox.appendChild(msg);
     statusBox.appendChild(btn);
-    window.clearTimeout(G.undoTimer);
-    G.undoTimer = window.setTimeout(function () {
-      if (G.undo === u && !u.busy) { G.undo = null; }
-      if (G.api) { G.api.clearUndo(u); }
-    }, u.until - Date.now());
   }
   function clearUndo(u) {
-    if (statusBox && statusBox.classList.contains('is-undo') && (!G.undo || G.undo !== u)) { setStatus(''); }
+    var shown = statusBox && (statusBox.classList.contains('is-undo') || (u.notice && statusBox.textContent === u.notice));
+    if (shown && (!G.undo || G.undo !== u)) { setStatus(''); }
   }
   function undo() {
     var u = G.undo;
