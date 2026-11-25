@@ -6,7 +6,8 @@
   주문은 희망일에. 출고 화면(``foms/web/shipment/dashboard.py``)은 일정 표 ``order_schedule_dates``(저장 훅이
   ``structured_data`` 에서 만드는 사본)로 시공일을 모두 보고, 확정 대기 협력사 주문은 희망일(``partner_intake``)에 둔다.
 - 상차 예정일(``Order.shipping_scheduled_date``, 지방 대시보드가 적는다)이 적힌 지방 주문은 그 날에, 적혀 있지 않으면 시공일에
-  (출고 화면은 이번에 바꾸지 않는다 — 두 화면은 이 한 갈래만 다르다).
+  (출고 화면은 이번에 바꾸지 않는다 — 두 화면은 이 한 갈래만 다르다). 상차 예정일이 가장 이른 시공일보다 뒤면 잘못 적힌 것으로
+  보고 시공일에 놓는다(사장님 2026-11-25 "시공일에 놓기" — 줄의 '상차 12/1' 표는 그대로 보여 어긋난 것을 알게 한다).
 - 띠의 날 줄은 **내일부터**("당일은 이미 시공 중 … 내일 부터 날짜 보이면 됨") — 오늘 나가는 주문은 지난 묶음에 선다.
 
 순수 함수만 둔다(쿼리 0 · 요청 문맥 없음). 첫 화면은 주문을 통째로 읽으므로 칸을 그대로 쓴다. 시공일 전부는 일정 표와 같은
@@ -19,7 +20,7 @@ from __future__ import annotations
 import datetime
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, not_, or_, select
 
 from foms.services.orders.construction_dates import all_construction_dates
 from foms.services.partners.schedule_request import clean_date, pending_request
@@ -64,15 +65,16 @@ def ship_dates(sd: Any, *, regional: bool, loading_date: Any, partner_org_id: An
         stage_code: ``Order.erp_stage_code`` — 출고 화면과 같은 칸으로 희망일을 더 받는 단계인지 본다.
 
     Returns:
-        ① 지방 주문 + 상차 예정일 → ``[(그 날, '상차')]`` ② 시공일 전부(주문 칸 쉼표 날 + 취소 안 된 제품 날) →
-        ``[(날, '시공'), …]`` ③ 시공일이 없는 협력사 주문의 확정 대기 희망일 → ``[(그 날, '희망일')]`` ④ 그 밖 ``[]``(출고일 없음).
+        ① 지방 주문 + 상차 예정일(시공일이 없거나 가장 이른 시공일과 같거나 앞) → ``[(그 날, '상차')]`` ② 시공일 전부(주문 칸
+        쉼표 날 + 취소 안 된 제품 날) → ``[(날, '시공'), …]`` ③ 시공일이 없는 협력사 주문의 확정 대기 희망일 → ``[(그 날, '희망일')]``
+        ④ 그 밖 ``[]``(출고일 없음).
     """
+    builds = [datetime.date.fromisoformat(day) for day in all_construction_dates(sd)]
     loading = _day(loading_date) if regional else None
-    if loading is not None:
+    if loading is not None and (not builds or loading <= builds[0]):
         return [(loading, SHIP_LOAD)]
-    builds = all_construction_dates(sd)
     if builds:
-        return [(datetime.date.fromisoformat(day), SHIP_BUILD) for day in builds]
+        return [(day, SHIP_BUILD) for day in builds]
     if partner_org_id is not None:
         request = pending_request(sd, str(stage_code or '')) or {}
         wish = clean_date(request.get('date'))
@@ -109,13 +111,16 @@ def build_day(sd: Any, today: datetime.date) -> Optional[datetime.date]:
 def ship_fields(order: Any, today: datetime.date) -> dict[str, Any]:
     """행에 실을 출고 칸 — ``ship_days`` · ``ship_kind`` · ``ship_due`` · ``ship_mark`` · ``build_day``(쿼리 0).
 
-    ``ship_mark`` = 상차 예정일 · 희망일로 놓인 주문의 줄 표 ``{'k': '상차', 'md': '12/1'}``(시공일로 놓인 주문은 None —
-    줄의 "시공 11/28" 표가 이미 그 날이다). ``build_day`` = 그 표의 진짜 시공일(:func:`build_day`).
+    ``ship_mark`` = 줄 표 ``{'k': '상차', 'md': '12/1'}`` — 상차 예정일이 적힌 지방 주문(시공일보다 뒤라 시공일에 놓였어도) ·
+    희망일로 놓인 협력사 주문. 그 밖은 None(줄의 "시공 11/28" 표가 이미 그 날이다). ``build_day`` = 그 표의 진짜 시공일.
     """
     ship = order_ship_dates(order)
     days = [day for day, _kind in ship]
     kind = ship[0][1] if ship else ''
-    mark = {'k': kind, 'md': f"{days[0].month}/{days[0].day}"} if kind in (SHIP_LOAD, SHIP_WISH) else None
+    # 상차 표 = 적힌 상차 예정일(시공일보다 뒤라 시공일에 놓였어도 보인다 — 어긋남을 알게), 희망일 표 = 희망일로 놓인 주문
+    loading = _day(getattr(order, 'shipping_scheduled_date', None)) if getattr(order, 'is_regional', False) else None
+    marked = (SHIP_LOAD, loading) if loading is not None else ((SHIP_WISH, days[0]) if kind == SHIP_WISH else None)
+    mark = {'k': marked[0], 'md': f"{marked[1].month}/{marked[1].day}"} if marked else None
     sd = order.structured_data if isinstance(getattr(order, 'structured_data', None), dict) else {}
     return {'ship_days': days, 'ship_kind': kind, 'ship_due': due_day(days, today), 'ship_mark': mark,
             'build_day': build_day(sd, today)}
@@ -170,22 +175,63 @@ def pane_slots(row: dict[str, Any], today: datetime.date) -> list[tuple[str, Opt
     return slots or [(PANE_NONE, None)]
 
 
+def _build_on(start: str, end: str | None = None) -> Any:
+    """일정 표(출고 화면과 같은 표)에 ``start`` ~ ``end``(없으면 끝 없음) 시공일 줄이 있는 주문(EXISTS — 쿼리 수는 그대로)."""
+    on = [OrderScheduleDate.kind == 'construction', OrderScheduleDate.date >= start]
+    if end is not None:
+        on.append(OrderScheduleDate.date <= end)
+    return Order.schedule_dates.any(and_(*on))
+
+
+def _by_loading() -> Any:
+    """SQL 로 본 ① 갈래 — 상차 예정일이 적힌 지방 주문이고 시공일(일정 표)이 없거나 상차 예정일이 가장 이른 시공일과 같거나 앞.
+
+    NULL 이 되지 않게 짰다(``IS TRUE`` · ``coalesce`` · 서브쿼리 NULL 은 ``IS NULL`` 갈래가 받는다).
+    """
+    first_build = (select(func.min(OrderScheduleDate.date))
+                   .where(OrderScheduleDate.order_id == Order.id, OrderScheduleDate.kind == 'construction')
+                   .correlate(Order).scalar_subquery())
+    loading = func.coalesce(Order.shipping_scheduled_date, '')
+    return and_(Order.is_regional.is_(True), loading != '', or_(first_build.is_(None), loading <= first_build))
+
+
 def live_condition(cutoff: str) -> Any:
     """첫 화면이 **다** 읽는 주문 — 출고일이 ``cutoff``('YYYY-MM-DD') 뒤일 수 있는 주문(캡 · 경계는 납작 열만 보면 틀린다).
 
-    납작 열(``erp_construction_date`` = 처음 적힌 시공일 하루)이 오래됐어도 다른 시공일(일정 표 — 출고 화면과 같은 표)이나
-    지방 상차 예정일이 ``cutoff`` 뒤면 다 읽는다. 시공일이 없는 협력사 주문은 납작 열이 비어 늘 읽힌다. 각 갈래가 NULL 이 되지
-    않게 짰다 — ``not_(live_condition(c))`` 가 정확한 나머지(지난 것)다.
+    :func:`ship_dates` 와 같은 갈래: 상차 예정일로 놓이는 지방 주문(:func:`_by_loading`)은 상차 예정일이 ``cutoff`` 뒤일 때,
+    나머지는 납작 열(처음 적힌 시공일 하루)이 오래됐어도 다른 시공일(일정 표)이 ``cutoff`` 뒤일 때 다 읽는다. 시공일이 없는
+    협력사 주문은 납작 열이 비어 늘 읽힌다. 각 갈래가 NULL 이 되지 않게 짰다 — ``not_(live_condition(c))`` 가 정확한 나머지다.
     """
     flat = Order.erp_construction_date
+    by_loading = _by_loading()
     return or_(
-        flat.is_(None), flat == '', flat >= cutoff,
-        and_(Order.is_regional.is_(True), func.coalesce(Order.shipping_scheduled_date, '') >= cutoff),
-        Order.schedule_dates.any(and_(OrderScheduleDate.kind == 'construction', OrderScheduleDate.date >= cutoff)),
+        and_(by_loading, func.coalesce(Order.shipping_scheduled_date, '') >= cutoff),
+        and_(not_(by_loading), or_(flat.is_(None), flat == '', flat >= cutoff, _build_on(cutoff))),
     )
 
 
+def window_condition(start: str, end: str) -> Any:
+    """출고일이 ``start`` ~ ``end`` 안일 수 있는 주문(넉넉한 후보 — 정확한 날은 파이썬이 :func:`ship_dates` 로 다시 센다).
+
+    도면 마감 자동 알림(``notifications/drawing_deadline_plan.due_alerts``)이 화면과 같은 출처로 후보를 고른다: 납작 열 ·
+    일정 표 시공일 · 지방 상차 예정일 · 시공일 없이 희망일만 있을 수 있는 협력사 주문(희망일은 JSONB 라 SQL 에서 고르지 않는다).
+    """
+    flat = Order.erp_construction_date
+    loading = func.coalesce(Order.shipping_scheduled_date, '')
+    return or_(
+        and_(flat >= start, flat <= end), _build_on(start, end),
+        and_(Order.is_regional.is_(True), loading >= start, loading <= end),
+        and_(Order.partner_org_id.isnot(None), or_(flat.is_(None), flat == '')),
+    )
+
+
+def kind_word(kind: Any) -> str:
+    """늦음 줄 · 마우스 글의 날 이름 — 놓인 날의 종류('시공' · '상차' · '희망일'). 모르면 '시공'(사장님 2026-11-25 "놓인 날의 이름으로")."""
+    return kind if kind in (SHIP_BUILD, SHIP_LOAD, SHIP_WISH) else SHIP_BUILD
+
+
 __all__ = [
-    'PAST_DAYS', 'STRIP_DAYS', 'SHIP_BUILD', 'SHIP_LOAD', 'SHIP_WISH', 'build_day', 'due_day', 'live_condition',
+    'PAST_DAYS', 'STRIP_DAYS', 'SHIP_BUILD', 'SHIP_LOAD', 'SHIP_WISH', 'build_day', 'due_day', 'kind_word', 'live_condition',
     'order_ship_dates', 'pane_key', 'pane_slots', 'placed_days', 'row_due', 'row_ship_days', 'ship_dates', 'ship_fields',
+    'window_condition',
 ]

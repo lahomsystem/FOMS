@@ -30,6 +30,7 @@ from foms.services.production.ship_dates import (
     SHIP_LOAD,
     SHIP_WISH,
     due_day,
+    live_condition,
     order_ship_dates,
     pane_key,
     placed_days,
@@ -269,25 +270,30 @@ def test_출고_화면과_같은_날짜_지방_상차_예정일만_다르다(cli
 # C — 상한 · 경계
 # --------------------------------------------------------------------------- #
 def test_C_납작_열이_옛날이어도_출고일이_남은_주문은_캡에_안_밀리고_출고일_장에(client, monkeypatch) -> None:
+    """경계 SQL(live_condition)은 ship_dates 와 같은 뜻 — 출고일이 7일 안 · 앞날인 주문만 다 읽고, 나머지는 캡 대상."""
     user = _login(client)
     partner = _partner()
-    multi = _order("옛첫날가짜", f"{_iso(-40)}, {_iso(3)}")                       # 납작 열 -40, 남은 날 +3
-    late_load = _order("늦은상차가짜", _iso(-10), regional=True, loading=_iso(-2))   # 납작 열 -10, 상차 -2
+    multi = _order("옛첫날가짜", f"{_iso(-40)}, {_iso(3)}")                         # 납작 열 -40, 남은 날 +3
+    load_recent = _order("상차지난가짜", _iso(5), regional=True, loading=_iso(-2))    # 상차 -2(시공 +5 보다 앞) → 지난 7일
     wish = _order("희망만가짜", None, stage="DRAWING", partner=partner, wish=_iso(4))
-    early_load = _order("이른상차가짜", _iso(2), regional=True, loading=_iso(-12))  # 납작 열 +2, 상차 -12 → 지난 출고일
+    early_load = _order("이른상차가짜", _iso(2), regional=True, loading=_iso(-12))    # 상차 -12 → 지난 출고일(캡 대상)
+    late_build = _order("늦은상차가짜", _iso(-10), regional=True, loading=_iso(-2))   # 상차가 시공보다 뒤 → 시공 -10
     for off in (-30, -31, -32):
         _order(f"옛주문가짜{-off}", _iso(off))
-    monkeypatch.setattr(home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 4)
+    cutoff = (get_today_kst() - datetime.timedelta(days=7)).isoformat()
+    live = {oid for (oid,) in db_session.query(Order.id).filter(live_condition(cutoff)).all()}
+    assert live == {multi.id, load_recent.id, wish.id}  # 화면이 놓는 날과 같은 갈래로 가른다
+    monkeypatch.setattr(home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 5)
     rows, stats = build_production_home(db_session, user)
-    assert {r["id"] for r in rows} == {multi.id, late_load.id, wish.id, early_load.id}
-    assert stats == {"past_hidden": 3, "total": 7}  # 출고일이 모두 지난 옛 주문 셋만 밀린다
+    assert {r["id"] for r in rows} == {multi.id, load_recent.id, wish.id, early_load.id, late_build.id}
+    assert stats == {"past_hidden": 3, "total": 8}  # 출고일이 모두 지난 옛 주문 셋만 밀린다
     days = production_home_days(rows, get_today_kst(), past_hidden=stats["past_hidden"])
     by = {p["key"]: p for p in days["panes"]}
     assert [r["id"] for r in by[_iso(3)]["make_rows"]] == [multi.id]
-    assert [r["id"] for r in by["recent"]["make_rows"]] == [late_load.id]
+    assert [r["id"] for r in by["recent"]["make_rows"]] == [load_recent.id]
     assert [r["id"] for r in by[_iso(4)]["wait_rows"]] == [wish.id]
-    assert [r["id"] for r in by["past"]["make_rows"]] == [early_load.id] and by["past"]["hidden"] == 3
-    assert by[_iso(2)]["total"] == 0  # 납작 열(시공 +2) 장에 안 선다
+    assert [r["id"] for r in by["past"]["make_rows"]] == [late_build.id, early_load.id] and by["past"]["hidden"] == 3
+    assert by[_iso(2)]["total"] == 0 and by[_iso(5)]["total"] == 0  # 납작 열(시공) 장에 안 선다
     groups = production_home_groups(rows, get_today_kst(), past_hidden=stats["past_hidden"])
     assert [g["key"] for g in groups] == [_iso(-2), _iso(3), _iso(4), "past"]
 
@@ -443,4 +449,4 @@ def test_G_오늘_출고_주문의_아침_칩_보기는_지난_7일_장(client) 
     chip = morning_chip(db_session, me, "cut", rows, get_today_kst())
     # [보기] = 그 주문이 선 장(오늘 날 줄은 없다 — 지난 7일), 글은 그 날
     assert chip["count"] == 1 and chip["days"][0]["key"] == "recent"
-    assert chip["days"][0]["label"].startswith(f"시공 {_md(0)} (")
+    assert chip["days"][0]["label"].startswith(f"출고 {_md(0)} (")

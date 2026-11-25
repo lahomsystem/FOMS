@@ -199,6 +199,8 @@ def _by_parts(row: dict[str, Any]) -> list[dict[str, str]]:
 #: 도면 대기 주문이 첫 줄에 오고 33묶음 중 대부분이 지난 날짜였다 — 작업자에겐 오늘·이번 주가 먼저다).
 PRODUCTION_HOME_PAST_DAYS = PAST_DAYS
 PAST_GROUP_KEY = 'past'
+#: 출고일 없는 묶음 · 장 이름(줄의 시공일 표 '시공일 없음' 은 진짜 시공일이 없다는 뜻이라 그대로 둔다).
+NO_SHIP_LABEL = '출고일 없음'
 
 
 def _group_sort_key(row: dict[str, Any]) -> tuple[int, str]:
@@ -214,7 +216,8 @@ def production_home_groups(
     "출고 일정 = 제작 일정") — 행을 그 날 순으로 세운 뒤 연속 구간을 자르고, 머리 글은 그 날에서 만든다.
     ``past_hidden`` = 캡에 밀려 안 읽은 지난 주문 수(``build_production_home``) — 지난 묶음 머리줄에 적는다.
 
-    - 출고일이 ``PRODUCTION_HOME_PAST_DAYS`` 보다 더 지난 행은 맨 아래 "지난 시공일" 한 묶음(접힘, 최근 것부터)으로.
+    - 출고일이 ``PRODUCTION_HOME_PAST_DAYS`` 보다 더 지난 행은 맨 아래 "지난 출고일" 한 묶음(접힘, 최근 것부터)으로.
+      출고일이 없는 행 묶음 이름은 "출고일 없음"(사장님 2026-11-25 "모두 '출고'로").
       일주일 안에 지난 것은 아직 급한 일이라 제자리(맨 위)에 둔다.
     - 처음 펼쳐 두는 묶음 = 오늘·내일. 둘 다 없으면 첫 묶음 하나만 펼친다(화면이 비어 보이지 않게).
     - 묶음마다 ``arrival`` = 머리의 도면 글(띠와 같은 글 · 색), 묶음 안 순서 = 기다림 → 생산 → 제작 완료(같은 칸 안은 지금 순서,
@@ -224,7 +227,7 @@ def production_home_groups(
     cutoff = today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)
     groups: list[dict[str, Any]] = []
     past: dict[str, Any] = {
-        'key': PAST_GROUP_KEY, 'label': f"지난 시공일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)", 'sub': '',
+        'key': PAST_GROUP_KEY, 'label': f"지난 출고일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)", 'sub': '',
         'is_today': False, 'is_open': False, 'rows': [], 'changed': 0,
     }
     for row in sorted(rows, key=_group_sort_key):
@@ -236,8 +239,9 @@ def production_home_groups(
             continue
         if not groups or groups[-1]['key'] != row['day_key']:
             head = production_home_day(day, today)
+            label = head['label'] if day is not None else NO_SHIP_LABEL  # 묶음 이름은 출고일(줄의 '시공일 없음' 표와 다르다)
             groups.append({
-                'key': row['day_key'], 'label': head['label'], 'sub': head['sub'], 'is_today': head['is_today'],
+                'key': row['day_key'], 'label': label, 'sub': head['sub'], 'is_today': head['is_today'],
                 'is_open': head['is_today'] or head['label'].startswith('내일'), 'rows': [], 'changed': 0,
             })
         groups[-1]['rows'].append(row)

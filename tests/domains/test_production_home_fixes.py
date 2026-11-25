@@ -106,12 +106,15 @@ def test_지난_시공일_장은_안_읽은_수가_있으면_없어요를_숨기
     _add_order("PRODUCTION", "옛주문둘", -30)
     html = client.get(HOME + "?day=past").get_data(as_text=True)
     past = _pane(html, "past")
-    assert "더 오래된 2건은 안 보여요" in past and "이 날은 시공이 없어요." not in past
+    assert "더 오래된 2건은 안 보여요" in past and "이 날은 출고가 없어요." not in past
+    assert '<h2 class="fph-pane__h">지난 출고일 (7일 넘음) <small>출고 0건 · 만들 것 0 · 더 오래된 2건은 안 보여요</small>' in past
     assert "옛주문하나" not in past
     btn = html.split('data-foms-home-daybtn="past"')[1].split("</a>")[0]
     assert btn.endswith(">지난 출고일 0건<small>2건 더</small>")  # 안 읽은 수는 둘째 줄 작은 글(M5)
     # 시공일 없음 장은 안 읽은 수가 없으니 '없어요' 그대로, 단추는 한 줄(small 없음)
-    assert "이 날은 시공이 없어요." in _pane(client.get(HOME + "?day=none").get_data(as_text=True), "none")
+    none_pane = _pane(client.get(HOME + "?day=none").get_data(as_text=True), "none")
+    assert '<h2 class="fph-pane__h">출고일 없음 <small>출고 0건 · 만들 것 0</small></h2>' in none_pane
+    assert '<p class="fph-pane__none">이 날은 출고가 없어요.</p>' in none_pane
     none_btn = html.split('data-foms-home-daybtn="none"')[1].split("</a>")[0]
     assert none_btn.endswith(">출고일 없음 0건") and "<small>" not in none_btn
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
@@ -199,7 +202,7 @@ def test_날짜_장은_그날_주문만_미리_보기와_밀린_것이_없다(cl
     _add_order("PRODUCTION", "밀린주문", -3)
     _add_order("PRODUCTION", "모레주문", 2)
     pane = _pane(client.get(HOME + f"?day={_first_key()}").get_data(as_text=True), _first_key())
-    assert "밀린주문" not in pane and "모레주문" not in pane and "이 날은 시공이 없어요." in pane
+    assert "밀린주문" not in pane and "모레주문" not in pane and "이 날은 출고가 없어요." in pane
     assert "미리 보기" not in pane and "밀린 것" not in pane and "fph-pane__g--next" not in pane
     for tpl in ("home_day_pane.html", "home_pc_day_pane.html"):
         assert "previews" not in (ROOT / "templates/production/partials" / tpl).read_text(encoding="utf-8"), tpl

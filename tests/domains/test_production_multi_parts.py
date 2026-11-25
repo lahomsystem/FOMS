@@ -335,7 +335,7 @@ def test_two_part_account_head_picks_parts_keeps_day_and_titles_both(client, coh
     assert 'data-pp-act="take">내가 자름<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
     edge = _pane(_get(client, HOME + "?part=edge"))
     assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">내가 엣지<' in edge
-    assert "pp-bulk" not in edge and "시공 1건 · 도면 나온 1집" in edge  # 엣지 판 머리 글은 지금 그대로
+    assert "pp-bulk" not in edge and "출고 1건 · 도면 나온 1집" in edge  # 엣지 판 머리 글(날짜 묶음 말 = 출고, 사장님 2026-11-25)
     assert 'data-pp-pick="cut" aria-current="page">' in _pane(_get(client, HOME + "?part=inspect"))  # 내 파트 밖 → 첫 파트
 
 
@@ -385,7 +385,7 @@ def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client,
     _tablet(client, Person(me.id, me.username, me.role, me.name))
     html = _get(client, HOME)
     assert 'aria-controls="pp-mpop">어제부터 내 담당 3장 <span aria-hidden="true">›</span>' in html
-    lines = re.findall(r'<p>(시공 [^<]*?) (\d)장 <a href="([^"]*)" aria-label="([^"]*)">보기</a></p>', html)
+    lines = re.findall(r'<p>(출고 [^<]*?) (\d)장 <a href="([^"]*)" aria-label="([^"]*)">보기</a></p>', html)
     assert [(t.rsplit(" ", 1)[1], n) for t, n, _h, _a in lines] == [("재단", "1"), ("엣지", "2")]
     assert "part=cut" in lines[0][2] and "part=edge" in lines[1][2] and all(f"day={_first_day()}" in h for _t, _n, h, _a in lines)
     assert lines[1][3].endswith(" 엣지 보기")
@@ -394,7 +394,7 @@ def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client,
     _tablet(client, Person(other.id, other.username, other.role, other.name))
     html = _get(client, HOME + "?part=edge")
     assert 'aria-controls="pp-mpop">어제부터 내 담당 1장' in html
-    only = re.findall(r'<p>(시공 [^<]*?) 1장 <a href="([^"]*)"', html)
+    only = re.findall(r'<p>(출고 [^<]*?) 1장 <a href="([^"]*)"', html)
     assert len(only) == 1 and only[0][0].endswith(" 재단") and "part=cut" in only[0][1]
 
 

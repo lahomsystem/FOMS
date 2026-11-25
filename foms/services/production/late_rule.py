@@ -21,7 +21,7 @@ from foms.services.common.business_calendar import business_days_between
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import SOON as DEADLINE_SOON
 from foms.services.production.drawing_arrival import deadline_state, drawing_deadline, soon_word
-from foms.services.production.ship_dates import row_due
+from foms.services.production.ship_dates import kind_word, row_due
 
 LATE = 'late'
 TIGHT = 'tight'
@@ -136,21 +136,27 @@ def _wait_level(row: dict[str, Any], today: datetime.date) -> str | None:
     return {DEADLINE_LATE: LATE, DEADLINE_SOON: TIGHT}.get(deadline_state(deadline, today, all_in=False))
 
 
-def _when_text(day: datetime.date, today: datetime.date) -> str:
-    """까닭 한 줄의 '언제' — 오늘 시공 · 내일 시공 · 시공 D-n · 시공 n일 지남(달력 날)."""
+#: 마우스 글의 지난 날 이름 — '시공일 3일 지남'(지금 글) · '상차일 3일 지남' · '희망일 3일 지남'.
+_DAY_NAME = {'시공': '시공일', '상차': '상차일', '희망일': '희망일'}
+
+
+def _when_text(day: datetime.date, today: datetime.date, word: str = '시공') -> str:
+    """까닭 한 줄의 '언제' — 오늘 시공 · 내일 시공 · 시공 D-n · 시공 n일 지남(달력 날). ``word`` = 놓인 날 이름
+    (``ship_dates.kind_word`` — 지방 주문은 '상차', 협력사 희망일 주문은 '희망일', 사장님 2026-11-25 "놓인 날의 이름으로")."""
     delta = (day - today).days
     if delta == 0:
-        return '오늘 시공'
+        return f"오늘 {word}"
     if delta == 1:
-        return '내일 시공'
-    return f"시공 D-{delta}" if delta > 0 else f"시공 {-delta}일 지남"
+        return f"내일 {word}"
+    return f"{word} D-{delta}" if delta > 0 else f"{word} {-delta}일 지남"
 
 
 def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any = None) -> dict[str, Any]:
     """PC 줄의 늦음 표 — ``{'level', 'line', 'tip'}``. 시공일이 없으면 모두 빈 값.
 
     ``line`` = 상태 칸 아래 한 줄(``늦음 — 내일 시공, 아직 시작 전``), ``tip`` = 시공일 칸 마우스 글
-    (``시공까지 일하는 날 2일`` — 색 기준이 일하는 날임을 적는다, §8). 도면 · 컨펌 기다림 줄은 도면 마감 대비만
+    (``시공까지 일하는 날 2일`` — 색 기준이 일하는 날임을 적는다, §8). 날 이름은 행이 놓인 날의 종류(``ship_kind`` — '상차' ·
+    '희망일' 이면 ``늦음 — 상차 D-2, …`` · ``상차까지 일하는 날 2일``, 사장님 2026-11-25). 도면 · 컨펌 기다림 줄은 도면 마감 대비만
     (``늦음 — 도면 마감 2일 지남`` · ``빠듯 — 도면 마감 내일``) — 막힌 까닭은 ③ 칸 까닭 줄에 한 번만 쓴다
     (사장님 "같은 말은 한 번", 설계서 2026-11-22-production-drawing-arrival-upgrade §7).
     """
@@ -158,7 +164,8 @@ def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any 
     if day is None:
         return {'level': None, 'line': '', 'tip': ''}
     work = business_days_between(today, day) if day >= today else None
-    tip = f"시공까지 일하는 날 {work}일" if work is not None else f"시공일 {(today - day).days}일 지남"
+    word = kind_word(row.get('ship_kind'))
+    tip = f"{word}까지 일하는 날 {work}일" if work is not None else f"{_DAY_NAME[word]} {(today - day).days}일 지남"
     level = production_late_level(row, today, due=day)
     line = ''
     if level is not None:
@@ -168,5 +175,5 @@ def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any 
             line = (f"늦음 — 도면 마감 {(today - deadline).days}일 지남" if level == LATE
                     else f"빠듯 — 도면 마감 {soon_word(deadline, today)}")
         else:
-            line = f"{'늦음' if level == LATE else '빠듯'} — {_when_text(day, today)}, 아직 {where}"
+            line = f"{'늦음' if level == LATE else '빠듯'} — {_when_text(day, today, word)}, 아직 {where}"
     return {'level': level, 'line': line, 'tip': tip}

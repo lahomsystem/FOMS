@@ -4,7 +4,10 @@
 
 - 때(§9-1): 마감 날(늘 영업일) KST 아침 칸 08:00 ~ 10:59 · 저녁 칸 18:00 ~ 20:59. 마감 날이 지나도 안 내려오면 그 뒤
   일하는 날마다 아침 칸에만 다시(§9-7, 답 3) — 내려오거나 시공일이 지날 때까지(시공일 당일은 아직 안 지났다).
-- 대상(§9-2): ERP · 지우지 않음 · 단계 ∈ :data:`TARGET_STAGE_CODES`(첫 화면 '기다림' 과 같은 단계) · 납작 시공일 ∈ 오늘 ~ 오늘 + 14일.
+- 대상(§9-2): ERP · 지우지 않음 · 단계 ∈ :data:`TARGET_STAGE_CODES`(첫 화면 '기다림' 과 같은 단계) · 기준 출고일 ∈ 오늘 ~ 오늘 + 14일.
+  기준 출고일 = 첫 화면과 같은 판정 날(:mod:`foms.services.production.ship_dates` — 지방 주문은 상차 예정일, 시공일 없이 희망일만
+  있는 협력사 주문은 희망일, 시공일이 여럿이면 내일 이후 가장 가까운 날, 사장님 2026-11-25 "출고일 기준으로 바꾸기"). 후보는
+  화면 경계와 같은 출처(``ship_dates.window_condition``)로 넉넉히 고르고 파이썬이 정확한 날을 센다. 아래 글의 '시공일' 은 이 날이다.
 - 마감 · 까닭 · 담당 이름은 :mod:`foms.services.production.drawing_arrival` 그대로 — 화면과 알림이 늘 같은 말을 한다.
 - 받는 사람(§9-3): 도면 담당(켜진 우리 직원) + 영업 쪽(도면 전달 알림과 같은 규칙). 닿는 도면 담당이 없으면 도면팀 전원 +
   관리자(ADMIN)를 더한다(답 1). 담당이 있으면 관리자를 넣지 않는다(영업 쪽 규칙의 '양산' 관리자 처리는 그대로).
@@ -29,6 +32,7 @@ from foms.services.notifications.recipients import broad_recipient_ids, team_con
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
 from foms.services.orders.manager_names import order_manager_label
 from foms.services.production.drawing_arrival import day_md, drawing_blocker, drawing_deadline, drawing_people
+from foms.services.production.ship_dates import due_day, ship_dates, window_condition
 from foms.services.production_dashboard_display import _production_first_item, _production_product_label
 from models import Order, User
 
@@ -60,6 +64,8 @@ class DueAlert:
     product: str = ''
     sales_label: str = ''
     partner: bool = False
+    #: 고른 날(KST) — 보내기 직전 다시 보기가 같은 날로 기준 출고일을 다시 센다.
+    today: Optional[datetime.date] = None
 
 
 def to_kst(now: datetime.datetime) -> datetime.datetime:
@@ -75,14 +81,6 @@ def slot_of(now_k: datetime.datetime) -> Optional[str]:
         if start <= now_k.hour < end:
             return slot
     return None
-
-
-def _parse_day(value: Any) -> Optional[datetime.date]:
-    text = str(value or '').strip()[:10]
-    try:
-        return datetime.date.fromisoformat(text) if text else None
-    except ValueError:
-        return None
 
 
 def _kind_for(day: datetime.date, today: datetime.date, slot: str) -> Optional[Tuple[str, datetime.date]]:
@@ -101,9 +99,22 @@ def alert_key(order_id: int, kind: str, deadline: datetime.date, today: datetime
     return f"{int(order_id)}:{day.isoformat()}:{kind}"
 
 
+def ship_due(row: Any, today: datetime.date) -> Optional[datetime.date]:
+    """주문 행(칸만 읽은 행)의 기준 출고일 — 첫 화면 행과 같은 :func:`~foms.services.production.ship_dates.due_day`.
+
+    Args:
+        row: ``structured_data`` · ``is_regional`` · ``shipping_scheduled_date`` · ``partner_org_id`` · ``erp_stage_code`` 를 가진 행.
+        today: KST 오늘.
+    """
+    sd = row.structured_data if isinstance(row.structured_data, dict) else {}
+    ship = ship_dates(sd, regional=bool(row.is_regional), loading_date=row.shipping_scheduled_date,
+                      partner_org_id=row.partner_org_id, stage_code=row.erp_stage_code)
+    return due_day((day for day, _kind in ship), today)
+
+
 def _due_from_row(row: Any, today: datetime.date, slot: str) -> Optional[DueAlert]:
-    day = _parse_day(row.erp_construction_date)
-    if day is None:
+    day = ship_due(row, today)
+    if day is None or not today <= day <= today + datetime.timedelta(days=LOOKAHEAD_DAYS):
         return None
     hit = _kind_for(day, today, slot)
     if hit is None:
@@ -114,11 +125,12 @@ def _due_from_row(row: Any, today: datetime.date, slot: str) -> Optional[DueAler
     return DueAlert(order_id=int(row.id), key=alert_key(row.id, kind, deadline, today), kind=kind, day=day,
                     deadline=deadline, sd=sd, customer=customer,
                     product=_production_product_label(_production_first_item(sd)[1]),
-                    sales_label=order_manager_label(sd), partner=is_partner_sd(sd) or row.partner_org_id is not None)
+                    sales_label=order_manager_label(sd), partner=is_partner_sd(sd) or row.partner_org_id is not None,
+                    today=today)
 
 
 def due_alerts(db: Any, today: datetime.date, slot: str) -> Tuple[int, List[DueAlert]]:
-    """오늘 이 칸에 보낼 차례인 알림 — 쿼리 1개(``ix_orders_erp_construction_date`` · ``ix_orders_erp_stage_code``).
+    """오늘 이 칸에 보낼 차례인 알림 — 쿼리 1개(``ix_orders_erp_stage_code`` + 일정 표 EXISTS, 화면 경계와 같은 출처).
 
     Args:
         db: 세션(읽기만).
@@ -126,37 +138,42 @@ def due_alerts(db: Any, today: datetime.date, slot: str) -> Tuple[int, List[DueA
         slot: ``'am'`` 또는 ``'pm'``.
 
     Returns:
-        (본 주문 수, 알림 목록 — 시공일 · 번호 순).
+        (본 후보 주문 수, 알림 목록 — 기준 출고일 · 번호 순).
     """
     ceil = today + datetime.timedelta(days=LOOKAHEAD_DAYS)
     rows = (
         db.query(Order.id, Order.erp_construction_date, Order.structured_data, Order.customer_name,
-                 Order.partner_org_id)
+                 Order.partner_org_id, Order.is_regional, Order.shipping_scheduled_date, Order.erp_stage_code)
         .filter(Order.active_filter(), Order.is_erp_order.is_(True),
                 Order.erp_stage_code.in_(TARGET_STAGE_CODES),
-                Order.erp_construction_date >= today.isoformat(),
-                Order.erp_construction_date <= ceil.isoformat())
-        .order_by(Order.erp_construction_date, Order.id)
+                window_condition(today.isoformat(), ceil.isoformat()))
+        .order_by(Order.id)
         .all()
     )
     dues = [due for due in (_due_from_row(r, today, slot) for r in rows) if due is not None]
-    return len(rows), dues
+    return len(rows), sorted(dues, key=lambda d: (d.day, d.order_id))
 
 
 def still_waiting(db: Any, dues: List[DueAlert]) -> List[DueAlert]:
-    """보내기 직전 다시 보기(§9-2) — 아직 기다림 단계이고 납작 시공일이 그대로인 것만(쿼리 1개, 읽기만)."""
+    """보내기 직전 다시 보기(§9-2) — 아직 기다림 단계이고 기준 출고일이 그대로인 것만(쿼리 1개, 읽기만).
+
+    기준 출고일은 고를 때와 같은 날(``due.today``)로 :func:`ship_due` 를 다시 센다.
+    """
     if not dues:
         return []
     rows = (
-        db.query(Order.id, Order.erp_stage_code, Order.erp_construction_date)
+        db.query(Order.id, Order.erp_stage_code, Order.structured_data, Order.is_regional,
+                 Order.shipping_scheduled_date, Order.partner_org_id)
         .filter(Order.id.in_(sorted({d.order_id for d in dues})), Order.active_filter())
         .all()
     )
-    now = {int(r.id): (r.erp_stage_code, _parse_day(r.erp_construction_date)) for r in rows}
+    by_id = {int(r.id): r for r in rows}
     out = []
     for due in dues:
-        stage, day = now.get(due.order_id, (None, None))
-        if stage in TARGET_STAGE_CODES and day == due.day:
+        row = by_id.get(due.order_id)
+        if row is None or row.erp_stage_code not in TARGET_STAGE_CODES:
+            continue
+        if ship_due(row, due.today or due.day) == due.day:
             out.append(due)
     return out
 

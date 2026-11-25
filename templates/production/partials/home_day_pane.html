@@ -10,9 +10,9 @@
    여러 날 장(d.show_day — 지난 7일 · 그 뒤 · 지난 시공일)은 칸마다 둘째 줄 앞에 마감. #}
 {% from 'production/partials/home_date_macros.html' import fph_row, fph_chip, fph_wait, fph_wait_head, home_href %}
 <section class="fph-pane" data-foms-home-daypane="{{ d.key }}">
-  {% if part_board %}{% include 'production/partials/home_parts.html' %}{% endif %}{% if tab != 'parts' %}{% if part_board %}<div class="fph-pane__now">{% endif %}<h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }}{% if d.arrival %} · <span class="fph-dwst is-{{ d.arrival.state }}">{{ d.arrival.pane }}</span>{% endif %}{% if d.note %} · {{ d.note }}{% endif %}</small>{% if parts_link %}<a class="fph-pane__cards" data-foms-home-partslink href="{{ home_href('parts', 'cut', d.key) }}">도면 카드로 보기<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>{% endif %}</h2>
+  {% if part_board %}{% include 'production/partials/home_parts.html' %}{% endif %}{% if tab != 'parts' %}{% if part_board %}<div class="fph-pane__now">{% endif %}<h2 class="fph-pane__h">{{ d.title }} <small>출고 {{ d.total }}건 · 만들 것 {{ d.make }}{% if d.arrival %} · <span class="fph-dwst is-{{ d.arrival.state }}">{{ d.arrival.pane }}</span>{% endif %}{% if d.note %} · {{ d.note }}{% endif %}</small>{% if parts_link %}<a class="fph-pane__cards" data-foms-home-partslink href="{{ home_href('parts', 'cut', d.key) }}">도면 카드로 보기<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>{% endif %}</h2>
   {% if not d.total and not d.note %}
-  <p class="fph-pane__none">이 날은 시공이 없어요.</p>
+  <p class="fph-pane__none">이 날은 출고가 없어요.</p>
   {% endif %}
   {% if d.wait_rows %}
   <h3 class="fph-pane__g">도면·컨펌 기다림 {{ d.wait_rows | length }} <small>{{ fph_wait_head(d.wait_head) }}도면이 오면 아래로 내려가요</small></h3>
