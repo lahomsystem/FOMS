@@ -1,7 +1,8 @@
 """파트 맡기 고침 P1 화면 쿼리 수(설계서 2026-11-23 §12) — 칸 아래 이름 · 아침 칩 · 3판 카드 칸이 더하는 읽기.
 
 재기 함수 · 시드는 ``test_production_home_query_count.py`` 그대로다(파일 SQLite 레인, warmup 뒤 재기). 시드에 맡음 · 완료 · 담당 바꾸기 ·
-밤 넘긴 맡음 줄을 더해 주문 4 → 12건에도 쿼리가 같음(N+1 없음)을 본다. 상한(지금 계약)은 바꾸지 않았다:
+밤 넘긴 맡음 줄 + 여러 명이 같이 작업하는 줄(둘이 작업 · 1/2 완료 · 셋이 작업 — 2026-11-25 multi-holder §9)을 더해 주문 4 → 12건에도
+쿼리가 같음(N+1 없음 — 목록은 같은 줄에 실려 온다)을 본다. 상한(지금 계약)은 바꾸지 않았다:
 
 =====================================  ======  =========  ======================================================
 응답                                    실측     상한        더한 것
@@ -24,6 +25,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.production import mark_crew
 from models import Order, ProductionPartMark, User
 from tests.domains.test_production_home_query_count import (
     ABS_QUERY_CAP,
@@ -76,11 +78,31 @@ def _marks(order_id: int, idx: int, me: User) -> None:
     db_session.commit()
 
 
+def _crew_marks(order_id: int, idx: int, me: User) -> None:
+    """한 주문에 여러 명 줄 — 둘이 작업(나 포함) · 1/2 완료 · 셋이 작업. 목록 칸(JSON)이 줄 읽기를 늘리면 실패."""
+    now = now_utc_naive()
+    at = mark_crew.to_iso(now - datetime.timedelta(hours=1))
+    done = {"done_at": mark_crew.to_iso(now), "done_uid": me.id + 1010, "done_name": "이조립"}
+    # 엣지 · 재단은 빈 장을 남긴다(이 시드를 쓰는 test_production_multi_parts 가 [작업 시작] 칸을 본다)
+    rows = [("a1.png", "inspect", [mark_crew.member(me.id + 1002, "윤검수", at), mark_crew.member(me.id, me.name, at)]),
+            ("a0.png", "assemble", [mark_crew.member(me.id + 1010, "이조립", at, **done),
+                                    mark_crew.member(me.id + 1011, "박조립", at)]),
+            ("a1.png", "assemble", [mark_crew.member(me.id + 1010 + j, name, at) for j, name in
+                                    enumerate(("이조립", "박조립", "최조립"))])]
+    for key, part, crew in rows:
+        summary = mark_crew.summarize(crew)
+        db_session.add(ProductionPartMark(
+            order_id=order_id, drawing_key=f"orders/{idx}/drawing/{key}", part=part, holders=crew,
+            updated_by_user_id=me.id, updated_at=now, **summary))
+    db_session.commit()
+
+
 def _seed(start: int, n: int, me: User | None) -> None:
     for i in range(start, start + n):
         oid = _seed_order(i)
         if me is not None:
             _marks(oid, i, me)
+            _crew_marks(oid, i, me)
 
 
 def _measure(client, url: str, me: User | None, starts: tuple[int, int]) -> tuple[int, int, str]:
@@ -137,7 +159,9 @@ def test_30초_받아_오기는_한_번(client, cohort):
     assert client.get(url).status_code == 200
     resp, q = _count_queries(lambda: client.get(url))
     marks = resp.get_json()["data"]["marks"]
-    assert len(marks) == 36 and all("handed_from_name" in m and "picked_day" in m for m in marks)
+    assert len(marks) == 72 and all("handed_from_name" in m and "picked_day" in m for m in marks)
+    crews = sorted(m["holder_n"] for m in marks)
+    assert crews.count(3) == 12 and crews.count(2) == 24 and all("holders" in m for m in marks)  # 목록이 같은 줄에 실려 감
     assert q == MEASURED["sync"], q
 
 

@@ -565,10 +565,19 @@ def _toward(name: str) -> str:
     return f"{name}으로"
 
 
-def _describe_part_claim(event_type: str, payload: dict[str, Any]) -> str:
-    """파트 카드 3판에 새로 생긴 기록만 글로(설계서 2026-11-23 §4-11) — 담당 바꾸기 · 맡기 취소 · 공정 칸 손 체크.
+def _object(name: str) -> str:
+    """이름 + 을/를 — 받침이 있으면 '을'(재단을 · 조립을), 없으면 '를'(엣지를 · 검수를)."""
+    last = name[-1:] or " "
+    if "가" <= last <= "힣":
+        return f"{name}을" if (ord(last) - ord("가")) % 28 else f"{name}를"
+    return f"{name}을"
 
-    지금 있던 기록(맡기 · 기본 · 완료 · 되돌리기 · 옛 공정 칸 체크)은 빈 글을 돌려 지금 글 그대로 둔다.
+
+def _describe_part_claim(event_type: str, payload: dict[str, Any]) -> str:
+    """파트 카드 3판에 새로 생긴 기록만 글로(설계서 2026-11-23 §4-11) — 담당 바꾸기 · 시작 취소 · 같이 작업 · 반장의 남의 시작
+    취소(2026-11-25 multi-holder §8-1 · §8-2 26) · 공정 칸 손 체크.
+
+    지금 있던 기록(작업 시작 · 기본 · 완료 · 되돌리기 · 옛 공정 칸 체크)은 빈 글을 돌려 지금 글 그대로 둔다.
     """
     if event_type == "PRODUCTION_PART_MARKED":
         part = _PRODUCTION_PART_KR.get(str(payload.get("part") or ""), "")
@@ -579,7 +588,12 @@ def _describe_part_claim(event_type: str, payload: dict[str, Any]) -> str:
             return f"{part} 담당을 {before}에서 {_toward(after)} 바꿨습니다" if after else f"{part} 담당을 바꿨습니다"
         if action == "release":
             holder = str(payload.get("holder_name") or "").strip()
-            return f"{part} 맡기를 취소했습니다" + (f" ({holder} 담당)" if holder else "")
+            return f"{part} 작업 시작을 취소했습니다" + (f" ({holder})" if holder else "")
+        if action == "join":
+            return f"{_object(part)} 같이 작업하기 시작했습니다" if part else "같이 작업하기 시작했습니다"
+        if action == "remove":
+            target = str(payload.get("target_name") or "").strip() or "다른 사람"
+            return f"{part} {target}의 작업 시작을 취소했습니다"
         return ""
     if event_type == "PRODUCTION_STEP_CHECKED" and payload.get("via") == "sheet":
         # 'sheet' = 사람이 공정 칸을 손으로 바꿈(작업 시트 · '내 공정' [끝] · PC [고치기] 모두 같은 공정 API) — 자리 말은 쓰지 않는다

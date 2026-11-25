@@ -8,7 +8,8 @@
 되돌리면 실패: 맡기 취소 · 담당 바꾸기 길 빼기 · 바뀐 기록 칸을 안 쓰거나 맡기 취소에 남기기 · 두 번째 바꾸기가 첫 담당을 남기기 ·
 ``seen_by`` 를 안 견주기 · 남의 장 맡기 취소 받기 · 보류 중 맡기 받기 · 보류 중 맡기 취소 막기 · 첫 카드에 제작 시작 안 하기 ·
 두 번째 카드에 회차 또 열기 · 이벤트 이름 스냅샷 빼기 · 바뀐 기록 목록 권한 빼기.
-대조군: 지금 누름의 경합 글("박재단이 먼저 맡았어요") · ``seen_by`` 없이 보내는 지금 화면 · 제작 중 주문의 맡기(회차 그대로).
+대조군: 지금 누름의 경합 글("박재단이 먼저 시작했어요." — 2026-11-25 multi-holder §8-2 17) · ``seen_by`` 없이 보내는 지금 화면 ·
+제작 중 주문의 맡기(회차 그대로).
 """
 from __future__ import annotations
 
@@ -76,7 +77,7 @@ def test_release_clears_holder_and_records_event(client):
     payload = events(order.id, "PRODUCTION_PART_MARKED")[-1].payload
     assert (payload["action"], payload["from"], payload["to"], payload["by_name"]) == ("release", "NEED", "NONE", "박엣지")
     log = db_session.query(SecurityLog).filter_by(action="PRODUCTION_PART_MARKED", target_id=order.id).all()[-1]
-    assert "엣지 맡기 취소 (박엣지)" in log.message
+    assert "엣지 시작 취소 (박엣지)" in log.message
     again = mark(client, order, 0, "edge", "release", "need", seen_by=park.id)  # 멱등
     assert again.status_code == 200 and again.get_json()["data"]["changed"] is False
 
@@ -147,7 +148,7 @@ def test_takeover_then_late_done_from_old_holder(client):
     assert late.get_json()["error"] == "그사이 김민준으로 담당이 바뀌었어요. 이 장은 이제 김민준이 해요."
     assert late.get_json()["data"]["mark"]["picked_by_name"] == "김민준"
     legacy = mark(client, order, 0, "edge", "done", "need")  # 대조군: seen_by 없는 지금 화면 = 지금 글
-    assert code(legacy) == "MARK_CONFLICT" and legacy.get_json()["error"] == "김민준이 먼저 맡았어요"
+    assert code(legacy) == "MARK_CONFLICT" and legacy.get_json()["error"] == "김민준이 먼저 시작했어요."
 
 
 def test_done_then_late_takeover(client):
@@ -166,7 +167,7 @@ def test_release_then_late_takeover_and_two_takeovers(client):
     mark(client, order, 0, "edge", "release", "need")
     login(client, make_user("김민준", part="edge"))
     late = mark(client, order, 0, "edge", "takeover", "need", seen_by=park.id)
-    assert late.get_json()["error"] == "그사이 맡기가 취소됐어요. 지금은 담당 미정이에요."
+    assert late.get_json()["error"] == "그사이 시작이 취소됐어요. 지금은 담당 미정이에요."
     assert mark(client, order, 1, "edge", "takeover", "need", seen_by=park.id).status_code == 200  # 먼저 온 바꾸기
     login(client, make_user("최가은", part="edge"))
     second = mark(client, order, 1, "edge", "takeover", "need", seen_by=park.id)  # 같은 화면을 본 늦은 바꾸기

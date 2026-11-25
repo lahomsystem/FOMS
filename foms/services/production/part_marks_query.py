@@ -10,6 +10,7 @@ from typing import Any, Iterable
 
 from sqlalchemy.orm import object_session
 
+from foms.services.production import mark_crew
 from models import ProductionPartMark, ProductionRun
 
 
@@ -76,7 +77,11 @@ def orders_with_current_run(db: Any, order_ids: Iterable[int]) -> set[int]:
 
 def my_old_claims(db: Any, user_id: int, parts: Iterable[str], order_ids: Iterable[int],
                   before: Any) -> list[ProductionPartMark]:
-    """밤 넘긴 내 담당(아침 칩, 설계서 2026-11-23 §4-9) — 그 주문들에서 내가 맡은 NEED 줄 중 맡은 때가 ``before`` 전. 쿼리 1.
+    """밤 넘긴 내 작업(아침 칩, 설계서 2026-11-23 §4-9) — 그 주문들의 작업 필요 줄 중 내가 작업하는 사람 목록에 있고(내 몫 아직)
+    내가 시작한 때가 ``before`` 전인 줄. 쿼리 1.
+
+    같이 작업하는 사람(2026-11-25 multi-holder Q21)은 목록 칸(JSON)에 있어 SQL 로 못 거른다(PG ``@>`` 는 SQLite 레인에 없음) —
+    조건을 ``order_id IN (첫 화면) AND part IN (내 파트) AND state='NEED'`` 로 넓히고 나는 앱에서 거른다(§9, 쿼리 수 그대로).
 
     Args:
         db: 세션.
@@ -92,8 +97,17 @@ def my_old_claims(db: Any, user_id: int, parts: Iterable[str], order_ids: Iterab
     keys = sorted({str(p) for p in parts})
     if not ids or not keys:
         return []
-    return (db.query(ProductionPartMark)
+    rows = (db.query(ProductionPartMark)
             .filter(ProductionPartMark.order_id.in_(ids), ProductionPartMark.part.in_(keys),
-                    ProductionPartMark.state == "NEED", ProductionPartMark.picked_by_user_id == int(user_id),
-                    ProductionPartMark.picked_at < before)
+                    ProductionPartMark.state == "NEED")
             .all())
+    return [row for row in rows if _held_since(row, int(user_id), before)]
+
+
+def _held_since(row: Any, user_id: int, before: Any) -> bool:
+    """그 줄에서 내 몫이 아직 작업 중이고 내가 시작한 때가 ``before`` 전인지."""
+    item = mark_crew.find(mark_crew.crew_of(row), user_id)
+    if item is None or mark_crew.is_done(item):
+        return False
+    started = mark_crew.from_iso(item.get("at"))
+    return started is not None and started < before

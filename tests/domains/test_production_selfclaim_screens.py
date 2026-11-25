@@ -231,7 +231,7 @@ def test_날짜_줄_칸_아래_이름과_단계_칸_미완료(client, cohort) ->
     row = html.split(f'data-foms-home-dayrow="{order.id}"', 1)[1].split("</a>", 1)[0]
     assert '<span class="fph-dr__sg">재단 중<small class="is-miss">2장 미완료</small></span>' in row
     assert '<span class="fph-dr__steps has-hd" aria-label="공정">' in row
-    assert '<i></i>재단 3/5<span class="visually-hidden">, 재단 3/5 · 2장 미완료 · 담당 박재단</span>' in row
+    assert '<i></i>재단 3/5<span class="visually-hidden">, 재단 3/5 · 2장 미완료 · 박재단 작업 중</span>' in row
     assert '<small class="fph-dr__hd" aria-hidden="true"><b>박재단</b></small>' in row
     assert row.count('<small class="fph-dr__hd is-none" aria-hidden="true"><b>미정</b></small>') == 3
 

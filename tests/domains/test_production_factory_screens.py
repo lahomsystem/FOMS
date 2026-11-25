@@ -141,7 +141,7 @@ def test_board_puts_own_factory_first_and_other_factory_behind(client, cohort):
     assert 'data-pp-count="all">3<' in html  # 칸 숫자는 내 공장 카드만
     block = html[html.index('<section class="pp-elsewhere"'):html.index("</section>", html.index('<section class="pp-elsewhere"'))]
     assert "data-pp-act" not in block and "data-pp-card" not in block  # 누름 없음
-    assert f'{F2} 작업 <span data-pp-elsewhere-text>담당 최가은</span>' in block
+    assert f'{F2} 작업 <span data-pp-elsewhere-text>최가은 작업 중</span>' in block
     assert block.count('data-pp-why="2공장에서 작업하는 도면이에요."') == 2
 
 
@@ -174,7 +174,9 @@ def test_admin_gets_factory_picker_only_when_second_factory_exists(client, cohor
 
 
 def test_elsewhere_line_words():
-    assert elsewhere_line("edge", "need", picked="최가은", done=None) == "담당 최가은"
+    assert elsewhere_line("edge", "need", picked="최가은", done=None) == "최가은 작업 중"
+    assert elsewhere_line("edge", "need", picked="최가은 · 박엣지", done=None) == "최가은 · 박엣지 작업 중"
+    assert elsewhere_line("edge", "need", picked=None, done=None) == "작업 중"
     assert elsewhere_line("edge", "done", picked="최가은", done="최가은") == "엣지 완료 · 최가은"
     assert elsewhere_line("cut", "basic", picked=None, done="김재단") == "기본 · 김재단"
     assert elsewhere_line("cut", "none", picked=None, done=None) == "미정"

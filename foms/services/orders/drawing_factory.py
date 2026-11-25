@@ -23,6 +23,7 @@ from typing import Any, Callable, Iterable, Optional
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.orders.stage_override import STAGE_FORWARD_RANK
+from foms.services.production import mark_crew as mc
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, FACTORY_2, factory_label
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS, PRODUCTION_PART_LABELS
 from foms.services.production.part_mark_rules import subject_particle, toward_particle
@@ -178,8 +179,9 @@ def sheet_work(key: str, marks: Iterable[Any], *, hand_parts: Iterable[str] = ()
         hand_parts: :func:`hand_checked_parts` — 반장이 공정 칸을 통째 손 체크한 파트(모든 장이 그 공정 완료).
 
     Returns:
-        완료(재단 기본 포함)한 파트가 있으면 ``{kind: 'done', part, name}``(공정 순 첫 파트, 이름 = 완료한 사람), 담당만 있으면
-        ``{kind: 'held', part, name}``(이름 = 담당), 표시 줄은 없는데 손 체크한 공정이 있으면 ``{kind: 'hand', part, parts, name: ''}``.
+        완료(재단 기본 포함)한 파트가 있으면 ``{kind: 'done', part, name}``(공정 순 첫 파트, 이름 = 완료한 사람), 작업하는 사람만
+        있으면 ``{kind: 'held', part, name}``(이름 = 작업하는 사람 이름 줄 "김민준 · 박엣지 외 1" — multi-holder Q20), 표시 줄은 없는데
+        손 체크한 공정이 있으면 ``{kind: 'hand', part, parts, name: ''}``.
         NONE 줄만 있거나 줄이 없고 손 체크도 없으면 None(일이 시작 안 된 장 — 옮길 수 있다).
     """
     rows = sorted((m for m in marks if getattr(m, "drawing_key", None) == key and getattr(m, "state", "NONE") != "NONE"),
@@ -187,10 +189,12 @@ def sheet_work(key: str, marks: Iterable[Any], *, hand_parts: Iterable[str] = ()
     done = [m for m in rows if m.state in _FINISHED]
     if done:
         row = done[0]
-        return {"kind": "done", "part": row.part, "name": row.done_by_name or row.picked_by_name or ""}
+        crew = mc.crew_of(row)
+        name = mc.name_line(mc.done_names(crew)) or row.done_by_name or mc.name_line(mc.names(crew)) or row.picked_by_name
+        return {"kind": "done", "part": row.part, "name": name or ""}
     if rows:
         row = rows[0]
-        return {"kind": "held", "part": row.part, "name": row.picked_by_name or ""}
+        return {"kind": "held", "part": row.part, "name": mc.name_line(mc.names(mc.crew_of(row))) or row.picked_by_name or ""}
     hand = [part for part in PRODUCTION_PART_KEYS if part in set(hand_parts)]
     if hand:
         return {"kind": "hand", "part": hand[0], "parts": hand, "name": ""}
@@ -206,7 +210,7 @@ def _final_particle(word: str, with_final: str, without_final: str) -> str:
 
 
 def work_block_message(work: dict[str, Any], *, from_factory: int, to_factory: int) -> str:
-    """일이 시작된 장을 옮기려 할 때의 글(409 ``SHEET_HAS_WORK``, §4-13 — 완료 · 담당을 갈라).
+    """일이 시작된 장을 옮기려 할 때의 글(409 ``SHEET_HAS_WORK``, §4-13 — 완료 · 작업 중을 갈라, multi-holder §8-2 21).
 
     Args:
         work: :func:`sheet_work` 결과.
@@ -228,7 +232,7 @@ def work_block_message(work: dict[str, Any], *, from_factory: int, to_factory: i
                 "이미 완료한 장은 옮기지 않아요.")
     who = subject_particle(name) if name else "다른 사람이"
     ask = f"{name}에게" if name else "담당에게"
-    return f"{head}{factory_label(from_factory)} {who} {part} 담당이에요. {ask} 맡기 취소를 부탁한 뒤 다시 해 주세요."
+    return f"{head}{factory_label(from_factory)} {who} {part} 작업 중이에요. {ask} 시작 취소를 부탁한 뒤 다시 해 주세요."
 
 
 def factory_done_entry(sd: Any, factory: int) -> Optional[dict[str, Any]]:

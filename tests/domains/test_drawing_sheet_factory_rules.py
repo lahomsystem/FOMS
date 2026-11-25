@@ -100,12 +100,12 @@ def test_block_messages_say_who_and_what_like_the_spec():
         "2공장으로 옮길 수 없어요 — 1공장에서 김재단이 재단을 이미 완료한 장이에요. 이미 완료한 장은 옮기지 않아요.")
     held = {"kind": "held", "part": "edge", "name": "김민준"}
     assert work_block_message(held, from_factory=1, to_factory=2) == (
-        "2공장으로 옮길 수 없어요 — 1공장 김민준이 엣지 담당이에요. 김민준에게 맡기 취소를 부탁한 뒤 다시 해 주세요.")
+        "2공장으로 옮길 수 없어요 — 1공장 김민준이 엣지 작업 중이에요. 김민준에게 시작 취소를 부탁한 뒤 다시 해 주세요.")
     back = {"kind": "done", "part": "edge", "name": "최가은"}
     assert work_block_message(back, from_factory=2, to_factory=1).startswith(
         "1공장으로 옮길 수 없어요 — 2공장에서 최가은이 엣지를 이미 완료한 장이에요.")
     nameless = work_block_message({"kind": "held", "part": "inspect", "name": ""}, from_factory=1, to_factory=2)
-    assert "1공장 다른 사람이 검수 담당이에요. 담당에게 맡기 취소를" in nameless
+    assert "1공장 다른 사람이 검수 작업 중이에요. 담당에게 시작 취소를" in nameless
     entry = {"keys": [], "at": "2026-11-24T07:10:00", "by_name": "강검수"}
     assert factory_done_message(2, entry) == "2공장은 강검수가 11/24 16:10에 제작 완료했어요. 옮기려면 2공장 완료부터 취소해 주세요."
 

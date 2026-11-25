@@ -157,7 +157,7 @@ def test_칸은_도면이_있는_줄만_누름_칸이고_태블릿은_그대로(
         assert f'data-foms-pc-sheet="{key}"' in row
     # 지금 글 그대로 — 마우스 글 · 칸 이름 · 칸 아래 이름(누름 칸 표지는 aria-label 뒤에만 붙는다)
     # 바뀐 때는 오늘이면 시각 · 어제면 "어제" · 그 전이면 날짜(part_holders.handed_text) — 준비물 시각이 고정(11/24)이라 셋 다 받는다
-    assert re.search(r'data-tip="재단 2/5 · 3장 미완료 · 담당 박재단 · 박엣지에서 바뀜(?: [0-9:]+| · 어제| · [0-9]+/[0-9]+)" tabindex="0" aria-label="[^"]+" role="button"', row)
+    assert re.search(r'data-tip="재단 2/5 · 3장 미완료 · 박재단 작업 중 · 박엣지에서 바뀜(?: [0-9:]+| · 어제| · [0-9]+/[0-9]+)" tabindex="0" aria-label="[^"]+" role="button"', row)
     assert ">재단 2/5</span>" in row
     assert "data-foms-pc-sheet" not in _row(html, bare.id)  # 음성 대조 — 도면 0장 줄은 지금 그대로(창 없음)
     _login(client, _user("태블릿"), TABLET)

@@ -149,7 +149,7 @@ def test_inspect_gate_blocks_until_ready_and_names_holders(action):
     marks = [_m("k1", "edge", "NEED", holder="김민준")]
     gate = inspect_gate(_sd(), marks, "k1", "inspect", action)
     assert gate.code == "INSPECT_NOT_READY" and gate.status == 409
-    assert gate.message == ("아직 검수할 수 없어요. 재단(담당 미정) · 엣지(담당 김민준) · 조립(담당 미정)이 미완료예요. "
+    assert gate.message == ("아직 검수할 수 없어요. 재단(담당 미정) · 엣지(김민준 작업 중) · 조립(담당 미정)이 미완료예요. "
                             "완료되면 검수할 수 있어요.")
     assert gate.extra["left"] == [{"part": "cut", "holder": None}, {"part": "edge", "holder": "김민준"},
                                   {"part": "assemble", "holder": None}]
