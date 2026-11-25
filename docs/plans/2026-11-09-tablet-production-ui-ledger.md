@@ -1255,3 +1255,12 @@
 - deploy = 45247f2ba(시험 고침 포함). smoke `21620 passed, 821 skipped` · `174 passed`. CI: FOMS CI · PG Lane · perf-gate 초록, 스테이징 배포 일치. 운영 a2f8ec14 그대로.
 - 모바일 여러 날짜 칸(주장, 가지 `work/mobile-multidate` 7186bdbbc): 찾은 것 — ① **폰에서는 두 칸이 숨겨져 있었음**(`erp-order-shared.js:1675` `d-none erp-mobile-rare-field`, 2026-06-02 b7d86364f부터 — 값은 숨은 칸에 남아 저장은 됨) ② `allowInput: true` 라 누르면 입력 칸이 잡힘(자판) ③ 주 시공일 칸에서 날짜 글 잘림(217px 글 / 146px 칸) ④ 날짜 칸 39px · 앞뒤 달 34px · [확인] 40px ⑤ 폰에서 지우는 길 없음. 고친 것 — 모바일 폼에서 두 칸 보이게 · 새 `static/js/orders/erp-date-multi.js`(154줄) · `static/css/orders/erp-date-multi.css` · 보기 칸을 누르면 아래에서 달력(자판 없음) · 48px · [지우기] · PC 는 픽셀까지 같음 · 저장 값 꼴 그대로 · `erp-order-shared.js` 42줄 줆 · 자산 개수 시험 51 → 53. 끝 줄: 닿는 시험 `1195 passed, 1 skipped` · 계약/하네스 `868 passed`. 지휘가 그림 둘 직접 봄(달력 연 모습 · 날짜 셋 고른 칸).
   - 확신 낮음: 실제 아이폰 · 안드로이드 자판은 못 봄 · 연도 칸은 숫자 입력 그대로 · 인라인 저장(`FOMS_INLINE_EDIT_ENABLED`)이 켜져 있으면 되돌리기 이전 값이 빔 · 다크 모드 [확인] 줄 배경 흰색 · 06-02에 숨긴 칸을 되살려 폰 항목마다 두 줄 늚 · 992px 아래 좁은 PC 창도 모바일 폼(아래 달력 · 손 입력 막힘) · 가로 태블릿은 범위 밖.
+
+### 2026-11-25 · D3 고침 판 보고(주장 — 지휘 확인 전)
+
+- 가지 `work/d3-workbench`(세션 가지 ce2df1ae5 위로 옮김): 1784846f2 · 8e3bb16f7 · 0537c8f81(처음 판) + 35e1ce61d(검토 고침 1 ~ 8 · 시공 대기 [수정 취소]) · 3ea62f528(생산 밖으로 나가면 `fixing` 지움) · a2238ba87(인벤토리). 끝 줄: 도메인 `17692 passed, 6 skipped` · 계약/하네스/보안 `2012 passed` · PG 레인 임시 PG `7 passed`.
+- 흔들린 시험(일꾼 말): `test_item_construction_screens.py::test_pc_list_includes_split_production_order` 가 전체 실행에서 한 번 실패(시공 목록 쿼리 수 9 대 7), 따로 · 다시 돌리면 통과 — 원인 안 찾음.
+- 4번 결정: '생산 중' 칸은 캐시를 안 씀(줄 id 는 누를 때마다 SQL 두 번, 칸 숫자는 하이드레이트 문장 안 하위 질의 — 쿼리 수 기본 4 · 생산 중 7 그대로, 빈 큐일 때만 +1).
+- 5번 결정: `log_access` 그대로(같은 패키지가 이미 가져온 것). 공장 지정 API `erp_orders_sheet_factory.py:115-120` 도 같은 빈틈 — 안 고침.
+- 9번: `drawing_fix_marks.release_on_stage_exit` 를 넷에서 부름 — `order_transition_service.py:385`(제작 완료 · 공장 완료 · 일반 단계 변경 · 컨펌 · 시공 전이) · `api/orders/stage_override.py:155 · 324`(서비스 쪽은 순환 import 라 API 콜백에서) · `api/orders/status.py:296`(물류 보드 옛 길) · `api/orders/field_update.py:805`. 손 안 댄 곳: 수정 제작(생산으로 들어감) · 폼 저장 · AS 표시 맞춤 · 주문 만들기 · 미러 칸 맞춤.
+- 알아 둘 것: 비활성 계정은 401 · [제작 완료]/마지막 공장 완료는 D1 이 먼저 409 로 막으므로 실제로 지우는 길은 관리자 뚫기 · 강제/일반 단계 변경 · 보류 옛 길 · **물류 보드에서 '보류'로 옮겨도 단계가 `ON_HOLD` 가 되어 지워짐**(풀어도 다시 안 생김) · CSS 핀 `?v=20261125d` 하나로.
