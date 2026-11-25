@@ -7,7 +7,8 @@
  *    묻기")도 이 함수 하나 — 단추에 서버가 실은 자료(data-foms-sheet-parts, 열쇠 = data-step-key), [취소] · Esc · 바깥이면 no().
  *    창을 연 뒤 OPEN_GUARD_MS 안의 누름은 버린다(두 번 누름의 둘째가 [작업 완료] · 바깥에 떨어지지 않게).
  *    막힌 도면이 있는 주문(서버 자료 fix — 2026-11-25 설계서 §2-4)은 본문만 "이 주문의 도면 5장 중 4장이 재단 완료로 처리돼요. 도면 2는
- *    고치는 중이라 빼요."(뒤 문장 = 서버 글 fix.tail). 응답 expanded(막힌 장을 빼고 처리됨)는 그 칸 옆 글을 서버 글(expanded.note)로.
+ *    고치는 중이라 빼요."(뒤 문장 = 서버 글 fix.tail). 응답 expanded(막힌 장을 빼고 처리됨)는 그 칸 옆 글을 서버 글(expanded.note)로,
+ *    '내 공정' [끝] 뒤 알림은 doneText(expanded) — "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."
  *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "아직 미완료가 있어요 — 재단 1장 · 검수 3장".
  *    카드를 안 쓴 주문은 null(시트 JS 가 지금 글을 그대로 쓴다).
@@ -68,6 +69,9 @@
   function body(label, sheets, fix) {
     if (fix && fix.tail) { return '이 주문의 도면 ' + sheets + '장 중 ' + fix.done + '장이 ' + label + ' 완료로 처리돼요. ' + fix.tail; }
     return '이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.';
+  }
+  function doneText(ex) { // 풀어 쓴 [끝] 뒤 알림(판결 B) — 뒤 문장(조사 포함)은 서버 글 ex.tail, 화면은 잇기만
+    return '도면 ' + ex.total_n + '장 중 ' + ex.done_n + '장을 ' + ex.part_label + ' 완료로 처리했어요. ' + ex.tail;
   }
   function ask(label, sheets, opener, go, no, fix) {
     var box = document.querySelector('[data-foms-sheet-confirm]');
@@ -242,5 +246,6 @@
     });
   }
   // renderLog: PC 도면 목록 창(foms-production-pc-sheet.js, 2026-11-24)이 바뀐 기록을 작업 시트와 같은 글로 그린다
-  window.FomsSheetParts = { beforeToggle: beforeToggle, refused: refused, render: render, why: why, showWhy: showWhy, renderLog: renderLog };
+  window.FomsSheetParts = { beforeToggle: beforeToggle, refused: refused, render: render, why: why, showWhy: showWhy, renderLog: renderLog,
+    doneText: doneText };
 })();

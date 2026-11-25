@@ -113,7 +113,7 @@ def api_part_sheet():
             "me": getattr(user, "id", None), "has_run": has_run,
             "start_note": START_NOTE if in_production and not has_run else None,
             **sheet, **step_api_extras(sd, marks), **_row_html(order, sd, marks, starts),
-            **confirm_extras(sd, writable_factories(user))}  # 막힌 도면이 있으면 [모두 작업] 확인 창 본문 재료(2026-11-25 §2-4)
+            **confirm_extras(sd)}  # 막힌 도면이 있으면 [모두 작업] 확인 창 본문 재료(2026-11-25 §2-4)
     response = jsonify({"success": True, "data": data, "error": None})
     response.headers["Cache-Control"] = "private, no-store"
     return response, 200

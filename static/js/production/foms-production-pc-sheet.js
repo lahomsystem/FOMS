@@ -99,7 +99,7 @@
     }
     if (w && d.hand_off) { tools.appendChild(actButton('모두 작업 취소', 'hand-off', '', false)); }
     box.setAttribute('data-order-id', String(d.order_id));
-    q('[data-foms-sheet-parts]').setAttribute('data-foms-sheet-parts', JSON.stringify({ sheets: d.sheets, parts: d.parts, keys: d.keys }));
+    q('[data-foms-sheet-parts]').setAttribute('data-foms-sheet-parts', JSON.stringify({ sheets: d.sheets, parts: d.parts, keys: d.keys, fix: d.fix })); // fix = 막힌 도면이 있을 때만
   }
   function renderRows(d) { // 바뀐 줄만 새로 그린다(안 바뀐 줄 · 그림은 그대로 둔다)
     var list = q('[data-foms-pc-sheet-rows]');

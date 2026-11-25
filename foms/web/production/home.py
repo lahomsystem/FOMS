@@ -45,7 +45,6 @@ from foms.services.production.part_access import (
     part_account_parts,
     part_view_mode,
     user_factory,
-    writable_factories,
 )
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT, production_parts_label
@@ -234,12 +233,16 @@ def _attach_step_confirm(db, queues: dict | None, flags: dict) -> None:
     """'내 공정' [<공정> 끝] 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") — [끝]을 그리는 사람(``can_check_steps``)만,
     도면 있는 막히지 않은 줄의 표시 줄을 한 번에 읽는다(+1, 그런 줄이 없으면 0). 묻기를 단추에 실어 두어 누를 때 받기(GET)가 없다 —
     공장 와이파이에서 [끝]이 늦게 먹는 일(11-22 터치 점검)을 만들지 않는다.
+
+    같은 표시 줄로 "남은 장이 고치는 도면뿐"인 줄은 [끝] 자리에 "도면 2 고치는 중"(2026-11-25 D1 검토 판결 D). [끝]이 없는 사람도 같은
+    줄을 보도록, 도면별로 막힌 장이 있는 줄이 있을 때만 그 줄들의 표시 줄을 읽는다(그런 줄이 없으면 0 — 지금 쿼리 그대로).
     """
-    if queues is None or not flags.get('can_check_steps'):
+    if queues is None:
         return
-    ids = step_confirm_ids(queues)
-    if ids:  # 막힌 도면이 있는 주문은 보는 사람 공장 장 수로 확인 창 본문을 센다(2026-11-25 설계서 §2-4, 쿼리 0)
-        attach_step_confirm(queues, marks_by_order(db, ids), writable_factories(getattr(g, 'current_user', None)))
+    confirm = bool(flags.get('can_check_steps'))
+    ids = step_confirm_ids(queues, fix_only=not confirm)
+    if ids:
+        attach_step_confirm(queues, marks_by_order(db, ids), confirm=confirm)
 
 
 def _step_panel_response(db, tab: str, surface: bool, rows: list, flags: dict):

@@ -209,7 +209,7 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
     * 보류 · 도면 고치는 중에 켤 때: 409 ``HOLD_ACTIVE`` · ``DRAWING_REVISING``(사장님 2026-11-24 "보류 중에는 통째 작업도 막기" ·
       2026-11-25 "도면 고치는 중도 보류처럼" — 도면 누름 :func:`order_gate` 와 같은 차례 · 같은 글). 끄기(작업 취소)는 둘 다 된다
       (도면 쪽 :data:`ALLOWED_WHILE_BLOCKED` — 완료 취소 · 맡기 취소 — 와 같은 뜻). 여기 '도면 고치는 중'은 주문 **통째**만이다 —
-      도면별 막힘은 막지 않고 공정 API 가 막힌 장을 빼고 풀어 적는다(2026-11-25 설계서 §3-6 ①, ``part_steps_sync.expand_hand_step``).
+      도면별 막힘은 막지 않고 공정 API 가 막힌 장을 빼고 풀어 적는다(2026-11-25 설계서 §3-6 ①, ``step_expand.expand_hand_step``).
     * 켤 때: 카드를 쓴 파트에 미완료 장이 1장 이상이면 409 ``PART_USES_CARDS`` + ``left``(쓰기 · 이벤트 없음).
       미완료 0장(확정 도면 0장 포함)이면 지금처럼 켜진다.
     * 끌 때: 카드를 쓴 파트의 지금 장이 모두 카드로 완료면 409 ``STEP_SET_BY_CARDS``(완료 취소는 카드에서).

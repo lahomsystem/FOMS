@@ -36,6 +36,7 @@ __all__ = [
     "production_start_block",
     "revision_in_flight_block",
     "revision_request_target_keys",
+    "revision_status_block",
     "stage_override_drawing_warning",
     "targeted_revision_request",
 ]
@@ -158,18 +159,28 @@ def targeted_revision_request(sd: Any) -> Optional[dict[str, Any]]:
     return request
 
 
+def revision_status_block(sd: Any) -> Optional[GateBlock]:
+    """도면 상태가 수정 중(RETURNED) · 수령 전(TRANSFERRED)인가 — 대상이 몇 장이든(도면별 · 통째를 가르지 않음).
+
+    ERP 보드 단계 칸 "도면 수정 중 · 도면 작업실 열기"(``board_state_display``)는 영업 요청이 걸려 있는 동안 지금처럼 보인다
+    (2026-11-25 D1 검토 판결 F — 통째 판정을 좁힌 것이 그 화면을 바꾸지 않게). 생산 쪽 막는 문은 :func:`revision_in_flight_block`.
+    """
+    status = effective_drawing_status(sd)
+    if status not in _REVISION_IN_FLIGHT:
+        return None
+    return GateBlock(DRAWING_STATUS_CODE, _SALES_REASONS[status], status)
+
+
 def revision_in_flight_block(sd: Any) -> Optional[GateBlock]:
     """도면 수정이 진행 중인가(RETURNED·TRANSFERRED 만 막는다) — **주문 통째**. 생산 단계 run 시작·배지용.
 
     생산 · 시공 단계에서 영업 요청이 도면 일부만 가리키면(:func:`targeted_revision_request`) 통째가 아니다(None) — 그 도면만 막는
     판정은 ``foms.services.orders.drawing_fix`` 가 한다(2026-11-25 설계서 §3-3).
     """
-    status = effective_drawing_status(sd)
-    if status not in _REVISION_IN_FLIGHT:
+    block = revision_status_block(sd)
+    if block is not None and block.drawing_status == "RETURNED" and targeted_revision_request(sd) is not None:
         return None
-    if status == "RETURNED" and targeted_revision_request(sd) is not None:
-        return None
-    return GateBlock(DRAWING_STATUS_CODE, _SALES_REASONS[status], status)
+    return block
 
 
 def drawing_revision_in_progress(sd: Any) -> bool:

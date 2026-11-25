@@ -58,7 +58,7 @@ from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     evaluate_policy,
 )
-from foms.services.production.part_access import steps_lock, writable_factories
+from foms.services.production.part_access import steps_lock
 from foms.services.production.write_access import (
     PRODUCTION_ACK_DENIED_MESSAGE,
     PRODUCTION_WRITE_DENIED_MESSAGE,
@@ -76,7 +76,7 @@ from foms.services.production.steps import (
 )
 from foms.services.orders.drawing_fix import confirm_extras
 from foms.services.production.part_mark_gates import GateRefusal, revising_gate, step_cell_gate
-from foms.services.production.part_steps_sync import apply_step_expand, step_expand_plan
+from foms.services.production.step_expand import apply_step_expand, step_expand_plan
 from foms.services.production.sheet_parts import step_note
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras  # noqa: F401  # complete_block_body = 판정 한 곳 재노출(위치 고정 시험)
@@ -1128,8 +1128,7 @@ def api_production_steps_get(order_id: int):
                 "locked_note": lock.message if lock else None,
                 **step_api_extras(sd, marks),  # sheets(손 체크 확인 창 장 수) · parts(카드 3/5)
                 **factory_step_fields(sd, marks),  # 섞인 주문만 공장마다 준비 · 까닭(2공장 §4-14)
-                # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4) — 보는 사람 공장 장 수로 센다
-                **confirm_extras(sd, writable_factories(getattr(g, "current_user", None))),
+                **confirm_extras(sd),  # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4)
             },
         }
     )
@@ -1165,7 +1164,6 @@ def api_production_steps(order_id: int):
 
         user_id = session.get("user_id")
         captured: dict[str, Any] = {}
-        factories = writable_factories(user)  # 풀어 쓰기는 누른 사람 공장 장만(반장 = 자기 공장, factory_gate 와 같은 규칙)
 
         def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
             o = orders[0]
@@ -1175,12 +1173,11 @@ def api_production_steps(order_id: int):
             if gate is not None:
                 raise GateRefusal(gate)  # 쓰기 · 이벤트 없음(부르는 쪽이 되감는다)
             name = user.name if user else None
-            plan = step_expand_plan(sd, marks, key, factories=factories) if done else None
+            plan = step_expand_plan(sd, marks, key) if done else None
             if plan is not None:  # 막힌 도면이 있는 주문의 통째 작업 = 막힌 도면만 빼고 도면별 표시로(2026-11-25 설계서 §3-6 ①, C4)
-                if not plan["keys"]:  # 뺄 도면 말고 처리할 도면이 없다(쓸 수 있는 장이 모두 막힘) — 통째 막힘과 같은 거절
+                if not plan["keys"]:  # 뺄 도면 말고 처리할 도면이 없다(지금 도면이 모두 막힘) — 통째 막힘과 같은 거절
                     raise GateRefusal(revising_gate(plan["numbers"], part=key))
-                marks, captured["expanded"] = apply_step_expand(sess, o, sd, marks, key, plan, user_id=user_id, user_name=name,
-                                                                factories=factories)
+                marks, captured["expanded"] = apply_step_expand(sess, o, sd, marks, key, plan, user=user)  # 감사 줄도 그 안에서
                 captured["expanded"]["note"] = (step_note(sd, marks, key) or {}).get("text")
                 steps = (sd.get("production") or {}).get("steps") if isinstance(sd.get("production"), dict) else None
             else:
@@ -1194,7 +1191,7 @@ def api_production_steps(order_id: int):
             captured["steps"] = steps
             captured["complete_ready"] = complete_ready(sd, marks)
             captured["extras"] = {**step_api_extras(sd, marks), **factory_step_fields(sd, marks),  # 공장 단추 다시 그리기(섞인 주문만)
-                                  **confirm_extras(sd, factories)}  # 막힌 도면이 있으면 확인 창 본문 재료(fix)
+                                  **confirm_extras(sd)}  # 막힌 도면이 있으면 확인 창 본문 재료(fix)
             return {o.id: []}
 
         try:
@@ -1215,9 +1212,10 @@ def api_production_steps(order_id: int):
             db.rollback()
             return jsonify(refusal.gate.body()), refusal.gate.status
 
-        _audit_production(order, "PRODUCTION_STEP_CHECKED", user_id,
-                          note=f"{key}: {'완료' if done else '해제'}",
-                          extra={"step": key, "done": bool(done)})
+        if "expanded" not in captured:  # 풀어 쓰기는 카드 쓰기와 같은 감사 줄을 이미 남겼다(칸 '완료'는 칸이 정말 켜질 때만 — 판결 E)
+            _audit_production(order, "PRODUCTION_STEP_CHECKED", user_id,
+                              note=f"{key}: {'완료' if done else '해제'}",
+                              extra={"step": key, "done": bool(done)})
         db.commit()
         steps = _normalize_production_steps(captured["steps"])  # 옛 주문의 paint 는 응답에서 뺀다(D15)
         done_count = sum(1 for s in steps if s.get("done"))

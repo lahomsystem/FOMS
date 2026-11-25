@@ -4,7 +4,8 @@
 * 통째 = 지금 그대로(TRANSFERRED · 대상을 못 고른 RETURNED · 고객컨펌 단계 요청 · 지금 도면 전부를 가리킨 요청). 도면별 = 생산 · 시공
   단계에서 대상을 고른 영업 요청(``target_idents`` · 옛 줄은 ``target_drawing_keys`` 를 그때 풂) ∪ ``drawing_fix.fixing`` ∪ 열린 공장 요청.
 * 막는 문: 도면 누름(그 장만) · 도면 판 · PC 창 줄(그 장만) · [제작 완료](막힌 도면 하나라도) · [N공장 완료](그 공장 · 마지막이면 하나라도) ·
-  공장 꼴 패킹 줄(체크 · 풀기 모두 409). [제작 시작] · ERP 보드 · 배지 시작 막힘은 통째만. 관리자 뚫기 그대로.
+  공장 꼴 패킹 줄(체크 · 풀기 모두 409, 출발 보고 뒤는 그대로). [제작 시작] · [수정 제작] · 배지 시작 막힘은 통째만, ERP 보드 단계 칸은
+  영업 요청이 걸려 있으면 지금처럼 "도면 수정 중"(판결 F). 관리자 뚫기 그대로.
 * ``drawing_fix`` 는 서버 소유 — 폼 저장 · 초안 자동 저장 · 주문 만들기가 못 덮는다.
 
 되돌리면 실패: 대상 1장 요청이 주문 통째를 막음 · 고객컨펌 단계 요청이 도면별 · 막힌 도면이 있는데 제작 완료 200 · 남의 공장 막힘으로 내
@@ -25,11 +26,13 @@ from db import db_session
 from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders import drawing_fix as fx
+from foms.services.orders.board_state_display import build_board_state
 from foms.services.orders.confirm_drawing_gate import (
     drawing_revision_in_progress,
     production_drawing_badge,
     production_start_block,
     revision_in_flight_block,
+    revision_status_block,
 )
 from foms.services.orders.drawing_factory import strip_client_factory_state
 from foms.services.orders.order_create import _prepare_structured
@@ -133,7 +136,7 @@ def test_production_sales_request_blocks_only_the_requested_drawing():
 def test_whole_block_stays_exactly_like_today(sd):
     block = fx.blocked(sd)
     assert block.whole is True and drawing_revision_in_progress(sd) is True
-    assert block.idents == frozenset() or sd["workflow"]["stage"] not in ("CONFIRM", "고객컨펌")
+    assert block.idents == frozenset()  # 이 경우들에는 도면별 까닭(고치는 중 · 공장 요청)이 없다 — 대상 고른 영업 요청도 통째로 돌아간다
     gate = order_gate(sd, "take", sd["drawing_current_files"][0])
     assert (gate.code, gate.message, gate.extra) == (DRAWING_REVISING, REVISING_MESSAGE, {})  # 지금 거절 꼴 그대로(numbers 없음)
     assert fx.per_drawing_numbers(sd) == [] and fx.complete_blocked(sd) and fx.factory_has_blocked(sd, 1)
@@ -206,9 +209,9 @@ def test_board_pc_rows_queue_row_and_badge_mark_only_that_drawing():
     steps = [{"key": k, "label": k, "done": False, "now": k == "cut"} for k in ("cut", "edge", "assemble", "inspect")]
     rows = [{"id": i, "home_view": "prod", "home_has_run": True, "raw_stage": "PRODUCTION", "home_steps": steps,
              "structured_data": {**s, "production": {"steps": steps}}} for i, s in ((1, sd), (2, whole), (3, _sd(3)))]
-    cut = production_home_step_queues(rows)["queues"][0]["rows"]
+    cut = production_home_step_queues(rows)["queues"][0]["rows"]  # 표시 줄 없이(쿼리 0) — 도면별은 [끝] 그대로, 통째만 지금 막힘
     assert [(r["revise_block"] or {}).get("text") for r in cut] == [None, "도면 고치는 중", None]
-    assert [r["fix_note"] for r in cut] == ["도면 2 고치는 중", "", ""]
+    assert all("fix_note" not in r for r in cut)  # 판에 싣기만 하고 안 그리던 칸은 없앴다(판결 D)
     board = [{"id": i, "stage": "제작중"} for i in (1, 2, 3)]
     attach_production_drawing_gate(None, board, {i: SimpleNamespace(structured_data=s, erp_stage_code="PRODUCTION")
                                                  for i, s in ((1, sd), (2, whole), (3, _sd(3)))})
@@ -396,3 +399,50 @@ def test_form_save_draft_and_create_cannot_write_drawing_fix(client):
         "parties": {"customer": {"name": "가짜초안", "phone": "010-1111-2222"}}, "items": [{"product_name": "가짜장"}],
         "drawing_fix": SERVER_FIX}})
     assert auto.status_code == 200 and "drawing_fix" not in fresh(auto.get_json()["order_id"]).structured_data
+
+
+# --------------------------------------------------------------------------- #
+# 판결 F · H · D 판정
+# --------------------------------------------------------------------------- #
+def test_erp_board_still_says_revising_while_a_sales_request_is_open(app):
+    """판결 F — ERP 보드 단계 칸은 영업 요청이 걸려 있는 동안 지금처럼 "도면 수정 중 · 도면 작업실 열기"(대상이 몇 장이든)."""
+    viewer = SimpleNamespace(id=1, role="ADMIN", team=None)
+    with app.test_request_context():
+        for sd in (_sd(3, status="RETURNED", targets=[1]), _sd(3, status="RETURNED"), _sd(3, status="TRANSFERRED")):
+            state = build_board_state(SimpleNamespace(id=7), sd, "PRODUCTION", viewer=viewer)
+            assert (state["tone"], state["title"], state["link_label"]) == ("warn", "도면 수정 중" if sd["drawing_status"] == "RETURNED"
+                                                                           else "새 도면 확정 필요", "도면 작업실 열기")
+            assert revision_status_block(sd) is not None
+        targeted = _sd(3, status="RETURNED", targets=[1])
+        assert revision_in_flight_block(targeted) is None  # [제작 시작] · [수정 제작] 문은 지금 구현 그대로(통째만)
+        quiet = build_board_state(SimpleNamespace(id=7), _sd(3, fixing=(1,)), "PRODUCTION", viewer=viewer)
+        assert quiet["tone"] == "soft" and quiet["link_label"] == "생산 화면 열기"  # 대조군: 영업 요청 없음(고치는 중만) = 지금 그대로
+
+
+def test_left_only_blocked_numbers_decide_the_finish_slot():
+    sd = _sd(3, fixing=(1,))
+    assert fx.blocked_left_numbers(sd, ["orders/9/d1.png"]) == [2]  # 남은 장 = 고치는 도면뿐
+    assert fx.blocked_left_numbers(sd, ["orders/9/d0.png", "orders/9/d1.png"]) == []  # 처리할 장이 있다 → [끝]
+    assert fx.blocked_left_numbers(sd, []) == []  # 남은 장 없음
+    assert fx.blocked_left_numbers(_sd(3, status="RETURNED"), ["orders/9/d1.png"]) == []  # 통째는 지금 막힘이 맡는다
+    assert fx.blocked_left_numbers(_sd(3), ["orders/9/d1.png"]) == []  # 대조군: 막힘 없음
+
+
+def test_packing_after_departure_is_not_refused_and_one_predicate_decides(client):
+    _admin(client)
+    oid = _packing_order()
+    url = f"/api/erp/shipment/packing/{oid}"
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data)
+    sd["shipment"] = {"packing": {"items": [{"key": "sheet:s1", "checked": True, "at": "2026-11-25T01:00:00+00:00",
+                                             "by_name": "김시공"}], "layout": "factory",
+                                  "departed_at": "2026-11-25T02:00:00+00:00", "departed_by_name": "김시공"}}
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    res = client.post(url, json={"updates": [{"key": "sheet:s1", "checked": False}]})
+    assert res.status_code == 200, res.get_json()  # 출발 보고 뒤는 그대로(사장님 답 Q10) — 막힌 줄도 409 없음
+    whole = _sd(3, stage="CONSTRUCTION", status="RETURNED", factory2=(2,))
+    block = fx.blocked(whole)
+    assert all(pf.line_revising(block, e) for e in whole["drawing_current_files"])  # 지금: 통째도 도면 줄을 막는다(술어 한 곳)
+    assert pf.line_revising(fx.blocked(_sd(3, fixing=(1,))), _files(3)[1]) and not pf.line_revising(fx.blocked(_sd(3)), _files(3)[1])

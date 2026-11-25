@@ -12,30 +12,23 @@
   :func:`foms.services.production.steps.set_production_step` 이다.
 * 도면 쓰기 셋 잇기: :func:`sync_steps_in_drawing_write` — 전달 · 전달 취소 되살리기 · 확정 뒤 품목 취소가 생산 ·
   시공 단계 주문에서 돌 때, 이미 고치는 deepcopy 안에서 공정 칸만 더 바꾼다(표시 읽기 쿼리 1, 주문 JSON 다시 쓰기 0).
-* 풀어 쓰기(설계서 2026-11-25 §3-6): :func:`expand_hand_step` — 손 처리(카드 0장) 파트를 도면별 ``DONE`` 표시로 풀어 적는다(한 문장).
-  ① 막힌 도면이 있는 주문의 통째 작업(공정 API — :func:`step_expand_plan` · :func:`apply_step_expand`) · ② 손 처리 파트가 있는 주문의
-  도면을 고쳐 보냄(전달 쓰기 — D2 가 부른다). 그 순간 파트는 '카드를 쓴 파트'가 되어 칸은 위 동기화가 맞춘다.
+* 풀어 쓰기(설계서 2026-11-25 §3-6 — 손 처리 파트를 도면별 ``DONE`` 표시로)는 :mod:`foms.services.production.step_expand` 에 있다. 카드 쓰기
+  빌더(``part_mark_write``)를 쓰는데 ``part_mark_write`` 가 이 모듈을 부르므로 서로 부르지 않게 따로 둔다. 칸은 위 동기화가 맞춘다.
 """
 
 from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
-from types import SimpleNamespace
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import insert
-from sqlalchemy.dialects import postgresql, sqlite
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
-from foms.services.orders.drawing_factory import current_factories
-from foms.services.orders.drawing_fix import expand_plan
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
-from foms.services.production.factory_constants import FACTORIES
-from foms.services.production.part_constants import MARK_STATE_BASIC, MARK_STATE_DONE, PRODUCTION_PART_KEYS
-from foms.services.production.part_mark_rules import MARK_COLUMNS, next_mark_values
-from foms.services.production.part_progress import cards_used, mark_finished, marks_by_part, part_progress
+from foms.services.production.part_constants import PRODUCTION_PART_KEYS
+from foms.services.production.part_progress import cards_used, mark_finished, marks_by_part
 from foms.services.production.steps import STEP_VIA_PART_MARKS, set_production_step, step_done_map
 from models import OrderEvent, ProductionPartMark
 
@@ -46,11 +39,6 @@ VIA_PART_MARKS = STEP_VIA_PART_MARKS
 TRIGGER_TRANSFER = "drawing_transfer"
 TRIGGER_TRANSFER_CANCEL = "drawing_transfer_cancel"
 TRIGGER_ITEM_CANCEL = "item_cancel_after_confirm"
-#: 통째 작업을 도면별 표시로 풀어 적었다는 표지(이벤트 payload ``via``, 2026-11-25 설계서 §3-6).
-VIA_STEP_EXPAND = "step_expand"
-#: 한 문장 넣기 · 고치기(``INSERT … ON CONFLICT``) — 운영 PostgreSQL · 시험 SQLite.
-_UPSERT_BUILDERS = {"postgresql": postgresql.insert, "sqlite": sqlite.insert}
-_UNIQUE_MARK = ("order_id", "drawing_key", "part")
 
 
 @dataclass(frozen=True)
@@ -178,114 +166,4 @@ def sync_steps_in_drawing_write(db: Any, order: Any, sd: dict[str, Any], *, acto
     apply_part_step_changes(sd, changes, at_iso=datetime.datetime.now(datetime.timezone.utc).isoformat())
     db.execute(insert(OrderEvent), step_event_rows(order.id, changes, actor_user_id=actor_user_id, trigger=trigger))
     return [step_change_body(order.id, change) for change in changes]
-
-
-# --------------------------------------------------------------------------- #
-# 통째 작업에서 한 장 빼기 · 손 처리 파트의 도면을 고쳐 보냄(2026-11-25 설계서 §3-6 — 같은 함수 하나)
-# --------------------------------------------------------------------------- #
-def _upsert_marks(db: Any, values: list[dict[str, Any]]) -> None:
-    """표시 줄을 **한 문장**으로 넣거나 고친다(``INSERT … ON CONFLICT (order_id, drawing_key, part) DO UPDATE``) — 줄 수와 무관.
-
-    이미 끝(DONE · BASIC)인 줄은 고치지 않는다(``WHERE`` — 읽은 뒤 그사이 누가 끝냈어도 덮지 않음).
-    """
-    builder = _UPSERT_BUILDERS.get(db.get_bind().dialect.name)
-    if builder is None:
-        raise RuntimeError(f"한 문장 넣기 · 고치기를 모르는 DB: {db.get_bind().dialect.name}")
-    table = ProductionPartMark.__table__
-    stmt = builder(table).values(values)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=list(_UNIQUE_MARK),
-        set_={column: stmt.excluded[column] for column in MARK_COLUMNS if column not in _UNIQUE_MARK},
-        where=table.c.state.notin_((MARK_STATE_DONE, MARK_STATE_BASIC)),
-    )
-    db.execute(stmt)
-
-
-def expand_hand_step(db: Any, sd: Any, marks: Iterable[Any], part: str, *, order_id: int, exclude_keys: Iterable[str],
-                     by_user_id: Optional[int], by_name: Optional[str], at: datetime.datetime,
-                     updated_by_user_id: Optional[int] = None, factories: Iterable[int] = FACTORIES) -> list[dict[str, Any]]:
-    """그 파트를 도면별 표시로 풀어 적는다 — 지금 도면 중 ``exclude_keys`` 밖 · ``factories`` 안의 장을 ``DONE``(§3-6).
-
-    이미 끝(DONE · 재단 BASIC)인 장은 건드리지 않고 '안 봄' · '작업 필요' 줄만 쓴다(설계서 §12 — 기본 장을 덮지 않음). 줄은 이름 · 시각
-    스냅샷이라 날짜 줄 "재단 완료 · 박반장"이 지금처럼 보인다. 쓰기는 :func:`_upsert_marks` 한 문장(N+1 없음). 공정 칸은 건드리지 않는다
-    — 그 파트는 이제 '카드를 쓴 파트'라 칸은 동기화(:func:`plan_part_step_changes`)가 맞춘다.
-
-    Args:
-        db: 세션(같은 tx — 주문은 이미 잠겨 있다).
-        sd: 주문 ``structured_data``(읽기만).
-        marks: 그 주문 표시 줄(잠금 아래에서 읽은 것).
-        part: 파트 key.
-        order_id: 주문 id.
-        exclude_keys: 빼는 장 key(①: 막힌 장 · ②: 이번에 바뀐 장).
-        by_user_id · by_name: 완료한 사람(①: 누른 반장 · ②: 칸을 켠 사람 이름 스냅샷, id 는 없을 수 있음).
-        at: 완료 시각(UTC naive — ①: 지금 · ②: 칸 시각).
-        updated_by_user_id: 줄을 쓴 사람(②: 보낸 도면팀원, 없으면 ``by_user_id``).
-        factories: 쓸 수 있는 공장(반장은 자기 공장 장만 — ``factory_gate`` 와 같은 규칙).
-
-    Returns:
-        쓴 줄 값(:data:`MARK_COLUMNS` 꼴 dict, 쓴 것이 없으면 빈 목록).
-    """
-    rows = marks_by_part(list(marks)).get(part, {})
-    skip, allowed = set(exclude_keys), set(factories)
-    values = []
-    for entry, factory in current_factories(sd):
-        key = entry["key"]
-        row = rows.get(key)
-        if key in skip or factory not in allowed or mark_finished(part, getattr(row, "state", None)):
-            continue
-        value = next_mark_values(row, order_id=int(order_id), drawing_key=key, part=part, sheet_id=entry.get("sheet_id"),
-                                 target=MARK_STATE_DONE, actor_id=by_user_id, actor_name=by_name, now=at)
-        value["updated_by_user_id"] = updated_by_user_id if updated_by_user_id is not None else by_user_id
-        values.append(value)
-    if values:
-        _upsert_marks(db, values)
-    return values
-
-
-def with_written_marks(marks: Iterable[Any], values: Iterable[dict[str, Any]]) -> list[Any]:
-    """읽은 표시 줄 위에 방금 쓴 값을 덮은 모습(다시 읽지 않는다 — 응답 · 동기화 판정용)."""
-    views = {(str(getattr(m, "drawing_key", "")), str(getattr(m, "part", ""))): m for m in marks}
-    for value in values:
-        views[(str(value["drawing_key"]), str(value["part"]))] = SimpleNamespace(**value)
-    return list(views.values())
-
-
-def step_expand_plan(sd: Any, marks: Iterable[Any], part: str, *, factories: Iterable[int]) -> Optional[dict[str, Any]]:
-    """공정 칸 켜기(``POST …/production/steps`` done=true)를 풀어 적을지(§3-6 ①) — 그 파트 카드 0장 · 칸이 꺼짐 · 막힌 도면 1장 이상.
-
-    Returns:
-        :func:`~foms.services.orders.drawing_fix.expand_plan` 값 또는 None(지금처럼 칸만 켬 — 막힌 도면이 없거나 카드를 쓴 파트).
-    """
-    if part in cards_used(list(marks)) or step_done_map(sd).get(part, False):
-        return None
-    return expand_plan(sd, factories)
-
-
-def apply_step_expand(db: Any, order: Any, sd: dict[str, Any], marks: list[Any], part: str, plan: dict[str, Any], *,
-                      user_id: Optional[int], user_name: Optional[str],
-                      factories: Iterable[int] = FACTORIES) -> tuple[list[Any], dict[str, Any]]:
-    """통째 작업 풀어 쓰기 — 표시 줄 한 문장 + 이벤트 ``PRODUCTION_STEP_CHECKED``(``via: 'step_expand'`` · ``expanded_keys``) + 칸 동기화.
-
-    Args:
-        db: 세션(같은 tx). order: 잠근 주문. sd: 고칠 사본(동기화로 칸이 바뀌면 제자리 — 부르는 쪽이 재대입 · ``flag_modified``).
-        marks: 잠금 아래에서 읽은 표시 줄. part: 파트. plan: :func:`step_expand_plan` 값(``keys`` 가 비어 있지 않음).
-        user_id · user_name: 누른 반장 · 관리자. factories: 누른 사람이 쓸 수 있는 공장(계획을 만들 때와 같은 값).
-
-    Returns:
-        (쓴 뒤 표시 줄 모습, 응답 ``expanded`` = ``{part, done_n, skipped_numbers, total_n}``).
-    """
-    written = expand_hand_step(db, sd, marks, part, order_id=int(order.id), exclude_keys=plan["skip_keys"],
-                               by_user_id=user_id, by_name=user_name, at=now_utc_naive(), factories=factories)
-    views = with_written_marks(marks, written)
-    changes = plan_part_step_changes(sd, views, (part,))
-    apply_part_step_changes(sd, changes, at_iso=datetime.datetime.now(datetime.timezone.utc).isoformat())
-    events = step_event_rows(order.id, changes, actor_user_id=user_id, actor_name=user_name)
-    payload = {"key": part, "done": True, "domain": "PRODUCTION_DOMAIN", "action": STEP_EVENT, "via": VIA_STEP_EXPAND,
-               "by_name": user_name, "expanded_keys": [v["drawing_key"] for v in written], "skipped_numbers": plan["numbers"]}
-    events.append({"order_id": int(order.id), "event_type": STEP_EVENT, "payload": payload, "created_by_user_id": user_id,
-                   "created_at": now_utc_naive()})
-    db.execute(insert(OrderEvent), events)
-    progress = part_progress(sd, views, part)
-    return views, {"part": part, "done_n": progress["done_n"], "total_n": progress["total_n"],
-                   "skipped_numbers": plan["numbers"]}
 
