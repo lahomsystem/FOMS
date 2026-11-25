@@ -1,7 +1,8 @@
-"""PostgreSQL — 30초 받아 오기 한 번 읽기(주문 ⟕ 표시 줄 · ``row_number() = 1`` 인 줄에만 주문 JSON, 비평 C06).
+"""PostgreSQL — 30초 받아 오기(주문 ⟕ 표시 줄 한 문장 · 주문마다 막힘은 캐시, 비평 C06 · 검토 고침).
 
-SQLite 레인은 창 함수 · JSONB 를 PG 와 다르게 다룬다. 운영과 같은 PG 에서: 바뀐 표시 줄이 둘인 주문도 막힘 · JSON 은 한 번, 표시 줄이 안
-바뀐 보류 주문도 막힘을 싣고, 읽기는 표시 줄 쪽 한 문장이다. ``FOMS_TEST_DATABASE_URL`` 미설정이면 레인을 건너뛴다. 이름은 지어낸 값이다.
+운영과 같은 PG 에서: 바뀐 표시 줄이 둘인 주문도 막힘은 하나, 표시 줄이 안 바뀐 보류 주문도 막힘을 싣는다. 처음(캐시 빔)은 그 주문들 JSON 을
+한 번(``IN`` 한 문장) 읽고, 캐시가 찬 뒤에는 표시 줄 쪽 한 문장뿐 — 주문 JSON(JSONB) 을 싣는 읽기 0. ``FOMS_TEST_DATABASE_URL`` 미설정이면
+레인을 건너뛴다. 이름은 지어낸 값이다.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from werkzeug.security import generate_password_hash
 
 import foms.platform.http as platform_http
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.production.sync_blocks import clear_sync_cache
 from foms.services.production.part_mark_gates import HOLD_MESSAGE
 from models import Order, ProductionPartMark, ProductionRun, User
 
@@ -29,6 +31,7 @@ def pg_app(pg_engine, monkeypatch):
     db_session.configure(bind=pg_engine)
     flask_app.config["TESTING"] = True
     monkeypatch.setattr(platform_http, "touch_last_seen", lambda user: False)
+    clear_sync_cache()  # PG 레인은 주문 번호가 시험마다 다시 쓰일 수 있다
     try:
         yield flask_app
     finally:
@@ -72,21 +75,28 @@ def test_sync_reads_blocks_with_marks_in_one_statement_on_postgres(pg_engine, pg
         sess["user_id"], sess["username"], sess["role"] = uid, username, role
     since = (now - datetime.timedelta(minutes=1)).isoformat()
     url = f"/api/production/part-marks?order_ids={busy},{held}&since={since}"
-    assert client.get(url).status_code == 200  # 세션 첫 요청 치우기
-    seen: list[str] = []
 
-    def _before(conn, cursor, statement, params, context, executemany):
-        seen.append(statement)
+    def _get() -> tuple:
+        seen: list[str] = []
 
-    event.listen(pg_engine, "before_cursor_execute", _before)
-    try:
-        resp = client.get(url)
-    finally:
-        event.remove(pg_engine, "before_cursor_execute", _before)
-    assert resp.status_code == 200, resp.get_data(as_text=True)
-    data = resp.get_json()["data"]
-    assert sorted(m["drawing_key"] for m in data["marks"]) == sorted(keys[:2])
-    assert data["blocks"][str(busy)] == {"all": None, "keys": {}}
-    assert data["blocks"][str(held)]["all"] == {"kind": "hold", "text": "보류 · 자재 기다림", "why": HOLD_MESSAGE, "code": "HOLD_ACTIVE"}
-    reads = [st for st in seen if "production_part_marks" in st]
-    assert len(reads) == 1 and "row_number() OVER" in reads[0] and "LEFT OUTER JOIN production_part_marks" in reads[0]
+        def _before(conn, cursor, statement, params, context, executemany):
+            seen.append(statement)
+
+        event.listen(pg_engine, "before_cursor_execute", _before)
+        try:
+            resp = client.get(url)
+        finally:
+            event.remove(pg_engine, "before_cursor_execute", _before)
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        return resp.get_json()["data"], seen
+
+    for turn in ("cold", "warm"):
+        data, seen = _get()
+        assert sorted(m["drawing_key"] for m in data["marks"]) == sorted(keys[:2])
+        assert data["blocks"][str(busy)] == {"all": None, "keys": {}}
+        assert data["blocks"][str(held)]["all"] == {"kind": "hold", "text": "보류 · 자재 기다림", "why": HOLD_MESSAGE,
+                                                    "code": "HOLD_ACTIVE"}
+        reads = [st for st in seen if "production_part_marks" in st]
+        assert len(reads) == 1 and "LEFT OUTER JOIN production_part_marks" in reads[0] and "structured_data AS" not in reads[0]
+        json_reads = [st for st in seen if "orders.structured_data AS" in st]
+        assert len(json_reads) == (1 if turn == "cold" else 0), (turn, json_reads)

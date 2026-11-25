@@ -249,7 +249,7 @@
     var text = body.error || body.message || result.message || OFFLINE;
     if (result.status === 409 || result.status === 403) {
       if (data.mark && p.action !== 'bulk' && !asks) { applyMark(p.cards[0], data.mark); }
-      if (STOP_CODES.indexOf(data.code) >= 0 && bound.syncTick) { bound.syncTick(); } // 그 주문 카드를 모두 막힘 칸으로(C06)
+      if (STOP_CODES.indexOf(data.code) >= 0 && bound.syncTick) { bound.syncTick(true); } // 그 주문 카드를 모두 막힘 칸으로(C06)
       M.lost(text, M.nowLine(data.mark));
       return;
     }

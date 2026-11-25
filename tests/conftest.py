@@ -192,16 +192,20 @@ def _reset_db_derived_process_caches() -> None:
     * 네이버 처리 대기 수 — 처리 탭 렌더가 채우고 이력 탭 · nav 배지가 읽는다.
     * 아래 탭 단계 배지(``dashboard_counts``) — 열쇠 (사용자 id, 내 것만).
     * 알림 종 배지(``foms.api.notifications``) — 열쇠 사용자 id.
+    * 생산 도면 판 30초 받아 오기의 주문 막힘(``sync_blocks``) — 5분 캐시, 열쇠 (주문 id, 버전, 상태, 단계). 주문 id 가 다시 1 부터라
+      안 비우면 앞 테스트 주문의 막힘(보류 등)이 같은 번호 · 같은 버전의 다음 테스트 주문에 실린다.
     """
     from foms.api.notifications import reset_badge_cache_for_tests
     from foms.services.dashboard_counts import reset_nav_badge_cache_for_tests
     from foms.services.integrations.naver_commerce.triage_count import (
         reset_triage_count_cache_for_tests,
     )
+    from foms.services.production.sync_blocks import clear_sync_cache
 
     reset_triage_count_cache_for_tests()
     reset_nav_badge_cache_for_tests()
     reset_badge_cache_for_tests()
+    clear_sync_cache()
 
 
 @pytest.fixture(scope="session")
