@@ -6042,31 +6042,7 @@ function fomsMountErpOrderSurface() {
     // 실패/예외 경로에서도 surface가 영구 hidden으로 남지 않도록 최후 failsafe.
     var _erpReadyFailsafeId = window.setTimeout(_erpMarkSurfaceReady, 3000);
 
-    // 여러 날짜 선택(multiple) 달력은 자동으로 닫히지 않으므로, 빈 곳 클릭 없이
-    // 한 번에 닫을 수 있도록 달력 하단에 '확인' 버튼을 주입한다.
-    function erpAddFlatpickrDoneButton(instance) {
-        if (!instance || !instance.calendarContainer) return;
-        if (instance.calendarContainer.querySelector('.erp-fp-done-bar')) return;
-        if (!document.getElementById('erp-fp-done-style')) {
-            const st = document.createElement('style');
-            st.id = 'erp-fp-done-style';
-            st.textContent =
-                '.flatpickr-calendar .erp-fp-done-bar{display:flex;justify-content:flex-end;' +
-                'padding:6px;border-top:1px solid #e5e7eb;background:#fff;border-bottom-left-radius:5px;border-bottom-right-radius:5px;}' +
-                '.flatpickr-calendar .erp-fp-done-btn{min-height:40px;padding:6px 18px;border:0;' +
-                'border-radius:8px;background:#2563eb;color:#fff;font-weight:600;font-size:14px;cursor:pointer;}';
-            document.head.appendChild(st);
-        }
-        const bar = document.createElement('div');
-        bar.className = 'erp-fp-done-bar';
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'erp-fp-done-btn';
-        btn.innerHTML = '<i class="fas fa-check"></i> 확인';
-        btn.addEventListener('click', function () { instance.close(); });
-        bar.appendChild(btn);
-        instance.calendarContainer.appendChild(bar);
-    }
+    // 여러 날짜 달력(mode 'multiple')의 옵션 · 아래 [확인] 줄 · 폰 모양은 erp-date-multi.js(ErpDateMulti.attach)가 맡는다.
 
     /** 시공일 · 실측일 달력 칸마다 그날 건수(협력사 달력처럼) — /erp/dashboard/construction-day-counts.
      *  key: 'days'(시공) · 'measure_days'(실측). */
@@ -6088,7 +6064,6 @@ function fomsMountErpOrderSurface() {
         }
         return {
             onReady: function (selectedDates, dateStr, instance) {
-                erpAddFlatpickrDoneButton(instance);
                 load(instance);
             },
             onOpen: function (_d, _s, fp) { load(fp); },
@@ -6108,16 +6083,9 @@ function fomsMountErpOrderSurface() {
     function initErpMainDatePickers() {
         const mEl = document.getElementById('erp-measurement-date');
         const cEl = document.getElementById('erp-construction-date');
-        if (typeof flatpickr !== 'function') return;
-        const opts = {
-            mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true,
-            onReady: function (selectedDates, dateStr, instance) {
-                erpAddFlatpickrDoneButton(instance);
-            }
-        };
+        if (typeof flatpickr !== 'function' || !window.ErpDateMulti) return;
         if (mEl && !mEl._flatpickr) {
-            window._erpMeasurementDatePicker = flatpickr(mEl, {
-                ...opts,
+            window._erpMeasurementDatePicker = window.ErpDateMulti.attach(mEl, {
                 ...erpConstructionCountOptions('measure_days'),
                 onChange: function () {
                     syncWorkflowStageByMeasurementDate();
@@ -6125,7 +6093,7 @@ function fomsMountErpOrderSurface() {
             });
         }
         if (cEl && !cEl._flatpickr) {
-            window._erpConstructionDatePicker = flatpickr(cEl, Object.assign({}, opts, erpConstructionCountOptions('days')));
+            window._erpConstructionDatePicker = window.ErpDateMulti.attach(cEl, erpConstructionCountOptions('days'));
         }
         var mOpen = document.getElementById('erp-measurement-date-open');
         var cOpen = document.getElementById('erp-construction-date-open');
@@ -6144,15 +6112,9 @@ function fomsMountErpOrderSurface() {
         }
     }
     window.erpInitFlatpickrForItemRow = function (row) {
-        if (typeof flatpickr !== 'function') return;
+        if (typeof flatpickr !== 'function' || !window.ErpDateMulti) return;
         (row.querySelectorAll('.erp-item-date-multiple') || []).forEach(function (el) {
-            if (el._flatpickr) return;
-            flatpickr(el, {
-                mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true,
-                onReady: function (selectedDates, dateStr, instance) {
-                    erpAddFlatpickrDoneButton(instance);
-                }
-            });
+            window.ErpDateMulti.attach(el);
         });
     };
 

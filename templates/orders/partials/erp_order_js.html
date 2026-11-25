@@ -34,6 +34,9 @@
 <script src="{{ asset_url('js/orders/erp-name-chips.js') }}" defer></script>
 {# AS 접수 창 초안 보관(새로고침에도 남김) — 주문 폼 공용 스크립트가 window.fomsAsReceiveDraft 를 부른다. #}
 <script src="{{ asset_url('js/orders/as-receive-draft.js') }}" defer></script>
+{# 여러 날짜 달력(실측일 · 시공일 · 항목 날짜) — PC 는 전과 같고 폰은 아래에서 올라오는 달력. 주문 폼 공용 스크립트가 ErpDateMulti 를 부르므로 그보다 먼저. #}
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-date-multi.css') }}">
+<script src="{{ asset_url('js/orders/erp-date-multi.js') }}" defer></script>
 <script src="{{ asset_url('js/orders/erp-order-shared.js') }}" defer></script>
 {# 같은 고객의 진행 중 주문 안내(설계서 2026-11-20 6.2) — 주문 폼 공용 스크립트의 초안 판정 · 주문 번호를 쓴다. #}
 <script src="{{ asset_url('js/orders/erp-same-customer-notice.js') }}" defer></script>

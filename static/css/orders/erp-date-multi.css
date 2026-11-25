@@ -1,0 +1,178 @@
+/**
+ * 여러 날짜 달력(주 실측일 · 시공일 · 항목 실측일 · 시공일) — 짝 JS static/js/orders/erp-date-multi.js.
+ * PC 달력 아래 [확인] 줄은 전과 같은 값(전에는 JS 가 <style> 로 넣었다). 폰 모양은 .erp-fp-sheet · .erp-fp-view 에만 건다.
+ */
+
+/* ── 달력 아래 줄: [확인] (PC · 폰 공통) ── */
+.flatpickr-calendar .erp-fp-done-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+.flatpickr-calendar .erp-fp-done-btn {
+  min-height: 40px;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  font-size: calc(14px * var(--foms-fs, 1));
+  cursor: pointer;
+}
+
+/* ── 폰(모바일 폼): 칸 — 입력 칸은 숨기고 같은 모양의 보기 칸이 고른 날짜를 줄바꿈해 다 보여 준다 ── */
+.erp-order-mobile-form input.erp-fp-src {
+  display: none;
+}
+.erp-order-mobile-form .erp-fp-view {
+  display: block;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.erp-order-mobile-form .erp-fp-view .erp-fp-date {
+  white-space: nowrap;
+}
+.erp-order-mobile-form .erp-fp-view.is-empty {
+  color: var(--foms-text-tertiary, #6b7280);
+}
+.erp-order-mobile-form .erp-fp-view:focus-visible {
+  outline: none;
+  border-color: var(--foms-border-focus);
+  box-shadow: var(--foms-shadow-focus-ring);
+}
+/* 잠긴 칸(출고팀 시공일 화면 등 — 입력 칸 disabled)은 눌러도 안 열리고 흐리게 */
+.erp-order-mobile-form input.erp-fp-src:disabled + .erp-fp-view {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── 폰(모바일 폼): 달력 — 화면 아래에서 올라오는 판, 누르는 칸은 모두 44px 이상 ── */
+.flatpickr-calendar.erp-fp-sheet {
+  position: fixed;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-radius: 16px 16px 0 0;
+  font-size: calc(16px * var(--foms-fs, 1));
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.18);
+}
+.flatpickr-calendar.erp-fp-sheet::before,
+.flatpickr-calendar.erp-fp-sheet::after {
+  display: none;
+}
+.flatpickr-calendar.erp-fp-sheet.open.animate {
+  animation: erp-fp-sheet-up 180ms ease-out;
+}
+@keyframes erp-fp-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flatpickr-calendar.erp-fp-sheet.open.animate {
+    animation: none;
+  }
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months {
+  padding: 4px 4px 0;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-month {
+  height: 48px;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-prev-month,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-next-month {
+  top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-prev-month svg,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-next-month svg {
+  width: 16px;
+  height: 16px;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-current-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0;
+  font-size: 120%;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-current-month input.cur-year {
+  height: 44px;
+}
+/* 해 바꾸기 작은 ▲▼(14px)는 손가락으로 못 누른다 — 앞뒤 달 단추가 해를 넘겨 준다. */
+.flatpickr-calendar.erp-fp-sheet .numInputWrapper span.arrowUp,
+.flatpickr-calendar.erp-fp-sheet .numInputWrapper span.arrowDown {
+  display: none;
+}
+.flatpickr-calendar.erp-fp-sheet .numInputWrapper:hover {
+  background: transparent;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-weekdays {
+  height: 32px;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-innerContainer,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-rContainer,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-days {
+  width: 100%;
+}
+.flatpickr-calendar.erp-fp-sheet .dayContainer {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  padding: 0 4px;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-day {
+  max-width: 48px;
+  height: 48px;
+  line-height: 48px;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-day .erp-fp-count {
+  bottom: 2px;
+  font-size: calc(11px * var(--foms-fs, 1));
+}
+.flatpickr-calendar.erp-fp-sheet .erp-fp-done-bar {
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 0;
+}
+.flatpickr-calendar.erp-fp-sheet .erp-fp-done-btn,
+.flatpickr-calendar.erp-fp-sheet .erp-fp-clear-btn {
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-size: calc(16px * var(--foms-fs, 1));
+}
+.flatpickr-calendar.erp-fp-sheet .erp-fp-done-btn {
+  flex: 1 1 auto;
+}
+.flatpickr-calendar.erp-fp-sheet .erp-fp-clear-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--foms-border-default, #d1d5db);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary, #111827);
+  font-weight: 600;
+  cursor: pointer;
+}
