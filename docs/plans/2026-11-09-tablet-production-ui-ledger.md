@@ -1487,3 +1487,11 @@
 - 워크트리 `c:/tmp/foms-promo3`, 가지 `promo/own-dfix-d3d4-strip`(바탕 origin/production d9e2bd894). `promo_pick.sh` 20개 충돌 0.
 - 확인: 얹은 파일 116개가 deploy 와 같음(다른 곳 = 남의 창 `wizard.html` 긴급 알림 핀 3줄 · 쓰기 자리 인벤토리 줄 번호) / 인벤토리 다섯 `--check` 0 / alembic `prodlead_02`(마이그레이션 없음) / `APP_OK` / 닿는 시험 + tests/harness 877 passed.
 - PR https://github.com/lahomsystem/FOMS/pull/919 열고 checks 기다리는 중.
+
+## 운영 올림 끝 — PR #919 (11-25)
+
+- PR checks 첫 회: harness · perf-gate · pg-lane pass, test **fail** — `tests/domains/test_construction_tablet_d43.py::test_query_counts_with_as_and_undated[first-10]` `('first', 10, 11)` 하나(1 failed, 21759 passed). 다른 창 시험(시공 태블릿 쿼리 수), 이 PR 이 건드린 파일 아님, deploy 와 파일 같음. 로컬에서 그 파일 세 번 16 passed. `gh run rerun --failed` → pass(9m23s). 흔들리는 시험으로 적어 둠(원인 미확인 — 같은 일꾼의 앞 시험이 남긴 캐시 상태로 쿼리 +1 추정).
+- 머지: PR #919 `--merge` → **production 363d7082f**. `check_deploy_drift --target production`: BUILDING → `[일치] production: 363d7082 배포됨 status=SUCCESS`.
+- 운영에 들어간 것: 도면 수정 D3 · D4, 날짜 띠(출고일) 세 판, 모바일 여러 날짜 칸. 마이그레이션 없음. 도면 마감 알림 스위치는 꺼진 그대로.
+- 안 한 것: 운영 화면 실측(계정 잠금 유지 — 말씀 때 1회). 빠진 것: 여러 명 같이 작업(M1 만드는 중).
+- 워크트리 `c:/tmp/foms-promo3`(가지 `promo/own-dfix-d3d4-strip`)은 남겨 둠.
