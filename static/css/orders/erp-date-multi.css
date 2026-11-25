@@ -38,11 +38,13 @@
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  /* 판이 올라올 때 칸을 판 위로 올리는 여유(JS 가 판 높이를 --erp-fp-sheet-h 로 준다) */
+  scroll-margin-bottom: calc(var(--erp-fp-sheet-h, 0px) + 12px);
 }
 .erp-order-mobile-form .erp-fp-view .erp-fp-date {
   white-space: nowrap;
 }
-.erp-order-mobile-form .erp-fp-view.is-empty {
+.erp-order-mobile-form .erp-fp-view .erp-fp-placeholder {
   color: var(--foms-text-tertiary, #6b7280);
 }
 .erp-order-mobile-form .erp-fp-view:focus-visible {
@@ -66,11 +68,28 @@
   bottom: 0;
   width: auto;
   max-width: 480px;
+  /* 판은 화면 높이 안(가로 폰 360px 등) — 넘치면 날짜 칸만 안쪽에서 스크롤하고 위 달 줄 · 아래 [확인] 줄은 늘 보인다.
+     fixed 의 % 는 화면 기준이라 화면 크기 배율(html zoom)에도 맞는다(vh 는 배율만큼 커진다). */
+  max-height: 100%;
   margin: 0 auto;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   border-radius: 16px 16px 0 0;
   font-size: calc(16px * var(--foms-fs, 1));
   box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.18);
+}
+.flatpickr-calendar.erp-fp-sheet.open {
+  display: flex;
+  flex-direction: column;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months,
+.flatpickr-calendar.erp-fp-sheet .erp-fp-done-bar {
+  flex: 0 0 auto;
+}
+.flatpickr-calendar.erp-fp-sheet .flatpickr-innerContainer {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .flatpickr-calendar.erp-fp-sheet::before,
 .flatpickr-calendar.erp-fp-sheet::after {
@@ -93,6 +112,13 @@
 }
 .flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-month {
   height: 48px;
+}
+/* 판의 글 · 앞뒤 달 화살표 색은 토큰(다크 모드에서 검은 화살표가 안 보이던 것) — PC 달력은 그대로 */
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-month,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-prev-month,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-next-month {
+  color: var(--foms-text-primary, #111827);
+  fill: var(--foms-text-primary, #111827);
 }
 .flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-prev-month,
 .flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-next-month {
@@ -133,18 +159,26 @@
   height: 32px;
 }
 .flatpickr-calendar.erp-fp-sheet .flatpickr-innerContainer,
-.flatpickr-calendar.erp-fp-sheet .flatpickr-rContainer,
-.flatpickr-calendar.erp-fp-sheet .flatpickr-days {
+.flatpickr-calendar.erp-fp-sheet .flatpickr-rContainer {
   width: 100%;
+}
+/* 날짜 칸은 늘 한 줄에 7칸(칸 폭 = 줄 폭 ÷ 7). 줄 폭은 7 × 48px 까지만 — 넓은 판(가로 폰 · 큰 폰)에서도
+   칸이 동그랗고 요일 줄과 맞는다(칸 최대 폭으로 묶으면 414px 폰에서 한 줄 8칸 · 가로 폰 10칸으로 흩어졌다). */
+.flatpickr-calendar.erp-fp-sheet .flatpickr-weekdays .flatpickr-weekdaycontainer,
+.flatpickr-calendar.erp-fp-sheet .flatpickr-days {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(7 * 48px + 8px);
+  margin: 0 auto;
+  padding: 0 4px;
 }
 .flatpickr-calendar.erp-fp-sheet .dayContainer {
   width: 100%;
   min-width: 0;
   max-width: none;
-  padding: 0 4px;
 }
 .flatpickr-calendar.erp-fp-sheet .flatpickr-day {
-  max-width: 48px;
+  max-width: none;
   height: 48px;
   line-height: 48px;
 }
@@ -156,7 +190,9 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
+  border-top-color: var(--foms-border-default, #e5e7eb);
   border-radius: 0;
+  background: var(--foms-surface-base, #fff);
 }
 .flatpickr-calendar.erp-fp-sheet .erp-fp-done-btn,
 .flatpickr-calendar.erp-fp-sheet .erp-fp-clear-btn {
@@ -175,4 +211,39 @@
   color: var(--foms-text-primary, #111827);
   font-weight: 600;
   cursor: pointer;
+}
+
+/* 낮은 화면(가로 폰 360 · 375): 줄 높이를 44px 까지만 줄여 한 화면에 더 보이게(나머지는 안쪽 스크롤) */
+@media (max-height: 480px) {
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-month,
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-current-month {
+    height: 44px;
+  }
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-prev-month,
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-months .flatpickr-next-month {
+    top: 2px;
+    width: 44px;
+    height: 44px;
+  }
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-months {
+    padding-top: 2px;
+  }
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-weekdays {
+    height: 24px;
+  }
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-weekdays .flatpickr-weekdaycontainer,
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-days {
+    max-width: calc(7 * 44px + 8px);
+  }
+  .flatpickr-calendar.erp-fp-sheet .flatpickr-day {
+    height: 44px;
+    line-height: 44px;
+  }
+  .flatpickr-calendar.erp-fp-sheet .erp-fp-done-bar {
+    padding: 4px 12px;
+  }
+  .flatpickr-calendar.erp-fp-sheet .erp-fp-done-btn,
+  .flatpickr-calendar.erp-fp-sheet .erp-fp-clear-btn {
+    min-height: 44px;
+  }
 }
