@@ -333,7 +333,8 @@ def test_broken_image_becomes_text_on_card_and_viewer():
         assert not re.search(r"onerror\s*=|\.onerror\b", path.read_text(encoding="utf-8")), path.name
     css = PARTS_CSS.read_text(encoding="utf-8")
     assert "content: \"그림을 못 불러왔어요\"" not in css  # 글은 CSS 가 아니라 JS 가 넣는다
-    tokens = dict(re.findall(r"(--fph-[a-z]+-\d+):\s*(#[0-9a-f]{6})", css))
+    home_css = (PARTS_CSS.parent / "home.css").read_text(encoding="utf-8")  # 기다림 토큰(--fph-wait-*)은 home.css(생산 비평 C16)
+    tokens = dict(re.findall(r"(--fph-[a-z]+-\d+):\s*(#[0-9a-f]{6})", home_css + css))
     rule = re.search(r"\.pp-img\.is-broken, \.pp-vimg\.is-broken \{([^}]*)\}", css).group(1)
     bg = tokens[re.search(r"background: var\((--fph-[a-z]+-\d+)\)", rule).group(1)]
     _, _, sat = colorsys.rgb_to_hls(*(int(bg[i:i + 2], 16) / 255 for i in (1, 3, 5)))

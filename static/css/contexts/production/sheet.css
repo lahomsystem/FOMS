@@ -18,6 +18,10 @@
   --fpp-warn: #d97706;
   --fpp-warn-50: #fffbeb;
   --fpp-amber-text: #92400e;
+  /* 보류 = 첫 화면 · 도면 칸 보류와 같은 색(비평 C16 — 흰 글 주황 배지는 대비 3.19 였다). 태블릿 --fph-hold-* 와 같은 값 */
+  --fpp-hold-50: #fed7aa;
+  --fpp-hold-300: #fb923c;
+  --fpp-hold-700: #9a3412;
   /* 파트 맡기 고침(설계서 2026-11-23 §8-3) — 카드로 완료 글 · 바뀐 기록 줄 · 까닭 상자 테두리. 태블릿 --fph-* 와 같은 값 */
   --fpp-ok-dark: #047857;
   --fpp-warn-soft: #fcd34d;
@@ -60,7 +64,7 @@
 .foms-prod-page__title-prod { font-weight: 700; color: var(--fpp-text2); }
 .foms-prod-page__due { padding: 6px 12px; border-radius: 8px; background: var(--fpp-brand-50); color: var(--fpp-brand-dark); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 .foms-prod-page__badge { padding: 4px 10px; border-radius: 999px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; color: #fff; background: var(--fpp-text3); white-space: nowrap; }
-.foms-prod-page__badge--hold { background: var(--fpp-warn); }
+.foms-prod-page__badge--hold { background: var(--fpp-hold-50); color: var(--fpp-hold-700); }
 .foms-prod-page__badge--rework { background: var(--fpp-danger); }
 .foms-prod-page__badge--drawing { background: var(--fpp-brand); }
 .foms-prod-page__sp { flex: 1; }
@@ -98,7 +102,7 @@
 .foms-prod-page__btn--bad { border-color: var(--fpp-danger); color: var(--fpp-danger); background: var(--fpp-danger-50); }
 .foms-prod-page__btn--bad:hover, .foms-prod-page__btn--bad:focus-visible { background: var(--fpp-danger); color: #fff; }
 .foms-prod-page__btn--warn { background: var(--fpp-warn); border-color: var(--fpp-warn); }
-.foms-prod-page__btn.is-active { background: var(--fpp-warn-50); border-color: var(--fpp-warn); color: var(--fpp-amber-text); }
+.foms-prod-page__btn.is-active { background: var(--fpp-hold-50); border-color: var(--fpp-hold-300); color: var(--fpp-hold-700); } /* [보류 해제] = 보류 색 */
 .foms-prod-page__btn:disabled { opacity: .55; cursor: default; }
 /* 검수 전 [제작 완료] — 회색 칸 + 안내 글(시안 안 2 .btn.off). 흐리게 겹치지 않고 그대로 보인다 */
 .foms-prod-page__btn--off, .foms-prod-page__btn--off:disabled, .foms-prod-page__btn--off:hover { opacity: 1; background: var(--fpp-raised); border-color: var(--fpp-line); color: var(--fpp-text3); }

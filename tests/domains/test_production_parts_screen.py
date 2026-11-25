@@ -300,8 +300,8 @@ def test_parts_css_fonts_tokens_and_no_achromatic_badges():
     assert sizes and all(re.fullmatch(r"calc\((\d+)px \* var\(--foms-fs, 1\)\)", s.strip()) for s in sizes), sizes
     assert min(int(re.search(r"(\d+)px", s).group(1)) for s in sizes) >= 13
     for token in ("--fph-need-50: #c5c9ff", "--fph-taken-50: #eecbda", "--fph-taken-700: #7a3f5c", "--fph-done-50: #a7f3d0",
-                  "--fph-done-700: #047857", "--fph-basic-50: #ccedff", "--fph-basic-700: #075985", "--fph-wait-50: #eeebb2",
-                  "--fph-wait-700: #57571f"):
+    for token in ("--fph-need-50: #c5c9ff", "--fph-taken-50: #eecbda", "--fph-taken-700: #7a3f5c", "--fph-done-50: #a7f3d0", "--fph-done-700: #047857", "--fph-basic-50: #ccedff",
+                  "--fph-basic-700: #075985", "home:--fph-wait-50: #eeebb2", "home:--fph-wait-700: #57571f", "home:--fph-hold-50: #fed7aa", "home:--fph-hold-700: #9a3412"):
         assert token in css
     tokens = dict(re.findall(r"(--fph-[a-z]+-\d+):\s*(#[0-9a-f]{6})", css))
     # 막힌 칸 셋(보류 · 도면 고치는 중 · 검수 미완료 — 2026-11-23 설계서 §4-6 · §10)도 같은 규칙

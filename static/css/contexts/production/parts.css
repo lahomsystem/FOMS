@@ -17,16 +17,11 @@
   --fph-basic-50: #ccedff;
   --fph-basic-300: #7dd3fc;
   --fph-basic-700: #075985;
-  --fph-wait-50: #eeebb2;
-  --fph-wait-300: #d6d38a;
-  --fph-wait-700: #57571f;
+  /* 기다림(--fph-wait-*) · 보류(--fph-hold-*) 토큰은 home.css — 날짜 장 기다림 칸 · 띠 막대 · '내 공정' 보류도 같은 색(비평 C16) */
   --fph-mid-700: #7c3aed;
   /* 파트 맡기 고침(설계서 2026-11-23-production-self-claim-and-factory2 §8-9 · §10) — 막힌 칸 셋(보류 · 도면 고치는 중 · 검수 미완료),
      맡기 취소(무채색 금지 → 파랑, 기본 단추와 같은 값), 남의 담당 칸 누른 색 · 창 '지금' 줄 바탕, 까닭 말풍선, 아침 칩 테두리.
      어제부터 · 칸 아래 이름 토큰(--fph-old-* · --fph-holder*)은 home.css. 값 · 짝 거리는 test_production_selfclaim_css.py 가 못 박는다. */
-  --fph-hold-50: #fed7aa;
-  --fph-hold-300: #fb923c;
-  --fph-hold-700: #9a3412;
   --fph-revise-50: #fca5a5;
   --fph-revise-300: #ef4444;
   --fph-revise-700: #7f1d1d;
