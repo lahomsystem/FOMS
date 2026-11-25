@@ -1658,3 +1658,9 @@
 - A 꼬리를 제 줄로(네 배율 잘림 0, 카드 키 326 → 342) / B 말풍선을 도면 그림 칸 아래쪽 안으로(덮는 단추 0, 누르면 닫힘) / C [담당 바꾸기] 바꿀 사람 하나면 예전 동작, 둘 이상만 › · 고르기 창 / D 상태 줄 "저장했어요" 그대로 + 그 누름이 마지막 검수 장을 완료시키면 "제작 완료할까요?" 물음(설계서 §5 Q6) / E 반장 고르기 창 [같이 작업](단추 넷 2 × 2) / F 문장 속 "외 n명" + 토씨를 서버 `part_card_crew.sentence_line` 이 붙임(M1 `mark_crew.name_sentence` 와 합칠 것) / G 내 [시작 취소] 창 "남은 사람이 모두 완료라 도면이 완료돼요." · 줄 "이시영 · 김재단 작업 중 → 재단 완료 · 이시영" / H 반장 되돌리기 줄 "재단 완료 → 이시영 · 김재단 작업 중".
 - 내 확인: 그림 넉 장 직접 봄(`r2_A_board_kim_z100` 꼬리 "내 작업 · 이시영과 같이" 제 줄 · "내 작업 · 이시영 완료 · 어제부터" / `r2_C_E_lead_one_to_swap_z80` 단추 넷 2 × 2 [담당 바꾸기] [대신 완료] [같이 작업] [김재단 시작 취소] / `r2_G_my_release_rest_done_z80` / `r2_B_E0_board_z100` 말풍선이 그림 칸 안).
 - 남은 것(뒤 묶음): `sentence_line` ↔ `name_sentence` 합치기 / 확인 창 [취소] [시작 취소] '취소' 둘(비평 글 9번) / '작업 필요' 칸 이름(비평).
+
+## 여러 명 같이 작업 M1 ~ M3 합침 (11-25)
+
+- 세션 가지에 cherry-pick: M1 일곱(8772f9976 · 9540eda96 · cdfed3d5c · 3fa7b178a · 3532d9af3 · 018865022 · ec20fab0d) → M3 하나(05d634ee4) → M2 넷(6e266e429 · 4048c0741 · ad41620b7 · 67d775e7a). 충돌 0.
+- 합친 뒤 내 확인: 인벤토리 다섯 `--check` 0 · alembic head `prodpart_02_holders` · APP_OK · 생산 JS 모두 `node --check` · 줄 수(JS 가장 긴 새 규칙 대상 298 · 290, `part_mark_write.py` 485 · `part_board.py` 483) · tests/domains 중 production · drawing_fix · drawing_request · sheet_factory · packing 2335 passed · tests/harness + tests/contracts 868 passed.
+- `d1-review` 에게 M1 ~ M3 검토 맡김(자료 일관성 · 경합 · 권한 · 문 · 화면 ↔ 서버 · 글 45줄 · 마이그레이션 · 쿼리 · 핀 · 시험). 검토 뒤 고침 → smoke → 스테이징.
