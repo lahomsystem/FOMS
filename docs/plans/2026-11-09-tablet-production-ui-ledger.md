@@ -1264,3 +1264,20 @@
 - 5번 결정: `log_access` 그대로(같은 패키지가 이미 가져온 것). 공장 지정 API `erp_orders_sheet_factory.py:115-120` 도 같은 빈틈 — 안 고침.
 - 9번: `drawing_fix_marks.release_on_stage_exit` 를 넷에서 부름 — `order_transition_service.py:385`(제작 완료 · 공장 완료 · 일반 단계 변경 · 컨펌 · 시공 전이) · `api/orders/stage_override.py:155 · 324`(서비스 쪽은 순환 import 라 API 콜백에서) · `api/orders/status.py:296`(물류 보드 옛 길) · `api/orders/field_update.py:805`. 손 안 댄 곳: 수정 제작(생산으로 들어감) · 폼 저장 · AS 표시 맞춤 · 주문 만들기 · 미러 칸 맞춤.
 - 알아 둘 것: 비활성 계정은 401 · [제작 완료]/마지막 공장 완료는 D1 이 먼저 409 로 막으므로 실제로 지우는 길은 관리자 뚫기 · 강제/일반 단계 변경 · 보류 옛 길 · **물류 보드에서 '보류'로 옮겨도 단계가 `ON_HOLD` 가 되어 지워짐**(풀어도 다시 안 생김) · CSS 핀 `?v=20261125d` 하나로.
+
+### 2026-11-25 · D3 지휘 확인 · 모바일 날짜 칸 검토 · 지금 상태(CTX-GATE 55%)
+
+- D3 지휘 확인: 관련 시험 `159 passed`(흔들린다던 `test_item_construction_screens.py` 포함), 그림 둘 직접 봄(상세 '공장 진행' — 도면 2 "도면 고치는 중 · 김도면 · 11/25 14:20" + "수정 요청 · 영업" · 도면 3 "수정 요청 · 공장" 빨간 줄, 목록 '생산 중' — 요청 주문 위 · 2공장 줄 · 시공 대기 "제작 완료").
+- 모바일 날짜 칸 검토(`mdate-review`, 7186bdbbc) — 막아야 함 없음. 발견: ① `erp-date-multi.js:101` + `inline-edit.js:153 · 157 · 211` — 인라인 저장(`FOMS_INLINE_EDIT_ENABLED`, 기본 꺼짐)을 켠 폰에서 [실행 취소]가 원래 날짜 대신 빈 값을 저장(숨은 칸이 포커스를 안 받아 이전 값이 안 적힘) ② `:95-100` 보기 칸에서 flatpickr 키 입력 안 먹음(화살표 · Escape · Tab), 992px 아래 좁은 PC 창도 손 입력 없음 ③ `:52` 닫으면 포커스가 BODY 로 ④ `:58-63` 보기 칸(`role=button`)에 이름 없음 · 빈 칸 자리 글을 값처럼 읽음 ⑤ `erp-date-multi.css:61-74` 가로 폰(780×360 · 667×375)에서 달력 판 위가 화면 밖(높이 제한 · 스크롤 없음) ⑥ `:124-128` 해 칸이 숫자 입력 그대로(자판) ⑦ 참고 — 안쪽 스크롤 영역에서는 칸이 판 뒤에 남음(추측) · `.value` 로만 쓰는 길 뒤 날 하나 고르면 복원 값이 사라짐(전부터 · PC 도 같음) · 띄어쓰기 없는 쉼표 값 넘침(전부터) · 다크 모드 [확인] 줄 흰 띠 · PC [확인] 글자가 탭 글자 크기를 따라가게 됨 · 대상 밖 폰/주문 추가 화면/가로 태블릿은 옛 폼 그대로 · 달력이 열린 채 셸 전환(추측) · 새 시험 넷이 모두 글자 찾기(6천 줄 JS 전체에 `createElement('style')` 가 없다는 단언은 남의 변경에도 깨짐) · 06-02 에 숨긴 것은 이 두 칸뿐, 출고팀 화면에서는 잠겨 흐리게 보임.
+- 판결: ① 이전 값 기록을 달력 열 때 하게 고침 ② · ③ · ④ 보기 칸에 이름(label 연결) · 닫으면 보기 칸으로 포커스 · Escape 닫기(화살표 날짜 이동은 달력에 포커스를 넘겨서) ⑤ 판에 최대 높이 + 안쪽 스크롤 ⑥ 해 칸 readonly ⑦ 중 안쪽 스크롤 영역 · 다크 모드 색 · 시험을 node 로 실제 돌리게는 고침, 나머지 전부터 있던 것은 둠.
+
+**지금 상태(2026-11-25 · CTX-GATE 55%)**
+- deploy = 45247f2ba(D1 · D2 + 시험 고침, CI 초록 · 스테이징 일치). 운영 = a2f8ec14(이 세션 2 · 3단계 · 도면 수정 없음, alembic `aistaff_00`).
+- **운영 올리기**(사장님 "지금 올리기" — 생산 묶음 전부 + D1 · D2): 운영 전 센 것 끝(보기만 되는 활성 계정 0 · 반장 0 · 패킹 사용 0 · 손 칸 0 · 마이그레이션 다섯이 운영 머리 바로 위). `promote_completeness.py --session-id 73902640-…` 가 뒤에서 도는 중(결과 `scratchpad/promote_check.json`) → 끝나면 `promote_own_to_production.py` 로 PR → PR CI → 병합 → 배포 · alembic 머리 `prodlead_02` 확인 → 사장님께 파트 · 반장 지정 안내. 올릴 범위는 deploy 45247f2ba 까지의 이 세션 커밋(문서 빼고) — D3 · 띠 · 모바일은 넣지 않음. 다른 세션 시험 고침(brain_ds loader)은 따로.
+- **D3**(가지 `work/d3-workbench` a2238ba87, 세션 ce2df1ae5 위): 지휘 확인 끝 → 세션 가지에 cherry-pick → smoke → deploy. 다시 검토는 고침 판에 대해 아직 안 함(짧게 한 번).
+- **D4**(공장 요청 단추 · [반영 완료] N5 · [요청 반려] N4 · 사진 3장 · 알림 · 단계 나갈 때 요청도 지움): 아직 시작 안 함. 사진 업로드 길 `drawing-gateway-upload` 는 `erp_edit_required` — 생산 계정이 되는지 확인.
+- **날짜 띠**(가지 `work/strip-dates` 3fb41e371): 지휘가 그림 봄, `d1-review` 가 검토 중. 사장님께 여쭐 것 = 남은 '시공' 글 열하나(특히 PC 늦음 줄 "시공 D-2") · 도면 마감 자동 알림도 출고일로 할지.
+- **모바일 날짜 칸**(가지 `work/mobile-multidate` 7186bdbbc): 검토 끝 → 고침 판을 `mdate-mobile` 에 보냄.
+- **여러 명 맡기**(설계서 가지 `work/multi-holder-spec` d293a86de, 시안 https://claude.ai/artifact/Sa4Vvezkgw9SaVjRFdRJwn): 답 받은 것 = 각자 누르기 · 모두 끝 눌러야 완료 · 완료 전에만 들어옴(Q1 · Q2) · 반장/관리자가 풀기(Q5) · 저절로 완료(Q6 · Q7) · 본인 몫만 되돌리기(Q3 · Q4) · 단추 이름 [작업 시작] · [같이 작업]. 남은 정할 것 = Q8 ~ Q22(Q18 은 기술 — 지휘가 정함). 만들기는 도면 수정 뒤.
+- 일꾼 이름: `d1-gates` · `d2-send` · `d3-workbench` · `strip-dates` · `mdate-mobile` · `mh-spec` · 검토 `d1-review` · `mdate-review`. 도면 수정 시안 https://claude.ai/artifact/Tc9Naa9ddQRebkwaKYoUzf .
+- 스테이징 시험 계정 105 `claude_test_sales` · 106 `claude_test_prod2` · 107 `claude_test_boss` · 108 `claude_test_prod_f2`, 시험 주문 0.
