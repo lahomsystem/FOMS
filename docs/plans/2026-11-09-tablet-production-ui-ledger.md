@@ -1230,3 +1230,10 @@
 - D2 스테이징 올림: deploy af51df444, smoke `21620 passed, 821 skipped` · `174 passed`. CI: Harness · perf-gate · PG Lane 초록, **FOMS CI 실패 1** — `tests/domains/test_graft_cells.py::test_switches_off_render_exactly_like_today`(다른 세션 접목판 시험, shell 화면을 두 번 그린 글이 다름). 로컬 단독 `17 passed`. 실패 job 다시 돌림(45564392777) — 결과 보고 판단.
 - 사장님 답(원문): 남은 막힘 = **"둘 다"** → 단계가 생산에서 바뀌거나 [제작 완료]가 되면 `fixing` 지움(공장 '바뀐 것'에 "도면 수정 취소" 한 줄) + 시공 대기 상세에 `fixing` 이 있을 때만 [수정 취소](시작은 없음). 공장 요청(D4)도 같은 성질 — D4 에서 같이. D3 일꾼에 9 · 10 으로 보냄.
 - FOMS CI 실패 원인 둘(af51df44): ① 첫 시도 = 다른 세션 시험 `test_graft_cells.py::test_switches_off_render_exactly_like_today` — 같은 화면을 두 번 그리는 사이 "지금" 선의 x 좌표가 366.7 → 366.6 으로 바뀜(시각에 기대는 흔들림, 우리 변경과 무관, 다시 돌리니 통과) ② 다시 돌린 시도 = D2 새 시험 `test_hand_step_without_a_name_leaves_the_finisher_empty` 3건 — 화면에 'None' 이 없어야 한다는 단언이 같은 워커의 다른 시험이 만든 계정 이름 "ADMIN-None-4"(머리 메뉴)에 걸림. 고침 363bbac1e(낱말로 선 None 만 봄). 일꾼 완료 기준에 "CI 는 `--dist loadfile` 로 한 워커가 여러 파일을 돌린다 — 화면 전체 글에서 흔한 낱말을 찾는 단언 금지"를 더함.
+
+### 2026-11-25 · 운영 올리기 — 사장님 명시 요청
+
+- 사장님(원문, 운영 `/admin/users/edit/80` 그림 — 생산 파트가 하나만 고르는 옛 모양): "생산> 여러 파트 선택 및, 반장 지정 구현 안 돼있네 > 내가 구현 하라고 지시했는데".
+- 사실: 여러 파트 · 반장은 deploy 에 있음(`templates/auth/edit_user.html:86 · 105` 체크 상자), 운영은 옛 `select name="production_part"`(`origin/production:templates/auth/edit_user.html:82`). 운영 alembic 머리 `aistaff_00`.
+- 사장님 답(원문): 운영 올리기 = **"지금 올리기 (Recommended)"** — 스테이징에서 확인이 끝난 것(생산 묶음 전부 · 도면 수정 D1 · D2)을 지금 운영에. 올리기 전에 보기만 되는 생산팀 계정 수를 세어 알림. D3 · D4 · 날짜 띠는 끝나는 대로 따로.
+- 차례: ① 돌고 있는 CI 고침 push 초록 확인 ② 운영 전 셀 것 넷 ③ 마이그레이션 사슬이 운영 머리에서 이어지는지 ④ `promote_own_to_production.py` 로 이 세션 커밋만 cherry-pick + PR ⑤ PR CI 초록 → 병합 → 운영 배포 · alembic 머리 확인 ⑥ 사장님께 파트 · 반장 지정 안내.
