@@ -153,9 +153,9 @@ def test_factory_change_tells_admin_about_held_cards(app):
     assert resp.status_code == 302
     page = admin.get("/admin/users").get_data(as_text=True)
     who = subject_particle(_user(uid).name)  # 이름 + 이/가
-    assert f"{who} 1공장에서 담당인 장이 2장 있어요. 그대로 두면 1공장 사람이 [담당 바꾸기]로 이어서 해요." in page
+    assert f"{who} 1공장에서 작업 중인 장이 2장 있어요. 그대로 두면 1공장 사람이 [담당 바꾸기]로 이어서 해요." in page
     assert _edit(admin, uid, production_factory="2", production_parts=["edge"]).status_code == 302  # 공장 그대로 = 안내 없음
-    assert "담당인 장이" not in admin.get("/admin/users").get_data(as_text=True)
+    assert "작업 중인 장이" not in admin.get("/admin/users").get_data(as_text=True)
 
 
 def test_edit_form_selects_saved_factory_and_list_says_second_factory_only(app):

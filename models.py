@@ -584,9 +584,14 @@ class ProductionPartMark(Base):
     * 이름 칸(``*_by_name``)은 표시 때 스냅샷이다 — 사용자가 지워져도(FK SET NULL) 이름은 남는다.
     * 주문이 하드 삭제되면 같이 지워진다(``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
     * 담당 바꾸기 기록(``handed_from_name`` · ``handed_at``, 설계서 2026-11-23 §6-4) = 지금 담당이 누구에게서 · 언제
-      넘겨받았나(마지막 한 번 — 전체는 이벤트). 담당 바꾸기가 쓰고, 맡기 취소 · NONE 이 지운다. 둘 다 NULL 허용 · 색인 없음.
+      넘겨받았나(마지막 한 번 — 전체는 이벤트). 담당 바꾸기가 쓰고, 시작 취소 · NONE 이 지운다. 둘 다 NULL 허용 · 색인 없음.
+    * 작업하는 사람 목록(``holders``, 설계서 2026-11-25 multi-holder §4 — 한 도면 · 한 파트를 여러 명이 같이 작업) =
+      ``[{uid, name, at, done_at, done_uid, done_name}]``(시작한 차례). 상태 칸 · 한 명짜리 칸(``picked_by_*`` · ``done_by_*``)은
+      이 목록의 요약이다(모두 완료 = DONE). NULL(옛 줄)이면 읽을 때 요약 칸에서 푼다 — 읽고 쓰는 곳은
+      :mod:`foms.services.production.mark_crew` 하나. 색인 없음(같은 줄에 실려 온다).
 
-    DDL(이름 · 칸 · 제약)은 마이그레이션 ``prodpart_00`` + ``prodpart_01_handover`` 와 같아야 한다(PG 왕복 시험이 강제).
+    DDL(이름 · 칸 · 제약)은 마이그레이션 ``prodpart_00`` + ``prodpart_01_handover`` + ``prodpart_02_holders`` 와 같아야 한다
+    (PG 왕복 시험이 강제).
     """
 
     __tablename__ = 'production_part_marks'
@@ -609,6 +614,8 @@ class ProductionPartMark(Base):
                         server_default=func.now())
     handed_from_name = Column(String(120), nullable=True)
     handed_at = Column(DateTime, nullable=True)
+    # none_as_null: 파이썬 None 을 JSON 'null' 이 아니라 SQL NULL 로 쓴다(users.production_parts 와 같은 꼴 — DDL 은 JSONColumn 과 같다).
+    holders = Column(JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), 'postgresql'), nullable=True)
 
     __table_args__ = (
         # 장 · 파트 하나에 한 줄. 앞머리 order_id 라 ``order_id IN (…)`` 읽기 색인도 겸한다.

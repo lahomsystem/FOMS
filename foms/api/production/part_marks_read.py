@@ -110,7 +110,8 @@ def sync_mark_body(row: ProductionPartMark, viewer_id: Any = None, viewer_parts:
     """카드가 쓰는 표시 한 장 — 쓰기 응답과 같은 꼴(``mark_payload``) + 다른 파트 한 줄 낱말(``word`` · ``tone``).
 
     2026-11-23(§7)부터 ``mark_payload`` 가 ``picked_at`` · ``picked_day`` · ``handed_from_name`` · ``handed_at`` 을 더 싣는다
-    (같은 줄에 실려 가므로 쿼리는 그대로 1). 지금 칸의 이름 · 값은 그대로다. 받는 사람(``viewer_id`` · ``viewer_parts`` =
+    (같은 줄에 실려 가므로 쿼리는 그대로 1). 2026-11-25(multi-holder §7-1)부터 작업하는 사람 목록 ``holders`` · ``holder_n`` ·
+    ``done_n`` 도 같은 줄에서 싣는다(쿼리 그대로). 지금 칸의 이름 · 값은 그대로다. 받는 사람(``viewer_id`` · ``viewer_parts`` =
     :func:`~foms.services.production.part_access.own_parts`)의 파트이고 그 사람이 담당이면 낱말은 "내 담당"(판이 그린 낱말과
     같은 규칙, 2026-11-23 §4-12 — 이미 읽은 사용자 행, 쿼리 0).
     """

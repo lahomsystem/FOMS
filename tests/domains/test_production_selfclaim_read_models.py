@@ -60,8 +60,8 @@ def test_칸_아래_이름_다섯_꼴() -> None:
              _m("k0", "edge", "NEED", "김민준", T, handed="박엣지", hat=T), _m("k1", "edge", "NEED", "최가은", T)]
     cut = part_holder(sd, marks, "cut", {"by": ""}, TODAY)
     assert (cut["kind"], cut["name"], cut["tail"], cut["old"], cut["label"]) == ("held", "최재단", "", True, "재단 3/5")
-    assert cut["aria"] == "재단 3/5 · 2장 미완료 · 담당 최재단 · 어제부터"  # 태블릿 글 — 시각 없음
-    assert cut["tip"] == "재단 3/5 · 2장 미완료 · 담당 최재단"  # PC 마우스 글(카드 부분일 때만 새 글)
+    assert cut["aria"] == "재단 3/5 · 2장 미완료 · 최재단 작업 중 · 어제부터"  # 태블릿 글 — 시각 없음
+    assert cut["tip"] == "재단 3/5 · 2장 미완료 · 최재단 작업 중"  # PC 마우스 글(카드 부분일 때만 새 글)
     edge = part_holder(sd, marks, "edge", {"by": ""}, TODAY)
     assert (edge["kind"], edge["name"], edge["tail"], edge["old"]) == ("held", "김민준", "바뀜", False)  # 바뀜이 외 n 보다 앞
     assert "박엣지에서 바뀜" in edge["aria"] and "14:20" not in edge["aria"] and "함께 하는 사람 최가은" in edge["aria"]
@@ -230,7 +230,7 @@ def test_기록_글은_새_기록만_새_글() -> None:
         == "엣지 담당을 박엣지에서 김민준으로 바꿨습니다"
     assert generate_change_description("PRODUCTION_PART_MARKED", "", "", "", {"part": "cut", "action": "release",
                                                                                "holder_name": "박재단"}) \
-        == "재단 맡기를 취소했습니다 (박재단 담당)"
+        == "재단 작업 시작을 취소했습니다 (박재단)"
     assert generate_change_description("PRODUCTION_STEP_CHECKED", "", "", "", {"key": "cut", "done": True, "via": "sheet"}) \
         == "재단 칸을 손으로 작업 완료 처리했습니다"  # 작업 시트 · '내 공정' [끝] · PC [고치기] 모두 같은 길 — 자리 말 없음
     # 대조군: 지금 기록(맡기 · 옛 칸 체크)은 지금 글 그대로

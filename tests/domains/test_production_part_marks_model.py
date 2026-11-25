@@ -29,6 +29,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 MIGRATION_PATH = ROOT / "migrations" / "versions" / "prodpart_00_production_part_marks.py"
 #: 담당 바꾸기 기록 칸 둘(2026-11-23 §6-4) — 표를 만든 ``prodpart_00`` 뒤에 칸만 더한다.
 HANDOVER_MIGRATION_PATH = ROOT / "migrations" / "versions" / "prodpart_01_handover.py"
+#: 작업하는 사람 목록 칸(2026-11-25 multi-holder §4) — 칸만 더한다.
+HOLDERS_MIGRATION_PATH = ROOT / "migrations" / "versions" / "prodpart_02_holders.py"
 
 
 def _order_kwargs() -> dict:
@@ -337,8 +339,9 @@ def test_migration_check_snapshots_equal_model_ddl():
 
 def test_migration_columns_match_model_columns():
     """새 표 칸 이름 · NULL 여부가 models 와 같다(PG 왕복 지문이 보는 축의 SQLite 쪽 선검사). 표의 칸은 표를 만든
-    ``prodpart_00`` 이나 칸을 더한 ``prodpart_01_handover`` 둘 중 한 곳에 꼭 있다."""
-    source = MIGRATION_PATH.read_text(encoding="utf-8") + HANDOVER_MIGRATION_PATH.read_text(encoding="utf-8")
+    ``prodpart_00`` 이나 칸을 더한 ``prodpart_01_handover`` · ``prodpart_02_holders`` 중 한 곳에 꼭 있다."""
+    source = "".join(path.read_text(encoding="utf-8")
+                     for path in (MIGRATION_PATH, HANDOVER_MIGRATION_PATH, HOLDERS_MIGRATION_PATH))
     for column in ProductionPartMark.__table__.columns:
         assert f"'{column.name}'" in source, column.name
     assert "op.add_column('users', sa.Column('production_part', sa.String(length=16), nullable=True))" in source

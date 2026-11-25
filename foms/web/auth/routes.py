@@ -7,7 +7,7 @@ from typing import Any
 import logging
 import re
 from urllib.parse import urlsplit
-from sqlalchemy import case, func, inspect as sa_inspect
+from sqlalchemy import case, inspect as sa_inspect, or_
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
 
@@ -42,6 +42,7 @@ from foms.services.production.factory_constants import (
     production_factory_for_team,
     stored_production_factory,
 )
+from foms.services.production import mark_crew
 from foms.services.production.part_mark_rules import subject_particle
 from foms.services.production.part_constants import (
     PRODUCTION_PART_DEFS,
@@ -836,19 +837,26 @@ def _team_line_label(user: Any) -> str | None:
 
 
 def _held_marks_note(db: Any, user: Any, old_factory: int) -> str | None:
-    """공장을 바꾼 사람이 옛 공장에서 담당인 장이 있으면 한 줄(설계서 2026-11-23 §8-6 — 맡기는 저절로 안 풀린다). 쿼리 1.
+    """공장을 바꾼 사람이 옛 공장에서 작업 중인 장이 있으면 한 줄(설계서 2026-11-23 §8-6 — 시작은 저절로 안 풀린다). 쿼리 1.
+
+    같이 작업하는 사람은 목록 칸(JSON)에 있어 SQL 로 못 거른다 — 작업 필요 줄을 읽어 내 몫이 아직인 줄을 앱에서 센다
+    (2026-11-25 multi-holder §9, 관리자가 공장을 바꿀 때만).
 
     :param db: 요청 DB 세션.
     :param user: 공장을 바꾼 :class:`~models.User`.
     :param old_factory: 바꾸기 전 공장(1 · 2).
-    :return: 안내 글 또는 None(담당인 장이 없으면).
+    :return: 안내 글 또는 None(작업 중인 장이 없으면).
     """
-    held = (db.query(func.count(ProductionPartMark.id))
-            .filter(ProductionPartMark.picked_by_user_id == user.id, ProductionPartMark.state == 'NEED').scalar() or 0)
+    # 목록 칸이 빈 옛 줄은 요약 칸(첫 사람)만 보면 된다 — 그 밖 줄만 목록을 앱에서 본다(쿼리 1)
+    rows = (db.query(ProductionPartMark)
+            .filter(ProductionPartMark.state == 'NEED',
+                    or_(ProductionPartMark.picked_by_user_id == user.id, ProductionPartMark.holders.isnot(None)))
+            .all())
+    held = sum(1 for row in rows if mark_crew.share_of(mark_crew.crew_of(row), user.id) == mark_crew.SHARE_HELD)
     if not held:
         return None
     old = factory_label(old_factory)
-    return (f"{subject_particle(user.name or user.username)} {old}에서 담당인 장이 {held}장 있어요. "
+    return (f"{subject_particle(user.name or user.username)} {old}에서 작업 중인 장이 {held}장 있어요. "
             f"그대로 두면 {old} 사람이 [담당 바꾸기]로 이어서 해요.")
 
 

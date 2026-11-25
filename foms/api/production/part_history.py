@@ -2,7 +2,8 @@
 
 ``GET /api/production/part-history?order_id=N[&part=edge][&key=<도면 장 key>][&sheet_id=<시트 신원>]``
 
-* 한 주문의 카드 표시 이벤트(``PRODUCTION_PART_MARKED`` — 맡기 · 기본 · 완료 · 되돌리기 · 맡기 취소 · 담당 바꾸기)와 공정 칸
+* 한 주문의 카드 표시 이벤트(``PRODUCTION_PART_MARKED`` — 작업 시작 · 같이 작업 · 기본 · 완료 · 되돌리기 · 시작 취소 · 반장의
+  남의 시작 취소 · 담당 바꾸기 · PC [완료 처리])와 공정 칸
   이벤트(``PRODUCTION_STEP_CHECKED`` — 손 체크 · 카드 동기화)를 시각 순으로 돌려준다. 카드 담당 칸 · 작업 시트
   [바뀐 기록 보기]가 연다(요약 "박엣지에서 바뀜 14:20" 은 표시 줄 칸이 이미 들고 있다 — 이 API 는 전체 목록).
 * 거르기: ``part`` = 그 파트(카드 이벤트의 ``part`` · 공정 칸 이벤트의 ``key``), ``key`` · ``sheet_id`` = 그 장의 카드
@@ -120,7 +121,8 @@ def _iso(value: Any) -> Optional[str]:
 def history_item(event: OrderEvent, names: dict[int, str]) -> dict[str, Any]:
     """기록 한 줄 — 화면이 "박엣지 맡음 11/23 09:10 → 김민준으로 바뀜 14:20 → 김민준 완료 15:02" 를 그린다.
 
-    ``kind``: 카드 = take · basic · done · undo · release · takeover, 공정 칸 = ``step_on`` · ``step_off``.
+    ``kind``: 카드 = take · basic · done · undo · release · takeover · join · remove · check, 공정 칸 = ``step_on`` · ``step_off``.
+    ``target_name`` = 바꾸기 · 시작 취소 대상, ``joined_late`` = 늦은 [작업 시작]이 같이 작업으로 넘어감(2026-11-25 multi-holder §7-1).
     시각은 시간대 붙은 UTC ISO(화면이 KST 로 바꾼다).
     """
     payload = event.payload if isinstance(event.payload, dict) else {}
@@ -141,6 +143,8 @@ def history_item(event: OrderEvent, names: dict[int, str]) -> dict[str, Any]:
         "by_name": by_name or None,
         "from_name": payload.get("from_name"),
         "holder_name": payload.get("holder_name"),
+        "target_name": payload.get("target_name"),
+        "joined_late": bool(payload.get("joined_late")),
         "override": bool(payload.get("override")),
         "via": payload.get("via"),
         "trigger": payload.get("trigger"),

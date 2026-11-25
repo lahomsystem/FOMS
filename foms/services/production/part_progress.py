@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any, Iterable, Optional
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.production import mark_crew as _mark_crew
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PART,
     MARK_STATE_BASIC,
@@ -215,7 +216,8 @@ def inspect_left(sd: Any, marks: Iterable[Any], key: str) -> list[dict[str, Any]
     카드를 쓴 파트는 그 장의 표시로, 카드를 안 쓴 파트는 공정 칸 체크로 본다(칸이 체크됐으면 모든 장 완료).
 
     Returns:
-        ``[{part, label, holder}]`` — ``holder`` 는 그 장 담당 이름(맡은 사람이 없으면 None = 미정).
+        ``[{part, label, holder}]`` — ``holder`` 는 그 장 작업하는 사람 이름 줄(둘까지 + "외 n" — "이시영 · 김재단",
+        아무도 없으면 None = 미정, multi-holder Q20).
     """
     marks = list(marks)
     used = cards_used(marks)
@@ -227,7 +229,7 @@ def inspect_left(sd: Any, marks: Iterable[Any], key: str) -> list[dict[str, Any]
         state = str(getattr(row, "state", None) or MARK_STATE_NONE)
         finished = mark_finished(part, state) if part in used else done.get(part, False)
         if not finished:
-            holder = getattr(row, "picked_by_name", None) if state == MARK_STATE_NEED else None
+            holder = _mark_crew.name_line(_mark_crew.names(_mark_crew.crew_of(row))) if state == MARK_STATE_NEED else None
             out.append({"part": part, "label": PRODUCTION_PART_LABELS[part], "holder": holder or None})
     return out
 
