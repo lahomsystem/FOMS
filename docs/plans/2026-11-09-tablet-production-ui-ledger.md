@@ -1572,3 +1572,16 @@
 
 - (1) 고침 — 기록의 "대신"에는 이번에 대신 완료된 사람만(M1 몫, `mh-m1` 에게).
 - (2) 사장님 답 "두 사람 완료를 모두 되돌리기" 그대로. (3) 지금 동작 그대로.
+
+## 여러 명 같이 작업 M2 보고(mh-m2) — 내 확인 전 주장 (11-25)
+
+- 가지 `work/mh-m2` 커밋 6e266e429(기능 — 판 칸 · 창 셋 · 넘김 말풍선 · 시험) · 4048c0741(인벤토리) · ad41620b7(남의 공장 카드 글 시험).
+- 새 파일: `part_card_crew.py` · `foms-production-parts-crew.js` · 시험 `test_production_multi_holder_board.py` · `production_multi_holder_node_checks.js`. 고침: `part_board.py`(483/500) · `part_card_state.py` · `foms/api/production/part_marks.py` · `part_marks_read.py`(M1 파일 둘 — 응답 · 30초 받아 오기 · 409 에 `crew` 칸) · `home_parts.html` · `parts.css` · parts JS 넷(280 · 229 · 249 · 155). 고친 지금 시험 10.
+- `home_scripts.html`: claim · modal · crew(새 줄) · parts · sync 다섯 줄 `?v=20261125s` + 주석 한 줄. `home_styles.html`: `parts.css?v=20261125s`. `test_production_selfclaim_css.py` `PARTS_PIN` = `20261125s`.
+- 시험 주장: 닿는 20파일 305 passed / tests/domains 17841 passed EXIT=0 / contracts+harness+security 2012 passed EXIT=0 / node --check 여섯 OK / APP_OK / 인벤토리 다섯 0.
+- 그림 `scratchpad/mh/shots_m2/` 22장 × 4벌(80% · 80%+글자 120% · 80%+글자 150% · 100%). 칸 밖 0 · 겹침 0 · 가로 굴림 0. 잘림 = '내 작업 · …' 꼬리만(80% 2 · 나머지 4). 말풍선 "이시영이 먼저 시작했어요."가 [도면 수정 요청] 단추를 6초 덮음(넷 다).
+- 시안과 다른 곳: E1 [되돌리기] 줄은 '완료' 칸에서만 · G [재단 완료]는 '작업 필요' 칸에서만 / 말풍선이 단추를 덮음 / 글자 150% 에서 이름 칸 세 줄 / H 에도 [도면 수정 요청].
+- 설계서와 다른 것: 이름 줄을 보는 사람마다 서버가 지어 `data-pp-crew` · `crew` 칸으로 실음 / 새로 정한 글 둘(내 [시작 취소] 창 "{모두} 작업 중 → {남은 사람} 작업 중" · "남은 사람이 모두 완료라 도면이 완료돼요." / 내 몫 되돌리기 창 "재단 1/2 완료 → 작업 필요 · {나}") / 반장 고르기 다음 창에서 실행 단추가 숨던 버그 고침 / 상태 글 · 되돌리기 줄 · 반장 이름 칸은 줄 넘김 / 반장 [{이름} 시작 취소] = `remove` + `target_user_id`.
+- 옛 칸: 지운 것 없음. 남아 쓰는 것 `data-picked-id`(→ `seen_by`) · `data-picked-name` · `data-done-name` · `data-picked-at` · 내 [시작 취소] = `release` · `home.py` 설정 `verb`(JS 는 안 씀).
+- 물은 것: (1) [담당 바꾸기 ›] — 고를 사람이 한 명이어도 다음 창이 뜸(예전 관리자는 바로 실행) (2) [{이름} 시작 취소]는 바로 실행 — 설계서 §8-1 의 확인 창 없음, 남은 사람이 모두 완료면 알림 없이 저절로 완료 (3) 반장 · 관리자 칸에 [같이 작업] 없음(Q22 는 API 로만) (4) 말풍선이 단추를 6초 덮고 눌러도 안 닫힘 (5) 꼬리 말줄임 · 글자 150% 세 줄.
+- 확신 낮음: 숫자로 끝나는 이름 줄 뒤 토씨 "외 2이 먼저 시작했어요"(M1 서버 · JS 둘 다) / 같이 작업 창 "08:10부터"는 첫 사람 시작 때 / 실화면은 1공장 재단 판만.
