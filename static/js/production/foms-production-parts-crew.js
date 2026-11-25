@@ -4,9 +4,12 @@
  *   카드 칸(render — 작업 필요 · 완료 상태, 템플릿 home_parts.html pp_act 와 같은 규칙): 남이 작업 중 = [이름 칸 ›][같이 작업] ·
  *     내 몫만 완료 = "재단 1/2 완료 · 김재단 작업 중"('완료' 칸, 되돌리기 줄 "재단 1/2 완료") · 반장 · 관리자 = 이름 칸(둘째 줄 "재단 1/2 완료") +
  *     [재단 완료] · 보기만 = "이시영 · 김재단 작업 중" · 완료 = "재단 완료 · 이시영 · 김재단".
- *   창 글(plan — 창 그리기 foms-production-parts-modal.js 가 먼저 부른다): [같이 작업] 창 · [담당 바꾸기] 누구와(둘 이상이면 고르기 창,
- *     완료를 누른 사람은 빠짐) · 반장 고르기([담당 바꾸기 ›] [대신 완료] [{이름} 시작 취소]) · 남은 사람이 있는 [완료] · [시작 취소] · 되돌리기.
- *   넘김 말풍선(notice): 거의 같이 [작업 시작] = 서버 글 "이시영이 먼저 시작했어요."를 카드 말풍선(.pp-why, 6초)에 그대로.
+ *   창 글(plan — 창 그리기 foms-production-parts-modal.js 가 먼저 부른다): [같이 작업] 창 · [담당 바꾸기] 누구와(바꿀 수 있는 사람이
+ *     둘 이상일 때만 고르기 창, 완료를 누른 사람은 빠짐 — 하나면 지금 동작 그대로) · 반장 고르기([담당 바꾸기(둘 이상이면 ›)] [대신 완료]
+ *     [같이 작업](반장 · 관리자가 아직 작업자가 아닐 때, Q22) [{이름} 시작 취소]) · 남은 사람이 있는 [완료] · [시작 취소] · 되돌리기.
+ *     토씨가 붙는 문장은 서버가 준 완성 조각(who_subj 등 — "이시영 · 김재단 외 2명이")만 쓴다(여기서 토씨를 붙이지 않는다).
+ *   넘김 말풍선(notice): 거의 같이 [작업 시작] = 서버 글 "이시영이 먼저 시작했어요."를 그림 칸 아래쪽 안(어느 단추도 안 덮음)에 그대로 —
+ *     누르면 바로 닫히고, 6초 뒤 저절로 닫힌다(claim.notice).
  * 셸 조각 교체로 다시 실행된다 — 화면마다 한 번(window.__FOMS_PROD_PARTS_BOUND.crew). 읽기 전용(창 없음)도 싣는다(카드 고치기). */
 (function () {
   'use strict';
@@ -40,7 +43,6 @@
     if (act) { node.type = 'button'; node.setAttribute('data-pp-act', act); }
     return node;
   }
-  function josa(name) { return claim.josa ? claim.josa(name, '가', '이') : name; }
   function half(cr) { return cr.d ? LABEL + ' ' + cr.d + '/' + cr.n + ' 완료' : ''; }
   // 시작한 때 — 오늘 "08:10부터" · 어제 "어제부터" · 그 전 "11/23부터"(서버 KST 오늘 cfg.today 로만 셈)
   function since(day, iso) {
@@ -102,7 +104,7 @@
     var toward = M.toward ? M.toward(NAME) : NAME + '으로';
     return { title: '담당을 ' + p.name + '에서 ' + toward + ' 바꿀까요?', line: '담당 ' + cr.who + ' → 담당 ' + p.swap, run: '담당 바꾸기',
       tone: 'taken', target: p.uid,
-      note: (M.heldSince ? M.heldSince(null, p.name, p.at) : '') + ' 바꾸기 전에 ' + p.name + '에게 말해 주세요.' };
+      note: (M.heldSince ? M.heldSince(null, p.subj, p.at) : '') + ' 바꾸기 전에 ' + p.name + '에게 말해 주세요.' };
   }
   function plan(action, card) {
     var cr = of(card);
@@ -111,8 +113,8 @@
       var who = cr.who || '다른 사람';
       var at = since(cr.day, cr.at);
       return { title: '같이 작업할까요?', line: who + ' 작업 중 → ' + (cr.join || NAME) + ' 작업 중', run: '같이 작업', tone: 'need',
-        note: josa(who) + ' ' + (at ? at + ' ' : '') + '작업 중인 도면이에요. 같이 작업하면 ' + ((cr.n || 0) + 1 === 2 ? '두 사람 모두' : '모두') +
-          ' [' + LABEL + ' 완료]를 눌러야 완료돼요.' };
+        note: (cr.who_subj || '다른 사람이') + ' ' + (at ? at + ' ' : '') + '작업 중인 도면이에요. 같이 작업하면 ' +
+          ((cr.n || 0) + 1 === 2 ? '두 사람 모두' : '모두') + ' [' + LABEL + ' 완료]를 눌러야 완료돼요.' };
     }
     if (!cr.n || st !== 'need' && action !== 'undo') { return null; }
     var left = pending(cr);
@@ -124,9 +126,11 @@
           return { uid: p.uid, text: p.name + ' · ' + since(p.day, p.at) + ' 작업 중', line: '담당 ' + cr.who + ' → 담당 ' + p.swap };
         }) };
     }
-    if (action === 'held') { // 창 2 — 반장 · 관리자 고르기
+    if (action === 'held') { // 창 2 — 반장 · 관리자 고르기([담당 바꾸기]는 바꿀 사람이 하나면 지금처럼 바로 · 둘 이상이면 › 고르기 창)
       var M = window.FomsPartsModal || {};
-      var choices = [['takeover', '담당 바꾸기 ›', 'taken', null, true], ['done', '대신 완료', 'done']].concat(left.map(function (p) {
+      var swap = left.length === 1 ? [['takeover', '담당 바꾸기', 'taken', left[0].uid]] : left.length ? [['takeover', '담당 바꾸기 ›', 'taken', null, true]] : [];
+      var join = cr.me === 'none' ? [['join', '같이 작업', 'join', null, true]] : []; // Q22 — 아직 작업자가 아니면 [같이 작업] 창으로
+      var choices = swap.concat([['done', '대신 완료', 'done']], join, left.map(function (p) {
         return ['remove', p.name + ' 시작 취소', 'release', p.uid];
       }));
       return { title: cr.who + ' 작업 중인 도면이에요', line: cr.who + ' 작업 중', run: '', tone: 'taken', choices: choices,
@@ -135,21 +139,26 @@
     if (action === 'done' && cr.me === 'held' && cr.others_left) { // 내 [재단 완료] — 남이 아직(재단 1/2 완료로)
       return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' ' + (cr.d + 1) + '/' + cr.n + ' 완료 · ' + NAME,
         run: LABEL + ' 완료', tone: 'done',
-        note: josa(cr.others_left) + ' 아직 작업 중이라 ' + josa(cr.others_left) + ' 완료해야 도면이 완료돼요.' };
+        note: cr.others_left_subj + ' 아직 작업 중이라 ' + cr.others_left_subj + ' 완료해야 도면이 완료돼요.' };
     }
     if (action === 'release' && cr.me === 'held' && cr.n > 1) { // 내 [시작 취소] — 남은 사람이 있음
       var mine = (cr.people || []).filter(function (p) { return String(p.uid) === ME; })[0] || {};
-      return { title: '시작을 취소할까요?', line: cr.who + ' 작업 중 → ' + (mine.drop || '') + ' 작업 중', run: '시작 취소', tone: 'release',
-        note: cr.d === cr.n - 1 ? '남은 사람이 모두 완료라 도면이 완료돼요.' : '' };
+      var rest = cr.d === cr.n - 1; // 남은 사람이 모두 완료 = 저절로 완료(Q6) — 바뀐 뒤는 완료 칸 글 그대로
+      return { title: '시작을 취소할까요?', run: '시작 취소', tone: 'release',
+        line: cr.who + ' 작업 중 → ' + (rest ? LABEL + ' 완료 · ' + cr.done : (mine.drop || '') + ' 작업 중'),
+        note: rest ? '남은 사람이 모두 완료라 도면이 완료돼요.' : '' };
     }
     if (action === 'undo' && st === 'need' && cr.me === 'done') { // 내 몫 되돌리기(재단 1/2 완료 → 작업 필요)
       return { title: '작업 필요로 되돌릴까요?', line: half(cr) + ' → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need' };
     }
+    if (action === 'undo' && st === 'done' && cr.me !== 'done') { // 반장 · 관리자 대신 되돌리기 — 완료만 모두 끄고 작업하던 사람은 그대로
+      return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 완료 → ' + cr.who + ' 작업 중', run: '되돌리기', tone: 'need' };
+    }
     return null;
   }
 
-  // ── 넘김 말풍선 — 서버 글 그대로(6초, 열린 동안 받아 오기는 그 카드를 건너뛴다) ──
-  function notice(card, text) { if (card && text && claim.say) { claim.say(card, text); } }
+  // ── 넘김 말풍선 — 서버 글 그대로(그림 칸 아래쪽 안, 6초 · 누르면 닫힘 — 열린 동안 받아 오기는 그 카드를 건너뛴다) ──
+  function notice(card, text) { if (card && text && claim.notice) { claim.notice(card, text); } }
 
   window.FomsPartsCrew = { of: of, setAttrs: setAttrs, render: render, plan: plan, notice: notice };
 })();

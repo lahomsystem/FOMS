@@ -1,7 +1,8 @@
 """도면 판 카드의 '작업하는 사람' 칸 — 여러 명이 같이 작업(설계서 2026-11-25 multi-holder §5 · §8-1 · §8-2 · §10 M2).
 
 순수 계산 · 쿼리 0. 이름 줄("이시영 · 김재단 외 1")은 :func:`foms.services.production.mark_crew.name_line` 하나만 쓴다 — 화면(JS)은
-여기서 만든 글을 그대로 그린다(이름 줄을 따로 짓지 않는다). 보는 사람마다 다른 줄(나 빼고 · 나 더하고 · 한 사람을 나로 바꾸고 ·
+여기서 만든 글을 그대로 그린다(이름 줄을 따로 짓지 않는다). 토씨가 붙는 문장 속 이름 줄은 "외 n명"(설계서 Q20 · 지휘 2026-11-25 —
+"이시영 · 김재단 외 2명이 …" · "…외 1명과 같이")이고 토씨까지 여기서 붙여 준다(화면은 토씨를 붙이지 않는다). 보는 사람마다 다른 줄(나 빼고 · 나 더하고 · 한 사람을 나로 바꾸고 ·
 한 사람 빼고)도 여기서 미리 만든다. 판(:mod:`~foms.services.production.part_board`)은 이미 읽은 표시 줄로, 쓰기 응답 · 30초 받아
 오기는 응답 표시(``mark``)의 ``holders`` 로 같은 함수(:func:`crew_view`)를 부른다 — 화면 셋이 같은 글을 받는다.
 
@@ -15,7 +16,7 @@ from typing import Any, Iterable, Optional
 
 from foms.services.production import mark_crew as mc
 from foms.services.production.part_mark_notes import actor_name
-from foms.services.production.part_mark_rules import MarkSnapshot, holder_rows
+from foms.services.production.part_mark_rules import MarkSnapshot, holder_rows, subject_particle
 
 NBSP = " "
 #: 받침으로 읽는 숫자(영 · 일 · 삼 · 육 · 칠 · 팔) — "외 1과" · "외 2와".
@@ -38,6 +39,19 @@ def with_particle(name: str) -> str:
 
 def _line(people: Iterable[Any]) -> str:
     return mc.name_line(str(p or "").strip() for p in people)
+
+
+def sentence_line(people: Iterable[Any]) -> str:
+    """문장 속 이름 줄 — :func:`~mark_crew.name_line` 에 "외 n" 이 붙으면 "외 n명"(토씨가 바로 붙는 자리, Q20). 칸 글은 :func:`_line`."""
+    names = [str(p or "").strip() for p in people]
+    names = [n for n in names if n]
+    line = mc.name_line(names)
+    return f"{line}명" if len(names) > mc.NAME_LINE_LIMIT else line
+
+
+def _subject(people: Iterable[Any]) -> str:
+    """문장 속 이름 줄 + 이/가("이시영 · 김재단 외 2명이")."""
+    return subject_particle(sentence_line(people))
 
 
 def _names(rows: list[dict[str, Any]]) -> list[str]:
@@ -64,7 +78,8 @@ def _person(rows: list[dict[str, Any]], item: dict[str, Any], viewer_id: Any, vi
     """고르기 창 한 사람 — 이름 · 완료 · 시작한 때 + 그 사람을 나로 바꾼 줄(``swap``) · 그 사람을 뺀 줄(``drop``)."""
     uid = item.get("user_id")
     swapped = [viewer_name if h.get("user_id") == uid else h.get("name") for h in rows]
-    return {"uid": uid, "name": item.get("name") or "", "done": bool(item.get("done")), "at": item.get("picked_at"),
+    return {"uid": uid, "name": item.get("name") or "", "subj": subject_particle(str(item.get("name") or "")),
+            "done": bool(item.get("done")), "at": item.get("picked_at"),
             "day": item.get("picked_day"), "swap": _line(swapped) if uid != viewer_id else "",
             "drop": _line(h.get("name") for h in rows if h.get("user_id") != uid)}
 
@@ -78,11 +93,12 @@ def crew_view(holders: Optional[list[dict[str, Any]]], viewer_id: Any, viewer_na
         viewer_id · viewer_name: 보는 사람(같이 작업 창 "→ 이시영 · 김재단 작업 중" · 담당 바꾸기 줄에 들어갈 이름).
 
     Returns:
-        ``{n, d, me, who, head, left, others_left, done, with, tag, join, at, day, sig, people}`` — ``me`` = 내 몫(none · held ·
-        done), ``who`` = 모두, ``head`` = 칸 글("이시영 · 김재단 외 1 작업 중" — "외 n" · "작업 중"은 안 쪼개짐), ``left`` = 아직인
-        사람, ``others_left`` = 나 빼고 아직인 사람, ``done`` = 완료한 사람(대신 완료면 반장), ``with`` = 나 빼고 모두, ``tag`` = 내 작업
-        꼬리("이시영과 같이" · 남이 완료했으면 "이시영 완료"), ``join`` = 나를 더한 줄, ``at`` · ``day`` = 첫 사람이 시작한 때,
-        ``sig`` = 받아 오기 견줌 표지("31:1,44:0"), ``people`` = 사람마다(:func:`_person`).
+        ``{n, d, me, who, head, left, others_left, done, with, tag, join, who_subj, done_subj, others_left_subj, at, day, sig,
+        people}`` — ``me`` = 내 몫(none · held · done), ``who`` = 모두, ``head`` = 칸 글("이시영 · 김재단 외 1 작업 중" — "외 n" ·
+        "작업 중"은 안 쪼개짐), ``left`` = 아직인 사람, ``others_left`` = 나 빼고 아직인 사람, ``done`` = 완료한 사람(대신 완료면 반장),
+        ``with`` = 나 빼고 모두, ``tag`` = 내 작업 꼬리 문장("이시영과 같이" · "이시영 · 최재단 외 1명과 같이" · 남이 완료했으면
+        "이시영 완료"), ``join`` = 나를 더한 줄, ``*_subj`` = 문장 속 이름 줄 + 이/가("이시영 · 김재단 외 2명이" — 창 안내 글),
+        ``at`` · ``day`` = 첫 사람이 시작한 때, ``sig`` = 받아 오기 견줌 표지("31:1,44:0"), ``people`` = 사람마다(:func:`_person`).
     """
     rows = [h for h in (holders or []) if isinstance(h, dict)]
     viewer_name = (viewer_name or "").strip()
@@ -91,15 +107,17 @@ def crew_view(holders: Optional[list[dict[str, Any]]], viewer_id: Any, viewer_na
     others = [h for h in rows if h.get("user_id") != viewer_id] if me != mc.SHARE_NONE else rows
     others_done = _done_names(others)
     with_line = _line(h.get("name") for h in others) if me != mc.SHARE_NONE else ""
+    with_words = sentence_line(h.get("name") for h in others) if me != mc.SHARE_NONE else ""
+    others_left = [h.get("name") for h in others if not h.get("done")]
     first = rows[0] if rows else {}
     return {
         "n": len(rows), "d": sum(1 for h in rows if h.get("done")), "me": me, "who": who,
         "head": f"{who.replace(' 외 ', ' 외' + NBSP)} 작업{NBSP}중" if who else "",
         "left": _line(h.get("name") for h in rows if not h.get("done")),
-        "others_left": _line(h.get("name") for h in others if not h.get("done")),
-        "done": _line(_done_names(rows)), "with": with_line,
-        "tag": (f"{_line(others_done)} 완료" if others_done else f"{with_particle(with_line)} 같이" if with_line else "")
+        "others_left": _line(others_left), "done": _line(_done_names(rows)), "with": with_line,
+        "tag": (f"{sentence_line(others_done)} 완료" if others_done else f"{with_particle(with_words)} 같이" if with_words else "")
         if me == mc.SHARE_HELD else "",
+        "who_subj": _subject(_names(rows)), "done_subj": _subject(_done_names(rows)), "others_left_subj": _subject(others_left),
         "join": _line([*_names(rows), viewer_name]) if me == mc.SHARE_NONE and viewer_name else who,
         "at": first.get("picked_at"), "day": first.get("picked_day"),
         "sig": ",".join(f"{h.get('user_id')}:{1 if h.get('done') else 0}" for h in rows),
@@ -148,4 +166,4 @@ def card_crew(snap: MarkSnapshot, state: str, ctx: dict[str, Any]) -> dict[str, 
     }
 
 
-__all__ = ["NBSP", "attach_crew", "card_crew", "crew_view", "with_particle"]
+__all__ = ["NBSP", "attach_crew", "card_crew", "crew_view", "sentence_line", "with_particle"]

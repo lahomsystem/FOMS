@@ -312,7 +312,7 @@ def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> 
     assert ".foms-prod-home .pp-modal .foms-prod-change-modal__list[hidden] { display: none; }" in css
     assert "var LOCK_MS = 800;" in modal and "run.setAttribute('aria-disabled', 'true');" in modal
     assert "pending.busy || pending.locked" in parts  # 두 번 누름 · 잠금 중 누름은 버린다
-    assert "data.order_ready && p.action === 'done'" in parts and "'/production/complete'" in parts
+    assert "(data.order_ready || fac) && p.action !== 'bulk'" in parts and "'/production/complete'" in parts
     assert "M.lost(text, M.nowLine(data.mark));" in parts and "body.seen_by" in parts
     assert "claim.busy(card)" in parts and "window.FomsPartsClaim.recheck(card)" in sync  # 받아 오기가 열린 말풍선 · 창을 안 덮음
     claim = (JS / "foms-production-parts-claim.js").read_text(encoding="utf-8")

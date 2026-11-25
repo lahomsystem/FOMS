@@ -2,6 +2,7 @@
 // tests/domains/test_production_multi_holder_board.py 가 부른다. want = argv[3] {steps: [...], posts: [서버 답…], gets: [서버 답…]}.
 // 판 JS 다섯(viewer → claim → modal → crew → parts, 받아 오기 sync 는 want.sync 일 때)을 차례로 싣고 steps 를 차례로 한다:
 //   {do:'parity'} 모든 카드의 서버 단추 칸 ↔ JS 가 다시 그린 단추 칸 · {do:'click', key, act} 카드 단추 · {do:'modal'} 창 모습 ·
+//   {do:'notice', key} 넘김 말풍선 누름 ·
 //   {do:'run'} 실행 단추 · {do:'choice', text} 관리자 고르기 · {do:'who', index} 사람 고르기 · {do:'card', key} 카드 모습 · {do:'sync'} 받아 오기 한 번.
 // 서버 답(posts · gets)은 파이썬이 진짜 API 로 받은 JSON 이다(가짜 글 없음). 결과는 stdout JSON {out: [...], calls: [...]}.
 'use strict';
@@ -95,13 +96,15 @@ function actbox(card) {
 }
 function cardState(card) {
   const tag = card.querySelector('[data-pp-tag]');
-  const why = card.querySelector('.pp-why');
+  const why = card.querySelector('[data-pp-actbox] .pp-why');
+  const note = card.querySelector('[data-pp-notice]');
   return { key: card.getAttribute('data-key'), state: card.getAttribute('data-state'), cls: card.getAttribute('class'),
     in_need: card.getAttribute('data-in-need'), in_done: card.getAttribute('data-in-done'),
     picked_me: card.getAttribute('data-picked-me'), done_me: card.getAttribute('data-done-me'),
     crew: JSON.parse(card.getAttribute('data-pp-crew') || '{}'), act: actbox(card),
     tag: tag ? text(tag) : null, tag_aria: tag ? tag.getAttribute('aria-label') : null,
-    why: why && !why.hidden ? text(why) : null };
+    why: why && !why.hidden ? text(why) : null, notice: note && !note.hidden ? text(note) : null,
+    notice_in_img: !!(note && note.parentNode && (note.parentNode.getAttribute('class') || '').split(' ').includes('pp-img')) };
 }
 function modalState() {
   const q = (s) => modal.querySelector(s);
@@ -168,6 +171,11 @@ function counts() {
       ctx.__FOMS_PROD_PARTS_BOUND.syncTick();
       await tick(); await tick(); await tick(); await tick();
       out.push({ do: 'sync' });
+    } else if (s.do === 'notice') { // 넘김 말풍선을 누름 — 바로 닫히고 그림 열기(크게 보기)로 안 넘어간다
+      const note = cardOf(s.key).querySelector('[data-pp-notice]');
+      const ev = D.dispatch(note, 'click');
+      const viewer = body.querySelector('[data-pp-viewer]');
+      out.push({ do: 'notice', hidden: note.hidden, stopped: ev.stopped, viewer_open: viewer ? !viewer.hidden : null });
     } else if (s.do === 'close') {
       click(modal.querySelector('[data-pp-modal-close]'));
       out.push({ do: 'close', hidden: modal.hidden });
