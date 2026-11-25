@@ -1993,7 +1993,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_cancel",
-      "lineno": 847,
+      "lineno": 848,
       "methods": [
         "POST"
       ],
@@ -2002,7 +2002,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_change_ack",
-      "lineno": 1030,
+      "lineno": 1031,
       "methods": [
         "POST"
       ],
@@ -2011,7 +2011,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_complete",
-      "lineno": 664,
+      "lineno": 665,
       "methods": [
         "POST"
       ],
@@ -2020,7 +2020,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_defect",
-      "lineno": 1236,
+      "lineno": 1240,
       "methods": [
         "POST"
       ],
@@ -2029,7 +2029,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_hold",
-      "lineno": 1369,
+      "lineno": 1373,
       "methods": [
         "POST"
       ],
@@ -2038,7 +2038,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_rework",
-      "lineno": 690,
+      "lineno": 691,
       "methods": [
         "POST"
       ],
@@ -2047,7 +2047,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_start",
-      "lineno": 509,
+      "lineno": 510,
       "methods": [
         "POST"
       ],
@@ -2056,7 +2056,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_steps",
-      "lineno": 1140,
+      "lineno": 1143,
       "methods": [
         "POST"
       ],
@@ -2065,7 +2065,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_uncomplete",
-      "lineno": 948,
+      "lineno": 949,
       "methods": [
         "POST"
       ],
@@ -2074,7 +2074,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_set_logistics_status",
-      "lineno": 1442,
+      "lineno": 1446,
       "methods": [
         "POST"
       ],
