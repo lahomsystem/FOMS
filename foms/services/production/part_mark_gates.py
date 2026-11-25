@@ -11,7 +11,7 @@
                                    생산 단계 도면별 막힘(2026-11-25 설계서 §3-3)은 그 장 누름만 막고 ``numbers`` 를 싣는다
 ``STEP_SET_BY_HAND``        409    카드를 안 쓴 파트의 공정 칸이 손으로 체크됨 — 그 파트 카드 쓰기
 ``INSPECT_NOT_READY``       409    그 장 재단 · 엣지 · 조립이 아직 — 검수 맡기 · 완료 · 담당 바꾸기(``left``)
-``INSPECT_DONE_FIRST``      409    그 장 검수가 완료 — 앞 파트 완료 취소 · 기본 취소
+``INSPECT_DONE_FIRST``      409    그 장 검수 완료를 한 명이라도 누름("검수 1/2 완료"부터) — 앞 파트 완료 취소 · 기본 취소
 ``PART_USES_CARDS``         409    카드를 쓴 파트에 미완료 장이 있는데 공정 칸 체크(``left``)
 ``STEP_SET_BY_CARDS``       409    카드로 모두 완료한 파트의 공정 칸 끄기
 =========================  =====  ====================================================================
@@ -181,7 +181,9 @@ def inspect_gate(sd: Any, marks: Iterable[Any], key: str, part: str, action: str
 
     * 검수 시작 · 같이 작업 · 완료 · 담당 바꾸기 · PC [완료 처리] = 그 장 재단 · 엣지 · 조립이 모두 완료여야(``INSPECT_NOT_READY`` +
       ``left``). 같이 작업하는 줄은 모두 완료여야 완료다("재단 1/2 완료" = 미완료 — Q14).
-    * 재단 · 엣지 · 조립 완료 취소 · 기본 취소 = 그 장 검수가 완료면 막는다(``INSPECT_DONE_FIRST``).
+    * 재단 · 엣지 · 조립 완료 취소 · 기본 취소(본인 · 반장 대신 · PC [완료 취소]) = 그 장 검수 줄에서 완료를 누른 사람이 한 명이라도
+      있으면 막는다(``INSPECT_DONE_FIRST`` — 사장님 2026-11-25 "한 명이라도 검수 완료를 눌렀으면 막기", "검수 1/2 완료"부터). 검수를
+      시작만 하고 아무도 완료를 안 눌렀거나, 검수 완료를 모두 되돌려 0명이면 된다. 사람 없는 검수 완료(풀어 쓴 완료 · 옛 줄)도 막는다.
 
     Args:
         sd: 잠근 주문의 ``structured_data``.
@@ -203,8 +205,9 @@ def inspect_gate(sd: Any, marks: Iterable[Any], key: str, part: str, action: str
         return None
     if part in INSPECT_PREREQ_PARTS and action == ACTION_UNDO:
         row = marks_by_part(marks).get(PART_INSPECT, {}).get(key)
-        if row is not None and str(getattr(row, "state", "")) == MARK_STATE_DONE:
-            done = mc.done_names(mc.crew_of(row)) or [str(getattr(row, "done_by_name", None) or "").strip()]
+        crew = mc.crew_of(row)
+        if row is not None and (str(getattr(row, "state", "")) == MARK_STATE_DONE or any(mc.is_done(m) for m in crew)):
+            done = mc.done_names(crew) or [str(getattr(row, "done_by_name", None) or "").strip()]
             inspector = mc.name_line(done)  # 여러 명이면 "강검수 · 윤검수"(Q20)
             return Gate(409, INSPECT_DONE_FIRST, _done_first_message(inspector, part, undo_basic),
                         {"inspected_by": inspector or None})
