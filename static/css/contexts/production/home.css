@@ -7,16 +7,20 @@
   --fph-surface: #ffffff;
   --fph-raised: #f7f8fa;
   --fph-line: #dde1e6;
-  --fph-line2: #c1c7d0;
+  /* 읽기 기준(비평 C12, 2026-11-26) — 흐린 글은 회색 바탕 · 연남색 · 연빨강 바탕에서도 4.5 이상(#6b7380 은 회색 바탕 4.19),
+     빨강 글은 회색 바탕 4.5 이상(#dc2626 은 4.23 — 도면 마감 '늦음' 과 같은 값), 보조 단추 · 빈 공정 칸 테두리는 흰 · 회색 바탕에서
+     3 이상(#c1c7d0 은 흰 바탕 1.70). 값 · 대비는 시험이 못 박는다(test_production_crit_b_css.py). */
+  --fph-line2: #7f8794;
   --fph-text: #14171c;
   --fph-text2: #4b525d;
-  --fph-text3: #6b7380;
+  --fph-text3: #626a76;
   --fph-brand: #5a67d8;
   --fph-brand-dark: #4a55b8;
   --fph-brand-50: #f3f4ff;
-  --fph-danger: #dc2626;
+  --fph-danger: #b91c1c;
   --fph-danger-50: #fef2f2;
   --fph-warn: #d97706;
+  --fph-warn-50: #fffbeb;
   --fph-ok: #059669;
   /* 도면 마감 상태 색(설계서 2026-11-22-production-drawing-arrival-upgrade §4-3) — 늦음 · 빠듯 · 다 옴. 여유는 --fph-brand-dark.
      띠 · 장 제목 · 묶음 머리 · 찾기가 같이 쓴다(작업 시트는 어두운 도면 칸이라 sheet.css 에 밝은 짝).
@@ -60,7 +64,7 @@
   background: var(--fph-surface);
   border-bottom: 1px solid var(--fph-line);
 }
-.foms-prod-home__title { margin: 0; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; }
+.foms-prod-home__title { margin: 0; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; color: var(--fph-text); } /* 기기 어두운 설정의 공용 머리글 색을 안 따른다(C05) */
 .foms-prod-home__date { font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; }
 .foms-prod-home__tabs { display: flex; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
 .foms-prod-home__tab {
@@ -81,7 +85,7 @@
   cursor: pointer;
 }
 .foms-prod-home__tab:last-child { border-right: 0; }
-.foms-prod-home__tab small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; opacity: .8; }
+.foms-prod-home__tab small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; } /* 흐림 없음 — 고른 칸 흰 글 위 4.81(C12) */
 .foms-prod-home__tab.is-on { background: var(--fph-brand); color: #fff; }
 .foms-prod-home__tab:focus-visible { outline: 3px solid var(--fph-brand-dark); outline-offset: -3px; }
 .foms-prod-home__search { flex: 1 1 220px; min-width: 0; margin: 0; }
@@ -317,7 +321,8 @@
 .fph-q[hidden] { display: none; }
 .fph-qr { min-height: 96px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr) calc(150px * var(--foms-fs, 1)) 190px; align-items: center; padding-right: 16px; gap: 0 10px; }
 .fph-qr.is-chg { border-color: var(--fph-danger); }
-.fph-qr.is-hold, .fph-qr.is-revise { opacity: .7; } /* 도면 고치는 중 줄도 보류처럼 흐리게(사장님 2026-11-25 "보류처럼") */
+/* 도면 고치는 중 줄도 보류처럼(사장님 2026-11-25 "보류처럼") — 줄을 통째 흐리면 글이 2.73 ~ 3.67 로 읽기 기준 밑이라(C12) 바탕색으로 가른다 */
+.fph-qr.is-hold, .fph-qr.is-revise { background: var(--fph-warn-50); }
 .fph-qr__n { font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); text-align: center; }
 .fph-qr__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: inherit; text-decoration: none; padding: 8px 0; }
 .fph-qr__who:hover, .fph-qr__who:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
@@ -888,7 +893,7 @@
   .foms-prod-home__navtab { justify-content: center; padding: 0 14px; border-radius: 0; border-right: 1px solid var(--fph-line2); }
   .foms-prod-home__navtab:last-child { border-right: 0; }
   .foms-prod-home__navtab.is-on, .foms-prod-home__navtab.is-on:hover, .foms-prod-home__navtab.is-on:focus-visible { background: var(--fph-brand); color: #fff; box-shadow: none; }
-  .foms-prod-home__navtab.is-on small, .foms-prod-home__navtab.is-on small.is-hot { color: inherit; opacity: .85; }
+  .foms-prod-home__navtab.is-on small, .foms-prod-home__navtab.is-on small.is-hot { color: inherit; } /* 흐림 없음 — 흰 글 4.81(C12) */
   .foms-prod-home .foms-fs { gap: 0; height: 44px; margin-right: 0; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
   .foms-prod-home .foms-fs__label { margin: 0; padding: 0 10px; align-self: stretch; display: inline-flex; align-items: center; border-right: 1px solid var(--fph-line2); color: var(--fph-text3); }
   .foms-prod-home .foms-fs__btn, .foms-prod-home .foms-fs__now { height: 44px; min-width: 44px; border: 0; border-right: 1px solid var(--fph-line2); border-radius: 0; background: var(--fph-surface); color: var(--fph-text2); }
@@ -913,4 +918,13 @@
   body:has(.foms-prod-home-page) .foms-tablet-rail > .foms-graft-rail,
   body:has(.foms-prod-home-page) .foms-tablet-rail > .foms-tablet-rail__notify { display: none; }
   body:has(.foms-tablet-rail) .foms-prod-home__btn.foms-prod-home__bell { display: inline-flex; }
+}
+
+/* ── 세로 태블릿(터치, 600 ~ 991px) 글자 손잡이도 누름 칸 44px · 칸 사이 8px(비평 C13 — 가로에만 걸려 세로는 30 × 30 · 50 × 30 이었다).
+   모양(공용 조각 테두리 단추)은 그대로 크기만. 폰(600px 아래)은 위 줄 자리가 빠듯해 그대로, PC(마우스)는 이 규칙 밖. ── */
+@media (min-width: 600px) and (max-width: 991.98px) and (pointer: coarse) {
+  .foms-prod-home .foms-fs { gap: 8px; }
+  .foms-prod-home .foms-fs__btn, .foms-prod-home .foms-fs__now { height: 44px; }
+  .foms-prod-home .foms-fs__btn { width: 44px; }
+  .foms-prod-home .foms-fs__now { min-width: 60px; }
 }

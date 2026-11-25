@@ -7,10 +7,10 @@
   --fpc-brand-dark: #4a55b8;
   --fpc-brand-50: #f3f4ff;
   --fpc-line: #dde1e6;
-  --fpc-line2: #c1c7d0;
+  --fpc-line2: #7f8794; /* 빈 공정 칸 · 보조 단추 테두리 3 이상 · 흐린 글 4.5 이상(비평 C12 — 태블릿 --fph-* 와 같은 값) */
   --fpc-text: #14171c;
   --fpc-text2: #4b525d;
-  --fpc-text3: #6b7380;
+  --fpc-text3: #626a76;
   --fpc-danger: #dc2626;
   --fpc-danger-ink: #b91c1c;
   --fpc-danger-50: #fef2f2;

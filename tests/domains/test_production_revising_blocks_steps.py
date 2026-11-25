@@ -141,7 +141,8 @@ def test_revising_rows_look_like_held_rows_and_do_not_come_next():
     from foms.services.production_home_read_model import production_home_step_queues
 
     css = (__import__("pathlib").Path(__file__).resolve().parents[2] / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
-    assert ".fph-qr.is-hold, .fph-qr.is-revise { opacity: .7; }" in css
+    # 같은 규칙 — 통째 흐림(.7, 글 2.73 ~ 3.67)은 생산 비평 C12(2026-11-26)에서 연한 호박 바탕으로 바뀌었다
+    assert ".fph-qr.is-hold, .fph-qr.is-revise { background: var(--fph-warn-50); }" in css
     steps = [{"key": k, "label": k, "done": False, "now": k == "cut"} for k in ("cut", "edge", "assemble", "inspect")]
 
     def row(i, **extra):

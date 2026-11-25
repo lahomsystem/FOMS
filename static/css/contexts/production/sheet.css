@@ -5,14 +5,15 @@
   --fpp-surface: #ffffff;
   --fpp-raised: #f7f8fa;
   --fpp-line: #dde1e6;
-  --fpp-line2: #c1c7d0;
+  /* 읽기 기준(비평 C12 — 첫 화면 home.css 와 같은 값): 흐린 글 · 빨강 글 4.5 이상, 보조 단추 · 빈 공정 칸 테두리 3 이상 */
+  --fpp-line2: #7f8794;
   --fpp-text: #14171c;
   --fpp-text2: #4b525d;
-  --fpp-text3: #6b7380;
+  --fpp-text3: #626a76;
   --fpp-brand: #5a67d8;
   --fpp-brand-dark: #4a55b8;
   --fpp-brand-50: #f3f4ff;
-  --fpp-danger: #dc2626;
+  --fpp-danger: #b91c1c;
   --fpp-danger-50: #fef2f2;
   --fpp-warn: #d97706;
   --fpp-warn-50: #fffbeb;
@@ -54,7 +55,7 @@
 .foms-prod-page__back { display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 10px 0 4px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text2); text-decoration: none; white-space: nowrap; }
 .foms-prod-page__back svg { font-size: calc(22px * var(--foms-fs, 1)); }
 .foms-prod-page__back:hover, .foms-prod-page__back:focus-visible { color: var(--fpp-brand-dark); text-decoration: none; }
-.foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fpp-text); } /* 기기 어두운 설정의 공용 머리글 색을 안 따른다(C05) */
 .foms-prod-page__title small { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); }
 .foms-prod-page__title-prod { font-weight: 700; color: var(--fpp-text2); }
 .foms-prod-page__due { padding: 6px 12px; border-radius: 8px; background: var(--fpp-brand-50); color: var(--fpp-brand-dark); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
@@ -85,7 +86,7 @@
 }
 .foms-prod-page__btn svg { font-size: calc(20px * var(--foms-fs, 1)); }
 /* 알림 종(11-21 사용자 ③ — 생산 화면에서는 레일 종이 숨는다) — 가로 태블릿에서 레일이 보일 때만(아래 가로 태블릿 블록). PC · 폰은 숨김. */
-.foms-prod-page__btn.foms-prod-page__bell { display: none; position: relative; width: 56px; padding: 0; }
+.foms-prod-page__btn.foms-prod-page__bell { display: none; position: relative; width: 56px; padding: 0; flex-shrink: 0; } /* 긴 손님 이름에 눌려 20.8px 로 줄던 것(C13) */
 .foms-prod-page__bell i { font-size: calc(20px * var(--foms-fs, 1)); }
 .foms-prod-page__bell-badge { position: absolute; top: 7px; right: 9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--fpp-danger); color: #fff; font-size: calc(10px * var(--foms-fs, 1)); font-weight: 700; line-height: 16px; text-align: center; }
 .foms-prod-page__bell-badge[hidden] { display: none; }
