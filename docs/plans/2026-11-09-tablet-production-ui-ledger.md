@@ -1302,3 +1302,11 @@
 - 첫 시도는 #38 bba6b9725 에서 `part_mark_write.py` 가 부딪힘 — 빠진 커밋 0b5b94711(제목은 `docs(production)` 인데 코드의 함수 설명을 고침)이 원인. 목록에 넣어 **88개**(`scratchpad/promo_list.txt`)로 다시 하니 끝까지 얹힘: 빈 커밋 1(d4afc05e9 — 문서만 부딪혀 내용 없음) · 문서만 부딪혀 운영 쪽 둔 것 1(9126e7d02 — 원장 문서, 매니페스트 등재는 deploy 와 같음을 확인).
 - 승격 트리 확인: 스캔 다섯 0 · alembic 머리 `['prodlead_02']` 하나 · `APP_OK` · `requirements.txt` 차이 없음. 전체 smoke 도는 중(`scratchpad/promo_smoke.log`).
 - 남은 폴더 `c:/tmp/foms-promo`(첫 시도, 지우기 권한 거절)는 나중에 치움. 훅이 `reset --hard origin/…` 을 막음(정상).
+
+### 2026-11-25 · 운영 PR #918 · 지금 상태(CTX-GATE 61%)
+
+- 승격 트리 smoke: `21607 passed, 821 skipped` · `174 passed, 27 skipped` · `PRE-PUSH SMOKE PASSED`. 가지 `promo/own-factory2-dfix-2`(운영 a07519d4e 위 87커밋) push → **PR #918** https://github.com/lahomsystem/FOMS/pull/918 (base production). PR CI 지켜보는 중.
+- 다음: PR CI 초록 → 병합 → `python tools/ops/check_deploy_drift.py` 로 운영 배포 확인 → 운영 alembic 머리 `prodlead_02` 확인(읽기만) → 사장님께 `/admin/users` 에서 파트 · 반장 지정 안내. 병합 뒤 `docs/AI_STATUS.md` · 원장 갱신.
+- **지금 상태**: deploy = bc7b759dc(D1 · D2 · D3, CI 초록). 운영 = a07519d4e + PR #918 대기. 일꾼 `strip-dates`(검토 고침 중 — 판정 날 = 놓는 날) · `mdate-mobile`(검토 고침 중). D4 아직 시작 안 함. 여러 명 맡기 = 설계서 초안 + 답 일부(남은 Q8 ~ Q22), 단추 이름 [작업 시작] · [같이 작업].
+- 사장님께 여쭐 것(모아 둠): ① 날짜 띠에 남은 '시공' 글(장 제목 · 찾기 묶음 · 장 작은 글 "시공 N건" · 아침 칩 · PC 늦음 줄 "시공 D-2" · "시공일 빠른 순") ② 상차 예정일이 시공일과 안 맞는 지방 주문(상차가 지났는데 시공은 앞날 · 상차가 시공보다 뒤) ③ 도면 마감 자동 알림도 출고일로 ④ 찾기 탭 '오늘' 묶음 ⑤ 보류로 옮기면 '도면 고치는 중'이 지워지는 것(알림만 함) ⑥ 여러 명 맡기 Q8 ~ Q22.
+- 치울 것: 워크트리 `c:/tmp/foms-promo`(첫 시도 찌꺼기) · `foms-promo2`(병합 뒤) · `foms-w-*` 여럿(사장님 말씀 때).
