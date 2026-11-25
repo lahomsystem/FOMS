@@ -52,7 +52,7 @@
      화면에만 실린다)의 --foms-fac1-* · --foms-fac2-* 를 쓴다(사장님 2026-11-24 식별성). */
   background: var(--fph-bg);
   color: var(--fph-text);
-  min-height: 60vh;
+  min-height: calc(60dvh / var(--foms-ui-zoom, 1)); /* 화면 높이는 화면 크기 배율로 나눈다(C35) */
   font-variant-numeric: tabular-nums;
 }
 .foms-prod-home * { box-sizing: border-box; }
@@ -266,7 +266,6 @@
 .foms-prod-home__navtab:hover, .foms-prod-home__navtab:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
 .foms-prod-home__navtab.is-on { background: var(--fph-surface); color: var(--fph-brand-dark); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .foms-prod-home__navtab:active { background: var(--fph-brand-50); color: var(--fph-brand-dark); } /* 누른 느낌(11-14) */
-.foms-prod-home__sp { flex: 1; }
 .foms-prod-home__tools { margin-left: auto; display: flex; align-items: center; gap: 10px 14px; }
 /* 알림 종(11-21 사용자 ③) — 가로 태블릿에서 레일이 보일 때만(맨 아래 가로 태블릿 블록). PC · 폰은 제 위 줄 종이 있어 숨긴다. */
 .foms-prod-home__btn.foms-prod-home__bell { display: none; position: relative; width: 56px; padding: 0; }
@@ -293,13 +292,12 @@
 }
 .foms-prod-home__btn--pri { background: var(--fph-brand); border-color: var(--fph-brand); color: #fff; }
 .foms-prod-home__btn--pri:hover, .foms-prod-home__btn--pri:focus-visible { background: var(--fph-brand-dark); border-color: var(--fph-brand-dark); color: #fff; }
-.foms-prod-home__btn--ghost { border-color: transparent; background: transparent; color: var(--fph-text2); }
 .foms-prod-home__btn svg { width: 1em; height: 1em; font-size: calc(22px * var(--foms-fs, 1)); }
 
 /* ── 바뀐 것: 받은함(미확인 변경 + 취소 주문) ── */
 .fph-inbox { background: var(--fph-surface); border-left: 1px solid var(--fph-line); padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .fph-al { border: 1px solid var(--fph-line); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
-.fph-al--cancel { border-color: var(--fph-warn); background: var(--fph-warn-50, #fffbeb); }
+.fph-al--cancel { border-color: var(--fph-warn); background: var(--fph-warn-50); }
 .fph-al__body { min-width: 0; }
 .fph-al__name { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; }
 .fph-al__name > .fph-due { margin-left: 8px; }
@@ -361,7 +359,7 @@
 .fph-qr__due b { font-size: calc(20px * var(--foms-fs, 1)); color: var(--fph-text); }
 .fph-qr__done { min-height: 72px; border: 1px solid var(--fph-ok); border-radius: 12px; background: var(--fph-ok); color: #fff; font: inherit; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
 .fph-qr__done svg { width: 1em; height: 1em; font-size: calc(30px * var(--foms-fs, 1)); stroke-width: 2.6; }
-.fph-qr__done:hover, .fph-qr__done:focus-visible { background: #047857; border-color: #047857; outline: none; }
+.fph-qr__done:hover, .fph-qr__done:focus-visible { background: var(--fph-dw-ok); border-color: var(--fph-dw-ok); outline: none; }
 .fph-qr__done:disabled { opacity: .6; cursor: wait; }
 .fph-qr__hold { justify-self: end; padding: 8px 16px; border-radius: 999px; background: var(--fph-hold-50); color: var(--fph-hold-700); font-weight: 800; font-size: calc(16px * var(--foms-fs, 1)); } /* 보류 = 도면 칸 보류 색(C16) */
 
@@ -472,7 +470,6 @@
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) { .fph-pane__cards { min-height: calc(44px / var(--foms-ui-zoom, 1)); } }
 .fph-pane__g { margin: 4px 0 0; min-height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); }
 .fph-pane__g small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
-.fph-pane__g--next { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--fph-line2); }
 .fph-pane__none { margin: 0; padding: 10px 4px; font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text3); }
 .fph-dr {
   content-visibility: auto; /* 화면 밖 줄은 그리기를 미룬다(11-14) — 크기는 한 번 그린 뒤 기억 */
@@ -501,8 +498,8 @@
 .fph-dr.is-chg { border-color: var(--fph-danger); }
 .fph-dr__sg { align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 6px; border-right: 1px solid var(--fph-line); text-align: center; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.15; color: var(--fph-brand-dark); }
 .fph-dr__sg small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
-.fph-dr.is-w .fph-dr__sg { color: #92400e; }
-.fph-dr.is-f .fph-dr__sg { color: #047857; }
+.fph-dr.is-w .fph-dr__sg { color: var(--fph-why); }
+.fph-dr.is-f .fph-dr__sg { color: var(--fph-dw-ok); }
 .fph-dr.is-chg .fph-dr__sg small { color: var(--fph-danger); }
 .fph-dr__who { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
 /* 이름 줄 = 이름 칸 + 발주사·담당(사용자 11-11). 자리가 모자라면 발주사·담당 글만 다음 줄로, 혼자 남은 이름은 M6 말줄임 */
@@ -569,7 +566,7 @@
 .fph-wi:hover, .fph-wi:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; outline: none; }
 .fph-wi > small { min-width: 0; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); overflow: hidden; text-overflow: ellipsis; }
 .fph-wi.is-chg { border-color: var(--fph-danger); }
-.fph-wi.is-done { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.fph-wi.is-done { background: #ecfdf5; border-color: #a7f3d0; color: var(--fph-dw-ok); }
 .fph-wi__nm { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
 .fph-wi > small { flex: 1 1 0; }
 
@@ -581,8 +578,8 @@
 .fph-due b { font-weight: 800; }
 .fph-due small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: inherit; }
 .fph-due.is-today { border-color: var(--fph-brand); background: var(--fph-brand); color: #fff; }
-.fph-due.is-past { border-color: #fecaca; background: var(--fph-danger-50); color: #b91c1c; }
-.fph-due.is-none { border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; }
+.fph-due.is-past { border-color: #fecaca; background: var(--fph-danger-50); color: var(--fph-dw-late); }
+.fph-due.is-none { border: 1px dashed #f59e0b; background: var(--fph-warn-50); color: var(--fph-why); }
 .fph-wi .fph-due { font-size: calc(13px * var(--foms-fs, 1)); padding: 0 5px; }
 .fph-wi > .fph-due { margin: 0; }
 .pp-card > .fph-due { align-self: flex-start; margin: 1px 0; } /* 도면 카드: 이름 줄 아래 한 줄 — 품목 줄 폭을 안 뺏는다 */
@@ -829,7 +826,7 @@
 .fph-sp__spec dd { margin: 0; font-weight: 700; }
 .fph-sp__done { min-height: 96px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; border-radius: 14px; background: var(--fph-ok); color: #fff; font: inherit; font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
 .fph-sp__done svg { font-size: calc(40px * var(--foms-fs, 1)); stroke-width: 2.6; }
-.fph-sp__done:hover, .fph-sp__done:focus-visible { background: #047857; outline: none; }
+.fph-sp__done:hover, .fph-sp__done:focus-visible { background: var(--fph-dw-ok); outline: none; }
 .fph-sp__done:active { background: #065f46; }
 .fph-sp__hold { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 2px solid var(--fph-hold-300); border-radius: 14px; background: var(--fph-hold-50); color: var(--fph-hold-700); text-align: center; }
 .fph-sp__hold b { display: inline-flex; align-items: center; gap: 8px; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; }

@@ -298,7 +298,7 @@
   .foms-prod-page__body { grid-template-columns: minmax(0, 1fr); min-height: 0; }
   .foms-prod-page__dwg { min-height: 0; }
   .foms-prod-page__main-btn { padding: 8px 56px; }
-  .foms-prod-page__main { max-height: 44vh; }
+  .foms-prod-page__main { max-height: calc(44dvh / var(--foms-ui-zoom, 1)); } /* 화면 높이 ÷ 화면 크기 배율(C35) */
   .foms-prod-page__nav { width: 56px; height: 56px; font-size: calc(30px * var(--foms-fs, 1)); }
   .foms-prod-page__side { border-left: 0; border-top: 1px solid var(--fpp-line); padding: 12px 12px 90px; }
 }
