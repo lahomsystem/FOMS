@@ -29,7 +29,6 @@ from foms.services.orders.confirm_drawing_gate import (
 )
 from foms.services.orders.drawing_factory import DRAWING_FIX_KEY, current_factories
 from foms.services.orders.drawing_transfer import clean_sheet_id
-from foms.services.production.factory_constants import FACTORIES
 
 SHEET_PREFIX = "sheet:"
 FILE_PREFIX = "file:"
@@ -179,45 +178,67 @@ def factory_complete_blocked(sd: Any, factory: int, *, final: bool, block: Optio
 # --------------------------------------------------------------------------- #
 # 통째 작업에서 막힌 도면 빼기(§3-6 ①)
 # --------------------------------------------------------------------------- #
-def expand_plan(sd: Any, factories: Iterable[int] = FACTORIES) -> Optional[dict[str, Any]]:
+def expand_plan(sd: Any) -> Optional[dict[str, Any]]:
     """통째 작업을 도면별 표시로 풀어 적을지 — 통째가 아니고 지금 도면 중 막힌 장이 1장 이상일 때만(풀이 §11-6).
+
+    범위는 막히지 않은 지금 도면 **전부**다(공장을 가리지 않는다) — 공정 칸은 주문 하나에 값 하나라 막힌 도면이 없으면 반장 한 번에
+    두 공장 장이 모두 완료되는 지금 규칙(설계서 2026-11-23 C8)과 같은 범위여야 한다(2026-11-25 D1 검토 판결 A).
 
     Args:
         sd: 주문 ``structured_data``.
-        factories: 누른 사람이 쓸 수 있는 공장(반장은 자기 공장 장만 — ``factory_gate`` 와 같은 규칙, §3-6).
 
     Returns:
         ``{total, numbers, skip_keys, keys}`` — ``numbers`` = 막힌 장 번호, ``skip_keys`` = 막힌 장 key, ``keys`` = 풀어 적을 장 key
-        (막히지 않은 · 쓸 수 있는 공장 장). 풀어 적을 일이 아니면 None(지금처럼 칸만 켬).
+        (막히지 않은 지금 도면 전부 — 비면 처리할 장이 없다). 풀어 적을 일이 아니면 None(지금처럼 칸만 켬).
     """
     block = blocked(sd)
     if block.whole or not block.idents:
         return None
-    allowed = set(factories)
-    rows = current_factories(sd)
-    skipped = [(no, entry) for no, (entry, _f) in enumerate(rows, 1) if entry_blocked(block, entry)]
+    rows = resolve_final_drawing_files(sd)
+    skipped = [(no, entry) for no, entry in enumerate(rows, 1) if entry_blocked(block, entry)]
     if not skipped:
         return None
-    keys = [entry["key"] for entry, owner in rows if owner in allowed and not entry_blocked(block, entry)]
+    keys = list(dict.fromkeys(entry["key"] for entry in rows if not entry_blocked(block, entry)))
     return {"total": len(rows), "numbers": [no for no, _e in skipped], "skip_keys": [e["key"] for _no, e in skipped],
             "keys": keys}
 
 
-def expand_confirm(sd: Any, factories: Iterable[int] = FACTORIES) -> Optional[dict[str, Any]]:
+def expand_confirm(sd: Any) -> Optional[dict[str, Any]]:
     """통째 작업 확인 창 본문 재료(§2-4 · §10) — ``{done, numbers, tail}`` 또는 None(지금 글 그대로).
 
     화면(``foms-production-sheet-parts.js``)이 "이 주문의 도면 {sheets}장 중 {done}장이 {파트} 완료로 처리돼요. " + ``tail`` 로 잇는다.
+    ``sheets``(N) 와 ``done``(M)은 같은 모집단 — 주문 전체 지금 도면 · 그중 처리될 장.
     """
-    plan = expand_plan(sd, factories)
+    plan = expand_plan(sd)
     if plan is None:
         return None
     return {"done": len(plan["keys"]), "numbers": plan["numbers"], "tail": skip_tail(plan["numbers"])}
 
 
-def confirm_extras(sd: Any, factories: Iterable[int] = FACTORIES) -> dict[str, Any]:
-    """공정 API · 작업 시트 · '내 공정' [끝] 확인 창 자료에 더할 값 — 막힌 도면이 있으면 ``{"fix": …}``, 없으면 ``{}``(응답 그대로)."""
-    fix = expand_confirm(sd, factories)
+def confirm_extras(sd: Any) -> dict[str, Any]:
+    """공정 API · 작업 시트 · '내 공정' [끝] · PC 창 확인 창 자료에 더할 값 — 막힌 도면이 있으면 ``{"fix": …}``, 없으면 ``{}``(그대로)."""
+    fix = expand_confirm(sd)
     return {"fix": fix} if fix else {}
+
+
+def expanded_words(numbers: list[int]) -> dict[str, str]:
+    """풀어 쓴 뒤 화면이 잇는 글 재료 — ``tail`` = "도면 2는 고치는 중이라 뺐어요.", ``hold`` = "도면 2 고치는 중"([끝] 자리)."""
+    return {"tail": f"도면 {numbers_text(numbers)}{number_topic(numbers[-1])} 고치는 중이라 뺐어요.", "hold": fixing_label(numbers)}
+
+
+def blocked_left_numbers(sd: Any, left_keys: Iterable[str], *, block: Optional[Block] = None) -> list[int]:
+    """그 파트에 남은 장(``left_keys``)이 **도면별로 막힌 장뿐**이면 그 장 번호, 아니면 빈 목록(남은 장 없음 · 처리할 장 있음 · 통째).
+
+    공정 줄이 [끝] 대신 "도면 2 고치는 중"을 보일지(2026-11-25 D1 검토 판결 D) — 누르면 처리할 장이 없어 거절되는 길을 없앤다.
+    """
+    block = block if block is not None else blocked(sd)
+    left = set(left_keys)
+    if block.whole or not block.idents or not left:
+        return []
+    rows = [(no, entry) for no, entry in enumerate(resolve_final_drawing_files(sd), 1) if entry["key"] in left]
+    if not rows or not all(fix_ident(entry) in block.idents for _no, entry in rows):
+        return []
+    return [no for no, _entry in rows]
 
 
 # --------------------------------------------------------------------------- #
@@ -248,9 +269,14 @@ def expand_confirm_body(sheets: int, done: int, part_label: str, numbers: list[i
     return f"이 주문의 도면 {sheets}장 중 {done}장이 {part_label} 완료로 처리돼요. {skip_tail(numbers)}"
 
 
+def expand_done_text(total: int, done: int, part_label: str, numbers: list[int]) -> str:
+    """풀어 쓴 [끝] 뒤 알림 글 전부(시험 · 서버 쪽 글 — 화면 JS ``FomsSheetParts.doneText`` 와 같은 글)."""
+    return f"도면 {total}장 중 {done}장을 {part_label} 완료로 처리했어요. {expanded_words(numbers)['tail']}"
+
+
 __all__ = [
     "Block", "DRAWING_FIX_KEY", "FILE_PREFIX", "REQUEST_OPEN", "SHEET_PREFIX", "WHY_FACTORY", "WHY_FIXING", "WHY_SALES",
-    "blocked", "blocked_entries", "complete_blocked", "confirm_extras", "drawing_blocked", "entry_blocked", "expand_confirm", "expand_confirm_body",
-    "expand_plan", "factory_complete_blocked", "factory_has_blocked", "fix_ident", "fixing_idents", "fixing_label", "idents_for_keys",
+    "blocked", "blocked_entries", "blocked_left_numbers", "complete_blocked", "confirm_extras", "drawing_blocked", "entry_blocked",
+    "expand_confirm", "expand_confirm_body", "expand_done_text", "expand_plan", "expanded_words", "factory_complete_blocked", "factory_has_blocked", "fix_ident", "fixing_idents", "fixing_label", "idents_for_keys",
     "number_topic", "numbers_text", "open_request_idents", "per_drawing_numbers", "sales_request_idents", "skip_tail",
 ]

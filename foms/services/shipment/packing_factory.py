@@ -31,7 +31,7 @@ from typing import Any, Optional
 
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.orders.drawing_factory import current_factories, factory_done_entry, factory_made, has_second_factory
-from foms.services.orders.drawing_fix import blocked, entry_blocked
+from foms.services.orders.drawing_fix import Block, blocked, entry_blocked
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.production.part_mark_gates import DRAWING_REVISING, REVISING_MESSAGE
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, factory_label, normalize_factory
@@ -317,7 +317,7 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
     items = packing["items"]
     rows = {str(r.get("key")): r for r in items if isinstance(r, dict)}
     view = {l["key"]: l for l in factory_lines(sd)}
-    revising = _revising_lines(sd)
+    revising = {} if packing.get("departed_at") else _revising_lines(sd)  # 출발 보고 뒤는 그대로(사장님 답 Q10)
     changed = bool(add)
     for upd in updates or []:
         line = view.get(upd.get("key")) if isinstance(upd, dict) else None
@@ -386,12 +386,21 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
 # --------------------------------------------------------------------------- #
 # 고친 도면 줄(2026-11-25 설계서 §3-7 — 공장 꼴 패킹만, 1공장뿐 주문의 제품 3줄은 그대로)
 # --------------------------------------------------------------------------- #
+def line_revising(block: Block, entry: dict[str, Any]) -> bool:
+    """도면 장 줄을 막을지 — **이 한 곳**이 정한다. 지금은 통째 막힘(대상 없는 영업 요청 등)도 모든 도면 줄을 막는다.
+
+    통째일 때 도면 줄을 막을지는 사장님께 여쭙는 중(2026-11-25 D1 검토 판결 H) — 막지 않기로 하면 이 줄만
+    ``return fix_ident(entry) in block.idents`` 로 바꾼다(도면별로 막힌 장만).
+    """
+    return entry_blocked(block, entry)
+
+
 def _revising_lines(sd: Any) -> dict[str, int]:
-    """막힌 도면(:mod:`~foms.services.orders.drawing_fix` — 통째면 모든 장)의 도면 장 줄 열쇠 → 도면 번호. 쿼리 0."""
+    """막힌 도면(:func:`line_revising`)의 도면 장 줄 열쇠 → 도면 번호. 쿼리 0."""
     block = blocked(sd)
     if not block.whole and not block.idents:
         return {}
-    return {key: no for no, (key, entry, _f) in enumerate(doc_line_keys(sd), 1) if entry_blocked(block, entry)}
+    return {key: no for no, (key, entry, _f) in enumerate(doc_line_keys(sd), 1) if line_revising(block, entry)}
 
 
 def release_packing_checks(sd: dict[str, Any], idents: Any) -> list[str]:

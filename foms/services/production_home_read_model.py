@@ -23,7 +23,6 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
-from foms.services.orders.drawing_fix import fixing_label, per_drawing_numbers
 from foms.services.production.part_card_state import order_block
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
@@ -311,12 +310,6 @@ def _due_sort_key(row: dict[str, Any]) -> tuple[int, str, int]:
     return (0, day.isoformat(), int(row.get('id') or 0)) if day else (1, '', int(row.get('id') or 0))
 
 
-def _fix_note(row: dict[str, Any]) -> str:
-    """도면별로 막힌 장이 있으면 "도면 2 고치는 중"(``drawing_fix`` — 쿼리 0, 이미 든 주문 JSON), 없으면 빈 글."""
-    numbers = per_drawing_numbers(row.get('structured_data') or {})
-    return fixing_label(numbers) if numbers else ''
-
-
 def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date | None = None) -> dict[str, Any]:
     """탭 "내 공정"(안 3): 공정 4탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
 
@@ -337,8 +330,6 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
         key = production_home_queue_key(row)
         if key is not None:
             row['revise_block'] = None if row.get('hold_active') else order_block(row)  # 쿼리 0(이미 든 주문 JSON)
-            # 도면별 막힘(2026-11-25 설계서 §2-4 · §4-3)은 [끝]을 그대로 두고 "도면 2 고치는 중" 한 줄만(통째 · 보류면 빈 글)
-            row['fix_note'] = '' if row.get('hold_active') or row['revise_block'] else _fix_note(row)
             by_key[key]['rows'].append(row)
         elif row.get('home_view') == 'prod' and row.get('home_stage') == '제작 대기':
             waiting_rows.append(row)
