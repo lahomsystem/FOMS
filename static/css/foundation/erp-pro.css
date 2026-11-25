@@ -1005,3 +1005,21 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* 화면 틀(templates/production/layout.html 의 body · 바깥 container-fluid) — 템플릿 인라인 style 을 옮김(생산 비평 C35, 2026-11-26).
+   값 · !important 그대로(인라인 !important 와 같은 힘 — body · 틀에 !important 를 거는 다른 규칙은 없다). */
+body[data-foms-layout-frame] {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+body[data-foms-layout-frame] > .foms-layout-frame,
+body[data-foms-layout-frame] .container-fluid.foms-layout-frame {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box;
+}
