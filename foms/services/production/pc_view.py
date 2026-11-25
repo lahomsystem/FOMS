@@ -22,6 +22,7 @@ from foms.services.production.home_step_panel import _hold_reason, _prev_line, _
 from foms.services.production.late_rule import production_late_view
 from foms.services.production.part_access import steps_lock
 from foms.services.production.part_holders import attach_part_holders
+from foms.services.production.ship_dates import row_due
 from foms.services.production.write_access import can_ack_production_change, can_write_production
 from foms.services.production_home_read_model import (
     production_home_queue_key,
@@ -111,19 +112,10 @@ def _rel(day: datetime.date, today: datetime.date) -> tuple[str, str]:
 
 
 def _due_day(row: dict[str, Any], today: datetime.date) -> tuple[datetime.date | None, int]:
-    """(칸에 쓸 시공일, 외 n). 여러 시공일 주문은 납작 칸을 넣은 날 모음에서 가장 가까운 날 + 나머지 수(§6-3 · 결정 5)."""
-    flat = str(row.get('construction_date') or '').strip()[:10]
-    days = set(all_construction_dates(row.get('structured_data') or {}))
-    if flat:
-        days.add(flat)
-    if len(days) >= 2:
-        return pick_nearest_date(days, today), len(days) - 1
-    if not flat:
-        return None, 0
-    try:
-        return datetime.date.fromisoformat(flat), 0
-    except ValueError:
-        return None, 0
+    """(칸에 쓸 진짜 시공일, 외 n). 여러 시공일 주문은 가장 가까운 날 + 나머지 수(§6-3 · 결정 5). 시공일 전부 =
+    :func:`all_construction_dates`(띠 · 출고 화면과 같은 출처 — 납작 칸은 그중 처음 적힌 날일 뿐이다)."""
+    days = all_construction_dates(row.get('structured_data') or {})
+    return pick_nearest_date(days, today), max(0, len(days) - 1)
 
 
 def _prev_date(row: dict[str, Any]) -> str:
@@ -136,12 +128,19 @@ def _prev_date(row: dict[str, Any]) -> str:
 
 
 def pc_due(row: dict[str, Any], today: datetime.date) -> dict[str, Any]:
-    """① 시공일 칸 — ``{md, rel, state, more, prev, day}``. 시공일이 없으면 md 가 '시공일 없음'(빈칸 아님)."""
-    day, more = _due_day(row, today)
-    if day is None:
-        return {'md': '시공일 없음', 'rel': '', 'state': 'none', 'more': 0, 'prev': '', 'day': None}
-    rel, state = _rel(day, today)
-    return {'md': _md(day), 'rel': rel, 'state': state, 'more': more, 'prev': _prev_date(row), 'day': day}
+    """① 시공일 칸 — ``{md, rel, state, more, prev, day, mark}``. 시공일이 없으면 md 가 '시공일 없음'(빈칸 아님).
+
+    md · rel · 외 n = 진짜 시공일(줄 표 "시공 11/28" 과 같은 날). ``day`` = 늦음 색 · 마우스 글의 기준 날 = 행의 기준 출고일
+    (``ship_dates.row_due`` — 띠 · 장과 같은 날, 사장님 2026-11-25 "출고 일정 = 제작 일정"). ``mark`` = 상차 예정일 · 희망일로
+    놓인 주문의 '상차 12/1' · '희망일 12/3'(행의 ``ship_mark``, 없으면 None).
+    """
+    build, more = _due_day(row, today)
+    mark = row.get('ship_mark')
+    if build is None:
+        return {'md': '시공일 없음', 'rel': '', 'state': 'none', 'more': 0, 'prev': '', 'day': row_due(row), 'mark': mark}
+    rel, state = _rel(build, today)
+    return {'md': _md(build), 'rel': rel, 'state': state, 'more': more, 'prev': _prev_date(row), 'day': row_due(row),
+            'mark': mark}
 
 
 def _step_cells(row: dict[str, Any]) -> list[dict[str, Any]]:
@@ -205,7 +204,7 @@ def attach_pc_rows(rows: list[dict[str, Any]], today: datetime.date) -> None:
 
 
 def pc_row_view(order_id: int, sd: dict[str, Any], construction_date: Any, marks: list[Any], run_started_at: Any,
-                has_run: bool, today: datetime.date) -> dict[str, Any]:
+                has_run: bool, today: datetime.date, *, ship: dict[str, Any] | None = None) -> dict[str, Any]:
     """도면 목록 창에서 체크한 뒤 그 줄의 공정 칸 · 상태 칸을 다시 그릴 행 — 첫 화면과 같은 함수로(쿼리 0).
 
     생산 단계 주문 한 건의 행을 첫 화면(:func:`~foms.services.production_home_read_model.build_production_home`)과 같은
@@ -220,6 +219,7 @@ def pc_row_view(order_id: int, sd: dict[str, Any], construction_date: Any, marks
         run_started_at: 지금 회차 시작 시각(없으면 None).
         has_run: 지금 회차가 있는지.
         today: KST 오늘.
+        ship: 출고 칸(``ship_dates.ship_fields(order, today)``) — 첫 화면 줄과 같은 기준 출고일로 늦음을 센다.
     """
     production = sd.get('production') if isinstance(sd.get('production'), dict) else {}
     hold = production.get('hold') if isinstance(production.get('hold'), dict) else {}
@@ -228,7 +228,7 @@ def pc_row_view(order_id: int, sd: dict[str, Any], construction_date: Any, marks
     row: dict[str, Any] = {
         'id': order_id, 'structured_data': sd, 'construction_date': construction_date, 'hold_active': bool(hold.get('active')),
         'home_steps': steps, 'home_has_run': has_run, 'run_started_at': run_started_at, 'home_stage': big,
-        'home_stage_sub': sub, 'home_view': view, 'home_alerts': [],
+        'home_stage_sub': sub, 'home_view': view, 'home_alerts': [], **(ship or {}),
     }
     attach_part_holders([row], {order_id: list(marks)}, today)
     attach_pc_rows([row], today)

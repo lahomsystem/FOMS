@@ -44,8 +44,9 @@ def _login(client) -> User:
 
 
 def _seed_order(idx: int) -> int:
-    """생산 단계 주문 1건 — 확정 도면 2장, 짝수는 제작 회차까지(제작 대기 · 만드는 중 섞기)."""
-    day = (get_today_kst() + datetime.timedelta(days=idx % 5)).isoformat()
+    """생산 단계 주문 1건 — 확정 도면 2장, 짝수는 제작 회차까지(제작 대기 · 만드는 중 섞기). 시공일 = 내일 ~ 닷새 뒤
+    (``idx % 5 == 0`` 은 내일 = 처음 여는 장 — 띠의 날 줄은 내일부터, 사장님 2026-11-25)."""
+    day = (get_today_kst() + datetime.timedelta(days=1 + idx % 5)).isoformat()
     sd = {
         "workflow": {"stage": "PRODUCTION"},
         "parties": {"customer": {"name": f"첫화면{idx}", "phone": f"010-3000-{idx:04d}"}},
@@ -75,8 +76,8 @@ WAIT_KINDS = ("drawing_owner", "drawing_none", "confirm")
 
 
 def _seed_wait(idx: int, kind: str) -> int:
-    """안 내려온 주문 1건 — 오늘 · 내일 시공(장에 기다림 칸으로 선다)."""
-    day = (get_today_kst() + datetime.timedelta(days=idx % 2)).isoformat()
+    """안 내려온 주문 1건 — 내일 · 모레 시공(장에 기다림 칸으로 선다)."""
+    day = (get_today_kst() + datetime.timedelta(days=1 + idx % 2)).isoformat()
     stage = "CONFIRM" if kind == "confirm" else "DRAWING"
     sd = {
         "workflow": {"stage": stage},
@@ -135,7 +136,7 @@ def test_production_home_query_count_does_not_grow_with_orders(client):
     _seed_waits(510, 3)  # 기다림 3 → 12건
     resp_big, q_big = _count_queries(lambda: client.get(HOME_URL))
     assert resp_big.status_code == 200
-    # 그날 장은 그날 주문만(2026-11-22 §5-2 — 미리 보기 없음): 오늘 시공(idx % 5 == 0)인 새 주문이 장에 섰다
+    # 그날 장은 그날 주문만(2026-11-22 §5-2 — 미리 보기 없음): 내일 시공(idx % 5 == 0)인 새 주문이 장에 섰다
     assert "첫화면105" in resp_big.get_data(as_text=True)
 
     big_html = resp_big.get_data(as_text=True)
@@ -168,14 +169,14 @@ def test_production_home_part_screen_adds_one_query_only(client, monkeypatch):
     _seed_waits(520, 1)
     assert client.get(HOME_URL).status_code == 200
     resp_small, q_small = _count_queries(lambda: client.get(HOME_URL))
-    # 카드가 실제로 섰다(빈 판 재기 방지). 첫 응답은 고른 날(오늘) 장만 그린다(11-14) — 오늘 주문 1건 = 2장
+    # 카드가 실제로 섰다(빈 판 재기 방지). 첫 응답은 고른 날(내일) 장만 그린다(11-14) — 내일 주문 1건 = 2장
     assert resp_small.get_data(as_text=True).count("data-pp-card ") == 2
 
     for i in range(200, 208):
         _seed_order(i)
     _seed_waits(530, 3)
     resp_big, q_big = _count_queries(lambda: client.get(HOME_URL))
-    assert resp_big.get_data(as_text=True).count("data-pp-card ") == 6  # 오늘 3건 = 6장
+    assert resp_big.get_data(as_text=True).count("data-pp-card ") == 6  # 내일 3건 = 6장
 
     assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
     assert q_big <= ABS_QUERY_CAP + PART_SCREEN_EXTRA_QUERIES, f"파트 화면 쿼리 상한 넘음: big={q_big}"

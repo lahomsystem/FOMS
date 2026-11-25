@@ -312,6 +312,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
         "order_id": order_id, "customer_name": row.get("customer_name") or "-", "has_changes": bool(row.get("has_changes")),
         # 시공일 표(home_date_macros.fph_due) — 행이 이미 가진 값 그대로(새 읽기 없음, 사용자 11-21 "아주 중요한 정보")
         "day_label": row.get("day_label") or "", "day_sub": row.get("day_sub") or "", "day_is_today": bool(row.get("day_is_today")),
+        "ship_mark": row.get("ship_mark"),  # 상차 · 희망일 표(사장님 2026-11-25) — 시공일 표 옆
         "key": key, "filename": entry.get("filename") or "", "view_url": entry.get("view_url") or "",
         "is_image": is_part_thumb_image(entry),
         "sheet_id": entry.get("sheet_id"), "order_pos": position[0], "no": position[1], "of": position[2],

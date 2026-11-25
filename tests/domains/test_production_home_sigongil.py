@@ -15,7 +15,7 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.production_home_read_model import production_home_day
 from tests.domains.test_production_home import _add_drawing_transfer
 from tests.domains.test_production_home_tabs import HOME, _add_order, _make_user, _pane
-from tests.domains.test_production_parts_screen import _files, _login, _order, _today_pane, _user
+from tests.domains.test_production_parts_screen import _files, _login, _order, _first_pane, _user
 from tests.support.production_home_step_panel_seed import TABLET, add_order, get_html, login, set_cookies
 
 _DUE = re.compile(r'<span class="fph-due([^"]*)" data-foms-home-due>(?:<i>시공</i>)?<b>([^<]+)</b>(?:<small>([^<]+)</small>)?</span>')
@@ -48,8 +48,8 @@ def test_날짜_탭_고른_날_큰_줄과_작은_칸에_시공일이_늘_보이�
     wait = _add_order("DRAWING", "도면집", 0)
     done = _add_order("CONSTRUCTION", "완료집", 0)
     later = _add_order("PRODUCTION", "모레집", 3, with_run=True)
-    key = get_today_kst().isoformat()
-    pane = _pane(client.get(HOME + f"?day={key}").get_data(as_text=True), key)
+    # 오늘 나가는 주문은 '지난 7일' 장에 선다(띠의 날 줄은 내일부터, 사장님 2026-11-25) — 줄의 시공일 표는 그대로 '오늘'
+    pane = _pane(client.get(HOME + "?day=recent").get_data(as_text=True), "recent")
 
     row = _block(pane, f'data-foms-home-dayrow="{today_row.id}">')
     assert _dues(row) == [("is-today", _label(0), "")] and _label(0).startswith("오늘 ")
@@ -141,19 +141,19 @@ def test_도면_카드와_카드_판_작은_칸에_시공일(client, cohort) -> 
     wait = _order("카드도면집", [], stage="DRAWING")
     nodraw = _order("카드빈집", [])
     _login(client, me)
-    pane = _today_pane(get_html(client, HOME))
+    pane = _first_pane(get_html(client, HOME))
     block = pane.split('class="fph-parts"')[1].split('class="fph-pane__now"')[0]
     cards = re.findall(rf'data-pp-card data-order-id="{a.id}".*?</article>', block, re.S)
     assert len(cards) == 2
     for card in cards:
         # 이름 줄(pp-ln) 바로 아래 제 줄 — 품목 줄 폭을 안 뺏는다
         between = _block(card, '<span class="pp-no">', '<span class="fph-dr__pr pp-item">')
-        assert _dues(between) == [("is-today", _label(0), "")]
+        assert _dues(between) == [("", _label(1), "")]
     # 기다림 칸(도면 단계)은 둘째 줄에 막힌 까닭 · 담당(fph_wait, 2026-11-22 §5-3), 생산 단계 '도면 없음' 칸은 그대로(fph_chip)
     for oid, cls, tail in ((wait.id, "fph-wi has-why pp-wait", '<span class="fph-wi__why">'), (nodraw.id, "fph-wi pp-wait", "")):
         chip = re.search(rf'<a class="{cls}" href="[^"]*/{oid}[^"]*">(.*?)</a>', block).group(1)
         small = f"<small>#{oid} · {'붙박이장' if oid == wait.id else '도면 없음'}</small>"
-        assert _dues(chip) == [("is-today", _label(0), "")] and (small + tail in chip if tail else chip.endswith(small))
+        assert _dues(chip) == [("", _label(1), "")] and (small + tail in chip if tail else chip.endswith(small))
 
 
 def test_시공일_표_CSS_는_줄지_않고_글자_손잡이를_따른다() -> None:

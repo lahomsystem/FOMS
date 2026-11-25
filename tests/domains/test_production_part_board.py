@@ -42,7 +42,8 @@ def _files(prefix: str, n: int, *, sheet: bool = False) -> list[dict]:
             for j in range(n)]
 
 
-def _order(name: str, files: list[dict], *, stage: str = "PRODUCTION", day: int = 0, items: list | None = None) -> Order:
+def _order(name: str, files: list[dict], *, stage: str = "PRODUCTION", day: int = 1, items: list | None = None) -> Order:
+    """시공일 = 오늘 + ``day``(기본 내일 — 날짜 탭이 처음 여는 장, 띠의 날 줄은 내일부터, 사장님 2026-11-25)."""
     when = (get_today_kst() + datetime.timedelta(days=day)).isoformat()
     sd = {"workflow": {"stage": stage}, "parties": {"customer": {"name": name}}, "schedule": {"construction": {"date": when}},
           "items": items or [{"product_name": "거실장", "spec_width": "3100"}], "drawing_current_files": files}
@@ -71,7 +72,12 @@ def _board(user: User, part: str | None = None) -> dict:
 
 
 def _today(board: dict) -> dict:
-    return board["panes"][get_today_kst().isoformat()]
+    """처음 여는 장(내일)의 판."""
+    return board["panes"][_tomorrow()]
+
+
+def _tomorrow() -> str:
+    return (get_today_kst() + datetime.timedelta(days=1)).isoformat()
 
 
 def _card(pane: dict, key: str) -> dict:
@@ -207,7 +213,7 @@ def test_cut_puts_unseen_first_then_order_and_sheet_others_keep_order(app):
 
     rows, _stats = build_production_home(db_session, me)
     days = production_home_days(rows, get_today_kst(), None)
-    make_ids = [r["id"] for r in next(p for p in days["panes"] if p["key"] == get_today_kst().isoformat())["make_rows"]]
+    make_ids = [r["id"] for r in next(p for p in days["panes"] if p["key"] == _tomorrow())["make_rows"]]
     pane = _today(build_part_board(db_session, me, days))
     order_of = {oid: pos for pos, oid in enumerate(make_ids)}  # 주문 순서 = 지금 만들 것 줄 순서
     assert all(c["order_pos"] == order_of[c["order_id"]] for c in pane["cards"])

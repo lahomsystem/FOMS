@@ -2,6 +2,7 @@
 
 **일하는 날로 센다**(주말 · 공휴일 뺌, 사장님 2026-11-21). W = 오늘(KST) 다음 날부터 시공일까지의 일하는 날 수 —
 달력은 ``foms/services/common/business_calendar.py`` 한 곳만 쓴다(새 달력 금지). 줄에 쓰는 D-n 글은 달력 날 그대로다.
+여기서 '시공일' 은 행의 **기준 출고일**(``ship_dates.row_due`` — 지방 상차 예정일 · 협력사 희망일 포함, 사장님 2026-11-25)이다.
 
 순수 함수만 둔다(쿼리 0 · 요청 문맥 없음). 숫자 표는 :data:`LATE_THRESHOLDS` 한 곳 — 제안값으로 시작한다(결정 3).
 기준점 = 옛 '생산 D-2' 배지(``foms/services/erp_display.py`` — 영업일 0~2, 제작 대기 늦음 W ≤ 2 와 맞춤).
@@ -20,6 +21,7 @@ from foms.services.common.business_calendar import business_days_between
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import SOON as DEADLINE_SOON
 from foms.services.production.drawing_arrival import deadline_state, drawing_deadline, soon_word
+from foms.services.production.ship_dates import row_due
 
 LATE = 'late'
 TIGHT = 'tight'
@@ -88,17 +90,17 @@ def _parse_day(value: Any) -> datetime.date | None:
 def production_late_level(row: dict[str, Any], today: datetime.date, *, due: Any = None) -> str | None:
     """늦음(``'late'``) · 빠듯(``'tight'``) · 없음(None). 쿼리 0.
 
-    시공일이 오늘보다 앞(지남)인데 제작 완료가 아니면 자리와 상관없이 늦음. 기다림은 도면 마감(늦음 = 지남 · 빠듯 = 오늘 ·
+    기준 출고일이 오늘보다 앞(지남)인데 제작 완료가 아니면 자리와 상관없이 늦음. 기다림은 도면 마감(늦음 = 지남 · 빠듯 = 오늘 ·
     다음 영업일), 그 밖은 W(일하는 날)와 자리 표를 견준다.
 
-    기다림 줄의 기준 시공일은 ``due`` 가 아니라 행의 납작 칸(``construction_date``) — 띠 · 장 · 찾기 묶음이 그 주문을 세는 날과 같다
-    (설계서 2026-11-22-production-drawing-arrival-upgrade §4-6 "띠 · 장 제목 · 칸 · 알림이 한 날을 써야"). PC ① 칸이 여러 시공일
-    주문을 '가장 가까운 날 + 외 n' 으로 보여도(PC 설계서 §6-3 결정 5 — 보이는 날) 기다림 줄 색은 띠와 같은 날로 센다.
+    기다림 줄의 기준 날은 ``due`` 가 아니라 행의 기준 출고일(``ship_dates.row_due`` — 띠 · 장 · 찾기 묶음 · 도면 마감과 같은 날,
+    설계서 2026-11-22-production-drawing-arrival-upgrade §4-6 "띠 · 장 제목 · 칸 · 알림이 한 날을 써야", 사장님 2026-11-25
+    "출고 일정 = 제작 일정").
 
     Args:
         row: 첫 화면 행. ``home_view`` 가 'done'(제작 완료)이면 늘 None.
         today: KST 오늘(``get_today_kst()``).
-        due: 견줄 시공일(여러 시공일 주문의 가장 가까운 날). 없으면 ``row['construction_date']``. 기다림 줄은 쓰지 않는다.
+        due: 견줄 날. 없으면 행의 기준 출고일(``row_due``). 기다림 줄은 쓰지 않는다.
 
     Returns:
         ``'late'`` · ``'tight'`` · None.
@@ -106,7 +108,7 @@ def production_late_level(row: dict[str, Any], today: datetime.date, *, due: Any
     spot, where = late_spot(row)
     if spot == 'wait':
         return _wait_level(row, today)
-    day = _parse_day(due if due is not None else row.get('construction_date'))
+    day = _parse_day(due) if due is not None else row_due(row)
     if day is None or row.get('home_view') == 'done' or row.get('home_stage') == _DONE_STAGE:
         return None
     if day < today:
@@ -121,8 +123,8 @@ def production_late_level(row: dict[str, Any], today: datetime.date, *, due: Any
 
 
 def _wait_deadline(row: dict[str, Any]) -> datetime.date | None:
-    """기다림 줄의 도면 마감 — 행의 납작 칸(§4-6 기준 시공일)에서. 시공일이 없으면 None."""
-    day = _parse_day(row.get('construction_date'))
+    """기다림 줄의 도면 마감 — 행의 기준 출고일(§4-6)에서. 출고일이 없으면 None."""
+    day = row_due(row)
     return drawing_deadline(day) if day is not None else None
 
 
@@ -152,7 +154,7 @@ def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any 
     (``늦음 — 도면 마감 2일 지남`` · ``빠듯 — 도면 마감 내일``) — 막힌 까닭은 ③ 칸 까닭 줄에 한 번만 쓴다
     (사장님 "같은 말은 한 번", 설계서 2026-11-22-production-drawing-arrival-upgrade §7).
     """
-    day = _parse_day(due if due is not None else row.get('construction_date'))
+    day = _parse_day(due) if due is not None else row_due(row)
     if day is None:
         return {'level': None, 'line': '', 'tip': ''}
     work = business_days_between(today, day) if day >= today else None
