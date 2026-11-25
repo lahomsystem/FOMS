@@ -360,7 +360,7 @@ def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
     pane = _pane(html)
     assert html.count('id="foms-part-confirm-modal"') == 1 and '&#34;mode&#34;: &#34;sub&#34;' in html
     assert 'class="pp-parts"' in pane and 'data-pp-act="take"' in pane and 'data-pp-act="join"' not in pane
-    assert "<b>박재단 작업\u00a0중</b>" in pane and 'data-pp-act="done"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료]
+    assert "<b>박재단 작업\u00a0중</b>" in pane and 'data-pp-act="check"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료](대신 완료 check)
     assert "<h1 class=\"foms-prod-home__title\">생산</h1>" in html
     _tablet(client, _user("최보기"))  # 파트도 반장도 아님 = 같은 판을 단추 없이(P1 읽기 전용 모습)
     view = _get(client, HOME + "?tab=parts&part=cut")

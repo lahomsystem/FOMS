@@ -62,20 +62,24 @@ def _member_key(item: dict[str, Any]) -> tuple[Any, Any]:
     return (uid, None) if uid is not None else (None, item.get("name"))
 
 
-def _flipped(before: Iterable[dict[str, Any]], after: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    """이번 쓰기로 완료가 바뀐 사람 — 새로 완료가 찍힌 사람(대신 완료), 없으면 완료가 꺼진 사람(대신 되돌리기)."""
+def _flipped(before: Iterable[dict[str, Any]], after: Iterable[dict[str, Any]], actor_id: Any = None) -> list[dict[str, Any]]:
+    """이번 쓰기로 완료가 바뀐 **남** — 새로 완료가 찍힌 사람(대신 완료), 없으면 완료가 꺼진 사람(대신 되돌리기). 누른 사람 몫(반장이
+    같이 작업자면 [대신 완료] · 대상 없는 되돌리기가 자기 몫도 바꾼다)은 '대신'이 아니라 뺀다."""
     was = {_member_key(m): mc.is_done(m) for m in before}
     now = {_member_key(m): mc.is_done(m) for m in after}
-    finished = [m for m in after if mc.is_done(m) and not was.get(_member_key(m), False)]
-    return finished or [m for m in before if mc.is_done(m) and not now.get(_member_key(m), False)]
+    mine = (actor_id, None) if actor_id is not None else None
+    finished = [m for m in after if mc.is_done(m) and not was.get(_member_key(m), False) and _member_key(m) != mine]
+    return finished or [m for m in before if mc.is_done(m) and not now.get(_member_key(m), False) and _member_key(m) != mine]
 
 
-def _holder_name(before: MarkSnapshot, decision: Optional[MarkDecision], after: list[dict[str, Any]]) -> Optional[str]:
-    """덮어쓰기 이벤트의 '대신' 대상 — 고른 사람(시작 취소 · 바꾸기), 아니면 **이번 쓰기로** 완료가 찍힌 사람(이미 완료한 사람 빼고 —
-    "남은 사람 몫을 한 번에 완료" Q15) · 완료가 꺼진 사람(대신 되돌리기). 이름 줄은 둘까지 + "외 n". 사람 없는 줄은 지금 칸 그대로."""
+def _holder_name(before: MarkSnapshot, decision: Optional[MarkDecision], after: list[dict[str, Any]],
+                 actor_id: Any = None) -> Optional[str]:
+    """덮어쓰기 이벤트의 '대신' 대상 — 고른 사람(시작 취소 · 바꾸기), 아니면 **이번 쓰기로** 완료가 찍힌 남(이미 완료한 사람 · 누른 사람
+    빼고 — "남은 사람 몫을 한 번에 완료" Q15, 바뀐 기록 "박반장 (김재단 대신) 완료") · 완료가 꺼진 남(대신 되돌리기). 이름 줄은 둘까지 +
+    "외 n". 사람 없는 줄은 지금 칸 그대로."""
     if decision is not None and decision.target_name:
         return decision.target_name
-    people = mc.names(_flipped(before.crew, after))
+    people = mc.names(_flipped(before.crew, after, actor_id))
     if people:
         return mc.name_line(people)
     if before.state in (MARK_STATE_DONE, MARK_STATE_BASIC):
@@ -105,7 +109,7 @@ def event_payload(entry: dict[str, Any], before: MarkSnapshot, *, part: str, tar
         name = decision.target_name if decision is not None and decision.target_name else before.picked_by_name
         payload.update(from_user_id=uid, from_name=name)
     if override:  # 반장 · 관리자가 남의 몫을 완료 · 시작 취소 · 되돌리기 — 그 전 담당(되돌리기는 완료한 사람)
-        payload["holder_name"] = _holder_name(before, decision, after)
+        payload["holder_name"] = _holder_name(before, decision, after, getattr(user, "id", None))
     if before.crew or after:
         payload.update(holders_before=_brief(before.crew), holders_after=_brief(after))
     if decision is not None and decision.target_name and action in (ACTION_REMOVE, ACTION_RELEASE, ACTION_TAKEOVER):

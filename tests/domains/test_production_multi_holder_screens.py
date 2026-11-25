@@ -20,9 +20,14 @@ import json
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
+from foms.services.order_event_display import translate_admin_override_gates
+from foms.services.production.late_rule import late_spot
 from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
+from foms.services.production_home_days import _row_bar_kind
+from foms.services.production_home_read_model import production_home_stage, production_home_step_queues
 from tests.domains.test_production_pc_sheet import API, HOME, PC, TABLET, _edit, _login, _order, cohort  # noqa: F401
 from tests.support.production_part_claim_seed import HISTORY, ONE, make_user
 
@@ -212,19 +217,45 @@ def test_date_rows_count_coworkers_in_more_n(client, cohort) -> None:
 # '끝' → '완료'(K4 · 지휘 판결) — 단계 큰 글자 상수 하나 · '내 공정' [재단 완료]
 # --------------------------------------------------------------------------- #
 def test_finished_stage_word_is_one_constant_in_five_places(app) -> None:
+    """단계 큰 글자 "검수 완료"(K4) — 만드는 곳이 그린 값을 견주는 다섯 곳이 모두 '끝난 줄'로 읽는다(그린 값으로 잰다, 11-25 검토 10)."""
     assert PRODUCTION_FINISHED_STAGE == "검수 완료"
-    assert app.jinja_env.globals["PRODUCTION_FINISHED_STAGE"] == PRODUCTION_FINISHED_STAGE  # 매크로 두 곳이 견주는 값
-    for rel in ("foms/services/production_home_read_model.py", "foms/services/production_home_days.py",
-                "foms/services/production/late_rule.py", "templates/production/partials/home_date_macros.html",
-                "templates/production/partials/home_pc_macros.html"):
-        src = (ROOT / rel).read_text(encoding="utf-8")
-        assert "검수 끝" not in src and "PRODUCTION_FINISHED_STAGE" in src, rel
-    # 음성 대조 — 이벤트 이름 · 문장 속 움직임 말은 그대로(§8-3 끝)
-    assert '"STEPS_INCOMPLETE": "검수 끝 전제"' in (ROOT / "foms/services/order_event_display.py").read_text(encoding="utf-8")
-    assert "setStatus('끝냈어요. 다음 공정으로 옮겨요')" in (ROOT / "static/js/production/foms-production-home.js").read_text(encoding="utf-8")
-    assert "끝내면 다음은" in (ROOT / "templates/production/partials/home_step_panel.html").read_text(encoding="utf-8")
-    steps_js = (ROOT / "static/js/production/foms-production-home-steps.js").read_text(encoding="utf-8")
-    assert "(u.name + ' ' + u.label + ' 완료')" in steps_js and "u.label + ' 끝'" not in steps_js  # "{고객} 재단 완료"
+    steps = [{"key": k, "label": label, "done": True, "now": False}
+             for k, label in (("cut", "재단"), ("edge", "엣지"), ("assemble", "조립"), ("inspect", "검수"))]
+    stage, _sub, view = production_home_stage("PRODUCTION", True, steps, False)  # 만드는 곳
+    assert (stage, view) == ("검수 완료", "prod")
+    row = {"id": 7, "home_stage": stage, "home_view": view, "home_steps": steps, "hold_active": False, "home_has_run": True}
+    cutting = {**row, "home_stage": "재단 중", "home_steps": [dict(steps[0], done=False, now=True)] + steps[1:]}
+    assert production_home_step_queues([row, cutting])["finished"] == 1  # ① 첫 화면 '검수 완료' 셈(대조: 재단 중은 안 셈)
+    assert _row_bar_kind(row) == "f" and _row_bar_kind(cutting) == "p"  # ② 날짜 띠 막대 = 완료 색
+    assert late_spot(row) == (None, "제작 완료 전") and late_spot(cutting) == ("early", "재단")  # ③ 늦음 판정 자리
+    with app.test_request_context():
+        pc = str(app.jinja_env.get_template("production/partials/home_pc_macros.html").module.pc_status(row))
+        tab = str(app.jinja_env.get_template("production/partials/home_date_macros.html").module.fph_row(row))
+        pc_cut = str(app.jinja_env.get_template("production/partials/home_pc_macros.html").module.pc_status(cutting))
+    assert pc.startswith('<span class="fpc-st is-f"') and "<b>검수 완료</b>" in pc and 'class="fpc-st is-p"' in pc_cut  # ④ PC 줄
+    assert tab.lstrip().startswith('<a class="fph-dr is-f"') and '<span class="fph-dr__sg">검수 완료' in tab  # ⑤ 태블릿 날짜 줄
+    # 음성 대조 — 이벤트 이름은 그대로(§8-3 끝): 관리자가 건너뛴 검사 이름 글
+    assert translate_admin_override_gates({"gates": ["STEPS_INCOMPLETE"]}) == "검수 끝 전제"
+
+
+def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort, tmp_path) -> None:
+    """'내 공정' — 문장 속 움직임 말("끝내면 다음은" · "끝냈어요")은 그대로, 판 [재단 완료] 뒤 상태 줄은 "{고객} 재단 완료"(K4 · 지휘 판결).
+    서버가 그린 판 · 줄 위에서 JS 를 돌려 상태 줄에 그린 글을 잰다(소스 글자 단언이 아니다)."""
+    from tests.domains.test_production_my_steps_confirm import PC as STEPS_PC, WORDS, _node as steps_node, _seed as steps_seed
+    from tests.support.production_home_step_panel_seed import SHELL, get_html, login as steps_login, pane_html, set_cookies
+
+    drawn, bare, _revising, _held = steps_seed()
+    steps_login(client)
+    set_cookies(client, TABLET)
+    page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
+    assert "끝내면 다음은 <b>" in pane_html(page, drawn.id)  # 판 아래 다음 손님 글 그대로
+    steps_node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 3, "next": bare.id, **WORDS,
+                                "done_status": f"{drawn.customer_name} 재단 완료"})
+    set_cookies(client, STEPS_PC)
+    client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")
+    page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
+    steps_node(tmp_path, page, {"mode": "row", "first": drawn.id, "bare": bare.id, **WORDS,
+                                "done_status": "끝냈어요. 다음 공정으로 옮겨요"})
 
 
 def test_finished_rows_say_inspect_done_and_my_steps_button_says_done(client, cohort) -> None:

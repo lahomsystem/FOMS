@@ -48,7 +48,7 @@ from foms.services.production.factory_scope import board_factory, elsewhere_head
 from foms.services.production.part_card_crew import card_crew
 from foms.services.production.part_card_state import claim_notes, hand_cell, inspect_block, order_block, sort_rank
 from foms.services.production.part_mark_notes import actor_name
-from foms.services.production.part_mark_rules import MarkSnapshot, crew_line, done_line, mark_payload
+from foms.services.production.part_mark_rules import MarkSnapshot, mark_payload
 from foms.services.production_dashboard_display import _production_spec_display
 from models import ProductionPartMark
 
@@ -197,15 +197,21 @@ def card_item_text(sd: dict[str, Any], entry: dict[str, Any], row: dict[str, Any
     return str(row.get("v3_product_label") or ""), str(row.get("v3_spec_display") or "")
 
 
+def _prev_name(snap: MarkSnapshot) -> str:
+    """옛 판 줄의 이름 칸 글(목록에서 — 둘까지 + "외 n", 칸 글이라 '명' 없음): 완료 = 완료한 사람, 그 밖 = 작업하는 사람, 사람 없는 줄 = 한 명짜리 칸."""
+    done = mc.done_names(snap.crew) if snap.seen_key == "done" else []
+    return mc.name_line(done or mc.names(snap.crew)) or (snap.done_by_name or snap.picked_by_name or "").strip()
+
+
 def _prev_word(row: Any) -> str:
-    """옛 판 표시 한 줄의 낱말 — '재단 완료(김재단)' · '기본(박재단)' · '재단 중(이시영 · 김재단)'(이름 줄 — multi-holder Q17 · Q20)."""
+    """옛 판 표시 한 줄의 낱말 — '재단 완료(김재단)' · '기본(박재단)' · '재단 중(이시영 · 김재단 외 1)'(칸 글 — multi-holder Q17 · Q20)."""
     label = PRODUCTION_PART_LABELS.get(str(row.part), "")
     snap = MarkSnapshot.from_row(row)
     if snap.seen_key == "done":
-        return f"{label} 완료({done_line(snap) or '-'})"
+        return f"{label} 완료({_prev_name(snap) or '-'})"
     if snap.seen_key == "basic":
         return f"기본({row.done_by_name or '-'})"
-    return f"{label} 중({crew_line(snap) or '-'})"
+    return f"{label} 중({_prev_name(snap) or '-'})"
 
 
 def replaced_info(order_id: int, entry: dict[str, Any], current_keys: set[str], by_sheet: SheetIndex,
@@ -234,8 +240,8 @@ def replaced_info(order_id: int, entry: dict[str, Any], current_keys: set[str], 
     for row in sorted(old, key=lambda r: (r.updated_at is not None, r.updated_at, getattr(r, "id", None) or 0)):
         if row.state != MARK_STATE_NONE:
             latest[str(row.part)] = row
-    prev = {key: {"state": MarkSnapshot.from_row(r).seen_key, "name": r.done_by_name or r.picked_by_name}
-            for key, r in latest.items()}
+    snaps = {key: MarkSnapshot.from_row(r) for key, r in latest.items()}
+    prev = {key: {"state": s.seen_key, "name": _prev_name(s) or None} for key, s in snaps.items()}
     mine = latest.get(part)
     label = f"바뀐 도면 · 전 판 {_prev_word(mine)}" if mine is not None else "바뀐 도면"
     return {"label": label, "prev": prev}

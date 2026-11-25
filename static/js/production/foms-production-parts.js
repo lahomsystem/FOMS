@@ -142,7 +142,7 @@
     card.setAttribute('data-picked-name', mark.picked_by_name || '');
     card.setAttribute('data-done-name', mark.done_by_name || '');
     card.setAttribute('data-in-need', inNeed ? '1' : '0');
-    card.setAttribute('data-in-done', (finished && (doneMe || !MINE)) || (MINE && st === 'need' && share === 'done') ? '1' : '0');
+    card.setAttribute('data-in-done', (finished && (doneMe || !MINE)) || (st === 'need' && share === 'done') ? '1' : '0'); // 반장 자기 몫 완료도
     if (claim.setMarkAttrs) { claim.setMarkAttrs(card, mark); }
     card.classList.toggle('is-mine', inNeed);
     card.classList.toggle('is-done', finished);

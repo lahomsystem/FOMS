@@ -6,6 +6,7 @@
 //   도면 없는 줄(sheets 0) = 창 없이 바로 POST(지금 그대로).
 // · row(폰 · 세로 · PC 줄 [끝] — foms-production-home.js): 도면 있는 줄 = 같은 창 → [취소] POST 0 · [작업 완료] POST 한 번 + 다시 받기,
 //   도면 없는 줄 = 창 없이 바로 POST.
+// want.done_status 가 있으면 [작업 완료] 뒤 상태 줄 글(판 = "{고객} 재단 완료" · 줄 = "끝냈어요. 다음 공정으로 옮겨요")도 그린 값으로 잰다.
 // 가짜 DOM = production_fake_dom.js.
 'use strict';
 const assert = require('assert');
@@ -123,6 +124,10 @@ async function cancelFlow(btn) {
     await flush(); await flush();
     assert.ok(box.hidden);
     assert.deepStrictEqual(posts(), [stepCall(want.first)], '[작업 완료] = POST 한 번');
+    if (want.done_status) { // 저장 뒤 상태 줄 글(그린 값) — "{고객} 재단 완료"(K4 · 지휘 판결)
+      const span = $('[data-foms-home-status]').querySelector('span');
+      assert.strictEqual(span && span.textContent, want.done_status, $('[data-foms-home-status]').textContent);
+    }
     assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.next}`]);
     assert.strictEqual(gets().length, 0);
     // 셸 조각 교체 = 세 파일이 같은 문서에서 다시 돈다 — 문서 리스너는 한 번 단 그대로, 그래도 새로 연 창의 단추가 먹는다
@@ -165,6 +170,9 @@ async function cancelFlow(btn) {
     await flush(); await flush();
     assert.deepStrictEqual(posts(), [stepCall(want.first)], '[작업 완료] = POST 한 번');
     assert.strictEqual(calls.reload, 1, '줄 · 숫자는 서버가 다시 그린다(지금 줄 [끝] 저장 뒤와 같은 길)');
+    if (want.done_status) { // 저장 뒤 상태 줄 글(그린 값) — 문장 속 움직임 말 "끝냈어요"는 그대로(§8-3 끝)
+      assert.strictEqual($('[data-foms-home-status]').textContent, want.done_status);
+    }
     // 도면 없는 줄 = 창 없이 바로(지금 그대로)
     calls.fetch.length = 0;
     assert.ok(!btnOf(want.bare).hasAttribute('data-foms-sheet-parts'));

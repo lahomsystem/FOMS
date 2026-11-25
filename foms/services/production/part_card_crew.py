@@ -7,7 +7,8 @@
 오기는 응답 표시(``mark``)의 ``holders`` 로 같은 함수(:func:`crew_view`)를 부른다 — 화면 셋이 같은 글을 받는다.
 
 칸 소속(Q12): 파트 계정은 내 몫이 작업 중이면 '작업 필요' 칸, 내 몫을 완료했으면(도면은 "재단 1/2 완료"여도) '완료' 칸. 관리자 ·
-반장 · 보기만은 줄 상태 그대로(작업 필요 = 모두, 완료 = 모두).
+반장 · 보기만은 줄 상태 그대로(작업 필요 = 모두, 완료 = 모두) — 다만 반장 · 관리자가 같이 작업해 자기 몫을 완료한 "1/2 완료" 장은
+'완료' 칸에도 든다(자기 몫 [되돌리기] 줄 — 파트 계정과 같은 자리, 11-25 판결).
 """
 
 from __future__ import annotations
@@ -41,17 +42,14 @@ def _line(people: Iterable[Any]) -> str:
     return mc.name_line(str(p or "").strip() for p in people)
 
 
-def sentence_line(people: Iterable[Any]) -> str:
-    """문장 속 이름 줄 — :func:`~mark_crew.name_line` 에 "외 n" 이 붙으면 "외 n명"(토씨가 바로 붙는 자리, Q20). 칸 글은 :func:`_line`."""
-    names = [str(p or "").strip() for p in people]
-    names = [n for n in names if n]
-    line = mc.name_line(names)
-    return f"{line}명" if len(names) > mc.NAME_LINE_LIMIT else line
+def _sentence(people: Iterable[Any]) -> str:
+    """문장 속 이름 줄("외 n명" — Q20) = :func:`~foms.services.production.mark_crew.name_sentence` 한 벌(칸 글은 :func:`_line`)."""
+    return mc.name_sentence(str(p or "").strip() for p in people)
 
 
 def _subject(people: Iterable[Any]) -> str:
     """문장 속 이름 줄 + 이/가("이시영 · 김재단 외 2명이")."""
-    return subject_particle(sentence_line(people))
+    return subject_particle(_sentence(people))
 
 
 def _names(rows: list[dict[str, Any]]) -> list[str]:
@@ -107,7 +105,7 @@ def crew_view(holders: Optional[list[dict[str, Any]]], viewer_id: Any, viewer_na
     others = [h for h in rows if h.get("user_id") != viewer_id] if me != mc.SHARE_NONE else rows
     others_done = _done_names(others)
     with_line = _line(h.get("name") for h in others) if me != mc.SHARE_NONE else ""
-    with_words = sentence_line(h.get("name") for h in others) if me != mc.SHARE_NONE else ""
+    with_words = _sentence(h.get("name") for h in others) if me != mc.SHARE_NONE else ""
     others_left = [h.get("name") for h in others if not h.get("done")]
     first = rows[0] if rows else {}
     return {
@@ -115,7 +113,7 @@ def crew_view(holders: Optional[list[dict[str, Any]]], viewer_id: Any, viewer_na
         "head": f"{who.replace(' 외 ', ' 외' + NBSP)} 작업{NBSP}중" if who else "",
         "left": _line(h.get("name") for h in rows if not h.get("done")),
         "others_left": _line(others_left), "done": _line(_done_names(rows)), "with": with_line,
-        "tag": (f"{sentence_line(others_done)} 완료" if others_done else f"{with_particle(with_words)} 같이" if with_words else "")
+        "tag": (f"{_sentence(others_done)} 완료" if others_done else f"{with_particle(with_words)} 같이" if with_words else "")
         if me == mc.SHARE_HELD else "",
         "who_subj": _subject(_names(rows)), "done_subj": _subject(_done_names(rows)), "others_left_subj": _subject(others_left),
         "join": _line([*_names(rows), viewer_name]) if me == mc.SHARE_NONE and viewer_name else who,
@@ -162,8 +160,8 @@ def card_crew(snap: MarkSnapshot, state: str, ctx: dict[str, Any]) -> dict[str, 
         "badge": badge,
         "in_need": state == "need" and (held or not mine),
         "in_done": (finished and (done_by_me or not mine)) or (state == "hand" and not mine)
-        or (state == "need" and mine and share == mc.SHARE_DONE),
+        or (state == "need" and share == mc.SHARE_DONE),
     }
 
 
-__all__ = ["NBSP", "attach_crew", "card_crew", "crew_view", "sentence_line", "with_particle"]
+__all__ = ["NBSP", "attach_crew", "card_crew", "crew_view", "with_particle"]

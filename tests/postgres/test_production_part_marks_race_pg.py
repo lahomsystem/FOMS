@@ -8,6 +8,8 @@
 * 카드 맡기(B) 대 반장 공정 칸 체크(A) — A 는 409 ``PART_USES_CARDS``(카드가 먼저면 칸이 막힌다), 칸은 꺼진 채.
 * 여러 명(2026-11-25 multi-holder §11 PG): 같은 '미정' 도면에 같은 때 [작업 시작](B 먼저) — A 는 200 저절로 같이 작업(``joined_late``),
   목록 [B, A]. [같이 작업](A) 대 마지막 사람의 시작 취소(B) — 잠금 차례대로 A 는 그냥 작업 시작(판결 1), 목록 [A].
+  마지막 두 사람 동시 [완료](B 먼저) — A 는 B 의 완료 위에 내 몫을 더해 DONE. 본인 [완료](B) 대 반장 [대신 완료](A ``check``) — A 는
+  남은 사람 몫만 반장 이름으로(B 본인 이름 그대로, 기록 '대신' 대상 = 남은 사람).
 
 음성 대조(``mode="plain"``): 카드 쓰기의 첫 조회를 잠금 대신 일반 조회로 바꾸면 A 가 B 커밋 전 모습으로 판정해 B 의 쓰기를
 덮는다(lost update) — 시나리오가 결함을 실제로 잡는다는 증거다. ``FOMS_TEST_DATABASE_URL`` 미설정이면 레인을 건너뛴다.
@@ -25,7 +27,7 @@ import foms.platform.http as platform_http
 import foms.services.production.part_mark_write as part_mark_write
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.production import mark_crew
-from models import Order, ProductionPartMark, ProductionRun, User
+from models import Order, OrderEvent, ProductionPartMark, ProductionRun, User
 
 _HOLD_SECONDS = 1.0
 _SEQ = [0]
@@ -240,6 +242,78 @@ def test_two_takes_at_once_both_end_up_working(pg_engine, pg_app, monkeypatch, m
     else:  # 음성 대조 — 낡은 '미정' 으로 판정해 새 줄을 넣다가 유일 제약에 걸린다(넘김이 안 일어남)
         assert out["status"] == 409 and out["json"]["data"]["code"] == "MARK_CONFLICT"
         assert _crew(pg_engine, order_id, key) == ("NEED", ["박엣지"])
+
+
+def _seed_two(pg_engine):
+    """첫 장 엣지 = 박엣지 · 김민준이 같이 작업 중(새 코드가 쓰는 꼴 — 목록 + 요약 칸, 둘 다 아직)."""
+    order_id, key, who = _seed(pg_engine, mark_state=None)
+    s = _session(pg_engine)
+    try:
+        at = mark_crew.to_iso(now_utc_naive())
+        crew = [mark_crew.member(who["park"][0], "박엣지", at), mark_crew.member(who["kim"][0], "김민준", at)]
+        s.add(ProductionPartMark(order_id=order_id, drawing_key=key, part="edge", holders=crew, updated_by_user_id=who["kim"][0],
+                                 updated_at=now_utc_naive(), **mark_crew.summarize(crew)))
+        s.commit()
+    finally:
+        s.close()
+    return order_id, key, who
+
+
+def _park_finishes(who):
+    """연결 B = 박엣지가 자기 몫 [엣지 완료](새 코드가 쓰는 꼴)."""
+    def write(s, mark):
+        crew = mark_crew.finish(mark_crew.crew_of(mark), who["park"][0], by_uid=who["park"][0], by_name="박엣지", now=now_utc_naive())
+        for column, value in mark_crew.summarize(crew).items():
+            setattr(mark, column, value)
+        mark.holders, mark.updated_by_user_id, mark.updated_at = crew, who["park"][0], now_utc_naive()
+    return write
+
+
+def _finished_by(pg_engine, order_id, key):
+    s = _session(pg_engine)
+    try:
+        m = s.query(ProductionPartMark).filter_by(order_id=order_id, drawing_key=key, part="edge").one()
+        return m.state, [(item["name"], item["done_name"]) for item in mark_crew.crew_of(m)]
+    finally:
+        s.close()
+
+
+@pytest.mark.parametrize("mode", ["lock", "plain"])
+def test_last_two_finish_at_once_both_count(pg_engine, pg_app, monkeypatch, mode):
+    """마지막 두 사람이 같은 때 [엣지 완료](B 박엣지 먼저) — A(김민준)는 잠금 아래 B 의 결과 위에서 내 몫을 더해 도면이 완료(DONE)."""
+    order_id, key, who = _seed_two(pg_engine)
+    a_read = _arm_plain(monkeypatch, mode)
+    out = _race(pg_engine, pg_app, order_id, key, _park_finishes(who), who["kim"], "/api/production/part-marks",
+                {"order_id": order_id, "drawing_key": key, "part": "edge", "action": "done", "seen": "need", "seen_me": "held"}, a_read)
+    assert out["status"] == 200, out["json"]
+    if mode == "lock":
+        assert out["json"]["data"]["mark"]["state"] == "done"
+        assert _finished_by(pg_engine, order_id, key) == ("DONE", [("박엣지", "박엣지"), ("김민준", "김민준")])
+    else:  # 음성 대조 — 낡은 '둘 다 아직' 으로 판정해 박엣지 완료를 덮는다(도면이 1/2 완료로 남음)
+        assert _finished_by(pg_engine, order_id, key) == ("NEED", [("박엣지", None), ("김민준", "김민준")])
+
+
+@pytest.mark.parametrize("mode", ["lock", "plain"])
+def test_proxy_finish_versus_own_finish(pg_engine, pg_app, monkeypatch, mode):
+    """본인 [엣지 완료](B 박엣지 먼저) 대 반장 [대신 완료](A — ``check``) — A 는 남은 사람(김민준) 몫만 반장 이름으로, 박엣지 몫은 본인 이름 그대로."""
+    order_id, key, who = _seed_two(pg_engine)
+    a_read = _arm_plain(monkeypatch, mode)
+    out = _race(pg_engine, pg_app, order_id, key, _park_finishes(who), who["foreman"], "/api/production/part-marks",
+                {"order_id": order_id, "drawing_key": key, "part": "edge", "action": "check", "seen": "need", "seen_me": "none"},
+                a_read)
+    assert out["status"] == 200, out["json"]
+    if mode == "lock":
+        assert (out["json"]["data"]["proxied"], out["json"]["data"]["mark"]["state"]) == (True, "done")
+        assert _finished_by(pg_engine, order_id, key) == ("DONE", [("박엣지", "박엣지"), ("김민준", "박반장")])
+        s = _session(pg_engine)
+        try:
+            payload = s.query(OrderEvent).filter_by(order_id=order_id, event_type="PRODUCTION_PART_MARKED").order_by(
+                OrderEvent.id.desc()).first().payload
+            assert payload["holder_name"] == "김민준"  # 바뀐 기록 '대신' 대상 = 대신 완료된 남만
+        finally:
+            s.close()
+    else:  # 음성 대조 — 낡은 모습으로 둘 다 반장 이름으로 덮는다(박엣지 본인 완료가 사라짐)
+        assert _finished_by(pg_engine, order_id, key) == ("DONE", [("박엣지", "박반장"), ("김민준", "박반장")])
 
 
 def test_join_while_last_person_releases_becomes_plain_take(pg_engine, pg_app):
