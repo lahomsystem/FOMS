@@ -96,7 +96,7 @@ def test_card_part_three_of_five_hand_check_is_refused_without_writing(client):
     resp = check_step(client, order.id, "cut", True)
     body = resp.get_json()
     assert resp.status_code == 409 and body["success"] is False
-    assert body["error"] == "도면 2장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
+    assert body["error"] == "도면 2장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
     assert body["data"] == {"code": "PART_USES_CARDS", "part": "cut", "left": 2, "total": 5}
     assert step(order.id, "cut")["done"] is False and fresh(order.id).mutation_version == version
     assert len(events(order.id, "PRODUCTION_STEP_CHECKED")) == step_events
@@ -105,7 +105,7 @@ def test_card_part_three_of_five_hand_check_is_refused_without_writing(client):
     assert got["parts"]["cut"] == {"uses_cards": True, "done": False, "done_n": 3, "total_n": 5, "via": None, "left_n": 2}
     blocked = client.post(f"/api/orders/{order.id}/production/complete", json={})
     assert blocked.status_code == 409
-    assert blocked.get_json()["message"] == "아직 미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"
+    assert blocked.get_json()["message"] == "미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"
 
 
 def test_card_part_all_done_step_cannot_be_turned_off_by_hand(client):

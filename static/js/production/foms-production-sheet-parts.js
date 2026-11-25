@@ -10,7 +10,7 @@
  *    고치는 중이라 빼요."(뒤 문장 = 서버 글 fix.tail). 응답 expanded(막힌 장을 빼고 처리됨)는 그 칸 옆 글을 서버 글(expanded.note)로,
  *    '내 공정' [<공정> 완료] 뒤 알림은 doneText(expanded) — "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."
  *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
- *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "아직 미완료가 있어요 — 재단 1장 · 검수 3장".
+ *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "미완료가 있어요 — 재단 1장 · 검수 3장".
  *    카드를 안 쓴 주문은 null(시트 JS 가 지금 글을 그대로 쓴다).
  *  · [바뀐 기록 보기]: 처음 누를 때 GET /api/production/part-history 한 번, 공정 · 장마다 한 줄. 쓰기 요청은 POST 0(공정 POST 는 시트 JS).
  * 창 겉모양은 공용 사유 시트(foms-reason-sheet.css) — 초점 가두기 · Esc · 닫으면 누른 칸으로 초점. */
@@ -142,7 +142,7 @@
     if (!info.sheets) { return '도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요.'; }
     var left = ORDER.filter(function (k) { return info.parts[k] && !info.parts[k].done; })
       .map(function (k) { return LABELS[k] + ' ' + info.parts[k].left_n + '장'; });
-    return left.length ? '아직 미완료가 있어요 — ' + left.join(' · ') : null;
+    return left.length ? '미완료가 있어요 — ' + left.join(' · ') : null;
   }
   function showWhy(statusEl, text) {
     if (!statusEl) { return; }

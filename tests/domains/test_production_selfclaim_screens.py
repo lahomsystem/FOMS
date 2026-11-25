@@ -251,7 +251,7 @@ def test_작업_시트_카드_진행_글_막힘_글_바뀐_기록_까닭_손_체
     assert '<small class="fpp-note is-miss" data-foms-sheet-step-meta data-foms-sheet-cardnote>도면 3/5 · 2장 미완료 · 바뀜 1</small>' in html
     assert '<p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>' in html
     assert 'data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>' in html
-    assert 'data-foms-sheet-complete-why="아직 미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"' in html
+    assert 'data-foms-sheet-complete-why="미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"' in html
     parts = json.loads(unescape(re.search(r'data-foms-sheet-parts="([^"]+)"', html).group(1)))
     assert parts["sheets"] == 5 and parts["parts"]["cut"]["uses_cards"] and parts["parts"]["cut"]["left_n"] == 2
     assert html.count("data-foms-sheet-confirm ") + html.count("data-foms-sheet-confirm hidden") >= 1

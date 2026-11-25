@@ -155,7 +155,7 @@ def factory_ready(sd: Any, entry: dict[str, Any], marks: Iterable[Any], user: An
 def factory_left_message(factory: int, state: dict[str, Any]) -> str:
     """그 공장에 남은 일 — "2공장에 아직 미완료가 있어요 — 엣지 1장 · 검수 2장"(§4-14 작업 시트 · 공장 완료 거절 글)."""
     left = " · ".join(f"{m['label']} {state['left'].get(m['key'], 0)}장" for m in state["missing_steps"])
-    return f"{factory_label(factory)}에 아직 미완료가 있어요 — {left}"
+    return f"{factory_label(factory)}에 미완료가 있어요 — {left}"
 
 
 def factory_step_fields(sd: Any, marks: Iterable[Any]) -> dict[str, Any]:

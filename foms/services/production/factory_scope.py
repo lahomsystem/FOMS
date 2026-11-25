@@ -114,7 +114,7 @@ def elsewhere_line(part: str, state: str, *, picked: Optional[str], done: Option
 
 
 def elsewhere_info(card: dict[str, Any], part: str, factory: int, row: Any = None) -> dict[str, str]:
-    """카드 한 장의 남의 공장 칸 — 칩 "2공장 작업" · 글 한 줄 · 누르면 뜨는 글.
+    """카드 한 장의 남의 공장 칸 — 칩 "2공장"(글 "박엣지 작업 중" 과 겹말이 안 되게, 생산 비평 C29) · 글 한 줄 · 누르면 뜨는 글.
 
     Args:
         card: 카드 자료(``state`` · 한 명짜리 이름 칸 · ``hand``).
@@ -124,7 +124,7 @@ def elsewhere_info(card: dict[str, Any], part: str, factory: int, row: Any = Non
     crew = mc.crew_of(row) if row is not None else []
     picked = mc.name_line(mc.names(crew)) or card.get("picked_by_name")
     done = mc.name_line(mc.done_names(crew)) or card.get("done_by_name")
-    return {"factory": str(factory), "chip": f"{factory_label(factory)} 작업",
+    return {"factory": str(factory), "chip": factory_label(factory),
             "text": elsewhere_line(part, card["state"], picked=picked, done=done, hand=card.get("hand")),
             "why": other_factory_note(factory)}
 

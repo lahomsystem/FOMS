@@ -103,7 +103,7 @@ def test_gates(client, people):
     res = _api(client, seed.id, 2)  # 2공장 장 네 파트 아직
     body = res.get_json()
     assert res.status_code == 409 and body["data"]["code"] == "FACTORY_NOT_READY"
-    assert body["error"] == "2공장에 아직 미완료가 있어요 — 재단 1장 · 엣지 1장 · 조립 1장 · 검수 1장"
+    assert body["error"] == "2공장에 미완료가 있어요 — 재단 1장 · 엣지 1장 · 조립 1장 · 검수 1장"
     plain = mixed_order(2, f2=())
     res = _api(client, plain.id, 2)
     assert res.status_code == 409 and res.get_json()["data"]["code"] == "NO_FACTORY_SHEETS"
@@ -275,7 +275,7 @@ def test_work_sheet_factory_buttons(client, people):
     # 공장 이름 = 공장 칩(사장님 2026-11-24 식별성 — 거르개 factory_chips), 글은 그대로
     assert f'data-foms-sheet-facline>{F1} 제작 중 · {F2} 제작 중</p>' in html and "foms-factory-chip.css?v=" in html
     assert ('data-foms-sheet-factory="2" data-done="1"' in html and 'aria-disabled="true" data-foms-sheet-factory-why='
-            '"2공장에 아직 미완료가 있어요 — 재단 1장 · 엣지 1장 · 조립 1장 · 검수 1장"' in html)
+            '"2공장에 미완료가 있어요 — 재단 1장 · 엣지 1장 · 조립 1장 · 검수 1장"' in html)
     assert 'data-tablet-sheet-action="production-complete"' not in html  # 1공장이 안 끝났으니 [제작 완료] 없음
     assert "foms-production-sheet-factory.js?v=" in html
     login(client, people["admin"])

@@ -130,11 +130,11 @@ def test_steps_api_carries_factory_readiness_only_for_mixed_orders(client):
     seed = mixed_order(2, f2=(1,), steps_done=("cut", "edge", "assemble"))
     login(client, factory_user("강반장", factory=2, lead=True))
     html = _sheet(client, seed.id)
-    assert 'data-foms-sheet-factory="2" data-done="1"' in html and "2공장에 아직 미완료가 있어요 — 검수 1장" in html  # 회색 + 까닭
+    assert 'data-foms-sheet-factory="2" data-done="1"' in html and "2공장에 미완료가 있어요 — 검수 1장" in html  # 회색 + 까닭
     data = client.post(f"/api/orders/{seed.id}/production/steps", json={"key": "inspect", "done": True}).get_json()["data"]
     assert data["factories"]["2"] == {"ready": True, "why": "", "done": False}
     off = client.post(f"/api/orders/{seed.id}/production/steps", json={"key": "inspect", "done": False}).get_json()["data"]
-    assert off["factories"]["2"]["ready"] is False and off["factories"]["2"]["why"] == "2공장에 아직 미완료가 있어요 — 검수 1장"
+    assert off["factories"]["2"]["ready"] is False and off["factories"]["2"]["why"] == "2공장에 미완료가 있어요 — 검수 1장"
     plain = mixed_order(2, f2=())
     assert "factories" not in client.get(f"/api/orders/{plain.id}/production/steps").get_json()["data"]  # 한 공장 주문 그대로
     js = (ROOT / "static/js/production/foms-production-sheet-factory.js").read_text(encoding="utf-8")

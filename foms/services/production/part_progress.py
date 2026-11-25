@@ -46,7 +46,7 @@ from foms.services.production.steps import (
 #: 검수 앞 파트(§4-7 — 그 장의 이 셋이 완료돼야 검수를 맡는다).
 INSPECT_PREREQ_PARTS: tuple[str, ...] = (PART_CUT, PART_EDGE, PART_ASSEMBLE)
 #: 카드를 쓴 주문의 막힘 글 머리(새 글, §4-3) — 뒤에 "재단 1장 · 검수 3장".
-CARDS_LEFT_MESSAGE = "아직 미완료가 있어요"
+CARDS_LEFT_MESSAGE = "미완료가 있어요"
 #: 카드를 쓴 주문인데 지금 확정 도면이 0장(새 글, §4-3 끝) — 칸이 기준이다.
 NO_DRAWINGS_MESSAGE = "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
 

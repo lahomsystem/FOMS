@@ -34,7 +34,7 @@ def test_파트_계정_기다림_묶음은_카드_위_머리에_마감_칩에_�
     block = _parts_block(_first_pane(_get(client, HOME)))
     assert block.index('class="fph-pane__g pp-wait-g"') < block.index("data-pp-grid")
     head = block.split('class="fph-pane__g pp-wait-g"')[1].split("</h3>")[0]
-    assert '<small><span class="is-late">마감 ' in head and "지났어요</span> · 도면이 오면 카드로 나와요</small>" in head
+    assert '<small><span class="is-late">마감 ' in head and "지났어요</span> · 도면이 오면 여기 나와요</small>" in head
     assert f'<a class="fph-wi has-why pp-wait" href="/erp/production/sheet/{ids["wait"]}">' in block
     assert '<span class="fph-wi__why"><b class="is-none">담당 없음</b></span>' in block
     assert block.count("data-pp-card ") == 5  # 카드는 그대로
