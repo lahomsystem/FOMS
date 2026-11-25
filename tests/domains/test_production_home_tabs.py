@@ -29,7 +29,9 @@ HOME = "/erp/production/home"
 
 
 def _make_user(client, username: str, team: str | None, role: str = "STAFF") -> User:
-    user = User(username=username, password=generate_password_hash("pw"), role=role, team=team, name=username, is_active=True)
+    # 생산팀 = 관리자가 반장으로 지정한 계정(설계서 2026-11-23 '승인 때 고친 것' 5 — 자동 채우기 없음, prodlead_02)
+    user = User(username=username, password=generate_password_hash("pw"), role=role, team=team, name=username, is_active=True,
+                production_lead=True if team == "PRODUCTION" else None)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:
@@ -334,7 +336,7 @@ def test_글자_크기_손잡이를_따라가는_CSS() -> None:
     # 띠가 화면 높이를 쓸 때는 전역 화면 크기 배율로 나눈다
     assert "calc(100dvh / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px))" in css
     # 글자가 커지면 글자가 든 칸 폭도 같이(R8) — 큰 줄 도면 칸 · 내 공정 시공일 칸
-    assert "auto calc(92px * var(--foms-fs, 1))" in css
+    assert "auto calc(108px * var(--foms-fs, 1))" in css  # 섞인 주문 "2공장 12장 완료" 한 줄(2026-11-24)
     assert "calc(150px * var(--foms-fs, 1)) 190px" in css
     # 바뀐 줄은 품목 줄 두 줄까지(S5) — 바뀐 내용이 말줄임에 안 묻힌다
     # 큰 줄 품목·치수 글은 모두 두 줄까지(S5 · M3) — 바뀐 줄 전용 규칙은 없다

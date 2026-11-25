@@ -21,9 +21,13 @@
   {% if d.make_rows %}
   <h3 class="fph-pane__g">만들 것 {{ d.make }}</h3>
   {% for r in d.make_rows %}{{ fph_row(r) }}{% endfor %}
+  {% endif %}{% if d.elsewhere_rows %}{# 2공장: 한 공장 계정에게 남의 공장 장만 있는 줄 — 만들 것 묶음 끝 작은 머리 아래(설계서 2026-11-23 §4-13) #}
+  {% if not d.make_rows %}<h3 class="fph-pane__g">만들 것 {{ d.make }}</h3>
+  {% endif %}<h3 class="fph-pane__g is-elsewhere">{{ d.elsewhere_rows[0].fac_elsewhere | factory_chips }} 작업 <small>{{ d.elsewhere_rows | length }}건</small></h3>
+  {% for r in d.elsewhere_rows %}{{ fph_row(r) }}{% endfor %}
   {% endif %}
   {% if d.done_rows %}
   <h3 class="fph-pane__g">제작 완료 {{ d.done_rows | length }} <small>시공 대기</small></h3>
-  <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true) }}{% endfor %}</div>
+  <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true, '', (r.fac_done | factory_chips) if r.fac_done else none) }}{% endfor %}</div>
   {% endif %}
 {% if part_board %}</div>{% endif %}{% endif %}</section>

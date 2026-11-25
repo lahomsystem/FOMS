@@ -4,7 +4,8 @@
  * 링크 · 셸 조각 교체가 옮기고, 여기서는 누르는 즉시 켜짐 표시만 먼저 바꾼다.
  * 전체 주문: 날짜 묶음 접기/펴기·보기 칸·찾기(보이기/숨기기만, 새 요청 없음). 접기/펴기는 모바일 실측 탭
  * (measurement/mobile-glance-tabs.js)과 같은 말: is-closed · aria-expanded · 모두 펼치기/접기.
- * 내 공정: 공정 탭(마지막 탭은 이 브라우저에 기억) · [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true}.
+ * 내 공정: 공정 탭(마지막 탭은 이 브라우저에 기억) · [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true}
+ * (도면 있는 주문만 먼저 한 번 묻기, 2026-11-25).
  * 바뀐 것의 [확인했어요] 는 tablet-domain-sheets.js(change-ack) 몫. 실패 글은 설계서 §8 한 가지.
  * 셸 조각 교체(레일 · 아래 메뉴, 11-14)로 다시 실행된다: 같은 화면에는 한 번만 묶고(data-foms-home-bound), 창 리스너 ·
  * 1분 타이머는 window.__FOMS_PROD_HOME 로 한 번만 달아 그때그때 지금 화면의 함수(G.api)를 부른다. */
@@ -123,8 +124,33 @@
       });
     }).catch(function () { return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT }; });
   }
+  // [<공정> 끝]: 확정 도면이 있는 주문만 먼저 한 번 묻는다(사장님 2026-11-25) — 작업 시트와 같은 창 · 글 · 판정(sheet-parts.js
+  // beforeToggle, 자료 = 서버가 단추에 실은 data-foms-sheet-parts). 도면 없는 주문 · 그 파일이 없는 화면은 지금처럼 바로 저장.
+  var asking = false;
   function finishStep(btn) {
-    if (btn.disabled) { return; }
+    if (btn.disabled || asking) { return; }
+    var sp = window.FomsSheetParts;
+    if (!sp || !btn.hasAttribute('data-foms-sheet-parts')) { saveStep(btn); return; }
+    asking = true;
+    sp.beforeToggle(btn, btn, true, function () { asking = false; if (document.contains(btn)) { saveStep(btn); } },
+      function () { asking = false; });
+  }
+  // 풀어 쓴 [끝] 알림 — '내 공정' 판 [되돌리기] 알림과 같은 시계(8초)로 지운다(그사이 다른 글이 왔으면 그대로, 둘째 판 2)
+  var NOTICE_MS = 8000;
+  function notice(text) {
+    setStatus(text);
+    window.setTimeout(function () { if (statusEl && statusEl.textContent === text) { setStatus(''); } }, NOTICE_MS);
+  }
+  // 남은 장이 고치는 도면뿐 — 서버가 다시 그릴 모습과 같게 [끝] 자리에 막힘 글(통째 '도면 고치는 중'과 같은 자리 · 꼴, 판결 D)
+  function holdInPlace(btn, text) {
+    var span = document.createElement('span');
+    span.className = btn.classList.contains('fpc-done') ? 'fpc-hold' : 'fph-qr__hold';
+    span.textContent = text || '';
+    btn.parentNode.replaceChild(span, btn);
+    var row = span.closest('[data-foms-home-qrow]');
+    if (row) { row.classList.add('is-revise'); }
+  }
+  function saveStep(btn) {
     var orderId = btn.getAttribute('data-order-id');
     var key = btn.getAttribute('data-step-key');
     btn.disabled = true;
@@ -136,6 +162,9 @@
           setStatus(result.kind === 'network' || result.status === 0 ? OFFLINE_TEXT : ('오류: ' + (result.message || '처리하지 못했어요')), true);
           return;
         }
+        var ex = ((result.data || {}).data || {}).expanded; // 막힌 도면을 빼고 처리됨(판결 B) — 알림 글 · 줄은 그 자리 그대로
+        var sp = window.FomsSheetParts;
+        if (ex && sp && sp.doneText) { notice(sp.doneText(ex)); holdInPlace(btn, ex.hold); return; }
         setStatus('끝냈어요. 다음 공정으로 옮겨요');
         window.location.reload(); // 줄·숫자는 서버가 다시 그린다(탭은 기억됨)
       });

@@ -51,7 +51,7 @@ def _login(client, who: str) -> User:
     team, role = {"admin": ("CS", "ADMIN"), "prod": ("PRODUCTION", "STAFF"), "cs": ("CS", "STAFF"),
                   "sales": ("SALES", "STAFF"), "drawing": ("DRAWING", "STAFF")}[who]
     user = User(username=f"pcv_{who}_{next(_seq)}", password=generate_password_hash("pw"), role=role, team=team,
-                name=f"{who}사람", is_active=True)
+                name=f"{who}사람", is_active=True, production_lead=True if who == "prod" else None)  # 생산팀 = 반장(승인 때 고친 것 5)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:
@@ -119,8 +119,8 @@ class _Req:
 
 
 class _U:
-    def __init__(self, role="STAFF", team=None, partner_org_id=None):
-        self.role, self.team, self.partner_org_id = role, team, partner_org_id
+    def __init__(self, role="STAFF", team=None, partner_org_id=None, production_lead=None):
+        self.role, self.team, self.partner_org_id, self.production_lead = role, team, partner_org_id, production_lead
 
 
 def test_쓰기_팀은_관리자와_생산팀만() -> None:
@@ -132,12 +132,12 @@ def test_쓰기_팀은_관리자와_생산팀만() -> None:
 
 def test_화면_판정_표() -> None:
     now = 1_800_000_000
-    admin, prod, cs = _U("ADMIN", "CS"), _U(team="PRODUCTION"), _U(team="CS")
+    admin, prod, cs = _U("ADMIN", "CS"), _U(team="PRODUCTION", production_lead=True), _U(team="CS")
     fresh = str(now - 60)
     # PC 보기 전용 — 쓰기 없음, [확인했어요]는 보는 사람 모두(§13 결정 5, 기기 무관), [고치기]는 쓰기 팀만
     assert production_screen_flags(admin, _Req(foms_ptr="fine"), now) == {
-        "pc_view": True, "can_act": False, "can_ack": True, "edit_on": False, "edit_toggle": True, "edit_now": now,
-        "write_omitted": False}
+        "pc_view": True, "can_act": False, "can_check_steps": False, "steps_lock_note": "", "can_ack": True, "edit_on": False,
+        "edit_toggle": True, "edit_now": now, "write_omitted": False}
     for ptr in ("fine", "coarse", "", "weird"):
         for user in (cs, _U(team="SALES"), _U(team="DRAWING"), _U(team="SHIPMENT"), prod):
             assert production_screen_flags(user, _Req(foms_ptr=ptr), now)["can_ack"] is True, (ptr, user.team)
@@ -391,6 +391,8 @@ def test_모든_탭의_모든_줄에_시공일_칸(client, cohort) -> None:
 
 
 def test_공정_칸_누가_언제는_PC_에만(client, cohort) -> None:
+    """2026-11-23 설계서 §4-10 B8 로 바뀐 결정: 공정 칸 아래 이름(완료한 사람 · 담당 · 미정)은 태블릿 날짜 장에도 선다 — 단 태블릿은
+    이름만(시각 · 마우스 글 data-tip 없음). 누가 · **언제**(마우스 글)는 PC 에만 그대로."""
     orders = _seed()
     _login(client, "prod")
     set_cookies(client, PC)
@@ -399,12 +401,20 @@ def test_공정_칸_누가_언제는_PC_에만(client, cohort) -> None:
     row = pane.split(f'data-foms-home-dayrow="{orders["edge"].id}"', 1)[1].split('<div class="fpc-r', 1)[0]
     # 시드: 재단 김재단 2026-11-21T00:12Z = KST 11/21 09:12, 회차 시작 2026-11-20 23:40Z = KST 11/21 08:40
     assert 'data-tip="재단 끝 · 김재단 · 11/21 09:12" tabindex="0" aria-label="재단 끝 · 김재단 · 11/21 09:12"' in row
-    assert '<span class="fpc-s__m">김재단 11/21</span>' in row
-    assert 'data-tip="엣지 · 지금 여기(아직)"' in row and 'data-tip="조립 · 아직"' in row
+    # 칸 둘째 줄(has-hd, 늘 보임) = 날짜 줄 칸 아래 값 · 완료 칸 날짜는 아주 넓은 화면만(예전 "김재단 11/21", pc.css .fpc-s__at)
+    assert '<span class="fpc-steps has-hd" aria-label="공정">' in row
+    assert '<span class="fpc-s__m"><b>김재단</b><small class="fpc-s__at">11/21</small></span>' in row
+    assert row.count('<span class="fpc-s__m is-none"><b>미정</b></span>') == 3
+    assert 'data-tip="엣지 · 지금 여기(아직)"' in row and 'data-tip="조립 · 아직"' in row  # 카드를 안 쓴 칸의 마우스 글은 그대로
     assert 'data-tip="제작 시작 11/21 08:40"' in row
     set_cookies(client, TABLET)
     tablet = get_html(client, HOME + f"?view=day&day={key}")
-    assert "data-tip=" not in tablet and "김재단" not in tablet
+    trow = tablet.split(f'data-foms-home-dayrow="{orders["edge"].id}"', 1)[1].split("</a>", 1)[0]
+    assert "data-tip=" not in tablet and "11/21 09:12" not in tablet  # 태블릿 = 이름만, 시각 · 마우스 글 없음
+    assert '<span class="fph-dr__steps has-hd" aria-label="공정">' in trow
+    assert '<small class="fph-dr__hd is-done" aria-hidden="true"><b>김재단</b></small>' in trow
+    assert trow.count('<small class="fph-dr__hd is-none" aria-hidden="true"><b>미정</b></small>') == 3
+    assert 'title="재단 완료 · 김재단"' in trow and '<span class="visually-hidden">, 엣지 · 담당 미정</span>' in trow
 
 
 def test_늦은_줄은_띠와_까닭_한_줄(client, cohort) -> None:
@@ -441,7 +451,7 @@ def test_pc_css_는_PC_응답에서만_싣고_글자는_배율을_따른다() ->
     assert ".fpc-r.is-late, .fpc-q.is-late { background: var(--fpc-danger-50); border-color: var(--fpc-danger-line); box-shadow: inset 6px 0 0 var(--fpc-danger); }" in css
     assert ".fpc-r.is-tight, .fpc-q.is-tight { background: var(--fpc-warn-50); border-color: var(--fpc-warn-soft); box-shadow: inset 6px 0 0 var(--fpc-warn-line); }" in css
     # 여섯 칸 = 목업 값, 아주 넓은 칸(1,500px)은 공정이 더 갖고 칸 안 글
-    assert "grid-template-columns: 8.5rem 7rem minmax(14rem, 1.3fr) minmax(19rem, 2fr) minmax(7.5rem, .8fr) 5rem;" in css
+    assert "grid-template-columns: 8.5rem 7rem minmax(14rem, 1.3fr) minmax(19rem, 2fr) minmax(7.5rem, .8fr) 6.75rem;" in css  # 도면 칸 108px × 배율(11-24)
     assert "@container fpc (min-width: 1500px)" in css and ".fpc-s__m { display: block; }" in css
     users = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "templates").rglob("*.html")
                    if "production/pc.css" in p.read_text(encoding="utf-8"))
@@ -486,4 +496,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261122v" in (ROOT / tpl).read_text(encoding="utf-8"), tpl
+        assert "pc.css') }}?v=20261124h" in (ROOT / tpl).read_text(encoding="utf-8"), tpl  # 2026-11-24 도면 목록 창(둘째 판) · 공장 칩이 올림

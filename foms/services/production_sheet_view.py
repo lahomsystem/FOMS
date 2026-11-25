@@ -17,6 +17,10 @@ from foms.services.erp_template_filters import eval_spec_width_mm, item_spec_w30
 from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.construction_dates import production_split_note
 from foms.services.orders.drawing_confirm_partial import active_items
+from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
+from foms.services.orders.drawing_fix import confirm_extras
+from foms.services.production.factory_constants import FACTORY_2, factory_label
+from foms.services.production.factory_home import factory_sheet_view
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import (
     _ensure_dict,
@@ -41,8 +45,10 @@ from foms.services.production_home_read_model import (
     production_home_stage,
     production_home_steps,
 )
-from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
-from foms.services.production.steps import production_complete_ready
+from foms.services.production.part_access import steps_lock
+from foms.services.production.part_marks_query import order_marks
+from foms.services.production.part_progress import complete_ready, parts_progress
+from foms.services.production.sheet_parts import sheet_part_extras
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
@@ -142,20 +148,27 @@ def _prod_sheet_drawing_thumb(sd: dict[str, Any]) -> dict[str, str] | None:
 
 
 def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
-    """도면 전달본 **전체**(저장 순서 = 도면 번호). 이미지는 kind 'image', 그 밖(PDF 등)은 'file'."""
+    """도면 전달본 **전체**(저장 순서 = 도면 번호). 이미지는 kind 'image', 그 밖(PDF 등)은 'file'.
+
+    섞인 주문(2공장 장이 있는 주문, 설계서 2026-11-23 §8-3)은 2공장 장에 ``fac`` = "2공장"(목록 칩) — 1공장 장 · 한 공장 주문은 칸 없음.
+    """
     out: list[dict[str, str]] = []
+    mixed = has_second_factory(sd)
     for f in resolve_final_drawing_files(sd):
         view = (f.get('view_url') or '').strip()
         if not view:
             continue
         name = f.get('filename') or '도면'
-        out.append({
+        item = {
             'kind': 'image' if name.lower().endswith(_PROD_SHEET_IMG_EXT) else 'file',
             'view': view,  # 큰 그림 · 눌러 크게 보기 = 원본
             'thumb': _small_drawing_url(f, view),  # 작은 줄만
             'download': (f.get('download_url') or view).strip(),
             'label': name,
-        })
+        }
+        if mixed and sheet_factory(sd, f) == FACTORY_2:
+            item['fac'] = factory_label(FACTORY_2)
+        out.append(item)
     return out
 
 
@@ -185,7 +198,8 @@ def _worker_names(sd: dict[str, Any]) -> list[str]:
     return names
 
 
-def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: Any, stage_label: str) -> dict[str, Any]:
+def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: Any, stage_label: str,
+                       marks: list[Any]) -> dict[str, Any]:
     customer = (sd.get('parties') or {}).get('customer') or {}
     orderer = (sd.get('parties') or {}).get('orderer') or {}
     site = sd.get('site') or {}
@@ -217,8 +231,13 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
         'drawing_files': _prod_sheet_drawing_files(sd),
         'steps': steps,
         'steps_done': sum(1 for s in steps if s['done']),
-        # [제작 완료] 를 누를 수 있는지(검수까지 끝남) — 제작 완료 API 와 같은 한 함수(서버 · 화면 같은 규칙, 11-21)
-        'complete_ready': production_complete_ready(sd),
+        # [제작 완료] 를 누를 수 있는지(검수까지 끝남) — 제작 완료 API 와 같은 한 함수(서버 · 화면 같은 규칙, 11-21).
+        # 카드를 쓴 주문은 표시 줄로 판정한다(2026-11-23 §4-3) — 공정 칸 옆 "카드 3/5" · 손 체크 확인 창 장 수도 같은 값.
+        'complete_ready': complete_ready(sd, marks),
+        'final_sheet_count': len(resolve_final_drawing_files(sd)),
+        'part_progress': parts_progress(sd, marks),
+        # 공정 칸 옆 "카드 3/5 · 2장 미완료" · [제작 완료] 까닭 · 바뀐 기록 번호(카드를 쓴 주문만 — 그 밖은 지금 글 그대로)
+        **sheet_part_extras(sd, marks),
         'latest_defect': {
             'reason': str(latest.get('reason') or ''),
             'meta': ' '.join(p for p in (str(latest.get('by_name') or '').strip(), _format_at_kst(latest.get('at'))) if p),
@@ -244,6 +263,7 @@ def _drawing_wait(db: Any, order: Order, sd: dict[str, Any], today: datetime.dat
 def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool = False,
                                 today: datetime.date | None = None) -> dict[str, Any]:
     """작업 시트 뷰 모델. 쿼리: current run 1 + 도면 게이트 + 변경 알림(OrderEvent IN) — 옆 시트와 같다.
+    ``full`` 이면 그 주문 표시 줄 +1(카드를 쓴 주문의 완료 판정 · 파트 진행, 설계서 2026-11-23 §4-3).
 
     Args:
         db: 세션. order: 이미 읽은 ``Order``. user: 보는 사람(변경 알림 ack 판정).
@@ -291,8 +311,14 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
     sheet['change_history'] = _sc['history']
     sheet['has_change_history'] = bool(_sc['history'])
     if full:
-        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label))
-        # 파트 계정 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 — 공정 API 403 과 같은 판정)
-        sheet.update(steps_locked=steps_locked_for(user), steps_locked_note=PART_ACCOUNT_STEPS_MESSAGE)
+        marks = order_marks(db, order.id)
+        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, marks))
+        # 2공장(설계서 2026-11-23 §4-14): 섞인 주문만 공장 줄 · 공장 단추(한 공장 주문은 None — 지금 시트 그대로). 같은 표시 줄(쿼리 0)
+        sheet['factory_sheet'] = factory_sheet_view(sd, marks, user, stage_label=stage_label)
+        # 파트 계정 · 파트도 반장도 아닌 생산팀 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 · '승인 때 고친 것' 5 — 공정 API 403 과 같은 판정)
+        lock = steps_lock(user)
+        sheet.update(steps_locked=lock is not None, steps_locked_note=lock.message if lock else '')
+        # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4, 쿼리 0). 없으면 None
+        sheet['fix_confirm'] = confirm_extras(sd).get('fix')
         sheet['dw_wait'] = _drawing_wait(db, order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7 · 알림 켬이면 +1)
     return sheet

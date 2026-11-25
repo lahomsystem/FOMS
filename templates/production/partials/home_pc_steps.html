@@ -12,7 +12,7 @@
 {% for q in queues.queues %}
 <div class="fph-q fpc-qs" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if q.key != _on %} hidden{% endif %}>
   <h3 class="fph-pane__g">{{ q.label }}에 와 있는 것 {{ q.count }}건 <small>시공일 빠른 순</small></h3>
-  {% for r in q.rows %}{{ pc_qrow(r, q, can_act) }}{% else %}
+  {% for r in q.rows %}{{ pc_qrow(r, q, can_check_steps) }}{% else %}
   <p class="foms-prod-home__empty">{{ q.label }}에 와 있는 주문이 없어요.</p>
   {% endfor %}
   {% if q.incoming %}

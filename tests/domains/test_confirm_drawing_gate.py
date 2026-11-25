@@ -198,8 +198,11 @@ def test_production_run_start_passes_when_confirmed_and_admin_can_punch(client):
     assert events[0].payload["drawing_status"] == "TRANSFERRED"
 
 
-def test_production_complete_is_not_blocked_by_revision(client):
-    """이미 만드는 중이면 막지 않는다 — 제작 완료는 RETURNED 여도 그대로(알림형 설계 유지)."""
+def test_production_complete_is_blocked_by_revision(client):
+    """제작 완료는 도면 고치는 중이면 막는다(사장님 2026-11-25 "제작 완료도 막기" — 예전 '알림형 설계 유지'를 바꿈).
+
+    보류와 같은 자리 · 409 ``DRAWING_REVISING`` · 아무것도 안 씀. 자리마다 시험은 ``test_production_revising_blocks_complete.py``.
+    """
     sales, drafter = _pair("pc")
     prod = seed_user("g_prod_pc", team="PRODUCTION")
     oid = seed_erp_order("PRODUCTION", sales=sales, drafter=drafter, **confirmed_drawing_sd())
@@ -214,8 +217,8 @@ def test_production_complete_is_not_blocked_by_revision(client):
 
     resp = client.post(f"/api/orders/{oid}/production/complete", json={})
 
-    assert resp.status_code == 200, resp.get_json()
-    assert reload_order(oid).erp_stage_code == "CONSTRUCTION"
+    assert resp.status_code == 409 and resp.get_json()["code"] == "DRAWING_REVISING", resp.get_json()
+    assert reload_order(oid).erp_stage_code == "PRODUCTION"
 
 
 # --------------------------------------------------------------------------- #

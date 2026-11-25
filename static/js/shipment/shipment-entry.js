@@ -37,7 +37,7 @@
     // 출고 패킹 서랍(카드 [data-foms-packing-trigger]) — 예전엔 온전한 페이지(dashboard.html scripts 블록)만 실어
     // 다른 탭에서 셸 스왑으로 들어오면 단추가 죽었다(2026-11-18). 시공 탭 '출발 전 자재 확인'
     // (construction/partials/dashboard_body.html)과 같은 파일 · 같은 핀 — 둘 다 실려도 __FOMS_PACKING_BOUND 가 두 번째 실행을 막는다.
-    '/static/js/shipment/foms-packing.js?v=20261019a'
+    '/static/js/shipment/foms-packing.js?v=20261125b'
   ];
 
   // 파일마다 로드 Promise 를 기억한다. 실패 뒤 다시 부를 때 이미 실행됐거나 받는 중인

@@ -21,7 +21,17 @@ from models import Order
 from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
 from foms.services.files.list_thumb import list_thumb_url
-from foms.services.orders.drawing_transfer import replace_same_sheet_files
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status
+from foms.services.orders.drawing_fix import unhandled_requests
+from foms.services.orders.drawing_fix_transfer import FACTORY_REQUEST_OPEN, MESSAGES, can_fix_production_drawing
+from foms.services.orders.drawing_transfer import (
+    is_drawing_hotfix_stage,
+    materialize_pending_snapshot,
+    materialize_transfer_attachments,
+    order_by_wizard_sheets,
+    replace_same_sheet_files,
+)
+from foms.services.orders.drawing_transfer_plan import changed_line, changed_numbers, plan_transfer_files
 from foms.services.erp_policy import (
     can_transfer_drawing,
     has_pending_unchecked_drawing_revision_requests,
@@ -69,6 +79,32 @@ def _sheet_transfer_block_reason(sd: dict) -> str:
     ):
         return SHEET_TRANSFER_BLOCKED_TEXT
     return ''
+
+
+def _hotfix_sheet_view(order: Order, sd: dict) -> dict:
+    """생산 · 시공 단계 '시트 전달'(transfer-pending — 대기 시트 전부, 방식 없음)을 서버 전달과 같은 함수로 미리 본다(D2 · M).
+
+    막는 까닭(서버 전달과 같은 차례) = [반영 완료] · [요청 반려] 안 된 공장 요청(§4-2 ``FACTORY_REQUEST_OPEN`` 글) → 반영 안 한 영업
+    요청(지금 글) → 자리 계산 거절(지금 글). '바뀐 도면' 줄 = ``plan_transfer_files`` → ``changed_numbers`` → ``changed_line``(작업실 · 마법사와 같은 계산).
+
+    Returns:
+        ``{reason, changed_line, sheet_ids}`` — ``sheet_ids`` 는 화면이 R1 미리 보기(보내기 전 확인)에 싣는 대기 시트.
+    """
+    pending = materialize_pending_snapshot(order)
+    files = [{'key': p['key'], 'filename': p['filename'], 'sheet_id': p['sheet_id'], 'sig': p.get('sig') or ''} for p in pending]
+    new_files = order_by_wizard_sheets(materialize_transfer_attachments(order.id, files), sd)
+    old_files = list(sd.get('drawing_current_files') or [])
+    status = effective_drawing_status(sd, default='PENDING')
+    plan = plan_transfer_files(old_files, new_files, sd, drawing_status=status, hotfix=True, mode='', replace_target_keys=[],
+                               is_retransfer=False, picks={})
+    if unhandled_requests(sd):
+        reason = MESSAGES[FACTORY_REQUEST_OPEN]
+    elif status == 'RETURNED' and has_pending_unchecked_drawing_revision_requests(sd):
+        reason = SHEET_TRANSFER_BLOCKED_TEXT
+    else:
+        reason = SHEET_TRANSFER_BLOCKED_TEXT if new_files and plan.error else ''
+    changed = '' if plan.error else changed_line(changed_numbers(old_files, plan.updated_files, plan.pairs))
+    return {'reason': reason, 'changed_line': changed, 'sheet_ids': [p['sheet_id'] for p in pending]}
 
 
 def _sheet_transfer_replaced_count(sd: dict) -> int:
@@ -177,8 +213,11 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
     }
 
     # '시트 전달'(마법사 transfer-pending → perform_drawing_transfer)은 서버 전달 권한과 같은
-    # 술어를 쓴다(관리자 · 지정 도면 담당, M14-a 화면 == 서버). 담당 아닌 도면팀은 이유 한 줄.
-    can_transfer = can_transfer_drawing(current_user, order)
+    # 술어를 쓴다(관리자 · 지정 도면 담당, M14-a 화면 == 서버 — 생산·시공 단계는 도면팀 누구나, 설계서 2026-11-25 §4-1).
+    # 담당 아닌 도면팀은 이유 한 줄.
+    can_transfer = can_transfer_drawing(current_user, order) or can_fix_production_drawing(current_user, order)
+    # 생산·시공 단계는 메모 꼭 적기 · '바뀐 도면' 줄 · 보내기 전 확인을 거친다(D2 · M) — 막는 까닭도 서버 전달과 같은 판정.
+    fix = _hotfix_sheet_view(order, sd) if (can_transfer and is_drawing_hotfix_stage(order)) else None
     show_transfer_assignee_only_hint = bool(
         current_user
         and not can_transfer
@@ -199,7 +238,8 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
         has_pending=bool(pending),
         can_transfer=can_transfer,
         show_transfer_assignee_only_hint=show_transfer_assignee_only_hint,
-        transfer_block_reason=_sheet_transfer_block_reason(sd),
+        transfer_block_reason=fix['reason'] if fix else _sheet_transfer_block_reason(sd),
+        fix=fix,
         transfer_replaced_count=_sheet_transfer_replaced_count(sd),
         wizard_url=url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=order.id),
         detail_url=url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) + '?tab=timeline',

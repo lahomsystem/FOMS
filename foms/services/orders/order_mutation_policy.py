@@ -195,11 +195,12 @@ POLICY_REGISTRY: dict[str, Policy] = {
     "PRODUCTION_ACK": _p("PRODUCTION_ACK", teams=("CS", "SALES", "PRODUCTION", "DRAWING", "CONSTRUCTION", "SHIPMENT"),
                          gate="foms.services.production.write_access:can_ack_production_change",
                          description="production change-ack(개인 확인 기록, Order 불변) — ADMIN, 또는 생산 화면 보는 팀(CS · 회계 · 영업 · 생산 · 도면 · 시공 · 출고)의 STAFF · MANAGER(2026-11-21 결정 5). VIEWER · 팀 없음 · 협력사 deny."),
-    # 생산 파트 표시(도면 카드 맡기 · 기본 · 완료 · 되돌리기 — 설계서 2026-11-09-tablet-production-ui §15.4 · D53 · D55):
-    # 가드는 팀 PRODUCTION(+ ADMIN/MANAGER override)까지만 거르고, 파트 판정(자기 파트만 · 관리자 아무 파트)은 핸들러가
-    # foms.services.production.part_access 로 한다. 켜진 프리랜서 허용 목록에는 넣지 않는다.
+    # 생산 파트 표시(도면 카드 맡기 · 기본 · 완료 · 되돌리기 — 설계서 2026-11-09-tablet-production-ui §15.4 · D53 · D55,
+    # 맡기 취소 · 담당 바꾸기 — 2026-11-23-production-self-claim-and-factory2 §4-5):
+    # 가드는 팀 PRODUCTION(+ ADMIN/MANAGER override)까지만 거르고, 파트 판정(자기 파트들만 · 관리자 · 반장(대신, 2026-11-23 §4-12 ·
+    # '승인 때 고친 것' 5 — 관리자가 체크한 생산팀 계정) 아무 파트)은 핸들러가 foms.services.production.part_access 로 한다. 켜진 프리랜서 허용 목록에는 넣지 않는다.
     "PRODUCTION_PART_MARK": _p("PRODUCTION_PART_MARK", teams=("PRODUCTION",),
-                               description="생산 파트 표시 한 장 · 재단 일괄 기본 — 파트 계정(생산팀 + 계정 파트)은 자기 파트만, ADMIN 은 아무 파트나(D55). CS/SALES · 파트 없는 생산 · VIEWER · 협력사 · 프리랜서 deny."),
+                               description="생산 파트 표시 한 장(맡기 · 기본 · 완료 · 되돌리기 · 맡기 취소 · 담당 바꾸기) · 재단 일괄 기본 — 파트 계정(생산팀 + 계정 파트 1 ~ 4개)은 자기 파트들만, ADMIN · 반장(관리자가 체크한 생산팀 STAFF/MANAGER — 대신, 2026-11-23 §4-12 · 승인 때 고친 것 5)은 아무 파트나 · 남의 장 대신 처리(D55). 첫 카드는 제작 시작을 같이 한다. CS/SALES · 다른 팀 MANAGER · VIEWER · 협력사 · 프리랜서 deny."),
 
     # --- 시공 (§2.1 line 165) -----------------------------------------------
     "CONSTRUCTION_EDIT": _p("CONSTRUCTION_EDIT", teams=("CS", "SALES", "CONSTRUCTION"),
@@ -211,8 +212,12 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # (회계팀은 CS capability 별칭으로 함께). 사유 필수 · 생산 · 시공 단계 판정은 핸들러가 잠금 아래에서 한다.
     "ITEM_CONSTRUCTION_DONE_UNDO": _p("ITEM_CONSTRUCTION_DONE_UNDO", teams=("CS",),
                                       description="제품 '시공 끝' 되돌리기(items/<uid>/construction-done/undo) — ADMIN/MANAGER 또는 STAFF+CS(ACCOUNTING→CS). 영업 · 시공 · VIEWER deny."),
-    "PACKING_WRITE": _p("PACKING_WRITE", teams=("CS", "SALES", "SHIPMENT", "CONSTRUCTION"),
-                        description="packing write — SHIPMENT team-wide + assigned CONSTRUCTION(§2.1 packing 분리)."),
+    # 출고 패킹 체크(사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만" — 2026-11-24 판의 출고 · CS · 영업 · 매니저 쓰기를 닫음):
+    # ADMIN · 시공팀 STAFF · MANAGER · 생산팀 파트 계정 · 반장(직원 · 매니저 같음, 자기 공장 줄만). 팀만 보는 엔진 순서로는 "생산팀 중 일부"를
+    # 못 그려 게이트 함수 하나가 판정한다 — 패킹 API 읽기 문(GET) · 줄마다 공장 문 · 화면도 같은 모듈(packing_access)이다.
+    "PACKING_WRITE": _p("PACKING_WRITE", teams=("CONSTRUCTION", "PRODUCTION"),
+                        gate="foms.services.shipment.packing_access:can_write_packing",
+                        description="packing write(줄 체크 · 누락 신고 · 줄 더하기 · 상차 완료 · 출발 보고) — ADMIN, CONSTRUCTION STAFF · MANAGER, 생산팀 파트 계정 · 반장(STAFF · MANAGER 같음, 자기 공장 줄만 — 줄 공장 판정은 핸들러). 출고 · CS · 영업(프리랜서 포함) · 다른 팀 MANAGER · 파트도 반장도 아닌 생산팀(MANAGER 포함) · VIEWER · 협력사 deny(2026-11-25)."),
 
     # --- 도면 (§2.1 line 166-168) -------------------------------------------
     "DRAWING_ASSIGNED": _p("DRAWING_ASSIGNED", teams=("DRAWING",), assignment="DRAWING",

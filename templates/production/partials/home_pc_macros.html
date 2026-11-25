@@ -20,7 +20,7 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
    테두리 is-focus(태블릿 줄 home_date_macros.fph_row 와 같은 행 값 home_focus · 같은 꼴). #}
 {% macro _row_class(r) -%}
 {%- set lv = r.pc_late.level if r.pc_late else none -%}
-{% if lv %} is-{{ lv }}{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.hold_active %} is-hold{% endif %}{% if r.home_focus %} is-focus{% endif %}
+{% if lv %} is-{{ lv }}{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.hold_active %} is-hold{% elif r.revise_block %} is-revise{% endif %}{% if r.home_focus %} is-focus{% endif %}
 {%- endmacro %}
 
 {# ③ 손님 · 품목 칸. 안 내려온 주문(기다림)은 칸 안에 막힌 까닭 · 도면 담당 · 영업 담당 한 줄(fph_why, 칸 · 폭 그대로 — 설계서
@@ -33,20 +33,40 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 <span class="fpc-by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% endfor %}</span>
 {%- endmacro %}
 
-{% macro _status(r) -%}
+{# ② 상태 칸 — 도면 목록 창(2026-11-24)에서 체크한 뒤 API(foms/api/production/part_sheet.py)도 이 매크로로 그 칸만 다시 그린다 #}
+{% macro pc_status(r) -%}
 <span class="fpc-st is-{{ 'w' if r.home_view == 'wait' or r.home_stage == '제작 대기' else ('h' if r.hold_active else ('f' if r.home_view == 'done' or r.home_stage == '검수 끝' else 'p')) }}"{% if r.pc_status_tip %} data-tip="{{ r.pc_status_tip }}" tabindex="0" aria-label="{{ r.home_stage }} · {{ r.pc_status_tip }}"{% endif %}><b>{{ r.home_stage }}</b>{% if r.pc_status_sub %}<small>{{ r.pc_status_sub }}</small>{% endif %}</span>
 {%- endmacro %}
 
+{# 공정 칸 둘째 줄 = 날짜 줄 칸 아래와 같은 값(설계서 2026-11-23 §8-4 · §4-10, h = part_holders.part_holder). 칸 묶음에 has-hd 를 달면
+   늘 보인다(pc.css). 이름 b 말줄임 · 꼬리 span 안 줄임. 카드를 쓴 파트가 미완료면 마우스 글도 새 글("재단 3/5 · 2장 미완료 · 담당 …"),
+   그 밖 칸의 마우스 글은 지금 글 그대로(pc_view._step_cells). #}
+{# 완료 칸은 아주 넓은 화면(줄 칸 1,500px 이상)에서만 이름 뒤 날짜(.fpc-s__at, 예전 둘째 줄 "김재단 11/21" 그대로 — 기록 없는 옛 칸은
+   "기록 없음"). 좁은 PC · 태블릿은 날짜 없이 이름만(pc.css). #}
+{% macro _hd(h, s) -%}
+{%- set _day = (s.at_label or '').split(' ')[0] if h.kind == 'done' else '' -%}
+<span class="fpc-s__m{% if h.kind == 'none' %} is-none{% elif h.kind == 'held' and h.old %} is-old{% endif %}">{% if h.name %}<b>{{ h.name }}</b>{% if h.tail %}<span>{{ h.tail }}</span>{% endif %}{% endif %}{% if h.kind == 'done' and (_day or not h.name) %}<small class="fpc-s__at">{{ _day or '기록 없음' }}</small>{% endif %}</span>
+{%- endmacro %}
+
+{# ④ 공정 칸 넷. 확정 도면이 1장 이상인 줄(칸 아래 이름의 장 수 h.progress.total_n)의 칸은 누르면 그 파트 도면 목록 창이 열린다
+   (사장님 2026-11-24 "PC 에서도 도면별로 체크" — role=button · data-foms-pc-sheet, foms-production-pc-sheet.js · 키보드 Enter · Space).
+   도면이 없는 줄 · 칸은 지금 그대로(창 없음). 모양 · 글은 그대로 — 체크한 뒤 API(part_sheet.py)도 이 매크로로 칸만 다시 그린다. #}
+{% macro pc_steps(r) -%}
+<span class="fpc-steps{% if r.part_holders %} has-hd{% endif %}" aria-label="공정">{% for s in r.pc_steps %}{% set h = r.part_holders[loop.index0] if r.part_holders else none %}{% set tip = (h.tip if h and h.tip else s.tip) %}<span class="fpc-s{% if s.done %} is-done{% elif s.stopped %} is-stop{% elif s.now %} is-now{% endif %}" data-tip="{{ tip }}" tabindex="0" aria-label="{{ tip }}"{% if h and h.progress.total_n %} role="button" aria-haspopup="dialog" data-foms-pc-sheet="{{ s.key }}"{% endif %}><span class="fpc-s__lb">{% if s.done %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{% endif %}{{ h.label if h else s.label }}</span>{% if h %}{{ _hd(h, s) }}{% else %}<span class="fpc-s__m">{{ s.cell }}</span>{% endif %}</span>{% endfor %}</span>
+{%- endmacro %}
+
 {# 줄 한 개 = 여섯 칸(시공일 · 상태 · 손님/품목 · 공정 넷 · 발주/담당 · 도면). 공정 칸: 마우스 글 = '재단 끝 · 김재단 · 11/20 14:05',
+   섞인 주문(2공장, 2026-11-23 §8-4)의 도면 칸 = 공장마다 한 줄 "1공장 3장" / "2공장 2장 완료"(칸 폭 5rem 이라 두 줄 — factory_home.drawing_cell,
+   2공장 장이 없으면 지금 글).
    아주 넓은 화면(줄 칸 1,500px 이상)은 칸 안에 '김재단 11/20' 을 글로(pc.css 컨테이너 쿼리). #}
 {% macro pc_row(r, job=False) %}
 <div class="fpc-r{{ _row_class(r) }}" data-foms-home-dayrow="{{ r.id }}"{% if job %} {{ _job_attrs(r) }}{% endif %}>
   {{ pc_due_cell(r) }}
-  {{ _status(r) }}
+  {{ pc_status(r) }}
   {{ _who(r) }}
-  <span class="fpc-steps" aria-label="공정">{% for s in r.pc_steps %}<span class="fpc-s{% if s.done %} is-done{% elif s.stopped %} is-stop{% elif s.now %} is-now{% endif %}" data-tip="{{ s.tip }}" tabindex="0" aria-label="{{ s.tip }}"><span class="fpc-s__lb">{% if s.done %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{% endif %}{{ s.label }}</span><span class="fpc-s__m">{{ s.cell }}</span></span>{% endfor %}</span>
+  {{ pc_steps(r) }}
   {{ _by(r) }}
-  <span class="fpc-dw">{{ r.drawing_label }}</span>
+  <span class="fpc-dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label | factory_chips }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
 </div>
 {% endmacro %}
 
@@ -54,20 +74,21 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 {% macro pc_mini(r, job=False, deadline=False) %}
 <div class="fpc-r fpc-r--mini{{ _row_class(r) }}" data-foms-home-dayrow="{{ r.id }}"{% if job %} {{ _job_attrs(r) }}{% endif %}>
   {{ pc_due_cell(r) }}
-  {{ _status(r) }}
+  {{ pc_status(r) }}
   {{ _who(r, spec=False, deadline=deadline) }}
   {{ _by(r) }}
 </div>
 {% endmacro %}
 
 {# '내 공정' 줄(§6-4) = 시공일 | 번호 · 이름 · 품목 | 앞 공정 누가 · 언제 | 발주 · 담당 [| <공정> 끝]. 보기 전용이면 [끝] 칸 자체가 없다
-   (남는 폭은 이름 칸). [고치기] 켬(can_act)이면 지금 태블릿 줄과 같은 단추 · 같은 POST(data-foms-home-step-done, foms-production-home.js). #}
+   (남는 폭은 이름 칸). [고치기] 켬(can_act)이면 지금 태블릿 줄과 같은 단추 · 같은 POST(data-foms-home-step-done, foms-production-home.js) ·
+   도면 있는 주문만 한 번 묻는 자료(data-foms-sheet-parts = r.step_confirm, 2026-11-25 — home_steps.html 과 같다). #}
 {% macro pc_qrow(r, q, can_act) %}
 <div class="fpc-q{{ _row_class(r) }}{% if can_act %} is-act{% endif %}" data-foms-home-qrow="{{ r.id }}">
   {{ pc_due_cell(r) }}
   {{ _who(r) }}
-  <span class="fpc-prev">{% if r.pc_prev %}<i>앞 공정</i> <b>{{ r.pc_prev.head }}</b><br>{{ r.pc_prev.meta }}{% endif %}{% if r.hold_active and not can_act %}<span class="fpc-hold">보류 중{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}</span>{% endif %}</span>
+  <span class="fpc-prev">{% if r.pc_prev %}<i>앞 공정</i> <b>{{ r.pc_prev.head }}</b><br>{{ r.pc_prev.meta }}{% endif %}{% if r.hold_active and not can_act %}<span class="fpc-hold">보류 중{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}</span>{% elif r.revise_block and not can_act %}<span class="fpc-hold">{{ r.revise_block.text }}</span>{% endif %}</span>
   {{ _by(r) }}
-  {% if can_act %}{% if r.hold_active %}<span class="fpc-hold">보류 중{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}</span>{% else %}<button type="button" class="fpc-done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>{% endif %}{% endif %}
+  {% if can_act %}{% if r.hold_active %}<span class="fpc-hold">보류 중{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}</span>{% elif r.revise_block %}<span class="fpc-hold">{{ r.revise_block.text }}</span>{% else %}<button type="button" class="fpc-done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"{% if r.step_confirm %} data-foms-sheet-parts="{{ r.step_confirm | tojson | forceescape }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>{% endif %}{% endif %}
 </div>
 {% endmacro %}

@@ -37,6 +37,7 @@ _ADMIN_OVERRIDE_GATE_LABELS: dict[str, str] = {
     "INVALID_STAGE": "단계 전제",
     "COMMAND_REQUIRED": "전용 버튼 경로",
     "DRAWING_STATUS": "도면 수령 전제",
+    "DRAWING_REVISING": "도면 고치는 중",
     "AS_ACTIVE": "진행 중 AS",
     "OVERRIDE_BLOCK": "역행·건너뛰기 차단",
     "OVERRIDE_TARGET": "강제 변경 목표 제한",
@@ -551,6 +552,42 @@ def _describe_item_construction_done(event_type: str, payload: dict[str, Any]) -
     return f"{names} 시공 끝을 표시했습니다" if names else "제품 시공 끝을 표시했습니다"
 
 
+#: 생산 파트(공정 칸) 이름 — foms.services.production.part_constants 와 같은 값(이 모듈은 저수준이라 따로 둔다).
+_PRODUCTION_PART_KR = {"cut": "재단", "edge": "엣지", "assemble": "조립", "inspect": "검수"}
+
+
+def _toward(name: str) -> str:
+    """이름 + (으)로 — 받침이 없거나 ㄹ 받침이면 '로'."""
+    last = name[-1:] or " "
+    if "가" <= last <= "힣":
+        final = (ord(last) - ord("가")) % 28
+        return f"{name}로" if final in (0, 8) else f"{name}으로"
+    return f"{name}으로"
+
+
+def _describe_part_claim(event_type: str, payload: dict[str, Any]) -> str:
+    """파트 카드 3판에 새로 생긴 기록만 글로(설계서 2026-11-23 §4-11) — 담당 바꾸기 · 맡기 취소 · 공정 칸 손 체크.
+
+    지금 있던 기록(맡기 · 기본 · 완료 · 되돌리기 · 옛 공정 칸 체크)은 빈 글을 돌려 지금 글 그대로 둔다.
+    """
+    if event_type == "PRODUCTION_PART_MARKED":
+        part = _PRODUCTION_PART_KR.get(str(payload.get("part") or ""), "")
+        action = payload.get("action")
+        if action == "takeover":
+            before = str(payload.get("from_name") or "").strip() or "다른 사람"
+            after = str(payload.get("by_name") or "").strip()
+            return f"{part} 담당을 {before}에서 {_toward(after)} 바꿨습니다" if after else f"{part} 담당을 바꿨습니다"
+        if action == "release":
+            holder = str(payload.get("holder_name") or "").strip()
+            return f"{part} 맡기를 취소했습니다" + (f" ({holder} 담당)" if holder else "")
+        return ""
+    if event_type == "PRODUCTION_STEP_CHECKED" and payload.get("via") == "sheet":
+        # 'sheet' = 사람이 공정 칸을 손으로 바꿈(작업 시트 · '내 공정' [끝] · PC [고치기] 모두 같은 공정 API) — 자리 말은 쓰지 않는다
+        part = _PRODUCTION_PART_KR.get(str(payload.get("key") or ""), "")
+        return f"{part} 칸을 손으로 " + ("작업 완료 처리했습니다" if payload.get("done") else "작업 취소했습니다")
+    return ""
+
+
 def generate_change_description(
     event_type: str,
     target_kr: str,
@@ -560,6 +597,10 @@ def generate_change_description(
 ) -> str:
     """이벤트 타입에 따라 이해하기 쉬운 설명 생성."""
     payload = payload or {}
+
+    claim_text = _describe_part_claim(event_type, payload)
+    if claim_text:
+        return claim_text
 
     if event_type == "QUEST_APPROVAL_CHANGED":
         return _describe_quest_approval(payload)

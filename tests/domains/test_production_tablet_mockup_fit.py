@@ -72,8 +72,11 @@ def test_파트_카드_이름은_도면_n_N_을_다음_줄로_보내고_재단_�
     assert "grid-template-rows: repeat(4, min-content) 1fr;" in css
     assert ".pp-grid.is-need .pp-img { grid-column: 1; grid-row: 1 / -1;" in css
     assert ".pp-grid.is-need .pp-actbox { grid-row: 5; align-self: end; }" in css
-    # 작업 필요 카드의 오른쪽 글 줄은 많아야 넷(이름 · 품목 · 바뀐 도면 · 다른 파트) — 다섯째 줄 = 단추 칸
+    # 작업 필요 카드의 오른쪽 글 줄(이름 줄 링크 · 시공 줄 · 품목 · 바뀐 도면 · 다른 파트) 뒤 = 단추 칸. 2026-11-23 §8-1 · CSS 계약:
+    # 이름 줄 = 작업 시트 링크(a.pp-ln.pp-sheetlink), 시공일 표는 늘 .pp-duerow 로 감싼다(카드 키 그대로 — 감싸기 전에도 같은 자리의 줄).
     tpl = (ROOT / "templates/production/partials/home_parts.html").read_text(encoding="utf-8")
     card = tpl.split("<article", 1)[1].split("</article>", 1)[0]
     kids = re.findall(r"^\s{8}(<(?:div|span|button|a)[^>]*class=\"([^\"]+)\"|\{% if c\.replaced %\})", card, re.M)
-    assert [k[1] or "replaced" for k in kids] == ["pp-img", "pp-img pp-file", "pp-ln", "fph-dr__pr pp-item", "replaced", "fph-dr__by pp-by", "pp-actbox"]
+    assert [k[1].split("{%")[0] or "replaced" for k in kids] == [
+        "pp-img", "pp-img pp-file", "pp-ln pp-sheetlink", "pp-duerow", "fph-dr__pr pp-item", "replaced", "fph-dr__by pp-by",
+        "pp-actbox"]

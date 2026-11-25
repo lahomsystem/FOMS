@@ -10,7 +10,13 @@ D49 재단 상태 넷 · D51/D52 배지 색).
   자기 글로 들고 있다 — models 가 이 모듈을 부르면 ``order_mutation_policy`` → ``partner_scope`` → models
   순환이 생긴다. 같은 값인지는 같은 시험이 본다.
 * 계정 파트는 생산팀일 때만 뜻이 있다. 팀이 바뀌어도 칸 값이 남을 수 있으니 읽는 쪽은 늘
-  :func:`account_production_part` 를 거친다(생산팀이 아니면 None).
+  :func:`account_production_parts` 를 거친다(생산팀이 아니면 빈 것).
+* 반장(설계서 2026-11-23 '승인 때 고친 것' 5) = 생산팀 계정에서 관리자가 체크한 사람(``users.production_lead``) —
+  :func:`account_production_lead`. 파트와 따로다(반장이 파트를 가져도 된다).
+* 계정마다 파트 0 ~ 4개(설계서 ``docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md`` §4-12 · §6-1, P2).
+  새 칸 ``users.production_parts``(목록)가 기준이고, 옛 칸 ``production_part`` 는 한 판 동안 첫 파트를 같이 적는다
+  (:func:`production_part_columns` — 되돌린 옛 코드가 맞는 파트를 읽게). 둘이 어긋나면 옛 코드가 나중에 고친 것이라
+  옛 칸을 따른다(:func:`account_production_parts`).
 """
 
 from __future__ import annotations
@@ -103,21 +109,121 @@ def production_part_for_team(team: Optional[str], part: Optional[str]) -> Option
     return part if team_can_hold_production_part(team) else None
 
 
-def account_production_part(user: Any) -> Optional[str]:
-    """계정의 생산 파트 key — 생산팀이 아니거나 값이 없으면 None.
+def normalize_production_parts(raw: Any) -> Optional[list[str]]:
+    """폼 · 몸의 파트 여럿 → 저장할 목록(설계서 2026-11-23 §6-1).
 
     Args:
-        user: 사용자 객체(``team`` · ``production_part`` 를 읽는다). None 허용.
+        raw: 받은 값들(목록 · 튜플 · 집합, 또는 글 하나 · None). 빈 글은 건너뛴다.
+
+    Returns:
+        정의 순서(재단 → 엣지 → 조립 → 검수) · 겹침 뺀 key 목록. 하나도 없으면 None(빈 목록은 저장하지 않는다 = NULL).
+
+    Raises:
+        ValueError: 네 key 가 아닌 값이 하나라도 있을 때(조용히 버리지 않는다).
+    """
+    values = list(raw) if isinstance(raw, (list, tuple, set, frozenset)) else [raw]
+    picked = {part for part in (normalize_production_part(value) for value in values) if part}
+    return [key for key in PRODUCTION_PART_KEYS if key in picked] or None
+
+
+def production_part_columns(team: Optional[str], parts: Optional[list[str]]) -> tuple[Optional[list[str]], Optional[str]]:
+    """저장할 두 칸 — 새 칸 ``production_parts`` · 옛 칸 ``production_part``(= 첫 파트). 생산팀이 아니면 둘 다 비운다.
+
+    Args:
+        team: 같이 저장할 팀 글.
+        parts: :func:`normalize_production_parts` 를 거친 목록 또는 None.
+
+    Returns:
+        ``(새 칸 값, 옛 칸 값)`` — 파트가 없으면 ``(None, None)``.
+    """
+    kept = list(parts) if parts and team_can_hold_production_part(team) else None
+    return kept, (kept[0] if kept else None)
+
+
+def stored_production_parts(user: Any) -> tuple[str, ...]:
+    """행에 적힌 파트(팀은 안 본다) — 새 칸이 기준. 새 칸이 비었거나 새 칸 첫 값이 옛 칸과 다르면 옛 칸 하나.
+
+    새 코드는 두 칸을 늘 같이 쓴다(옛 칸 = 첫 파트). 옛 코드(배포 중 아직 도는 판 · 되돌린 판)는 옛 칸만 고치므로, 둘이 어긋나면
+    옛 칸이 나중 값이다. 마이그레이션 전에 만든 행 · 새 칸을 모르는 판이 만든 행은 새 칸이 NULL 이라 옛 칸을 읽는다.
+
+    Args:
+        user: 사용자 객체(``production_parts`` · ``production_part`` 를 읽는다). None 허용.
+
+    Returns:
+        네 key 중 0 ~ 4개(정의 순서).
+    """
+    legacy = getattr(user, "production_part", None)
+    legacy = legacy if legacy in PRODUCTION_PART_KEYS else None
+    raw = getattr(user, "production_parts", None)
+    parts = tuple(key for key in PRODUCTION_PART_KEYS if isinstance(raw, (list, tuple)) and key in raw)
+    if not parts or parts[0] != legacy:
+        return (legacy,) if legacy else ()
+    return parts
+
+
+def account_production_parts(user: Any) -> tuple[str, ...]:
+    """계정의 생산 파트들(설계서 2026-11-23 §4-12) — 정의 순서. 생산팀이 아니거나 값이 없으면 빈 tuple.
+
+    Args:
+        user: 사용자 객체(``team`` · ``production_parts`` · ``production_part`` 를 읽는다 — 이미 읽은 행, 쿼리 0). None 허용.
+
+    Returns:
+        네 key 중 0 ~ 4개.
+    """
+    if user is None or not team_can_hold_production_part(getattr(user, "team", None)):
+        return ()
+    return stored_production_parts(user)
+
+
+def account_production_part(user: Any) -> Optional[str]:
+    """계정의 첫 생산 파트 key(옛 칸 ``production_part`` 와 같은 값) — 생산팀이 아니거나 값이 없으면 None.
+
+    Args:
+        user: 사용자 객체. None 허용.
 
     Returns:
         네 key 중 하나 또는 None.
     """
-    if user is None or not team_can_hold_production_part(getattr(user, "team", None)):
-        return None
-    part = getattr(user, "production_part", None)
-    return part if part in PRODUCTION_PART_KEYS else None
+    parts = account_production_parts(user)
+    return parts[0] if parts else None
+
+
+def production_lead_for_team(team: Optional[str], checked: bool) -> Optional[bool]:
+    """저장할 반장 칸(설계서 2026-11-23 '승인 때 고친 것' 5) — 생산팀이고 체크했으면 참, 아니면 None(NULL = 반장 아님).
+
+    Args:
+        team: 같이 저장할 팀 글.
+        checked: 관리자 화면의 '반장' 체크칸이 켜졌는지.
+
+    Returns:
+        ``True`` 또는 None — 다른 팀이면 체크했어도 비운다(팀을 바꾸면 같이 비워진다).
+    """
+    return True if checked and team_can_hold_production_part(team) else None
+
+
+def stored_production_lead(user: Any) -> bool:
+    """행에 적힌 반장 칸이 참인지(팀은 안 본다 — 감사 스냅샷용). NULL · 거짓 = 아님."""
+    return getattr(user, "production_lead", None) is True
+
+
+def account_production_lead(user: Any) -> bool:
+    """계정이 반장인지 — 생산팀이고 반장 칸이 참(이미 읽은 행, 쿼리 0). 활성 · 역할은 :mod:`part_access` 가 같이 본다.
+
+    Args:
+        user: 사용자 객체(``team`` · ``production_lead`` 를 읽는다). None 허용.
+
+    Returns:
+        생산팀 + 반장 칸 참이면 True.
+    """
+    return user is not None and team_can_hold_production_part(getattr(user, "team", None)) and stored_production_lead(user)
 
 
 def production_part_label(part: Optional[str]) -> Optional[str]:
     """파트 key → 한글 이름(재단 · 엣지 · 조립 · 검수). 모르는 값 · None 은 None."""
     return PRODUCTION_PART_LABELS.get(part or "")
+
+
+def production_parts_label(parts: Any) -> Optional[str]:
+    """파트 key 여럿 → "재단 · 엣지"(정의 순서). 하나도 없으면 None."""
+    labels = [PRODUCTION_PART_LABELS[key] for key in PRODUCTION_PART_KEYS if parts and key in parts]
+    return " · ".join(labels) or None

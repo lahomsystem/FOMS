@@ -39,6 +39,8 @@ from foms.services.integrations.naver_commerce.auto_assign import (
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.balance_payment_method import normalize_balance_method
 from foms.services.orders.drawing_confirm_partial import preserve_item_cancel_state
+from foms.services.orders.drawing_factory import strip_client_factory_state
+from foms.services.shipment.packing_factory import strip_client_packing_state
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_flag_permissions import (
@@ -1425,7 +1427,7 @@ def api_put_order_structured(order_id):
         is_self_measurement = payload.get('is_self_measurement')
         is_regional = payload.get('is_regional')
         construction_type = payload.get('construction_type')
-        # ORDER-FLAG-01: 라홈시스템(2공장)·지방주문은 CS(라홈팀/하우드팀)·관리자만 바꾼다.
+        # ORDER-FLAG-01: 라홈시스템 계약·지방주문은 CS(라홈팀/하우드팀)·관리자만 바꾼다.
         # 거부(403)가 아니라 **무시**다 — 이 PUT 은 저장 버튼 말고도 견적 미리보기·알림톡
         # 발송이 함께 태우므로, 403 으로 만들면 무권한 사용자의 정상 저장 전체가 막힌다.
         # 지방주문 구분(construction_type)은 체크박스와 한 몸이라 함께 잠근다 — 여기만
@@ -2384,6 +2386,10 @@ def api_erp_draft_autosave():
 
         if structured_data is not None:
             sd = copy.deepcopy(structured_data)
+            # 서버 소유 공장 칸(장의 공장 · 공장 완료 표지)은 초안에 못 심는다 — 승격(PUT) 잠금이 저장된 값을 넘겨 살아남는다
+            # (설계서 2026-11-23 §6-3 · §4-14). 출고 패킹(shipment.packing)도 패킹 API 만 쓴다(2026-11-24).
+            strip_client_factory_state(sd)
+            strip_client_packing_state(sd)
             meta = sd.get('meta') if isinstance(sd.get('meta'), dict) else {}
             meta['draft'] = True
             meta.setdefault('created_via', 'ADD_ORDER_AUTOSAVE')

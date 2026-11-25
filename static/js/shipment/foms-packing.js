@@ -10,7 +10,9 @@
   if (window.__FOMS_PACKING_BOUND) return;
   window.__FOMS_PACKING_BOUND = true;
 
-  var state = { orderId: null, trigger: null, items: [] };
+  // canCheck: 창을 열 때마다 false("아직 모름")로 시작 — GET/POST 의 can_check(체크할 수 있는 공장들)가 빈 목록이 아니어야 켠다
+  // (2026-11-25 보기만: 출고 · CS · 영업 · 매니저 등). 칸이 없는 응답은 지금처럼 쓰기. GET 이 실패하면 쓰기 칸 없이 오류 글만.
+  var state = { orderId: null, trigger: null, items: [], canCheck: false };
   var ISSUE_LABELS = { missing: '미입고', damaged: '파손', short: '수량 부족' };
   // P6: 상차 완료 → 출발 보고 2단 확인. 1탭 arm → DEPART_ARM_MS 내 재탭 확정(미확정 시 자동 해제).
   var DEPART_ARM_MS = 3200;
@@ -139,7 +141,7 @@
       btn.classList.add('foms-packing-depart--done');
       setDepartLabel(btn, '출발 보고 완료');
     } else {
-      btn.disabled = !(total > 0 && checked === total);
+      btn.disabled = !state.canCheck || !(total > 0 && checked === total);
       btn.classList.remove('foms-packing-depart--done');
       setDepartLabel(btn, DEPART_LABEL);
     }
@@ -210,6 +212,7 @@
       input.type = 'checkbox';
       input.className = 'foms-packing-row__check';
       input.checked = !!item.checked;
+      input.disabled = !state.canCheck;
       input.setAttribute('data-foms-packing-check', '');
       input.setAttribute('aria-label', item.label);
 
@@ -242,7 +245,7 @@
       main.appendChild(qty);
       li.appendChild(main);
 
-      if (tplContent) {
+      if (tplContent && state.canCheck) {
         var frag = tplContent.cloneNode(true);
         if (item.issue) {
           var activeChip = frag.querySelector('[data-foms-packing-issue-chip="' + item.issue + '"]');
@@ -255,7 +258,15 @@
     });
   }
 
+  // 쓰기 칸 켜기/끄기 — 줄 더하기 칸은 여기서, 체크칸 · 누락 신고 · 출발 보고 단추는 state.canCheck 를 보고 그린다.
+  function setCanCheck(el, on) {
+    state.canCheck = on;
+    var addForm = q(el, '[data-foms-packing-add]');
+    if (addForm) addForm.classList.toggle('d-none', !on);
+  }
+
   function applyData(el, data) {
+    setCanCheck(el, !Array.isArray(data.can_check) || data.can_check.length > 0);
     state.items = Array.isArray(data.items) ? data.items : [];
     var total = typeof data.total === 'number' ? data.total : state.items.length;
     var checked = typeof data.checked_count === 'number'
@@ -290,28 +301,29 @@
     setLoading(el, true);
     try {
       var data = await request(orderId, { method: 'GET' });
-      applyData(el, data);
+      if (orderId === state.orderId) applyData(el, data);  // 그새 다른 주문을 열었으면 앞 주문 값은 버린다
     } catch (error) {
-      setError(el, String((error && error.message) || error));
+      if (orderId === state.orderId) setError(el, String((error && error.message) || error));
     } finally {
-      setLoading(el, false);
+      if (orderId === state.orderId) setLoading(el, false);
     }
   }
 
   async function postPacking(payload) {
     var el = sheetEl();
     if (!el || !state.orderId) return;
+    var orderId = state.orderId;
     setError(el, '');
     try {
-      var data = await request(state.orderId, {
+      var data = await request(orderId, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify(payload)
       });
-      applyData(el, data);
+      if (orderId === state.orderId) applyData(el, data);
       return true;
     } catch (error) {
-      setError(el, String((error && error.message) || error));
+      if (orderId === state.orderId) setError(el, String((error && error.message) || error));
       return false;
     }
   }
@@ -327,7 +339,9 @@
       if (sub) sub.textContent = '주문 #' + orderId + ' · 제품별 패킹 항목을 체크하세요.';
       var list = q(el, '[data-foms-packing-list]');
       if (list) list.textContent = '';
-      // 이전 주문의 출발 보고 상태가 로드 전까지 잔상으로 남지 않게 초기화.
+      // 이전 주문의 합계 · 출발 보고 상태 · 쓰기 칸이 로드 전까지 잔상으로 남지 않게 초기화("아직 모름" — 쓰기 칸 없음).
+      setCanCheck(el, false);
+      renderSummary(el, 0, 0);
       renderDepart(el, 0, 0, null, null);
       var instance = getSheetInstance(el);
       if (instance) instance.show();

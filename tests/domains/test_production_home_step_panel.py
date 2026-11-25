@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -157,7 +158,7 @@ def test_order_주소는_숫자만() -> None:
 # ② 문 — 태블릿 가로만, 판 없는 화면은 지금 그대로
 # --------------------------------------------------------------------------- #
 def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> None:
-    login(client)
+    login(client)  # 반장(파트 없는 생산팀 — 관리자가 반장으로 지정한 계정)
     a, b, c, d, e = seed_cut_queue()
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")
@@ -180,6 +181,53 @@ def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> N
             assert out.count("data-foms-home-step-done") == (0 if pc else 3 + 1)
             assert f'href="/erp/production/sheet/{a.id}"' in queue_html(out, "cut")
             assert "data-foms-wide-surface-omitted" not in out  # 폰 · PC 는 생략 표식도 없다
+
+
+def test_화면_판정_공정_끝은_반장_관리자만() -> None:
+    """화면 판정 한 곳(``production_screen_flags``) — [끝](can_check_steps)은 반장 · 관리자만, 파트도 반장도 아닌 생산팀은 쓰기 단추
+    (can_act — 보류 · 불량 · 제작 시작/완료)는 그대로 두고 [끝]만 빠지며 상태 줄 글을 받는다(승인 때 고친 것 5)."""
+    from types import SimpleNamespace
+
+    from foms.services.production.pc_view import production_screen_flags
+
+    now = 1_800_000_000
+    fresh = str(now - 60)
+
+    def who(role="STAFF", team="PRODUCTION", lead=None):
+        return SimpleNamespace(role=role, team=team, partner_org_id=None, production_lead=lead)
+
+    def req(ptr, edit=""):
+        return SimpleNamespace(cookies={"foms_ptr": ptr, "foms_prod_edit": edit})
+
+    for user, ptr, edit in ((who(lead=True), "coarse", ""), (who("ADMIN", "CS"), "fine", fresh)):
+        flags = production_screen_flags(user, req(ptr, edit), now)
+        assert flags["can_check_steps"] is True and flags["steps_lock_note"] == "", (user.role, ptr)
+    for ptr, edit in (("coarse", ""), ("fine", fresh)):
+        flags = production_screen_flags(who(), req(ptr, edit), now)
+        assert flags["can_act"] is True and flags["can_check_steps"] is False, ptr
+        assert flags["steps_lock_note"] == "반장으로 지정된 계정만 작업할 수 있어요.", ptr
+
+
+def test_보기만_계정은_공정_끝_단추_없이_보류_불량은_그대로(client, cohort) -> None:
+    """파트도 반장도 아닌 생산팀(설계서 2026-11-23 '승인 때 고친 것' 5) — '내 공정' 탭은 지금 규칙대로 열리고 [끝]만 없다.
+
+    판(태블릿 가로) · 판 없는 화면(폰) · PC [고치기] 켬 모두 [끝] 0, 판의 상태 줄에 한 줄. [불량] · [보류]는 지금 권한 그대로.
+    대조군(반장)은 위 시험 — 같은 화면에 [끝]이 그려진다.
+    """
+    login(client, "최보기", lead=False)
+    a, *_rest = seed_cut_queue()
+    set_cookies(client, TABLET)
+    html = get_html(client, HOME + "?tab=steps")
+    pane = pane_html(html, a.id)
+    assert "data-foms-step-finish" not in html and "data-foms-home-step-done" not in html
+    assert "반장으로 지정된 계정만 작업할 수 있어요.</p>" in pane
+    assert "data-foms-sheet-defect-toggle" in pane and 'data-tablet-sheet-action="production-hold"' in pane
+    for cookies in ({"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "915"},
+                    {"foms_ptr": "fine", "foms_vw": "wide", "foms_prod_edit": str(int(time.time()))}):
+        set_cookies(client, cookies)
+        out = get_html(client, HOME + "?tab=steps")
+        assert out.count("data-foms-home-step-done") == 0 and "data-foms-step-finish" not in out, cookies
+        assert f'href="/erp/production/sheet/{a.id}"' in out, cookies  # 줄은 지금처럼 작업 시트로
 
 
 def test_세로로_든_태블릿은_판을_빼고_가로로_돌리면_다시_받는_표식(client, cohort) -> None:
@@ -240,8 +288,10 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     assert ">도면 3장<" in pane and "눌러서 크게" in pane
     assert "<dt>색</dt><dd>그레이 · 손잡이 없음</dd>" in pane and "<dt>앞 공정</dt><dd>제작 시작 · 11/21 08:40</dd>" in pane
     assert "<dt>다음 공정</dt><dd>엣지</dd>" in pane and "엣지</dt>" not in pane  # 엣지 사양 줄 없음(D11)
-    assert (f'data-foms-step-finish data-order-id="{a.id}" data-step-key="cut" data-step-label="재단" data-next-order="{b.id}">'
-            in pane) and ">재단 끝</button>" in pane
+    # 도면 있는 주문이라 [끝]에 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기" — test_production_my_steps_confirm.py)
+    confirm = '{"parts": {"cut": {"uses_cards": false}}, "sheets": 3}'.replace('"', "&#34;")
+    assert (f'data-foms-step-finish data-order-id="{a.id}" data-step-key="cut" data-step-label="재단" data-next-order="{b.id}"'
+            f' data-foms-sheet-parts="{confirm}">' in pane) and ">재단 끝</button>" in pane
     assert f'data-foms-prod-sheet-page data-order-id="{a.id}"' in pane
     assert [m for m in re.findall(r'data-foms-sheet-defect-reason="([^"]+)"', pane)] == list(_PRODUCTION_DEFECT_REASONS)
     assert "끝내면 다음은 <b>김하늘</b>" in pane
@@ -314,8 +364,8 @@ def test_확인_창은_없고_실을_것(client, cohort) -> None:
     assert f'data-foms-step-base="{HOME}?tab=steps"' in html and "data-foms-home-status" in html
     # 확인 창 꼴이 쓰던 parts.css 는 이제 도면 카드 판에만. 새 JS 는 머리(일찍), 시트 JS 는 문서당 한 번
     assert "css/contexts/production/parts.css" not in html
-    assert html.index(STEPS_JS + "?v=20261122t") < html.index("</head>")
-    assert 'js/production/foms-production-sheet-page.js?v=20261122t" defer data-foms-run-once="prod-sheet-page"' in html
+    assert html.index(STEPS_JS + "?v=20261125b") < html.index("</head>")
+    assert 'js/production/foms-production-sheet-page.js?v=20261124i" defer data-foms-run-once="prod-sheet-page"' in html
     assert "js/foms/tablet-domain-sheets.js?v=" in html and "js/foms/foms-reason-sheet.js?v=" in html
     assert html.count("data-foms-reason-sheet") == 1 and "css/components/foms-reason-sheet.css?v=" in html
     # 셸 조각도 같은 것(조각 맨 앞에 새 JS)

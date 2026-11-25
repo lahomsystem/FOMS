@@ -96,6 +96,46 @@
     if (form) form.submit();
   }
 
+  /** 생산·시공 단계 '시트 전달'(설계서 2026-11-25 D2 · M) — 메모 꼭 적기 → 확인 한 번(drawing-fix-send.js gate) → 보내기(409 면
+      보내기 전 확인 창 → 물어본 도면 열쇠 ack 로 다시). 서버 글은 시트 안 칸에 보인다(alert 없음). */
+  async function transferFix(orderId, btn) {
+    var F = window.FomsFixSend;
+    var box = document.querySelector("[data-foms-drawing-fix-box]");
+    var noteEl = box && box.querySelector("[data-foms-drawing-fix-note]");
+    var errEl = box && box.querySelector("[data-foms-drawing-fix-error]");
+    var msgEl = box && box.querySelector("[data-foms-drawing-fix-msg]");
+    var note = noteEl ? String(noteEl.value || "").trim() : "";
+    if (errEl) errEl.hidden = !!note;
+    if (msgEl) msgEl.hidden = true;
+    if (!note) {
+      if (noteEl) noteEl.focus();
+      return;
+    }
+    var sheets = String(btn.getAttribute("data-foms-fix-sheets") || "").split(",").filter(Boolean);
+    var asked = await F.gate(orderId, { sheets: sheets, mode: "" }, function (plan) {
+      return [plan.changed_line, F.HOTFIX_TEXT].filter(Boolean).join("\n\n");
+    }, null, "전달 대기 중인 저장 시트를 담당자에게 전달할까요?");   // 미리 보기를 못 받으면 지금 확인 글(셋째 판 1)
+    if (!asked.ok) return;
+    btn.disabled = true;
+    var data;
+    try {
+      data = await F.post("/api/orders/" + encodeURIComponent(orderId) + "/drawing-wizard/transfer-pending",
+        { note: note, ack_worked: asked.ack.idents, ack_order_made: asked.ack.orderMade });
+    } catch (err) {
+      console.error("[tablet-drawing-gallery] 시트 전달 실패", err);
+      data = { success: false, message: "전달 중 오류가 발생했습니다." };
+    }
+    if (data && data.success) {
+      window.location.reload();
+      return;
+    }
+    btn.disabled = false;
+    if (msgEl && data && !data.cancelled) {
+      msgEl.textContent = data.error || data.message || "";
+      msgEl.hidden = !msgEl.textContent;
+    }
+  }
+
   async function transferPending(orderId, btn) {
     if (!orderId) return;
     if (!window.confirm("전달 대기 중인 저장 시트를 담당자에게 전달할까요?")) return;
@@ -369,7 +409,11 @@
     var transferBtn = target.closest("[data-foms-drawing-transfer]");
     if (transferBtn && !transferBtn.disabled) {
       ev.preventDefault();
-      transferPending(transferBtn.getAttribute("data-order-id"), transferBtn);
+      if (transferBtn.hasAttribute("data-foms-drawing-fix") && window.FomsFixSend) {
+        transferFix(transferBtn.getAttribute("data-order-id"), transferBtn);
+      } else {
+        transferPending(transferBtn.getAttribute("data-order-id"), transferBtn);
+      }
       return;
     }
   });

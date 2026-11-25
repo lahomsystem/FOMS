@@ -1,10 +1,12 @@
 /* 생산 첫 화면 '내 공정' 탭 오른쪽 판(태블릿 가로) — 설계서 docs/specs/2026-11-21-production-my-steps-panel_SPEC.md §3-4 ~ §3-6
- * · 사용자 결정 2026-11-21 "추천안(반반)대로 만들기" · 2026-11-22 "확인 창 빼기"(두 번 누름 + 되돌리기).
+ * · 사용자 결정 2026-11-21 "추천안(반반)대로 만들기" · 2026-11-22 "확인 창 빼기"(두 번 누름 + 되돌리기) · 2026-11-25 도면 있는 주문만 한 번 묻기.
  * 줄을 누르면 고른 표시를 바로 바꾸고 판을 바꾼다 — 서버는 공정 줄마다 고른 줄 판 하나만 그리고, 다른 줄 판은 받아 끼운다
  * (foms-production-home-steppane.js, 2026-11-22). 그 파일이 아직 없으면 줄 링크(?tab=steps&order=)가 그대로 그 줄 페이지를 연다.
  * 주소 · [다시 받기]는 고른 줄 링크의 href(?tab=steps&order=<id>, 서버 home_href 가 지은 것)로 맞춘다(replaceState). 공정 탭을 바꾸면
  * 그 탭의 고른 줄로, [보류]를 누르면 그 판의 줄로 맞춘다(보류 뒤 새로고침이 같은 줄로 돌아온다).
- * 큰 [<공정> 끝] = 누르면 바로 POST /api/orders/<id>/production/steps {key, done:true} 한 번(확인 창 없음). 첫 누름부터 답이 올 때까지
+ * 큰 [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true} 한 번. 확정 도면이 있는 주문만 먼저 한 번 묻는다(사장님 2026-11-25
+ * "도면이 있는 주문만 한 번 묻기" — 작업 시트와 같은 창 · 글 · 판정 window.FomsSheetParts.beforeToggle, 자료 = 서버가 단추에 실은
+ * data-foms-sheet-parts), 도면 없는 주문은 지금처럼 바로. [취소]면 POST 0 · 화면 그대로. 첫 누름부터 답이 올 때까지
  * 판 [끝]은 모두 잠그고, 저장되면 '끝내면 다음은' 줄 주소로 다시 받는다(셸이 있으면 셸 조각 교체). 새 화면이 뜬 뒤 GUARD_MS 동안은
  * 새 판 [끝]도 잠그고 그동안 또 누르면 다시 센다 — 두 번 누름 · 연타가 바뀐 화면의 다음 주문 [끝]에 떨어지지 않게(잠금은
  * aria-disabled + 흐림 — 진짜 disabled 는 누름을 삼켜 연장을 못 한다). 저장 뒤 UNDO_MS 동안 화면 상태 줄에
@@ -36,9 +38,10 @@
     if (utils && typeof utils.safeJsonParse === 'function') { return utils.safeJsonParse(text, []) || []; }
     try { return JSON.parse(text || '[]') || []; } catch (e) { return []; }
   }
+  // 카드를 쓴 파트의 [끝]은 서버가 남은 장을 세어 막는다(409 PART_USES_CARDS, 설계서 2026-11-23 §4-2) — 그 글은 서버 글 그대로
   function failText(result) {
     return !result || result.kind === 'network' || result.kind === 'timeout' || result.status === 0 ? OFFLINE_TEXT
-      : ('오류: ' + (result.message || '처리하지 못했어요'));
+      : result.status === 409 && result.message ? result.message : ('오류: ' + (result.message || '처리하지 못했어요'));
   }
   var statusBox = root.querySelector('[data-foms-home-status]');
   function setStatus(text, bad) {
@@ -146,13 +149,21 @@
     if (Date.now() < (G.guardUntil || 0)) { holdGuard(); return; }
     if (!G.saving && !G.guardNext) { lockFinish(false); }
   }
+  var asking = false; // 확인 창이 떠 있는 동안(이 화면만 — 셸 교체로 온 새 화면은 창도 새로)
   function finish(btn) {
-    if (G.saving || G.guardNext) { return; } // 저장 중 · 저장 뒤 새 화면을 받는 중 누름은 버린다
+    if (G.saving || G.guardNext || asking) { return; } // 저장 중 · 저장 뒤 새 화면을 받는 중 · 묻는 중 누름은 버린다
     if (Date.now() < (G.guardUntil || 0)) { G.guardUntil = Date.now() + GUARD_MS; holdGuard(); return; }
     var pane = btn.closest('[data-foms-step-pane]');
     var job = { id: attr(btn, 'data-order-id'), key: attr(btn, 'data-step-key'), next: attr(btn, 'data-next-order'),
       name: textOf(pane, '[data-foms-step-name]'), label: attr(btn, 'data-step-label') };
     var line = pane && pane.querySelector('[data-foms-sheet-status]');
+    var sp = window.FomsSheetParts;
+    if (!sp || !btn.hasAttribute('data-foms-sheet-parts')) { save(job, line); return; } // 도면 없는 주문 = 지금처럼 바로
+    asking = true; // 도면이 있으면 한 번 묻는다 — 작업 시트와 같은 창 · 글 · 판정(sheet-parts.js), 누른 주문(job)은 이때 정해 둔다
+    sp.beforeToggle(btn, btn, true, function () { asking = false; if (document.contains(btn)) { save(job, line); } },
+      function () { asking = false; });
+  }
+  function save(job, line) {
     G.saving = true;
     lockFinish(true);
     if (line) { line.textContent = '저장하는 중…'; line.classList.remove('is-bad'); }
@@ -164,7 +175,10 @@
         return;
       }
       if (line) { line.textContent = ''; }
-      G.undo = { id: job.id, key: job.key, name: job.name, label: job.label, until: Date.now() + UNDO_MS, busy: false, error: '' };
+      var ex = ((result.data || {}).data || {}).expanded; // 막힌 도면을 빼고 처리됨 — 알림 글만, [되돌리기] 없음(판결 B)
+      var sp = window.FomsSheetParts;
+      G.undo = ex && sp && sp.doneText ? { notice: sp.doneText(ex), until: Date.now() + UNDO_MS }
+        : { id: job.id, key: job.key, name: job.name, label: job.label, until: Date.now() + UNDO_MS, busy: false, error: '' };
       G.guardNext = true; // 새 화면이 뜨면 GUARD_MS 동안 [끝] 잠금
       showUndo();
       // 끝낸 주문은 다음 공정 줄로 간다 — '끝내면 다음은' 손님이 고른 줄이 된다(없으면 이 탭 첫 줄, 탭은 기억됨)
@@ -179,6 +193,12 @@
   function showUndo() {
     var u = G.undo;
     if (!statusBox || !u || Date.now() >= u.until) { return; }
+    window.clearTimeout(G.undoTimer); // 알림 글(풀어 쓴 [끝])도 [되돌리기]와 같은 시계로 지운다(둘째 판 2)
+    G.undoTimer = window.setTimeout(function () {
+      if (G.undo === u && !u.busy) { G.undo = null; }
+      if (G.api) { G.api.clearUndo(u); }
+    }, u.until - Date.now());
+    if (u.notice) { setStatus(u.notice); return; }
     statusBox.textContent = '';
     statusBox.classList.remove('is-bad');
     statusBox.classList.add('is-undo');
@@ -193,14 +213,10 @@
     btn.disabled = !!u.busy;
     statusBox.appendChild(msg);
     statusBox.appendChild(btn);
-    window.clearTimeout(G.undoTimer);
-    G.undoTimer = window.setTimeout(function () {
-      if (G.undo === u && !u.busy) { G.undo = null; }
-      if (G.api) { G.api.clearUndo(u); }
-    }, u.until - Date.now());
   }
   function clearUndo(u) {
-    if (statusBox && statusBox.classList.contains('is-undo') && (!G.undo || G.undo !== u)) { setStatus(''); }
+    var shown = statusBox && (statusBox.classList.contains('is-undo') || (u.notice && statusBox.textContent === u.notice));
+    if (shown && (!G.undo || G.undo !== u)) { setStatus(''); }
   }
   function undo() {
     var u = G.undo;

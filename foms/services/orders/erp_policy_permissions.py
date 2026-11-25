@@ -146,6 +146,26 @@ def can_transfer_drawing(user, order) -> bool:
     return uid in assignee_ids
 
 
+def can_set_sheet_factory(user) -> bool:
+    """도면 장의 공장(1공장 · 2공장) 지정 권한 — 도면팀 누구나 + 관리자(설계서 2026-11-23 §5-1 · C3′). 주문을 받지 않는다.
+
+    그 주문 도면 담당이 아니어도, 담당이 없는 주문도 된다(전달 권한 :func:`can_transfer_drawing` 은 넓히지 않는다).
+    앞문 정책 ``DRAWING_TEAM`` 은 MANAGER 를 팀과 상관없이 지나보내므로(정책 엔진 3단계) 생산팀 MANAGER 는 이 술어가 막는다.
+
+    Args:
+        user: 사용자 객체(None 허용). ``role`` · ``team`` · ``is_active`` · ``partner_org_id`` 를 읽는다.
+
+    Returns:
+        활성 · 협력사 아님이고, ``role == 'ADMIN'`` 이거나 STAFF · MANAGER 이면서 도면 능력 팀이면 True. VIEWER · 다른 팀은 False.
+    """
+    if not user or getattr(user, "is_active", None) is False or getattr(user, "partner_org_id", None) is not None:
+        return False
+    role = str(getattr(user, "role", None) or "").strip().upper()
+    if role == "ADMIN":
+        return True
+    return role in ("STAFF", "MANAGER") and team_has_capability(getattr(user, "team", None), ("DRAWING",))
+
+
 def has_pending_unchecked_drawing_revision_requests(structured_data: object) -> bool:
     """REQUEST_REVISION 이벤트 중 review_check.checked가 아직 False인 항목이 있으면 True."""
     if not isinstance(structured_data, dict):

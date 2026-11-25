@@ -42,6 +42,8 @@ submitBtn.classList.replace('btn-warning', 'btn-primary');
 }
 
 renderTransferReplaceSelector(orderId, isRetransfer);
+// 생산·시공 단계 주문이면 수정본 규칙 칸을 켠다(설계서 2026-11-25 D2 — erp-dashboard-drawing-fix.js, 그 밖 단계는 창 그대로).
+if (window.FomsDashboardFix) window.FomsDashboardFix.open(orderId, isRetransfer);
 
 const modal = new bootstrap.Modal(document.getElementById('erpDrawingTransferModal'));
 modal.show();
@@ -63,7 +65,14 @@ if (files.length === 0 && currentFiles.length === 0) {
 showErpToast('전달할 도면이 없습니다. 도면 파일을 먼저 업로드해주세요.', 'error');
 return;
 }
-if (__isRetransfer && currentFiles.length > 1 && !replaceTargetKey) {
+// 생산·시공 단계 수정본: 메모 꼭 적기 · 파일마다 바꿀 도면을 올리기 전에 본다(작업실 창과 같은 규칙).
+const fix = window.FomsDashboardFix && window.FomsDashboardFix.active(__currentTransferOrderId) ? window.FomsDashboardFix : null;
+const fixWhy = fix ? fix.check(note) : '';
+if (fixWhy) {
+showErpToast(fixWhy, 'error');
+return;
+}
+if (!fix && __isRetransfer && currentFiles.length > 1 && !replaceTargetKey) {
 showErpToast('수정본 재전송 시 교체할 도면 번호를 선택해주세요.', 'info');
 return;
 }
@@ -72,7 +81,13 @@ const msg = __isRetransfer
 ? '선택한 기존 도면이 삭제되고 새 파일로 대체됩니다.\n정말 재전송 하시겠습니까?'
 : '도면을 전달하시겠습니까?';
 
-if (!confirm(msg)) return;
+// 확인은 한 번 — 생산·시공 단계는 보내기 전 확인 창(물어본 도면 열쇠만 ack) 또는 '바뀐 도면' 줄 + 생산 확인 글.
+let ack = null;
+if (fix) {
+const asked = await fix.confirmSend(msg);
+if (!asked.ok) return;
+ack = asked.ack;
+} else if (!confirm(msg)) return;
 
 let createdFiles = [];
 
@@ -158,18 +173,26 @@ return;
 try {
 const bodyData = {
 note: note,
-files: createdFiles,
+files: fix ? fix.attach(createdFiles, files) : createdFiles,
 is_retransfer: __isRetransfer,
 replace_target_key: replaceTargetKey || null,
 replace_target_number: getDrawingTargetNumber(__currentTransferOrderId, replaceTargetKey),
 };
+if (fix) {
+bodyData.replace_target_key = null;   // 파일마다 고른 도면이 자리다 — 교체 대상은 쓰지 않는다
+bodyData.replace_target_number = null;
+bodyData.ack_worked = ack.idents;
+bodyData.ack_order_made = ack.orderMade;
+}
 
-const res = await fetch(`/api/orders/${__currentTransferOrderId}/transfer-drawing`, {
+const data = fix
+? await fix.send(`/api/orders/${__currentTransferOrderId}/transfer-drawing`, bodyData)
+: await (await fetch(`/api/orders/${__currentTransferOrderId}/transfer-drawing`, {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' },
 body: JSON.stringify(bodyData)
-});
-const data = await res.json();
+})).json();
+if (data.cancelled) return;
 
 if (data.success) {
 showErpToast(data.message || '도면이 전달되었습니다.', 'success');

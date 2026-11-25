@@ -13,6 +13,11 @@ updated_at, departed_at, departed_by_name}``. ``issue``는 누락 신고 사유
 
 JSONB 쓰기는 ``copy.deepcopy`` + ``flag_modified`` + ``db.commit()`` 규약을 따르고,
 저장 시 OrderEvent ``PACKING_UPDATED``(출발 보고는 ``PACKING_DEPARTED``)를 남긴다.
+
+2공장(설계서 2026-11-23 '승인 때 고친 것' 6): 2공장 장이 섞인 주문(또는 공장 꼴로 저장한 주문)은 목록을 공장마다 묶고 도면 한 장 = 한 줄
++ 공장마다 "철물 · 기타" 한 줄로 그린다 — 규칙 · 자료 모양은 ``foms/services/shipment/packing_factory.py``. 공장마다 상차 완료
+(POST ``{loaded: 1|2}``, 이벤트 ``PACKING_FACTORY_LOADED``)가 모두 되는 순간 출발 보고가 처리된다(``PACKING_DEPARTED``). 1공장뿐인 주문은
+위 지금 길 그대로다. 누가 보고 체크하나(생산팀 파트 계정 · 반장은 자기 공장 줄만)는 ``foms/services/shipment/packing_access.py`` 한 곳.
 """
 
 from __future__ import annotations
@@ -34,11 +39,18 @@ from foms.api.shipment.settings import erp_shipment_bp
 from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     evaluate_policy,
-    team_has_capability,
 )
 from foms.services.orders.drawing_confirm_partial import is_item_cancelled
 from foms.services.orders.revision import RevisionError, execute_order_mutation
-from foms.web.auth import get_user_by_id, log_access
+from foms.services.production.factory_constants import normalize_factory
+from foms.services.shipment import packing_factory as pf
+from foms.services.shipment.packing_access import (
+    PACKING_DENIED_MESSAGE,
+    can_view_packing,
+    packing_factories,
+    single_factory_can_check,
+)
+from foms.web.auth import get_request_user, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from models import Order, OrderEvent
@@ -46,17 +58,22 @@ from models import Order, OrderEvent
 logger = logging.getLogger(__name__)
 
 #: §2.1 canonical packing write 정책(AUTH-01). route manifest·UI 은닉·이 핸들러가 공유한다
-#: (CS/SALES/SHIPMENT/CONSTRUCTION team-wide 또는 ADMIN/MANAGER; VIEWER hard deny).
+#: (사장님 2026-11-25 "생산 · 시공 · 관리자만": ADMIN · 시공팀 STAFF/MANAGER · 생산팀 파트 계정 · 반장(자기 공장 줄);
+#: 출고 · CS · 영업 · 다른 팀 MANAGER · 파트도 반장도 아닌 생산팀 · VIEWER deny — 판정 = 문지기 ``packing_access.can_write_packing``).
 PACKING_WRITE_POLICY_ID = "PACKING_WRITE"
 
 
 class _PackingGateError(Exception):
     """출발 보고 전제(전 항목 체크) 위반 — mutation 내부에서 raise, 호출부가 400 으로 매핑."""
 
-# 통합 후보: 아래 팀 권한은 향후 erp_permissions.py의 표준 헬퍼/데코레이터로
-# 승격할 예정이다. B6 범위에서는 erp_permissions.py를 무터치로 두고 출고 패킹
-# 전용 로컬 데코레이터로만 유지한다.
-_PACKING_EDIT_ALLOWED_TEAMS = ("CS", "SALES", "SHIPMENT", "CONSTRUCTION")
+
+class _PackingNoChange(Exception):
+    """공장 꼴 — 이미 산 상차 완료 · 이미 한 출발 보고를 다시 보냄(그 밖에 바꾼 것 없음). 되감고 지금 자료로 200 — 쓰기 · 버전 ·
+    영수증 · 이벤트 · 감사 줄 0."""
+
+    def __init__(self, data: dict[str, Any]) -> None:
+        super().__init__("no change")
+        self.data = data
 
 # 파생 기본 항목: (key 접미사, 라벨 접미사).
 _DERIVED_PART_SUFFIXES = (
@@ -70,19 +87,13 @@ _ALLOWED_ISSUES = frozenset({"missing", "damaged", "short"})
 
 
 def _can_edit_packing(user: Any) -> bool:
-    """출고 패킹 체크리스트를 수정할 수 있는 사용자인지 판정한다.
+    """출고 패킹 체크리스트를 열(GET) 수 있는 사용자인지 — ``packing_access.can_view_packing`` 한 곳.
 
-    Args:
-        user: 현재 사용자(``None`` 허용).
-
-    Returns:
-        ADMIN 또는 team이 CS/SALES/SHIPMENT/CONSTRUCTION이면 ``True``.
+    쓰기 정책(``PACKING_WRITE`` 문지기 ``can_write_packing``)이 받는 사람은 모두 읽는다(생산팀 파트 계정 · 반장 포함). 거기에
+    예전 읽기 문이 열어 주던 출고 · CS(회계) · 영업 · 시공 팀 직원 · 매니저 · 조회 전용(VIEWER)은 보기만 그대로 두고, 팀과 상관없이 켜진
+    MANAGER 도 보기만 연다(2026-11-25).
     """
-    if not user:
-        return False
-    if (getattr(user, "role", None) or "").strip().upper() == "ADMIN":
-        return True
-    return team_has_capability(getattr(user, "team", None), _PACKING_EDIT_ALLOWED_TEAMS)
+    return can_view_packing(user)
 
 
 def _packing_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
@@ -97,7 +108,7 @@ def _packing_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
         if not user:
             return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
         if not _can_edit_packing(user):
-            return jsonify({"success": False, "error": "출고 패킹 수정 권한이 없습니다."}), 403
+            return jsonify({"success": False, "error": PACKING_DENIED_MESSAGE}), 403
         return f(*args, **kwargs)
 
     return wrapped
@@ -155,8 +166,13 @@ def _packing_payload(
     persisted: bool,
     departed_at: str | None = None,
     departed_by_name: str | None = None,
+    can_check: list[int] | None = None,
 ) -> dict[str, Any]:
-    """API 응답 data 블록을 구성한다(출발 보고 상태 departed_* 포함)."""
+    """API 응답 data 블록을 구성한다(출발 보고 상태 departed_* 포함).
+
+    ``can_check`` = 이 사람이 체크할 수 있는 공장들(``packing_access.single_factory_can_check`` — 공장 꼴 응답과 같은 뜻). 빈 목록이면
+    화면(``foms-packing.js``)이 보기만 꼴(체크칸 꺼짐 · 누락 신고 · 줄 더하기 없음 · 출발 보고 꺼짐)으로 그린다.
+    """
     checked = sum(1 for it in items if isinstance(it, dict) and it.get("checked"))
     issues = sum(1 for it in items if isinstance(it, dict) and it.get("issue"))
     return {
@@ -167,6 +183,7 @@ def _packing_payload(
         "persisted": persisted,
         "departed_at": departed_at,
         "departed_by_name": departed_by_name,
+        "can_check": list(can_check or []),
     }
 
 
@@ -179,23 +196,32 @@ def api_shipment_packing_get(order_id: int):
     if not order:
         return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    return jsonify({"success": True, "data": _read_payload(sd)})
+
+
+def _read_payload(sd: dict[str, Any]) -> dict[str, Any]:
+    """응답 data — 공장 꼴이면 공장 묶음(packing_factory, 이 요청이 이미 읽은 사용자로 공장 몫), 아니면 지금 꼴 그대로(칸 · 쿼리 그대로)."""
+    user = get_request_user(session.get("user_id"))
+    if pf.is_factory_layout(sd):
+        return pf.factory_payload(sd, packing_factories(user))
     items, persisted = _load_packing_items(sd)
     shipment = sd.get("shipment") if isinstance(sd, dict) else None
     packing = shipment.get("packing") if isinstance(shipment, dict) else None
     departed_at = packing.get("departed_at") if isinstance(packing, dict) else None
     departed_by_name = packing.get("departed_by_name") if isinstance(packing, dict) else None
-    return jsonify(
-        {"success": True, "data": _packing_payload(items, persisted, departed_at, departed_by_name)}
-    )
+    return _packing_payload(items, persisted, departed_at, departed_by_name, single_factory_can_check(user))
 
 
 def _mutation_hashes(
-    order_id: int, updates: Any, add: Any, departed_flag: bool
+    order_id: int, updates: Any, add: Any, departed_flag: bool, loaded: Optional[int] = None
 ) -> tuple[str, str]:
-    """(scope_hash, request_hash) — receipt 저장·same-key/different-hash 감지용 sha256."""
+    """(scope_hash, request_hash) — receipt 저장·same-key/different-hash 감지용 sha256(loaded 는 있을 때만 — 지금 요청의 해시 그대로)."""
     scope = hashlib.sha256(f"{PACKING_WRITE_POLICY_ID}:{order_id}".encode()).hexdigest()
+    body: dict[str, Any] = {"updates": updates, "add": add, "departed": departed_flag}
+    if loaded is not None:
+        body["loaded"] = loaded
     request_payload = json.dumps(
-        {"updates": updates, "add": add, "departed": departed_flag},
+        body,
         sort_keys=True,
         ensure_ascii=False,
         default=str,
@@ -212,7 +238,8 @@ def api_shipment_packing_save(order_id: int):
     idempotency receipt + OrderEvent 를 **한 transaction** 에 묶는다. 같은 ``Idempotency-Key``
     재요청은 replay(중복 제출 0)로 수렴한다.
 
-    Body: ``{updates?, add?, departed?}``. optional 헤더 ``If-Match``·``Idempotency-Key``.
+    Body: ``{updates?, add?, departed?, loaded?}``(``loaded`` = 공장 상차 완료 1 · 2, 공장 꼴 주문만 — add 에 ``factory`` 선택).
+    optional 헤더 ``If-Match``·``Idempotency-Key``. 남의 공장 줄 · 1공장 줄(2공장 생산팀 계정)은 403 ``PACKING_FACTORY_FORBIDDEN``.
     반환: ``{success, data:{...packing payload, mutation_receipt}}`` + ``Cache-Control: no-store``.
     """
     db: Session = get_db()
@@ -235,7 +262,11 @@ def api_shipment_packing_save(order_id: int):
     updates = payload.get("updates")
     add = payload.get("add")
     departed_flag = bool(payload.get("departed"))
-    if updates is None and add is None and not departed_flag:
+    try:
+        loaded = normalize_factory(payload.get("loaded"))
+    except ValueError:
+        return jsonify({"success": False, "data": {"code": "BAD_REQUEST"}, "error": "공장 값이 올바르지 않아요."}), 400
+    if updates is None and add is None and not departed_flag and loaded is None:
         return jsonify({"success": False, "error": "updates·add·departed 중 하나가 필요합니다."}), 400
     if updates is not None and not isinstance(updates, list):
         return jsonify({"success": False, "error": "updates는 배열이어야 합니다."}), 400
@@ -279,13 +310,19 @@ def api_shipment_packing_save(order_id: int):
     user_id = getattr(user, "id", None)
     by_name = (getattr(user, "name", None) or getattr(user, "username", None) or "").strip()
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    scope_hash, request_hash = _mutation_hashes(order_id, updates, add, departed_flag)
+    scope_hash, request_hash = _mutation_hashes(order_id, updates, add, departed_flag, loaded)
     captured: dict[str, Any] = {}
+    mine = packing_factories(user)
 
     def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
         """row lock 아래에서 packing JSONB 갱신 + OrderEvent parity(다른 축 불변)."""
         o = orders[0]
         sd = copy.deepcopy(o.structured_data if isinstance(o.structured_data, dict) else {})
+        if pf.is_factory_layout(sd):
+            return _mutate_factory(sess, o, sd)
+        if loaded is not None:
+            raise pf.PackingRefusal(400, "BAD_REQUEST", "공장마다 상차하는 주문이 아니에요. 화면을 다시 열어 주세요.")
+        pf.require_first_factory(mine)  # 1공장뿐인 주문 = 모든 줄이 1공장 몫(2공장 생산팀 계정은 못 씀)
         shipment = sd.get("shipment")
         if not isinstance(shipment, dict):
             shipment = {}
@@ -369,6 +406,28 @@ def api_shipment_packing_save(order_id: int):
         captured["departed_by_name"] = packing.get("departed_by_name")
         return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
+    def _mutate_factory(sess: Session, o: Order, sd: dict[str, Any]) -> Mapping[int, List[str]]:
+        """공장 꼴(2공장 장이 섞인 주문) — 같은 한 tx 안에서 packing_factory 규칙으로 쓰고 이벤트 하나."""
+        stored = pf.stored_packing(sd)
+        result = pf.apply_factory_write(
+            sd, updates=updates, loaded=loaded, departed=departed_flag, mine=mine,
+            add={"label": add_label, "qty": add_qty, "factory": (add or {}).get("factory")} if add_label else None,
+            by_name=by_name, user_id=user_id, now_iso=now_iso,
+            new_key=f"custom_{int(datetime.datetime.now().timestamp() * 1000)}_{len(stored['items']) if stored else 0}",
+        )
+        if not result["changed"]:
+            raise _PackingNoChange(pf.factory_payload(o.structured_data if isinstance(o.structured_data, dict) else {}, mine))
+        data = pf.factory_payload(sd, mine)
+        o.structured_data = sd
+        flag_modified(o, "structured_data")
+        event_payload = {"checked_count": data["checked_count"], "total": data["total"],
+                         "issues_count": data["issues_count"], "layout": pf.LAYOUT_FACTORY}
+        event_payload.update({k: result[k] for k in ("factory", "factories") if k in result})
+        sess.add(OrderEvent(order_id=o.id, event_type=result["event_type"], payload=event_payload,
+                            created_by_user_id=user_id))
+        captured["data"] = data
+        return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
+
     # 4) REV-00 one-tx: policy(위)+If-Match+FOR UPDATE+version bump+idempotency+receipt+event.
     try:
         outcome = execute_order_mutation(
@@ -395,6 +454,15 @@ def api_shipment_packing_save(order_id: int):
     except _PackingGateError as gate:
         db.rollback()
         return jsonify({"success": False, "error": str(gate)}), 400
+    except _PackingNoChange as same:
+        db.rollback()
+        resp = jsonify({"success": True, "data": {**same.data, "mutation_receipt": None}})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    except pf.PackingRefusal as refusal:
+        db.rollback()
+        return jsonify({"success": False, "data": {"code": refusal.code, **refusal.extra}, "error": refusal.message,
+                        "code": refusal.code}), refusal.status
     except RevisionError as rev:
         db.rollback()
         return jsonify({"success": False, "error": str(rev), "code": rev.error_code}), rev.status_code
@@ -406,14 +474,20 @@ def api_shipment_packing_save(order_id: int):
     if outcome.replayed:  # same-key replay: 저장된 write 를 재조회해 응답 재구성(중복 제출 0).
         fresh = db.query(Order).filter(Order.id == order_id).first()
         sd = fresh.structured_data if isinstance(fresh.structured_data, dict) else {}
-        items, _ = _load_packing_items(sd)
-        packing = (sd.get("shipment") or {}).get("packing") or {}
-        data = _packing_payload(
-            items, True, packing.get("departed_at"), packing.get("departed_by_name")
-        )
+        if pf.is_factory_layout(sd):
+            data = pf.factory_payload(sd, mine)
+        else:
+            items, _ = _load_packing_items(sd)
+            packing = (sd.get("shipment") or {}).get("packing") or {}
+            data = _packing_payload(
+                items, True, packing.get("departed_at"), packing.get("departed_by_name"), single_factory_can_check(user)
+            )
+    elif "data" in captured:
+        data = captured["data"]
     else:
         data = _packing_payload(
-            captured["items"], True, captured.get("departed_at"), captured.get("departed_by_name")
+            captured["items"], True, captured.get("departed_at"), captured.get("departed_by_name"),
+            single_factory_can_check(user),
         )
     data["mutation_receipt"] = outcome.read_receipt_id
 

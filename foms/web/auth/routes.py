@@ -7,12 +7,12 @@ from typing import Any
 import logging
 import re
 from urllib.parse import urlsplit
-from sqlalchemy import case, inspect as sa_inspect
+from sqlalchemy import case, func, inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
 
 from db import get_db
-from models import PasswordResetRequest, User, SecurityLog
+from models import PasswordResetRequest, ProductionPartMark, User, SecurityLog
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.security.account_requests import (
     APPROVAL_ACTIVE,
@@ -33,12 +33,26 @@ from foms.services.user_deletion import (
     detach_user_references_for_deactivate,
     detach_user_references_for_delete,
 )
+from foms.services.production.factory_constants import (
+    FACTORY_2,
+    FACTORY_LABELS,
+    account_production_factory,
+    factory_label,
+    normalize_factory,
+    production_factory_for_team,
+    stored_production_factory,
+)
+from foms.services.production.part_mark_rules import subject_particle
 from foms.services.production.part_constants import (
     PRODUCTION_PART_DEFS,
-    account_production_part,
-    normalize_production_part,
-    production_part_for_team,
-    production_part_label,
+    account_production_lead,
+    account_production_parts,
+    normalize_production_parts,
+    production_lead_for_team,
+    production_part_columns,
+    production_parts_label,
+    stored_production_lead,
+    stored_production_parts,
 )
 from foms.services.post_auth_navigation import (
     is_production_home_user,
@@ -198,28 +212,45 @@ def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | 
     return merged or None
 
 
-# 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자).
+# 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자). 생산 파트는 목록 칸 하나로 본다(옛 칸
+# production_part 는 첫 파트를 같이 적는 사본이라 따로 감사하지 않는다 — 설계서 2026-11-23 §8-6). 반장은 '승인 때 고친 것' 5.
 _AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active', 'sender_phone',
-                        'channel_drawing_group_id', 'production_part')
+                        'channel_drawing_group_id', 'production_parts', 'production_lead', 'production_factory')
+#: 감사 글에서 사람 말로 적는 칸(그 밖 칸은 ``field from→to`` 그대로). 공장은 설계서 2026-11-23 §6-2 · §8-6.
+_AUDIT_FIELD_LABELS = {'production_parts': '생산 파트', 'production_lead': '반장', 'production_factory': '공장'}
 
 
 def _user_audit_snapshot(user):
     """감사 대상 사용자 필드의 현재 값 스냅샷을 뜬다.
 
+    생산 파트는 행에 적힌 파트 목록(새 칸 기준, 옛 칸만 있는 행은 옛 칸 — 팀과 상관없이 적힌 값)이고 없으면 None.
+    반장은 참 · 거짓(NULL = 거짓 — 반장 아님이 두 꼴이라 감사 글이 헛바뀜을 적지 않게).
+
     :param user: 대상 :class:`~models.User` 인스턴스.
     :return: ``{필드명: 값}`` dict(변경 전/후 비교용).
     """
-    return {field: getattr(user, field, None) for field in _AUDITED_USER_FIELDS}
+    snapshot = {field: getattr(user, field, None) for field in _AUDITED_USER_FIELDS}
+    snapshot['production_parts'] = list(stored_production_parts(user)) or None
+    snapshot['production_lead'] = stored_production_lead(user)
+    snapshot['production_factory'] = stored_production_factory(user)  # NULL = 1공장(헛바뀜 없게 1 · 2 로)
+    return snapshot
 
 
-def _format_audit_value(value):
-    """감사 메시지용 값 표기(빈 값은 ``미지정``).
+def _format_audit_value(value, field=None):
+    """감사 메시지용 값 표기(빈 값은 ``미지정``). 생산 파트 목록은 "재단 · 엣지".
 
     :param value: 원본 값.
+    :param field: 칸 이름(생산 파트만 다르게 적는다).
     :return: 사람이 읽는 문자열.
     """
-    if value is None or value == '':
+    if field == 'production_lead':  # "반장 해제 → 지정"
+        return '지정' if value is True else '해제'
+    if field == 'production_factory':  # "공장 1공장 → 2공장"
+        return factory_label(value)
+    if value is None or value == '' or value == []:
         return '미지정'
+    if field == 'production_parts':
+        return production_parts_label(value) or '미지정'
     return str(value)
 
 
@@ -234,10 +265,13 @@ def _user_change_summary(before, after):
     for field in _AUDITED_USER_FIELDS:
         old_value = before.get(field)
         new_value = after.get(field)
-        if old_value != new_value:
-            changes.append(
-                f"{field} {_format_audit_value(old_value)}→{_format_audit_value(new_value)}"
-            )
+        if old_value == new_value:
+            continue
+        if field in _AUDIT_FIELD_LABELS:  # 예: "생산 파트 재단 → 재단 · 엣지"(설계서 2026-11-23 §8-6)
+            changes.append(f"{_AUDIT_FIELD_LABELS[field]} {_format_audit_value(old_value, field)} → "
+                           f"{_format_audit_value(new_value, field)}")
+            continue
+        changes.append(f"{field} {_format_audit_value(old_value)}→{_format_audit_value(new_value)}")
     return changes
 
 
@@ -770,13 +804,61 @@ def password_reset_request():
 
     return render_template('auth/password_reset_request.html')
 
+def _production_lead_from_form(team: str | None) -> bool | None:
+    """폼의 '반장' 체크칸 → 저장할 반장 칸('승인 때 고친 것' 5). 생산팀이 아니면 비운다(팀을 바꾸면 같이 비워진다).
+
+    :param team: 같이 저장할 팀 글.
+    :return: ``True`` 또는 None(반장 아님).
+    """
+    return production_lead_for_team(team, request.form.get('production_lead') == 'on')
+
+
+def _production_factory_from_form(team: str | None) -> int | None:
+    """폼의 '공장' 고르기 → 저장할 계정 공장(설계서 2026-11-23 §6-2 · §8-6). 2공장만 적고 1공장 · 다른 팀은 비운다(NULL = 1공장).
+
+    :param team: 같이 저장할 팀 글.
+    :return: 2 또는 None.
+    :raises ValueError: 1 · 2 가 아닌 값을 보냈을 때(화면 목록 밖 — 저장하지 않고 되묻는다).
+    """
+    return production_factory_for_team(team, normalize_factory(request.form.get('production_factory')))
+
+
+def _team_line_label(user: Any) -> str | None:
+    """사용자 목록 팀 글 뒤에 붙일 글 — 반장 · 생산 파트 · 2공장(생산팀만, 예 "반장 · 재단 · 엣지 · 2공장"). 없으면 None.
+
+    1공장(비어 있음)은 적지 않는다 — 2공장 계정이 없으면 목록 글이 지금과 같다(설계서 2026-11-23 '승인 때 고친 것' 1).
+    """
+    words = ['반장'] if account_production_lead(user) else []
+    parts = production_parts_label(account_production_parts(user))
+    words += [parts] if parts else []
+    words += [FACTORY_LABELS[FACTORY_2]] if account_production_factory(user) == FACTORY_2 else []
+    return ' · '.join(words) or None
+
+
+def _held_marks_note(db: Any, user: Any, old_factory: int) -> str | None:
+    """공장을 바꾼 사람이 옛 공장에서 담당인 장이 있으면 한 줄(설계서 2026-11-23 §8-6 — 맡기는 저절로 안 풀린다). 쿼리 1.
+
+    :param db: 요청 DB 세션.
+    :param user: 공장을 바꾼 :class:`~models.User`.
+    :param old_factory: 바꾸기 전 공장(1 · 2).
+    :return: 안내 글 또는 None(담당인 장이 없으면).
+    """
+    held = (db.query(func.count(ProductionPartMark.id))
+            .filter(ProductionPartMark.picked_by_user_id == user.id, ProductionPartMark.state == 'NEED').scalar() or 0)
+    if not held:
+        return None
+    old = factory_label(old_factory)
+    return (f"{subject_particle(user.name or user.username)} {old}에서 담당인 장이 {held}장 있어요. "
+            f"그대로 두면 {old} 사람이 [담당 바꾸기]로 이어서 해요.")
+
+
 def _render_add_user_form() -> str:
     """관리자 사용자 추가 화면을 그린다(역할 · 팀 · 생산 파트 고르기 목록을 늘 같이 넘긴다).
 
     :return: ``auth/add_user.html`` 응답 글.
     """
     return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS,
-                           production_parts=PRODUCTION_PART_DEFS)
+                           production_parts=PRODUCTION_PART_DEFS, factory_labels=FACTORY_LABELS)
 
 
 def _render_edit_user_form(db: Any, user: User) -> str:
@@ -787,21 +869,26 @@ def _render_edit_user_form(db: Any, user: User) -> str:
     :return: ``auth/edit_user.html`` 응답 글.
     """
     return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS,
-                           production_parts=PRODUCTION_PART_DEFS,
+                           production_parts=PRODUCTION_PART_DEFS, user_parts=stored_production_parts(user),
+                           factory_labels=FACTORY_LABELS, user_factory=stored_production_factory(user),
                            count_admin=db.query(User).filter(User.role == 'ADMIN').count())
 
 
-def _production_part_from_form(team: str | None) -> str | None:
-    """폼의 '생산 파트' 값 → 저장할 값(PRODPART-00, 설계서 §15.3).
+def _production_parts_from_form(team: str | None) -> tuple[list[str] | None, str | None]:
+    """폼의 '생산 파트' 체크칸들 → 저장할 두 칸(설계서 2026-11-23 §6-1 · §8-6 — 새 칸 목록 + 옛 칸 = 첫 파트).
 
-    팀이 생산팀이 아니면 고른 값과 상관없이 None 으로 비운다. 파트가 바뀌어도 세션은 끊지 않는다
-    (요청마다 사용자 행을 다시 읽는다).
+    팀이 생산팀이 아니면 고른 값과 상관없이 둘 다 비운다. 파트가 바뀌어도 세션은 끊지 않는다(요청마다 사용자 행을 다시 읽는다).
+    체크칸 이름은 ``production_parts``(여럿). 그 이름이 없고 옛 고르기 칸 ``production_part`` 가 있으면(배포 전에 열어 둔 화면에서
+    저장) 그 하나로 읽는다 — 체크칸을 모두 끈 새 화면은 두 이름 다 없어 파트를 비운다.
 
     :param team: 같이 저장할 팀 글.
-    :return: 파트 key 또는 None.
+    :return: ``(새 칸 목록 또는 None, 옛 칸 = 첫 파트 또는 None)``.
     :raises ValueError: 네 파트가 아닌 값을 보냈을 때(화면 목록 밖 — 저장하지 않고 되묻는다).
     """
-    return production_part_for_team(team, normalize_production_part(request.form.get('production_part')))
+    values = request.form.getlist('production_parts')
+    if not values and 'production_part' in request.form:
+        values = [request.form.get('production_part')]
+    return production_part_columns(team, normalize_production_parts(values))
 
 
 # User Management Routes
@@ -853,10 +940,10 @@ def user_list():
         legacy_active_total=active_legacy_count(db),
         policy_enforced=is_policy_enforced(db),
         policy_filter=request.args.get('policy'),
-        # PRODPART-00: 팀 글 뒤에 붙일 생산 파트 이름(생산팀이고 파트가 있는 사람만 — 예 `생산팀 · 재단`).
-        production_part_labels={
-            u.id: label for u in users if (label := production_part_label(account_production_part(u)))
-        },
+        # PRODPART-00 · PRODPARTS-01 · PRODLEAD-01: 팀 글 뒤에 붙일 반장 · 생산 파트(생산팀만 — 예 `생산팀 · 재단`,
+        # 여럿이면 `생산팀 · 재단 · 엣지`, 반장이면 `생산팀 · 반장 · 재단`). 파트도 반장도 없는 생산팀은 팀 글 그대로.
+        production_part_labels={u.id: label for u in users if (label := _team_line_label(u))},
+        production_parts=PRODUCTION_PART_DEFS,
     )
 
 @auth_bp.route('/admin/users/add', methods=['GET', 'POST'])
@@ -892,7 +979,8 @@ def add_user():
             return _render_add_user_form()
 
         try:
-            production_part = _production_part_from_form(team)
+            production_parts, production_part = _production_parts_from_form(team)
+            production_factory = _production_factory_from_form(team)
         except ValueError as exc:
             flash(str(exc), 'error')
             return _render_add_user_form()
@@ -907,6 +995,9 @@ def add_user():
                 role=role,
                 team=team,
                 production_part=production_part,
+                production_parts=production_parts,
+                production_lead=_production_lead_from_form(team),
+                production_factory=production_factory,
                 is_active=True
             )
             set_strong_password(new_user, password)
@@ -974,9 +1065,10 @@ def edit_user(user_id):
             flash('유효하지 않은 역할입니다.', 'error')
             return _render_edit_user_form(db, user)
 
-        # PRODPART-00: 생산 파트(생산팀이 아니면 비움). 목록 밖 값은 저장하지 않고 되돌린다.
+        # PRODPART-00 · PRODPARTS-01: 생산 파트 여럿(생산팀이 아니면 비움). 목록 밖 값은 저장하지 않고 되돌린다.
         try:
-            production_part = _production_part_from_form(team)
+            production_parts, production_part = _production_parts_from_form(team)
+            production_factory = _production_factory_from_form(team)
         except ValueError as exc:
             flash(str(exc), 'error')
             return _render_edit_user_form(db, user)
@@ -1024,8 +1116,10 @@ def edit_user(user_id):
             user.name = name
             user.role = role
             user.team = team
-            # 파트만 바뀌면 세션을 끊지 않는다(위 bump 는 역할 · 팀만 본다 — 설계서 §15.3).
-            user.production_part = production_part
+            # 파트만 바뀌면 세션을 끊지 않는다(위 bump 는 역할 · 팀만 본다 — 설계서 §15.3). 두 칸을 같이 쓴다(옛 칸 = 첫 파트).
+            user.production_parts, user.production_part = production_parts, production_part
+            user.production_lead = _production_lead_from_form(team)  # 반장(생산팀만 — 팀을 바꾸면 같이 비움)
+            user.production_factory = production_factory  # 공장(2공장만 적음, 생산팀만 — 설계서 2026-11-23 §6-2)
             user.is_active = is_active
             # SHARE-SMS(D2): 개인 발신번호 — 숫자만 격납(하이픈 제거), 빈 값은 NULL(대표번호 폴백).
             sender_phone_raw = (request.form.get('sender_phone') or '').strip()
@@ -1048,6 +1142,8 @@ def edit_user(user_id):
             changes = _user_change_summary(audit_before, audit_after)
             change_detail = _user_change_detail(audit_before, audit_after)
             admin_id = session.get('user_id')
+            moved_note = (_held_marks_note(db, user, audit_before['production_factory'])
+                          if audit_before['production_factory'] != audit_after['production_factory'] else None)
 
             db.commit()
 
@@ -1071,6 +1167,8 @@ def edit_user(user_id):
                            target_type='user', target_id=user_id)
 
             flash('사용자 정보가 성공적으로 업데이트되었습니다.', 'success')
+            if moved_note:
+                flash(moved_note, 'info')
             return redirect(url_for('auth.user_list'))
 
         except Exception as e:
@@ -1180,12 +1278,20 @@ def approve_user(user_id):
     if team is not None and team not in TEAMS:
         flash('유효하지 않은 팀입니다.', 'error')
         return redirect(url_for('auth.user_list'))
+    # 생산팀으로 승인할 때 파트 · 반장도 같이(추가 화면과 같은 읽기 — 다른 팀이면 비움, '승인 때 고친 것' 5)
+    try:
+        production_parts, production_part = _production_parts_from_form(team)
+    except ValueError as exc:
+        flash(str(exc), 'error')
+        return redirect(url_for('auth.user_list'))
 
     audit_before = _user_audit_snapshot(user)
     username = user.username
     try:
         user.role = role
         user.team = team
+        user.production_parts, user.production_part = production_parts, production_part
+        user.production_lead = _production_lead_from_form(team)
         user.approval_status = APPROVAL_ACTIVE
         # 승인은 권한 부여 행위다 — 무엇이 무엇으로 바뀌었는지 field 별로 남긴다.
         audit_after = _user_audit_snapshot(user)

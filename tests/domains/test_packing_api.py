@@ -1,7 +1,7 @@
 """출고 패킹 체크리스트 API 계약 (B6).
 
 GET 파생(items[] → 제품별 3항, 저장 안 함) · POST 저장 · 재GET 지속 ·
-권한(SHIPMENT 허용 / DRAWING 403) · 잘못된 payload 400 · OrderEvent 기록.
+권한(시공 쓰기 · 출고 보기만(2026-11-25 — 전: 쓰기) / DRAWING 403) · 잘못된 payload 400 · OrderEvent 기록.
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ def test_get_derives_items_without_persisting(client) -> None:
 
 
 def test_post_saves_and_get_persists(client) -> None:
-    user = _make_user("packing_shipment_save", "SHIPMENT")
+    user = _make_user("packing_shipment_save", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
 
@@ -110,7 +110,7 @@ def test_post_saves_and_get_persists(client) -> None:
 
 
 def test_post_add_item(client) -> None:
-    user = _make_user("packing_add", "CS")
+    user = _make_user("packing_add", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
 
@@ -132,8 +132,19 @@ def test_drawing_team_forbidden(client) -> None:
     assert client.post(_url(order.id), json={"updates": []}).status_code == 403
 
 
+def test_shipment_staff_views_only(client) -> None:
+    """출고팀 직원 — 목록은 그대로 열고(GET 200) 체크는 못 한다(POST 403, 사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만")."""
+    user = _make_user("packing_shipment_view", "SHIPMENT")
+    _login(client, user)
+    order = _make_order()
+    assert client.get(_url(order.id)).status_code == 200
+    res = client.post(_url(order.id), json={"updates": [{"key": "item0_body", "checked": True}]})
+    assert res.status_code == 403
+    assert res.get_json()["error"] == "이 화면/작업 권한이 없습니다."  # 지금 문지기 거절 글 그대로(새 글 없음)
+
+
 def test_bad_payload_returns_400(client) -> None:
-    user = _make_user("packing_bad", "SHIPMENT")
+    user = _make_user("packing_bad", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
 
@@ -147,7 +158,7 @@ def test_bad_payload_returns_400(client) -> None:
 
 def test_post_sets_and_persists_issue(client) -> None:
     """누락 사유(issue) 표기 → 저장·재GET 지속, checked 보존, 이벤트 issues_count, 해제."""
-    user = _make_user("packing_issue", "SHIPMENT")
+    user = _make_user("packing_issue", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
     derived = client.get(_url(order.id)).get_json()["data"]["items"]
@@ -191,7 +202,7 @@ def test_post_sets_and_persists_issue(client) -> None:
 
 def test_post_rejects_invalid_issue(client) -> None:
     """화이트리스트 밖 issue 값 → 400, 저장 없음."""
-    user = _make_user("packing_bad_issue", "SHIPMENT")
+    user = _make_user("packing_bad_issue", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
     derived = client.get(_url(order.id)).get_json()["data"]["items"]
@@ -208,7 +219,7 @@ def test_post_rejects_invalid_issue(client) -> None:
 
 
 def test_post_records_order_event(client) -> None:
-    user = _make_user("packing_event", "SHIPMENT")
+    user = _make_user("packing_event", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
     derived = client.get(_url(order.id)).get_json()["data"]["items"]
@@ -236,7 +247,7 @@ def _check_all(client, order_id: int) -> list[dict]:
 
 def test_departed_gate_requires_all_checked(client) -> None:
     """P6 서버 게이트: 전 항목 체크 전 출발 보고 → 400, departed 미기록(클라 우회 차단)."""
-    user = _make_user("packing_depart_gate", "SHIPMENT")
+    user = _make_user("packing_depart_gate", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
     derived = client.get(_url(order.id)).get_json()["data"]["items"]
@@ -257,7 +268,7 @@ def test_departed_gate_requires_all_checked(client) -> None:
 
 def test_departed_success_records_event_and_is_idempotent(client) -> None:
     """P6 성공: 전 항목 체크 후 출발 보고 → 200 + PACKING_DEPARTED 이벤트, 재보고 멱등(200 갱신)."""
-    user = _make_user("packing_depart_ok", "SHIPMENT")
+    user = _make_user("packing_depart_ok", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
     _check_all(client, order.id)
@@ -295,7 +306,7 @@ def test_departed_success_records_event_and_is_idempotent(client) -> None:
 
 def test_departed_exposed_via_get(client) -> None:
     """P6 GET 노출: 출발 보고 후 GET 응답에 departed_at/departed_by_name 포함."""
-    user = _make_user("packing_depart_get", "SHIPMENT")
+    user = _make_user("packing_depart_get", "CONSTRUCTION")  # 쓰는 사람 = 시공팀(출고 · CS 는 2026-11-25 부터 보기만)
     _login(client, user)
     order = _make_order()
     _check_all(client, order.id)

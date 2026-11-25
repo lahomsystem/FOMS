@@ -169,6 +169,8 @@
     {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
     <div class="foms-prod-page__defect" data-foms-sheet-defect>
       <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>{% if can_act_production %}
+      {# 카드를 쓴 파트의 공정 칸 체크 거절 글(설계서 2026-11-23 §4-2 — 서버 글 그대로) · 반장 손 체크 확인 창(승인 때 고친 것 3, 자료는 공정 API GET) #}
+      <p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>{% include 'production/partials/sheet_step_confirm.html' %}
       <button type="button" class="foms-prod-page__btn foms-prod-page__btn--bad" data-foms-sheet-defect-toggle aria-expanded="false">불량 알리기</button>
       <div class="foms-prod-page__chips" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">
         {% for r in defect_reasons | default(['자재 불량', '가공 오류', '파손', '기타'], true) %}<button type="button" class="foms-prod-page__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}

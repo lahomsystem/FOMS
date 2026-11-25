@@ -322,7 +322,7 @@ def test_press_feedback_bar_height_and_lazy_paint_css():
     wide = home.split("@media (min-width: 992px) {", 1)[1].split("}\n}", 1)[0]
     assert ".foms-prod-home__bar { flex-wrap: nowrap; }" in wide  # 제목 줄 한 줄 고정 — 자리 이동 없음
     assert "top: var(--fph-bar-h, 73px);" in home
-    assert ".pp-card { content-visibility: auto; contain-intrinsic-size: auto 312px; }" in parts
+    assert ".pp-card { content-visibility: auto; contain-intrinsic-size: auto 344px; }" in parts  # 자리표시 = 실측 카드 키(2026-11-23 §10 F2)
     assert "content-visibility: auto;" in home.split(".fph-dr {", 1)[1].split("}", 1)[0]
     assert 'loading="lazy"' in (ROOT / "templates/production/partials/home_parts.html").read_text(encoding="utf-8")
     js = HOME_JS.read_text(encoding="utf-8")

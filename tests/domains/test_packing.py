@@ -111,7 +111,7 @@ def _derived_keys(client, oid):
 # --------------------------------------------------------------------------
 def test_packing_save_bumps_version_and_writes_receipt(client, app):
     """체크 저장은 mutation_version++ · receipt 1 · OrderEvent(PACKING_UPDATED) 1 을 한 tx 에."""
-    _login(client, username="pk-onetx", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-onetx", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -136,7 +136,7 @@ def test_packing_save_bumps_version_and_writes_receipt(client, app):
 
 def test_packing_save_leaves_other_axes_unchanged(client, app):
     """packing 갱신 후 canonical 5축(main/logistics/hold/AS/delete) 완전 불변(orthogonal)."""
-    _login(client, username="pk-orth", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-orth", role="STAFF", team="CONSTRUCTION")
     oid = _make_order(
         structured_data={
             "workflow": {"stage": "SHIPMENT", "hold": {"active": True, "reason": "대기"}},
@@ -163,7 +163,7 @@ def test_packing_save_leaves_other_axes_unchanged(client, app):
 # --------------------------------------------------------------------------
 def test_packing_save_same_idempotency_key_writes_once(client, app):
     """같은 Idempotency-Key 재요청은 replay — 항목 추가 1 · event 1 · version 1회 bump."""
-    _login(client, username="pk-idem", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-idem", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     base_total = client.get(_url(oid)).get_json()["data"]["total"]
@@ -194,7 +194,7 @@ def test_packing_save_same_idempotency_key_writes_once(client, app):
 # --------------------------------------------------------------------------
 def test_packing_save_stale_if_match_conflicts_and_no_change(client, app):
     """stale If-Match → 409 · packing/version/event 완전 불변."""
-    _login(client, username="pk-stale", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-stale", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -214,7 +214,7 @@ def test_packing_save_stale_if_match_conflicts_and_no_change(client, app):
 
 def test_packing_save_matching_if_match_succeeds(client, app):
     """정확한 If-Match(현재 version) → 200 저장."""
-    _login(client, username="pk-match", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-match", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     current = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -233,7 +233,7 @@ def test_packing_save_matching_if_match_succeeds(client, app):
 # --------------------------------------------------------------------------
 def test_departed_gate_400_leaves_no_write(client, app):
     """전 항목 체크 전 출발 보고 → 400 · departed 미기록 · version 불변 · event 0(우회 차단)."""
-    _login(client, username="pk-depart-gate", role="STAFF", team="SHIPMENT")
+    _login(client, username="pk-depart-gate", role="STAFF", team="CONSTRUCTION")
     oid = _make_order()
     before = _fresh(oid).mutation_version
     key = _derived_keys(client, oid)[0]
@@ -256,18 +256,17 @@ def test_departed_gate_400_leaves_no_write(client, app):
 
 
 # --------------------------------------------------------------------------
-# 권한 (AUTH-01 PACKING_WRITE) — SHIPMENT team-wide + CONSTRUCTION, 그 외 deny
+# 권한 (AUTH-01 PACKING_WRITE) — 사장님 2026-11-25 "패킹 체크는 생산 · 시공 · 관리자만": ADMIN · 시공팀 STAFF/MANAGER ·
+# 생산팀 파트 계정 · 반장(직원 · 매니저 같음, 자기 공장 줄만: test_packing_factory_api.py · test_packing_factory_screens.py), 그 외 deny.
+# 출고 · CS · 영업 STAFF · 다른 팀 MANAGER · 파트도 반장도 아닌 생산팀 MANAGER 는 2026-11-24 판까지 200 이었다 — 아래 deny 표로 옮김.
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("role,team", [
-    ("STAFF", "SHIPMENT"),
     ("STAFF", "CONSTRUCTION"),
-    ("STAFF", "CS"),
-    ("STAFF", "SALES"),
+    ("MANAGER", "CONSTRUCTION"),
     ("ADMIN", None),
-    ("MANAGER", None),
 ])
 def test_packing_allows_eligible_actors(client, app, policy_on, role, team):
-    """SHIPMENT/CONSTRUCTION/CS/SALES STAFF · ADMIN · MANAGER 는 packing 제출 200.
+    """시공팀 STAFF · MANAGER · ADMIN 은 packing 제출 200(파트 · 반장 생산팀 계정은 공장 시험 파일).
 
     파생 key 는 결정적(``item{idx}_body`` 등)이라 GET(로컬 read 게이트) 없이 직접 쓴다 —
     write 정책과 read 게이트의 대상 팀이 달라 GET 을 헬퍼로 쓰면 write 권한 판정이 오염된다.
@@ -283,10 +282,18 @@ def test_packing_allows_eligible_actors(client, app, policy_on, role, team):
     ("VIEWER", None),
     ("VIEWER", "SHIPMENT"),  # VIEWER 는 team 무관 hard deny(현 로컬 게이트의 team-only 허점 봉합)
     ("STAFF", "DRAWING"),
-    ("STAFF", "PRODUCTION"),
+    ("STAFF", "PRODUCTION"),  # 파트도 반장도 아닌 생산팀(보기만) — 파트 계정 · 반장은 2026-11-24 부터 허용
+    ("STAFF", "SHIPMENT"),  # 2026-11-25 부터 보기만(전: 200)
+    ("STAFF", "CS"),
+    ("STAFF", "ACCOUNTING"),  # CS 별칭
+    ("STAFF", "SALES"),
+    ("MANAGER", None),  # 팀 없는 · 다른 팀 MANAGER(전: 200)
+    ("MANAGER", "SHIPMENT"),
+    ("MANAGER", "DRAWING"),
+    ("MANAGER", "PRODUCTION"),  # 파트도 반장도 아닌 생산팀 매니저 — 보기만 생산팀 직원과 같음(전: 200, 2026-11-25 고침)
 ])
 def test_packing_denies_ineligible_actors(client, app, policy_on, role, team):
-    """VIEWER·타팀(DRAWING/PRODUCTION) STAFF 는 403 · DB/event/receipt 0."""
+    """VIEWER · 타팀(DRAWING) · 보기만 생산팀(직원 · 매니저) · 출고 · CS · 영업 STAFF · 다른 팀 MANAGER 는 403 · DB/event/receipt 0."""
     _login(client, username=f"no-{role}-{team}", role=role, team=team)
     oid = _make_order()
     resp = client.post(_url(oid), json={"updates": [{"key": "item0_body", "checked": True}]})
@@ -346,11 +353,47 @@ def test_packing_add_submit_guards_double_post(packing_js: str):
 
 
 def test_packing_js_version_bumped_in_dashboards():
-    """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a 이탈)."""
+    """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a · 20261019a · 20261125a 이탈 — 열 때 "아직 모름")."""
     entry = _SHIPMENT_ENTRY.read_text(encoding="utf-8")
-    assert "'/static/js/shipment/foms-packing.js?v=20261019a'" in entry
+    assert "'/static/js/shipment/foms-packing.js?v=20261125b'" in entry
     body = _CONSTRUCTION_BODY.read_text(encoding="utf-8")
-    assert "foms-packing.js') }}?v=20261019a" in body
+    assert "foms-packing.js') }}?v=20261125b" in body
+    prod_entry = (_REPO_ROOT / "templates" / "shipment" / "partials" / "packing_prod_entry.html").read_text(encoding="utf-8")
+    assert "foms-packing.js') }}?v=20261125b" in prod_entry  # 생산 작업 시트 [패킹]도 같은 핀
+    # entry CHAIN 안 핀이 바뀌었으니 entry 자신의 핀도 올린다(옛 entry 캐시가 옛 패킹 JS 를 부르지 않게).
+    scripts = (_REPO_ROOT / "templates" / "shipment" / "partials" / "dashboard_scripts.html").read_text(encoding="utf-8")
+    assert "shipment-entry.js') }}?v=20261125b" in scripts
     # JS 핀만 검사 — 무관한 foms-packing.css 핀(20260714a)까지 잡지 않도록 스코프한다.
-    for src, where in ((entry, _SHIPMENT_ENTRY), (body, _CONSTRUCTION_BODY)):
-        assert "foms-packing.js?v=20260714a" not in src and "foms-packing.js') }}?v=20260714a" not in src, f"구 JS 버전 핀 잔존: {where}"
+    for src, where in ((entry, _SHIPMENT_ENTRY), (body, _CONSTRUCTION_BODY), (prod_entry, "packing_prod_entry.html")):
+        for old in ("20260714a", "20261019a", "20261125a"):
+            assert f"foms-packing.js?v={old}" not in src and f"foms-packing.js') }}}}?v={old}" not in src, f"구 JS 버전 핀 잔존: {where}"
+
+
+def test_packing_js_view_only_when_no_factory_to_check(packing_js: str):
+    """옛 꼴(1공장뿐) 보기만(2026-11-25) — 응답 can_check 가 빈 목록이면 체크칸 꺼짐 · 누락 신고 · 줄 더하기 없음 · 출발 보고 꺼짐.
+
+    공장 꼴 보기만 화면과 같은 꼴이다. 칸이 없는 응답(옛 서버)은 지금처럼 쓰기 — 서버 문이 따로 막는다."""
+    assert "setCanCheck(el, !Array.isArray(data.can_check) || data.can_check.length > 0);" in packing_js
+    assert "input.disabled = !state.canCheck;" in packing_js  # 체크칸 꺼짐(상태는 보임)
+    assert "if (tplContent && state.canCheck) {" in packing_js  # 누락 신고 단추 없음
+    assert "addForm.classList.toggle('d-none', !on);" in packing_js  # 줄 더하기 칸 없음
+    assert "btn.disabled = !state.canCheck || !(total > 0 && checked === total);" in packing_js  # 출발 보고 꺼짐
+    # 이미 출발 보고된 주문은 지금처럼 "출발 보고 완료"(canCheck 와 상관없이)
+    assert packing_js.index("setDepartLabel(btn, '출발 보고 완료');") < packing_js.index("btn.disabled = !state.canCheck ||")
+
+
+def test_packing_js_opens_each_sheet_as_unknown(packing_js: str):
+    """창을 열 때마다 "아직 모름" — 쓰기 칸(줄 더하기 · 누락 신고 · 체크칸 · 출발 보고)은 응답이 쓰기 가능이라고 한 뒤에만 켠다.
+
+    GET 이 실패하면 쓰기 칸 없이 오류 글만. 이어 연 주문에 앞 주문 합계 · 응답이 비치지 않는다(늦게 온 앞 주문 응답은 버림)."""
+    assert "canCheck: false };" in packing_js  # 처음 값도 '아직 모름'
+    open_block = packing_js.split("function openSheet(trigger)")[1].split("loadPacking(orderId);")[0]
+    assert "setCanCheck(el, false);" in open_block and "renderSummary(el, 0, 0);" in open_block
+    assert open_block.index("setCanCheck(el, false);") < open_block.index("instance.show()")  # 보이기 전에 끈다
+    load_block = packing_js.split("async function loadPacking(orderId)")[1].split("async function postPacking")[0]
+    assert "if (orderId === state.orderId) applyData(el, data);" in load_block
+    assert "if (orderId === state.orderId) setError(el," in load_block
+    catch_block = load_block.split("} catch (error) {")[1].split("} finally {")[0]
+    assert "setCanCheck" not in catch_block and "applyData" not in catch_block  # 실패 = 쓰기 칸 그대로 꺼짐
+    post_block = packing_js.split("async function postPacking")[1].split("function openSheet")[0]
+    assert "if (orderId === state.orderId) applyData(el, data);" in post_block

@@ -7,7 +7,8 @@
 - C: 확정 도면이 한 장이고 방식이 없으면 교체, 두 장 이상이면 추가(태블릿 회귀 방지).
 - D: 생산팀 활성 계정 전원에게 알림 + 폰 알림, 앞 알림과 합치지 않는다.
 - A: 도면팀(담당 아님 포함)이 도면 칸 사본을 지우고 되살린다. 실측 사진·협력사 원본·최종 도면은 안 된다.
-"""
+
+2026-11-25 D2: 생산·시공 단계는 메모 · 파일의 고른 도면(도우미가 싣는다) · 시공 대기 확인 409(시험마다 묻고 다시) · 비담당 도면팀도 보냄."""
 
 from __future__ import annotations
 
@@ -86,9 +87,13 @@ def _order(drawer_id, sales_id, *, stage="PRODUCTION", status="CONFIRMED", curre
     return o.id
 
 
-def _send(client, oid, name="fix.png", **body):
-    payload = {"files": [{"key": f"orders/{oid}/drawing_wizard/exports/{name}", "filename": name}]}
-    payload.update(body)
+NOTE = "치수 고침"
+
+
+def _send(client, oid, name="fix.png", replace_of=None, **body):
+    """직접 올린 파일 한 장 보내기 — 고른 도면 기본값 = 첫 확정 도면(옛 '한 장이면 교체'와 같은 뜻, D2 §3-5)."""
+    payload = {"files": [{"key": f"orders/{oid}/drawing_wizard/exports/{name}", "filename": name,
+                          "replace_of": replace_of or f"orders/{oid}/drawing_gateway/final1.png"}], "note": NOTE, **body}
     return client.post(f"/api/orders/{oid}/transfer-drawing", json=payload)
 
 
@@ -124,6 +129,9 @@ def test_hotfix_confirms_immediately_and_replaces_single(client, people, pushes,
     oid = _order(people.drawer.id, people.sales.id, stage=stage)
     _login(client, people.drawer)
     res = _send(client, oid)
+    if stage == "CONSTRUCTION":   # 시공 대기 = 보내기 전 확인(D2 §2-3) — 409 를 받고 표지를 실어 다시
+        assert res.status_code == 409 and res.get_json()["data"]["code"] == "ORDER_MADE" and _sd(oid)[1]["drawing_status"] == "CONFIRMED"
+        res = _send(client, oid, ack_order_made=True)
     body = res.get_json()
     assert res.status_code == 200, body
     assert body["hotfix"] is True and "바로 반영" in body["message"]
@@ -176,10 +184,12 @@ def test_negative_control_drawing_and_confirm_stage_keep_sales_confirm(client, p
 
 
 def test_two_current_drawings_without_mode_append(client, people, pushes):
-    """태블릿 시트 전달은 방식을 고르지 않는다 — 어느 장인지 모르면 400 대신 지금처럼 더한다."""
+    """방식을 고르지 않아도 직접 올린 파일은 바꿀 도면을 골라야 한다(D2) — '새 도면'을 고르면 지금처럼 더한다."""
     oid = _order(people.drawer.id, people.sales.id, current=2)
     _login(client, people.drawer)
-    assert _send(client, oid).status_code == 200
+    res = _send(client, oid, replace_of=" ")
+    assert res.status_code == 400 and res.get_json()["data"]["code"] == "PICK_TARGET"
+    assert _send(client, oid, replace_of="NEW").status_code == 200
     _order_row, sd = _sd(oid)
     names = [f["key"].rsplit("/", 1)[-1] for f in sd["drawing_current_files"]]
     assert names == ["final1.png", "final2.png", "fix.png"]
@@ -189,7 +199,7 @@ def test_two_current_drawings_without_mode_append(client, people, pushes):
 def test_explicit_append_keeps_old_drawing(client, people, pushes):
     oid = _order(people.drawer.id, people.sales.id)
     _login(client, people.drawer)
-    assert _send(client, oid, mode="APPEND").status_code == 200
+    assert _send(client, oid, mode="APPEND", replace_of="NEW").status_code == 200
     _order_row, sd = _sd(oid)
     assert [f["key"].rsplit("/", 1)[-1] for f in sd["drawing_current_files"]] == ["final1.png", "fix.png"]
 
@@ -210,10 +220,11 @@ def test_returned_with_unchecked_request_still_blocked(client, people, pushes):
     assert "반영 완료" in res.get_json()["message"]
 
 
-def test_non_assignee_drawer_cannot_send(client, people, pushes):
-    oid = _order(people.drawer.id, people.sales.id)
+def test_non_assignee_drawer_sends_only_in_production_stages(client, people, pushes):
+    """생산·시공 단계는 도면팀 누구나(D2 답 4) — 그 밖 단계는 지금처럼 담당만(음성 대조)."""
     _login(client, people.drawer2)
-    assert _send(client, oid).status_code == 403
+    assert _send(client, _order(people.drawer.id, people.sales.id, stage="DRAWING")).status_code == 403
+    assert _send(client, _order(people.drawer.id, people.sales.id)).status_code == 200
 
 
 # --- D: 생산팀 알림 ----------------------------------------------------------
@@ -391,10 +402,11 @@ def _sheet_key(oid, sheet):
     return f"orders/{oid}/drawing_wizard/exports/{sheet}.png"
 
 
-def _send_sheets(client, oid, *sheets, manual=(), **body):
+def _send_sheets(client, oid, *sheets, manual=(), pick="NEW", **body):
+    """시트 파일 + 직접 올린 파일 보내기 — 메모 · 보내기 전 확인 · 직접 올린 파일의 고른 도면(D2)을 싣는다."""
     files = [{"key": _sheet_key(oid, s), "filename": f"{s}.png", "sheet_id": s} for s in sheets]
-    files += [{"key": f"orders/{oid}/drawing/{name}", "filename": name} for name in manual]
-    return client.post(f"/api/orders/{oid}/transfer-drawing", json={"files": files, **body})
+    files += [{"key": f"orders/{oid}/drawing/{name}", "filename": name, "replace_of": pick} for name in manual]
+    return client.post(f"/api/orders/{oid}/transfer-drawing", json={"files": files, "note": NOTE, "ack_order_made": True, **body})
 
 
 def _names(sd):
@@ -429,12 +441,11 @@ def test_same_sheet_new_version_still_replaces_single_final(client, people, push
 
 @pytest.mark.parametrize("final_sheet,sheets,sent,manual,expected", [
     (None, ("s-A", "s-B"), ("s-B",), (), ["s-B.png"]),                      # 최종 도면이 직접 올린 파일
-    ("s-A", ("s-A", "s-B"), ("s-B",), ("hand.png",), ["s-B.png", "hand.png"]),  # 이번 파일에 직접 올린 파일이 섞임
     ("s-A", ("s-B",), ("s-B",), (), ["s-B.png"]),                           # 최종 도면의 시트를 마법사에서 지움
 ])
 def test_unknown_sheet_identity_keeps_replacing_single_final(
         client, people, pushes, final_sheet, sheets, sent, manual, expected):
-    """대조: 시트가 다르다고 증명되지 않으면 지금 그대로 한 장을 바꾼다(2026-10-27 결정 3)."""
+    """대조: 시트가 다르다고 증명되지 않으면 지금 그대로 한 장을 바꾼다(2026-10-27 결정 3 — 직접 올린 파일이 섞인 경우는 D2 시험)."""
     oid = _sheet_order(people, final_sheet=final_sheet, sheets=sheets)
     _login(client, people.drawer)
     assert _send_sheets(client, oid, *sent, manual=manual).status_code == 200

@@ -21,7 +21,7 @@ ESTIMATE_COMPANY_INFO = {
     'website': 'www.haudsystem.com',
 }
 
-# 2공장(라홈시스템) 견적서/계약서 공급자 정보
+# 라홈시스템 계약(flags.factory2) 견적서/계약서 공급자 정보
 # 업태·전화·고객센터는 하우드시스템 기본값 유지
 ESTIMATE_COMPANY_INFO_FACTORY2 = {
     'name': '라홈시스템',
@@ -76,13 +76,13 @@ ESTIMATE_PAYMENT_INFO_FACTORY2 = _build_estimate_payment_info(_ESTIMATE_PAYMENT_
 
 
 def resolve_estimate_company_info(factory2: bool = False) -> dict:
-    """견적/계약 공급자(상호·대표 등). factory2=True이면 2공장(라홈시스템) 정보를 반환한다."""
+    """견적/계약 공급자(상호·대표 등). factory2=True(라홈시스템 계약)이면 라홈시스템 정보를 반환한다."""
     template = ESTIMATE_COMPANY_INFO_FACTORY2 if factory2 else ESTIMATE_COMPANY_INFO
     return copy.deepcopy(template)
 
 
 def resolve_estimate_payment_info(factory2: bool = False) -> dict:
-    """견적/계약 결제정보. factory2=True이면 2공장 전용 계좌를 반환한다."""
+    """견적/계약 결제정보. factory2=True(라홈시스템 계약)이면 라홈시스템 전용 계좌를 반환한다."""
     template = ESTIMATE_PAYMENT_INFO_FACTORY2 if factory2 else ESTIMATE_PAYMENT_INFO
     return copy.deepcopy(template)
 

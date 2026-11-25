@@ -9,7 +9,9 @@
   모두 최상위만 쓴다 — 중첩은 옛 데이터일 뿐이다).
 * :func:`confirm_exit_block` — 허용 목록(M3): CONFIRMED 만 통과. 고객컨펌 승인·제작 시작 (b).
 * :func:`revision_in_flight_block` — 막는 목록: RETURNED·TRANSFERRED 만. 생산 단계 run 시작 (a)
-  와 생산 보드 "도면 수정 중" 배지.
+  와 생산 보드 "도면 수정 중" 배지. **주문 통째** 막힘만 뜻한다(2026-11-25 설계서 §3-3): 생산 · 시공 단계에서 영업 요청이
+  지금 도면 중 일부만 가리키면(:func:`targeted_revision_request`) 그 도면만 막히므로(도면별 판정 ``drawing_fix``) 여기서는 None.
+  고객컨펌 단계 요청 · 대상이 없거나 못 푸는 요청 · 지금 도면 전부를 가리키는 요청(도면 1장 주문 · 협력사 요청)은 지금처럼 통째.
 """
 from __future__ import annotations
 
@@ -21,17 +23,26 @@ __all__ = [
     "DRAWING_GATED_COMMANDS",
     "DRAWING_STATUS_CODE",
     "GateBlock",
+    "PER_DRAWING_STAGES",
     "confirm_exit_block",
     "drawing_revision_in_progress",
     "effective_drawing_status",
     "is_confirm_stage",
+    "last_revision_request",
     "normalize_stage_code",
+    "per_drawing_stage",
     "production_block_reason",
     "production_drawing_badge",
     "production_start_block",
     "revision_in_flight_block",
+    "revision_request_target_keys",
+    "revision_status_block",
     "stage_override_drawing_warning",
+    "targeted_revision_request",
 ]
+
+#: 영업 수정 요청이 대상 도면만 막는 단계(2026-11-25 설계서 §3-3 4 — 고객컨펌 단계 요청은 지금처럼 통째).
+PER_DRAWING_STAGES: tuple[str, ...] = ("PRODUCTION", "CONSTRUCTION")
 
 #: 게이트 오류 코드(``admin_override.GATE_DRAWING_STATUS`` 와 같은 글자).
 DRAWING_STATUS_CODE = "DRAWING_STATUS"
@@ -105,16 +116,75 @@ def confirm_exit_block(sd: Any) -> Optional[GateBlock]:
     return GateBlock(DRAWING_STATUS_CODE, reason, status)
 
 
-def revision_in_flight_block(sd: Any) -> Optional[GateBlock]:
-    """도면 수정이 진행 중인가(RETURNED·TRANSFERRED 만 막는다). 생산 단계 run 시작·배지용."""
+def per_drawing_stage(sd: Any) -> bool:
+    """도면별 막힘을 보는 단계인가 — 주문 ``workflow.stage`` 가 생산 · 시공(영문 · 한글 모두, §3-3 4)."""
+    workflow = sd.get("workflow") if isinstance(sd, dict) else None
+    stage = workflow.get("stage") if isinstance(workflow, dict) else None
+    return normalize_stage_code(stage) in PER_DRAWING_STAGES
+
+
+def last_revision_request(sd: Any) -> Optional[dict[str, Any]]:
+    """전달 이력의 마지막 영업 수정 요청 줄(``REQUEST_REVISION``) — 열린 영업 요청은 한 주문에 늘 하나(설계서 §1-1)."""
+    history = sd.get("drawing_transfer_history") if isinstance(sd, dict) else None
+    for item in reversed(history if isinstance(history, list) else []):
+        if isinstance(item, dict) and str(item.get("action") or "").upper() == "REQUEST_REVISION":
+            return item
+    return None
+
+
+def revision_request_target_keys(request: Any) -> tuple[str, ...]:
+    """요청 줄이 가리킨 도면 저장 key(``target_drawing_keys`` · 옛 단일 ``target_drawing_key``) — 순서 유지 · 빈 값 버림."""
+    if not isinstance(request, dict):
+        return ()
+    raw = request.get("target_drawing_keys")
+    keys = raw if isinstance(raw, list) else [request.get("target_drawing_key")]
+    return tuple(dict.fromkeys(k.strip() for k in keys if isinstance(k, str) and k.strip()))
+
+
+def targeted_revision_request(sd: Any) -> Optional[dict[str, Any]]:
+    """생산 · 시공 단계 RETURNED 의 영업 요청이 지금 도면 **일부**를 가리키면 그 요청 줄(도면별 막힘), 아니면 None(통째).
+
+    통째로 남는 것(사장님 답 5 "도면을 안 고른 요청은 지금처럼 전체"): 고객컨펌 등 다른 단계 · 요청 줄 없음 · 대상 없음 ·
+    대상 key 가 지금 도면에 없음(못 풂) · 대상이 지금 도면 전부(도면 1장 주문은 서버가 그 장을 저절로 고르고, 협력사 요청은 늘 전부다 —
+    설계서 §1-1 · §12 의 '안 고른 요청'). 판정은 key 로만 한다(요청 ~ 수정본 사이에는 지금 도면 목록이 바뀌지 않는다).
+    """
+    if effective_drawing_status(sd) != "RETURNED" or not per_drawing_stage(sd):
+        return None
+    request = last_revision_request(sd)
+    keys = set(revision_request_target_keys(request))
+    files = sd.get("drawing_current_files") if isinstance(sd, dict) else None
+    current = {str(f.get("key") or "").strip() for f in files if isinstance(f, dict)} - {""} if isinstance(files, list) else set()
+    if not keys or not keys <= current or keys == current:
+        return None
+    return request
+
+
+def revision_status_block(sd: Any) -> Optional[GateBlock]:
+    """도면 상태가 수정 중(RETURNED) · 수령 전(TRANSFERRED)인가 — 대상이 몇 장이든(도면별 · 통째를 가르지 않음).
+
+    ERP 보드 단계 칸 "도면 수정 중 · 도면 작업실 열기"(``board_state_display``)는 영업 요청이 걸려 있는 동안 지금처럼 보인다
+    (2026-11-25 D1 검토 판결 F — 통째 판정을 좁힌 것이 그 화면을 바꾸지 않게). 생산 쪽 막는 문은 :func:`revision_in_flight_block`.
+    """
     status = effective_drawing_status(sd)
     if status not in _REVISION_IN_FLIGHT:
         return None
     return GateBlock(DRAWING_STATUS_CODE, _SALES_REASONS[status], status)
 
 
+def revision_in_flight_block(sd: Any) -> Optional[GateBlock]:
+    """도면 수정이 진행 중인가(RETURNED·TRANSFERRED 만 막는다) — **주문 통째**. 생산 단계 run 시작·배지용.
+
+    생산 · 시공 단계에서 영업 요청이 도면 일부만 가리키면(:func:`targeted_revision_request`) 통째가 아니다(None) — 그 도면만 막는
+    판정은 ``foms.services.orders.drawing_fix`` 가 한다(2026-11-25 설계서 §3-3).
+    """
+    block = revision_status_block(sd)
+    if block is not None and block.drawing_status == "RETURNED" and targeted_revision_request(sd) is not None:
+        return None
+    return block
+
+
 def drawing_revision_in_progress(sd: Any) -> bool:
-    """생산 보드 "도면 수정 중" 배지를 달아야 하는가 — 제작 시작 (a) 게이트와 같은 술어."""
+    """주문 **통째** "도면 고치는 중"인가 — 제작 시작 (a) 게이트 · 생산 보드 배지와 같은 술어(도면별 막힘은 ``drawing_fix``)."""
     return revision_in_flight_block(sd) is not None
 
 

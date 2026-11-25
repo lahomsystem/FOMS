@@ -55,9 +55,10 @@ def ns(role, team, *, partner_org_id=None, is_active=True):
 
 
 
-def make_user(username: str, role: str, team: str | None, *, partner_org_id: int | None = None) -> User:
+def make_user(username: str, role: str, team: str | None, *, partner_org_id: int | None = None,
+              lead: bool | None = None) -> User:
     user = User(username=username, password=generate_password_hash("pw"), role=role, team=team,
-                name=f"가짜{username}", is_active=True, partner_org_id=partner_org_id)
+                name=f"가짜{username}", is_active=True, partner_org_id=partner_org_id, production_lead=lead)
     db_session.add(user)
     db_session.commit()
     return user

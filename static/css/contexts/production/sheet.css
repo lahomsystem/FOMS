@@ -17,6 +17,12 @@
   --fpp-warn: #d97706;
   --fpp-warn-50: #fffbeb;
   --fpp-amber-text: #92400e;
+  /* 파트 맡기 고침(설계서 2026-11-23 §8-3) — 카드로 완료 글 · 바뀐 기록 줄 · 까닭 상자 테두리. 태블릿 --fph-* 와 같은 값 */
+  --fpp-ok-dark: #047857;
+  --fpp-warn-soft: #fcd34d;
+  --fpp-taken-10: #fdf2f8;
+  --fpp-taken-50: #eecbda;
+  --fpp-taken-700: #7a3f5c;
   --fpp-ok: #059669;
   --fpp-dwg: #2b2f36;
   /* 어두운 도면 칸 위 도면 마감 글 색(home.css --fph-dw-* 의 밝은 짝) — 늦음 · '담당 없음' 연빨강, 빠듯 호박색(2026-11-22:
@@ -97,7 +103,7 @@
 .foms-prod-page__btn--off, .foms-prod-page__btn--off:disabled, .foms-prod-page__btn--off:hover { opacity: 1; background: var(--fpp-raised); border-color: var(--fpp-line); color: var(--fpp-text3); }
 .foms-prod-page__btn:disabled > * { pointer-events: none; } /* 글 조각을 눌러도 꺼진 단추 밖으로 누름이 새지 않게 */
 .foms-prod-page__btn b { font-weight: inherit; }
-.foms-prod-page__off-hint { font-weight: 700; white-space: normal; word-break: keep-all; }
+.foms-prod-page__off-hint { font-weight: 700; white-space: normal; word-break: keep-all; } /* 폭이 모자랄 때만 낱말 사이에서 꺾인다(폰 360 · 글자 130%) — 셋이 서면 단추째 다음 줄(줄 나눔은 한 줄 폭으로 정한다) */
 .foms-prod-page__off-hint[hidden] { display: none; }
 
 /* ── 본문 두 단 ── */
@@ -162,6 +168,8 @@
 .foms-prod-page__th img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .foms-prod-page__th span { position: relative; z-index: 1; padding: 2px 8px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; background: rgba(0, 0, 0, .55); color: #fff; border-radius: 0 6px 0 0; }
 .foms-prod-page__th.is-on { border-color: #9ea4ff; }
+/* 섞인 주문(2공장)의 2공장 장 — 작은 그림 오른쪽 위 칩(설계서 2026-11-23 §8-3 '도면 목록 장마다 2공장 칩') */
+.foms-prod-page__th .fpp-fac { position: absolute; z-index: 1; top: 4px; right: 4px; padding: 0; border-radius: 0; background: none; color: inherit; font-size: calc(13px * var(--foms-fs, 1)); line-height: 1; } /* 자리만(번호 span 꼴은 지운다) — 모양은 공장 칩 */
 .foms-prod-page__th--file { flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-style: dashed; border-color: #8b929e; }
 .foms-prod-page__th--file span { position: static; background: transparent; padding: 0; font-size: calc(15px * var(--foms-fs, 1)); }
 .foms-prod-page__th--file small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; }
@@ -236,8 +244,17 @@
 .foms-prod-page__pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .foms-prod-page__foot .foms-prod-page__chips[hidden] { display: none; }
 
-/* 단추 줄·상태 */
-.foms-prod-page__acts { display: flex; gap: 10px; align-items: stretch; }
+/* 단추 줄·상태 — 아래 단추 줄(사장님 2026-11-24 "CSS 정렬 안맞음", 섞인 주문 [제작 취소] [1공장 완료 취소] [제작 완료 — …]):
+   줄에 서는 단추는 모두 같은 높이(64px) · 같은 글 크기(20px × 배율) · 같은 상자(1px 테두리 · 12px 둥근 모서리)라 글 기준선이 같다.
+   [제작 완료]의 회색 안내 글은 단추 안 둘째 줄 한 줄(낱말마다 줄이 꺾이지 않게) — 단추가 줄에 다 안 들어가면 다음 줄로 넘긴다(넘침 0).
+   (전에는 안내 글만 줄어들 수 있는 칸이라 셋이 서면 낱말마다 꺾여 단추가 122px 로 길어지고, [제작 취소]만 16px · 56px 글자 단추였다.) */
+.foms-prod-page__acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.foms-prod-page__acts > .foms-prod-page__btn { flex: 1 1 auto; min-height: 64px; border-radius: 12px; font-size: calc(20px * var(--foms-fs, 1)); }
+.foms-prod-page__acts > .foms-prod-page__btn--ghost { border-color: var(--fpp-line2); background: var(--fpp-surface); }
+/* 위 줄이 단추 공통 :hover · :focus-visible(특이도 0,2,0)보다 뒤라 덮으므로 한 단 더 세게 되살린다 — 마우스 · 키보드 초점(Tab)이 보인다 */
+.foms-prod-page__acts > .foms-prod-page__btn--ghost:hover,
+.foms-prod-page__acts > .foms-prod-page__btn--ghost:focus-visible { background: var(--fpp-brand-50); border-color: var(--fpp-brand); color: var(--fpp-brand-dark); }
+.foms-prod-page__acts > .foms-prod-page__btn:has(> .foms-prod-page__off-hint:not([hidden])) { flex-direction: column; gap: 0; }
 .foms-prod-page__statusrow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 20px; }
 .foms-prod-page__status { margin: 0; min-height: 20px; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); text-align: right; }
 .foms-prod-page__statusrow .foms-prod-page__status { text-align: left; }
@@ -279,7 +296,6 @@
   .foms-prod-page__main { max-height: 44vh; }
   .foms-prod-page__nav { width: 56px; height: 56px; font-size: calc(30px * var(--foms-fs, 1)); }
   .foms-prod-page__side { border-left: 0; border-top: 1px solid var(--fpp-line); padding: 12px 12px 90px; }
-  .foms-prod-page__acts { flex-wrap: wrap; }
 }
 
 /* ── 칸반 옆 시트(400px, .foms-prod-sheet) 안에서 같은 조각을 쓸 때 — 연락처·공정 블록·도면 스트립 (F2 ①②③, 11-09) ── */
@@ -329,3 +345,39 @@
 .foms-prod-sheet__drawing--strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .foms-prod-sheet__drawing--strip .foms-prod-sheet__drawing-thumb { flex: 0 0 auto; width: 112px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #dde1e6; cursor: zoom-in; }
 .foms-prod-sheet__drawing-file { flex: 0 0 auto; width: calc(112px * var(--foms-fs, 1)); min-height: 80px; overflow-wrap: anywhere; border: 1px dashed #c1c7d0; border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4a55b8; text-decoration: none; }
+
+/* ── 파트 맡기 고침(설계서 2026-11-23-production-self-claim-and-factory2 §8-3) — 공정 칸 옆 진행 글 · 막힘 글 · 바뀐 기록 · 제작 완료 까닭 ──
+   새 클래스에만 걸린다(지금 칸 옆 글 · 상태 줄은 그대로). 글자는 calc(Npx * 배율), 색은 시트 토큰(무채색 상태 없음). 옆 시트(.foms-prod-sheet)
+   규칙보다 뒤라 두 꼴 모두 같은 모양. */
+/* 칸 옆 글: 카드 쓴 파트 "카드 3/5 · 2장 미완료" · "카드로 완료 · 김재단 15:02" (· 바뀜 1), 손 체크는 지금 꼴("박반장 · 11/24 10:20") */
+.foms-prod-page__step small.fpp-note { display: block; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fpp-text2); white-space: normal; word-break: keep-all; }
+.foms-prod-page__step small.fpp-note.is-miss { color: var(--fpp-amber-text); }
+.foms-prod-page__step small.fpp-note.is-ok { color: var(--fpp-ok-dark); }
+/* 카드 쓴 파트 칸을 눌렀을 때 · 손 체크 확인 뒤 서버 글(공정 칸 묶음 아래) · [제작 완료] 까닭(상태 줄 안) — 호박 상자 */
+.fpp-stepmsg, .fpp-why { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--fpp-warn-soft); border-radius: 9px; background: var(--fpp-warn-50); color: var(--fpp-amber-text); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.4; text-align: left; word-break: keep-all; }
+.fpp-stepmsg[hidden], .fpp-why[hidden] { display: none; }
+.fpp-why { display: block; margin: 0; padding: 6px 10px; font-size: calc(16px * var(--foms-fs, 1)); }
+/* [바뀐 기록 보기] — 공정 칸 묶음 아래 링크(보이는 44px 는 아래 태블릿 덩이) */
+.fpp-loglink { display: inline-flex; align-items: center; min-height: 44px; margin-top: 6px; padding: 0 12px; border: 1px solid var(--fpp-line2); border-radius: 9px; background: var(--fpp-surface); color: var(--fpp-brand-dark); font: inherit; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; text-decoration: none; cursor: pointer; }
+.fpp-loglink:hover, .fpp-loglink:focus-visible { background: var(--fpp-brand-50); color: var(--fpp-brand-dark); text-decoration: none; }
+.fpp-loglink:focus-visible { outline: 3px solid var(--fpp-brand); outline-offset: 2px; }
+.fpp-loglink:active { background: var(--fpp-brand-50); }
+/* 바뀐 기록 목록 — 공정 · 장마다 한 줄 "엣지 도면 1/5: 박엣지 맡음 11/23 09:10 → 김민준으로 바뀜 14:20 → 김민준 완료 15:02" */
+.fpp-log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.fpp-log[hidden] { display: none; }
+.fpp-log li { padding: 6px 10px; border: 1px solid var(--fpp-taken-50); border-radius: 9px; background: var(--fpp-taken-10); color: var(--fpp-text); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; word-break: keep-all; }
+.fpp-log li b { font-weight: 800; color: var(--fpp-taken-700); }
+.fpp-log li.is-miss { border-color: var(--fpp-warn-soft); background: var(--fpp-warn-50); }
+.fpp-log li.is-miss b { color: var(--fpp-amber-text); }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .fpp-loglink { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+}
+
+/* 반장 손 체크 확인 창(설계서 2026-11-23 '승인 때 고친 것' 3, templates/production/partials/sheet_step_confirm.html) — 겉모양은 공용 사유
+   시트(foms-reason-sheet.css), 여기는 본문 한 줄과 태블릿 누름 칸(보이는 44px · 틈 8px)만. 작업 시트 · 옆 시트 같은 꼴 */
+.fpp-confirm .foms-reason-sheet__actions > .foms-btn { font-size: calc(17px * var(--foms-fs, 1)); }
+.fpp-confirm-body { margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fpp-text); word-break: keep-all; }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .fpp-confirm .foms-reason-sheet__actions { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+  .fpp-confirm .foms-reason-sheet__actions > .foms-btn { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+}

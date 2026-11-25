@@ -21,7 +21,8 @@ import foms.api.drawing.erp_orders_drawing as drawing_routes
 from db import db_session, engine
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.production.part_steps_sync import part_steps_after, plan_part_step_changes
-from models import Order, OrderEvent, ProductionPartMark, User
+from models import Order, OrderEvent, ProductionPartMark, ProductionRun, User
+from tests.support.drawing_fix_transfer_seed import acked_idents
 
 ONE = "/api/production/part-marks"
 BULK = "/api/production/part-marks/basic"
@@ -47,9 +48,10 @@ class Person:
     role: str
 
 
-def _user(name: str, *, team: str | None = "PRODUCTION", role: str = "STAFF", part: str | None = None) -> Person:
+def _user(name: str, *, team: str | None = "PRODUCTION", role: str = "STAFF", part: str | None = None,
+          lead: bool | None = None) -> Person:
     user = User(username=f"ps_{next(_seq)}", password=generate_password_hash("x"), role=role, team=team, name=name,
-                is_active=True, production_part=part)
+                is_active=True, production_part=part, production_lead=lead)
     db_session.add(user)
     db_session.commit()
     return Person(user.id, user.username, user.role)
@@ -62,7 +64,10 @@ def _login(client, user: Person) -> None:
     client.set_cookie("foms_ptr", "coarse", domain="localhost")
 
 
-def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None = None) -> int:
+def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None = None, run: bool = True) -> int:
+    """제작 중(지금 회차 있음) 가짜 주문 — 회차 없는 제작대기 주문은 첫 카드가 제작을 시작해 버전이 오르므로(2026-11-23
+    §4-8 B6), 공정 칸 동기화의 버전 계약을 보는 이 파일은 제작 중 주문으로 본다. 첫 카드 제작 시작은
+    ``test_production_part_claim_rules.py``."""
     prefix = f"s{next(_seq)}"
     files = [{"key": f"{prefix}/d{j}.png", "filename": f"d{j}.png", "sheet_id": f"{prefix}-s{j}"} for j in range(n)]
     steps = [{"key": k, "label": k, "done": k in steps_done, "at": None, "by_name": "손" if k in steps_done else None}
@@ -74,6 +79,9 @@ def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None =
                   structured_data=sd)
     db_session.add(order)
     db_session.commit()
+    if run:
+        db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
+        db_session.commit()
     return order.id
 
 
@@ -120,7 +128,9 @@ def test_pure_rules_only_parts_with_rows_and_never_on_zero_drawings():
     row = lambda key, part, state: SimpleNamespace(drawing_key=key, part=part, state=state, done_by_name="x",
                                                    done_at=None)
     assert part_steps_after(sd, []) == {}  # 카드로 안 일한 주문은 건드리지 않는다
-    assert part_steps_after(sd, [row("old", "edge", "NONE")]) == {"edge": False}  # 옛 key · NONE 줄도 표지
+    # 2026-11-23 §4-2 B5′: NONE 줄만 있는 파트(맡았다 취소)는 카드를 안 쓴 것 — 건드리지 않는다. 옛 key 라도 NONE 이 아니면 표지
+    assert part_steps_after(sd, [row("old", "edge", "NONE")]) == {}
+    assert part_steps_after(sd, [row("old", "edge", "NEED")]) == {"edge": False}
     assert part_steps_after(sd, [row("a", "cut", "BASIC"), row("b", "cut", "DONE")]) == {"cut": True}
     assert part_steps_after(sd, [row("a", "edge", "BASIC"), row("b", "edge", "DONE")]) == {"edge": False}
     assert part_steps_after({"drawing_current_files": []}, [row("a", "cut", "DONE")]) == {}
@@ -176,15 +186,29 @@ def test_bulk_turns_on_only_orders_whose_all_drawings_finished(client):
 
 
 def test_edge_unpicked_drawing_keeps_step_off_d57(client):
-    oid = _order(3, steps_done=("edge",))  # 사무실이 손으로 켜 둔 칸
+    """카드를 쓴 파트에서 아무도 안 고른 장 = '아직'(D57) — 1/3 · 2/3 끝이면 칸은 꺼진 채(바꿈 없음)."""
+    oid = _order(3)
     _login(client, _user("최엣지", part="edge"))
-    take = _mark(client, oid, 0, "edge", "take", "none")  # 첫 줄 = 카드로 일한 파트 · 2장은 아무도 안 고름 = '아직'
-    assert take.get_json()["data"]["order_step"] == {"order_id": oid, "key": "edge", "done": False}
-    assert _step(oid, "edge")["done"] is False
+    assert _mark(client, oid, 0, "edge", "take", "none").get_json()["data"]["order_step"] is None  # 꺼진 칸 그대로
     assert _mark(client, oid, 0, "edge", "done", "need").get_json()["data"]["order_step"] is None  # 1/3 끝 — 그대로
     _finish(client, oid, 1, "edge")
     assert _step(oid, "edge")["done"] is False  # 아직 1장 남음 — 바꿈 없음
-    assert len(_step_events(oid)) == 1
+    assert _step_events(oid) == []
+
+
+def test_hand_checked_step_blocks_card_of_that_part(client):
+    """2026-11-23 §4-2 B5′(칸 먼저 → 카드): 카드를 안 쓴 파트에 손으로 켠 칸이 있으면 그 파트 카드 쓰기는 409
+    ``STEP_SET_BY_HAND`` — 2026-11-13 판은 맡기만 해도 손으로 켠 칸이 꺼졌다. 대조군: 다른 파트 카드는 그대로 된다."""
+    oid = _order(3, steps_done=("edge",))  # 사무실이 손으로 켜 둔 칸(by_name "손")
+    _login(client, _user("최엣지", part="edge"))
+    take = _mark(client, oid, 0, "edge", "take", "none")
+    body = take.get_json()
+    assert take.status_code == 409 and body["data"]["code"] == "STEP_SET_BY_HAND"
+    assert body["error"] == "손이 작업 시트에서 엣지 칸을 작업 완료 처리했어요. 다시 해야 하면 손에게 말해 주세요."
+    assert _step(oid, "edge")["done"] is True and _step_events(oid) == []
+    assert db_session.query(ProductionPartMark).filter_by(order_id=oid).count() == 0
+    _login(client, _user("김재단", part="cut"))
+    assert _mark(client, oid, 0, "cut", "take", "none").status_code == 200  # 대조군
 
 
 def test_control_no_marks_manual_step_stays_and_version_unchanged(client):
@@ -231,8 +255,10 @@ def test_hotfix_transfer_new_key_turns_part_step_off(client):
     assert _step(oid, "cut")["done"] is True
     version = _fresh(oid).mutation_version
     _login(client, drawer)
+    # 2026-11-25 D2: 생산 단계 수정본은 메모 · 고른 도면 · 보내기 전 확인(재단 끝난 도면 — ack)을 싣는다.
     resp = client.post(f"/api/orders/{oid}/transfer-drawing", json={
-        "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png"}]})
+        "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png",
+                   "replace_of": _keys(oid)[0]}], "note": "치수 고침", "ack_worked": acked_idents(oid)})
     assert resp.status_code == 200, resp.get_json()
     assert _keys(oid) == [f"orders/{oid}/drawing_wizard/exports/fix.png"]  # 한 장 교체(바로 반영)
     cut = _step(oid, "cut")
@@ -242,13 +268,35 @@ def test_hotfix_transfer_new_key_turns_part_step_off(client):
     assert last.payload["trigger"] == "drawing_transfer" and last.payload["done"] is False
 
 
-def test_control_hotfix_transfer_without_marks_keeps_manual_step(client):
+def test_hotfix_transfer_replacing_every_drawing_turns_hand_step_off(client):
+    """2026-11-25 D2 로 뜻이 바뀜(사장님 답 Q13 "고친 도면만 다시 할 일로"): 손으로 켠 칸(카드 0장)도 고친 도면이 오면 풀린다.
+    한 장뿐인 도면을 고쳐 안 바뀐 장이 없으면 풀어 쓸 줄이 없어 칸만 끈다(전에는 손 값을 그대로 둬 새 판도 완료로 보였다).
+    안 바뀐 장이 있는 경우(그 장은 완료로 남음)는 ``test_drawing_fix_transfer_writes.py``."""
     drawer = _user("도면", team="DRAWING")
     oid = _drawing_order(assignee=drawer.id)
     order = db_session.get(Order, oid)
     sd = copy.deepcopy(order.structured_data)
     sd["production"]["steps"][0].update(done=True, by_name="사무실")
     order.structured_data = sd
+    db_session.commit()
+    _login(client, drawer)
+    assert client.post(f"/api/orders/{oid}/transfer-drawing", json={
+        "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png", "replace_of": _keys(oid)[0]}],
+        "note": "치수 고침", "ack_worked": acked_idents(oid)}).status_code == 200
+    assert _step(oid, "cut")["done"] is False
+    last = _step_events(oid)[-1]
+    assert last.payload["trigger"] == "drawing_transfer" and last.payload["done"] is False
+
+
+def test_control_drawing_stage_transfer_keeps_manual_step(client):
+    """대조: 생산 · 시공 단계가 아니면 공정 칸을 건드리지 않는다(지금 그대로)."""
+    drawer = _user("도면", team="DRAWING")
+    oid = _drawing_order(assignee=drawer.id)
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data)
+    sd["production"]["steps"][0].update(done=True, by_name="사무실")
+    sd["workflow"]["stage"] = "DRAWING"
+    order.structured_data, order.erp_stage_code = sd, "DRAWING"
     db_session.commit()
     _login(client, drawer)
     assert client.post(f"/api/orders/{oid}/transfer-drawing", json={
@@ -305,22 +353,36 @@ def test_part_account_cannot_write_order_steps(client):
     resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     body = resp.get_json()
     assert resp.status_code == 403 and body["data"]["code"] == "PART_ACCOUNT_USE_CARDS"
-    assert body["error"] == "공정은 도면 카드에서 체크해요"
+    assert body["error"] == "공정은 도면 카드에서 작업해요"
     assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
     got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
-    assert got["locked"] is True and got["locked_note"] == "공정은 도면 카드에서 체크해요"
+    assert got["locked"] is True and got["locked_note"] == "공정은 도면 카드에서 작업해요"
 
 
 # CS 직원은 2026-11-21 부터 생산을 보기만 한다(설계서 production-pc-viewer §13 결정 2) — 대조군은 파트 없는 생산 매니저로 바꿨다.
+# 2026-11-24(설계서 2026-11-23 '승인 때 고친 것' 5): 공정 칸 손 체크는 반장 · 관리자만 — 생산팀 대조군은 반장으로 체크한 계정.
 @pytest.mark.parametrize("team,role,part", [("PRODUCTION", "STAFF", None), ("CS", "ADMIN", "cut"),
                                             ("PRODUCTION", "ADMIN", "cut"), ("PRODUCTION", "MANAGER", None)])
 def test_control_non_part_accounts_still_write_steps(client, team, role, part):
     oid = _order(1)
-    _login(client, _user("대조", team=team, role=role, part=part))
+    _login(client, _user("대조", team=team, role=role, part=part, lead=role != "ADMIN"))
     resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     assert resp.status_code == 200, resp.get_json()
     assert _step(oid, "edge")["done"] is True
     assert client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]["locked"] is False
+
+
+@pytest.mark.parametrize("role", ["STAFF", "MANAGER"])
+def test_production_account_without_parts_or_lead_cannot_write_steps(client, role):
+    """파트도 반장도 아닌 생산팀 = 공정 칸 403 ``LEAD_REQUIRED`` · 새 글 하나 · 쓰기 0(설계서 2026-11-23 '승인 때 고친 것' 5)."""
+    oid = _order(1)
+    _login(client, _user("최보기", role=role))
+    resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
+    assert resp.status_code == 403 and resp.get_json() == {
+        "success": False, "data": {"code": "LEAD_REQUIRED"}, "error": "반장으로 지정된 계정만 작업할 수 있어요."}
+    assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
+    got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
+    assert got["locked"] is True and got["locked_note"] == "반장으로 지정된 계정만 작업할 수 있어요."
 
 
 # --------------------------------------------------------------------------- #
@@ -336,15 +398,27 @@ def test_sheet_step_buttons_read_only_for_part_account(client, url):
     assert len(buttons) == 4 and all(not b.has_attr("disabled") and b.get("aria-disabled") == "true" and "is-locked" in b["class"]
                                      for b in buttons)
     note = soup.select("[data-foms-sheet-steps-locked]")
-    assert len(note) == 1 and note[0].get_text(strip=True) == "공정은 도면 카드에서 체크해요"
+    assert len(note) == 1 and note[0].get_text(strip=True) == "공정은 도면 카드에서 작업해요"
     assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 그대로
+
+
+@pytest.mark.parametrize("url", ["/erp/production/sheet/{oid}", "/erp/production/tablet-sheet/{oid}"])
+def test_sheet_step_buttons_read_only_for_production_account_without_lead(client, url):
+    oid = _order(1)
+    _login(client, _user("최보기"))
+    soup = BeautifulSoup(client.get(url.format(oid=oid)).get_data(as_text=True), "html.parser")
+    buttons = soup.select("[data-foms-sheet-step]")
+    assert len(buttons) == 4 and all(b.get("aria-disabled") == "true" and "is-locked" in b["class"] for b in buttons)
+    note = soup.select("[data-foms-sheet-steps-locked]")
+    assert len(note) == 1 and note[0].get_text(strip=True) == "반장으로 지정된 계정만 작업할 수 있어요."
+    assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 지금 그대로
 
 
 @pytest.mark.parametrize("url", ["/erp/production/sheet/{oid}", "/erp/production/tablet-sheet/{oid}"])
 @pytest.mark.parametrize("team,role", [("PRODUCTION", "STAFF"), ("CS", "ADMIN")])
 def test_control_sheet_step_buttons_unchanged(client, url, team, role):
     oid = _order(1)
-    _login(client, _user("대조", team=team, role=role, part="cut" if role == "ADMIN" else None))
+    _login(client, _user("대조", team=team, role=role, part="cut" if role == "ADMIN" else None, lead=role != "ADMIN"))
     soup = BeautifulSoup(client.get(url.format(oid=oid)).get_data(as_text=True), "html.parser")
     buttons = soup.select("[data-foms-sheet-step]")
     assert len(buttons) == 4 and not any(b.has_attr("disabled") or b.has_attr("aria-disabled") for b in buttons)
@@ -398,10 +472,10 @@ def test_step_changing_write_query_counts(client):
 
 def test_same_clock_tick_last_person_is_the_one_who_just_finished(client, monkeypatch):
     """시계 눈금이 같아도(모든 쓰기가 같은 시각) 마지막 장을 끝낸 사람이 칸에 적힌다 — 흔들리던 시험의 원인 고정."""
-    import foms.api.production.part_marks as part_marks_api
+    import foms.services.production.part_mark_write as part_mark_write  # 쓰기 몸통이 옮겨 간 곳(2026-11-23 §7)
 
     frozen = now_utc_naive()
-    monkeypatch.setattr(part_marks_api, "now_utc_naive", lambda: frozen)
+    monkeypatch.setattr(part_mark_write, "now_utc_naive", lambda: frozen)
     oid = _order(3)
     _login(client, _user("박재단", part="cut"))
     for j in range(2):

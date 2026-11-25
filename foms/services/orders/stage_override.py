@@ -26,7 +26,7 @@ from foms.services.orders.draft_guard import ensure_order_promoted
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.orders.items_construction_gate import close_remaining_items as _close_remaining_items
 from foms.services.orders.items_construction_gate import items_gate_blocks, items_open_error
-from foms.services.production.steps import production_complete_block_body
+from foms.services.production.factory_marks import clear_factory_marks
 from models import Order, OrderEvent
 
 # 메인 파이프라인만 (AS_*/DELETED/레거시 제외). structured PUT 가드와 동일.
@@ -220,20 +220,6 @@ def is_production_complete_move(from_stage: Any, to_stage: Any) -> bool:
     return (normalize_main_stage(from_stage), normalize_main_stage(to_stage)) == ("PRODUCTION", "CONSTRUCTION")
 
 
-def production_complete_move_block(order: Order, from_stage: Any, to_stage: Any) -> Optional[dict[str, Any]]:
-    """일반 상태 쓰기(단건 · 일괄 · 칸 고치기)의 생산 → 시공이 검수 전이면 거절 본문, 아니면 None.
-
-    [제작 완료] 단추(``POST /api/orders/<id>/production/complete``)와 **같은 규칙 · 같은 함수 · 같은 글**이다
-    (:func:`foms.services.production.steps.production_complete_block_body`, 사용자 결정 2026-11-21 "모든 화면 같은
-    규칙") — 일반 쓰기가 옆문이 되지 않게 한다. ERP 주문만 본다(비 ERP 는 단계 축이 없다). 관리자 뚫기
-    (``admin_override``)는 호출부가 게이트 코드 ``STEPS_INCOMPLETE`` 로 기록한다. 단계 강제 변경
-    (:func:`apply_stage_override`)은 이 규칙을 타지 않는다 — 막다른 길 비상구다.
-    """
-    if not is_erp_order_record(order) or not is_production_complete_move(from_stage, to_stage):
-        return None
-    return production_complete_block_body(getattr(order, "structured_data", None))
-
-
 def current_stage_for_order(order: Order) -> str:
     """ERP면 workflow.stage 우선, 없으면 order.status."""
     status = str(getattr(order, "status", None) or "").strip()
@@ -363,7 +349,9 @@ def apply_stage_override(
     _handle_stage_transition 부수효과는 호출하지 않는다. 단, regress 는 되돌아간 단계의
     COMPLETED quest 1건을 OPEN 으로 돌린다(:func:`_reopen_completed_stage_quest`) — 그대로 두면
     승인 버튼 없는 완료 배지만 남아 막다른 길이 된다. advance/skip/jump 는 quest 를 건드리지 않는다.
-    drawing_transfer_history 등 운영 JSON은 건드리지 않는다.
+    drawing_transfer_history 등 운영 JSON은 건드리지 않는다. 예외 하나: regress 로 생산 단계 또는 그 앞으로 가면 공장 완료 표지
+    (``production.factory_done`` — 설계서 2026-11-23 §4-14)를 지운다(payload ``factories_reopened``). 남겨 두면 생산으로 돌아왔는데
+    모든 공장이 '완료'라 [제작 완료] · 공장 완료 단추가 안 나오는 막다른 길이 된다. 앞으로 가는 변경은 건드리지 않는다.
 
     :returns: {from, to, mode, reason, from_status[, as_overlay_kept][, quest_reopened][, items_closed]}
     :raises ValueError: 검증 실패(메시지 한글)
@@ -408,6 +396,7 @@ def apply_stage_override(
     drawing_status_before = effective_drawing_status(sd_before)
     drawing_warning = stage_override_drawing_warning(sd_before, to_code)
     quest_reopened: Optional[str] = None
+    factories_reopened: list[int] = []
 
     if not overlay_kept:
         order.status = to_code
@@ -436,6 +425,8 @@ def apply_stage_override(
             quest_reopened = _reopen_completed_stage_quest(
                 sd, to_code, from_code, reason_clean, stage_changed_at
             )
+            if STAGE_FORWARD_RANK.get(to_code, 99) <= STAGE_FORWARD_RANK["PRODUCTION"]:
+                factories_reopened = clear_factory_marks(sd)  # production 은 사본으로 바꿔 끼운다(원래 값 그대로)
         sd["workflow"] = workflow
         order.structured_data = sd
         flag_modified(order, "structured_data")
@@ -458,6 +449,8 @@ def apply_stage_override(
         payload["quest_reopened"] = quest_reopened
     if items_closed:
         payload["items_closed"] = items_closed
+    if factories_reopened:
+        payload["factories_reopened"] = factories_reopened
     db.add(
         OrderEvent(
             order_id=order.id,
@@ -482,7 +475,6 @@ __all__ = [
     "DEDICATED_COMMAND_MOVES",
     "requires_dedicated_command",
     "is_production_complete_move",
-    "production_complete_move_block",
     "override_pins_stage",
     "structured_measurement_date",
     "STAGE_FORWARD_RANK",

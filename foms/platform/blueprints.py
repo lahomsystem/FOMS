@@ -70,9 +70,10 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         erp_orders_draftsman_bp,
         erp_orders_item_cancel_bp,
         erp_orders_revision_bp,
+        erp_orders_sheet_factory_bp,
         erp_orders_drawing_wizard_bp,
     )
-    from foms.api.production import erp_orders_production_bp
+    from foms.api.production import erp_orders_factory_done_bp, erp_orders_production_bp
     from foms.api.construction import erp_orders_construction_bp
     from foms.api.cs import (
         erp_orders_as_bp,
@@ -136,9 +137,11 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_revision_bp)
     app.register_blueprint(erp_orders_draftsman_bp)
     app.register_blueprint(erp_orders_item_cancel_bp)
+    app.register_blueprint(erp_orders_sheet_factory_bp)  # 도면 장의 공장 지정(설계서 2026-11-23 §7, DRAWING_TEAM)
     app.register_blueprint(erp_orders_as_drawing_bp)
     app.register_blueprint(erp_orders_drawing_wizard_bp)
     app.register_blueprint(erp_orders_production_bp)
+    app.register_blueprint(erp_orders_factory_done_bp)  # 공장마다 제작 완료(설계서 2026-11-23 §7 factory-done, PRODUCTION_EDIT)
     app.register_blueprint(erp_orders_construction_bp)
     app.register_blueprint(erp_orders_cs_bp)
     app.register_blueprint(erp_orders_as_bp)
@@ -360,7 +363,9 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     # --- Lane: 생산 파트 표시 쓰기(JSON — /api/production/part-marks · /part-marks/basic, 설계서
     # 2026-11-09-tablet-production-ui §15.4). 파트 계정은 자기 파트만 · 관리자는 아무 파트나, 쓰기는 CSRF · 정책
-    # PRODUCTION_PART_MARK. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    # PRODUCTION_PART_MARK. 같은 Blueprint 에 읽기 둘이 붙는다(GET /part-marks 30초 받아 오기 · GET /part-history 바뀐 기록
+    # 목록 — 2026-11-23 §4-11, ``foms/api/production/__init__.py`` 가 모듈을 import). 경로가 고유해 shadowing 이 없고
+    # 규약대로 **뒤에만** 덧붙인다.
     from foms.api.production import production_part_marks_bp
 
     app.register_blueprint(production_part_marks_bp)

@@ -339,7 +339,7 @@ def _overpaid_after_payments(total_amount: int, deposit_amount: int,
 
 
 def is_factory2_order(structured_data: dict) -> bool:
-    """structured_data.flags.factory2 — 2공장 전용 결제계좌 사용 여부."""
+    """structured_data.flags.factory2 — 라홈시스템 계약 전용 결제계좌 사용 여부."""
     flags = structured_data.get("flags") or {}
     if not isinstance(flags, dict):
         return False

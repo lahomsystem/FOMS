@@ -303,7 +303,9 @@ def test_parts_css_fonts_tokens_and_no_achromatic_badges():
                   "--fph-wait-700: #57571f"):
         assert token in css
     tokens = dict(re.findall(r"(--fph-[a-z]+-\d+):\s*(#[0-9a-f]{6})", css))
-    for sel in (".fph-wi.pp-st-need", ".fph-wi.pp-st-taken", ".fph-wi.pp-st-done", ".fph-wi.pp-st-basic", ".fph-wi.pp-wait"):
+    # 막힌 칸 셋(보류 · 도면 고치는 중 · 검수 미완료 — 2026-11-23 설계서 §4-6 · §10)도 같은 규칙
+    for sel in (".fph-wi.pp-st-need", ".fph-wi.pp-st-taken", ".fph-wi.pp-st-done", ".fph-wi.pp-st-basic", ".fph-wi.pp-wait",
+                ".fph-wi.pp-st-hold", ".fph-wi.pp-st-revise", ".fph-wi.pp-st-pre"):
         rule = re.search(re.escape(sel) + r" \{([^}]*)\}", css).group(1)
         bg = tokens[re.search(r"background: var\((--fph-[a-z]+-\d+)\)", rule).group(1)]
         _, _, sat = colorsys.rgb_to_hls(*(int(bg[i:i + 2], 16) / 255 for i in (1, 3, 5)))

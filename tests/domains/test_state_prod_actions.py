@@ -30,6 +30,8 @@ def _make_user(username: str, *, role: str = "STAFF", team: str | None = "PRODUC
         team=team,
         name=f"{username} 이름",
         is_active=True,
+        # 공정 칸 손 체크는 반장만(설계서 2026-11-23 '승인 때 고친 것' 5) — 파트 없는 지금 생산팀 계정은 마이그레이션이 반장으로 채운다.
+        production_lead=(team == "PRODUCTION") or None,
     )
     db_session.add(user)
     db_session.commit()

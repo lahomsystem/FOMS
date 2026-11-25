@@ -7,8 +7,10 @@
 
 * 카드 = 확정 도면 한 장(:func:`resolve_final_drawing_files` 의 항목, 순서 = 도면 번호).
 * 내 파트 상태 · 맡은/끝낸 사람 이름 · 다른 파트 한 줄 낱말(재단: 끝 · 기본 · 중 · 안 봄, 그 밖: 끝 · 중 · 아직).
-* 칸 숫자: 파트 계정 = 내 것(작업 필요 = 내가 맡은 장, 완료 = 내가 끝낸 장 — 재단은 끝 + 기본), 관리자 · 읽기 전용 =
+* 칸 숫자: 파트 계정 = 내 것(작업 필요 = 내가 맡은 장, 완료 = 내가 끝낸 장 — 재단은 끝 + 기본), 관리자 · 대신 · 읽기 전용 =
   그 파트 전체. 재단의 '안 본 장' 수도 센다. 숫자는 늘 읽은 줄 전부에서 센다(캡과 무관).
+* 여러 파트 계정(2026-11-23 §4-12, P2): 판 머리에서 내 파트 사이를 고른다(``pick`` · 주소 ``?part=``), 다른 파트 한 줄에서
+  내 파트이고 내가 담당인 장은 "내 담당". 파트 하나인 계정은 고르기 없이 지금 그대로.
 * 바뀐 도면(D56): 같은 ``sheet_id`` 의 옛 key 줄이 있으면 짝을 짓는다. 시트 신원이 없는 직접 올린 파일은 짝이 없다.
 * 한 장 카드 200장 캡 — 넘친 수를 함께 돌려준다(조용히 자르지 않는다).
 """
@@ -18,24 +20,30 @@ from __future__ import annotations
 import datetime
 from typing import Any, Iterable, Optional
 
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
+from foms.services.orders.drawing_factory import sheet_factory
+from foms.services.orders.drawing_fix import blocked, file_successor
 from foms.services.production.part_access import (
+    VIEW_ADMIN,
     VIEW_NONE,
     VIEW_PART,
-    part_account_part,
+    own_parts,
+    part_account_parts,
     part_view_mode,
     writable_parts,
 )
 from foms.services.production.part_constants import (
     MARK_STATE_NONE,
     PART_CUT,
-    PRODUCTION_PART_DEFS,
+    PART_INSPECT,
     PRODUCTION_PART_KEYS,
     PRODUCTION_PART_LABELS,
 )
-from foms.services.production.part_mark_rules import MarkSnapshot
+from foms.services.production.factory_scope import board_factory, elsewhere_head, elsewhere_info, other_factories, scene_on
+from foms.services.production.part_card_state import claim_notes, hand_cell, inspect_block, order_block, sort_rank
+from foms.services.production.part_mark_rules import MarkSnapshot, mark_payload
 from foms.services.production_dashboard_display import _production_spec_display
 from models import ProductionPartMark
 
@@ -54,24 +62,48 @@ PART_SYNC_OVERLAP_SECONDS = 15
 #: 다른 파트 한 줄 낱말(D51 — 낱말은 그대로, 색은 ``tone`` 으로 화면이 고른다).
 _CUT_WORDS = {"done": "끝", "basic": "기본", "need": "중", "none": "안 봄"}
 _OTHER_WORDS = {"done": "끝", "need": "중", "none": "아직"}
+#: 여러 파트 계정(2026-11-23 §4-12 '더함')의 다른 파트 한 줄 — 그 파트도 내 파트이고 내가 담당인 장은 "엣지 내 담당".
+#: 파트 하나인 계정 · 관리자 · 대신에게는 생기지 않는다(다른 파트가 내 파트가 아니다).
+MINE_TONE = "mine"
+MINE_WORD = "내 담당"
 
 MarkIndex = dict[tuple[int, str, str], Any]
 SheetIndex = dict[tuple[int, str], list[Any]]
 
 
-def other_part_word(part: str, state_key: str) -> dict[str, str]:
+def other_part_word(part: str, state_key: str, mine: bool = False) -> dict[str, str]:
     """다른 파트 한 줄의 낱말 하나.
 
     Args:
         part: 파트 key.
         state_key: none · need · basic · done.
+        mine: 그 파트가 보는 사람의 파트이고 담당이 보는 사람인지(여러 파트 계정만 — :func:`mine_other` ).
 
     Returns:
         ``{part, label, word, tone}`` — 재단은 끝 · 기본 · 중 · 안 봄, 그 밖은 끝 · 중 · 아직(D57: 안 고름 = 아직).
+        ``mine`` 이고 담당 중(need)이면 "내 담당"(tone ``mine``).
     """
+    if mine and state_key == "need":
+        return {"part": part, "label": PRODUCTION_PART_LABELS[part], "word": MINE_WORD, "tone": MINE_TONE}
     words = _CUT_WORDS if part == PART_CUT else _OTHER_WORDS
     tone = state_key if state_key in words else "none"
     return {"part": part, "label": PRODUCTION_PART_LABELS[part], "word": words[tone], "tone": tone}
+
+
+def mine_other(row: Any, part: str, viewer_id: Any, viewer_parts: tuple[str, ...]) -> bool:
+    """다른 파트 한 줄에서 "내 담당"으로 적을지 — 그 파트가 보는 사람의 파트이고 표시 줄 담당이 보는 사람.
+
+    Args:
+        row: 그 파트 표시 줄(없으면 None).
+        part: 파트 key.
+        viewer_id: 보는 사람 id.
+        viewer_parts: 보는 사람의 파트들(:func:`~foms.services.production.part_access.own_parts`).
+
+    Returns:
+        셋이 맞으면 True(상태는 :func:`other_part_word` 가 본다).
+    """
+    return (part in viewer_parts and row is not None and viewer_id is not None
+            and getattr(row, "picked_by_user_id", None) == viewer_id)
 
 
 def part_sync_cursor(now: Optional[datetime.datetime] = None) -> str:
@@ -126,12 +158,14 @@ def index_marks(marks: Iterable[Any]) -> tuple[MarkIndex, SheetIndex]:
     """표시 줄 → (장 · 파트 자리 사전, 시트 신원 사전).
 
     Returns:
-        ``({(order_id, key, part): 줄}, {(order_id, sheet_id): [줄…]})`` — 둘째는 시트 신원이 있는 줄만.
+        ``({(order_id, key, part): 줄}, {(order_id, sheet_id): [줄…]})`` — 둘째는 시트 신원이 있는 줄 + 모든 줄을 ``file:<key>``
+        자리에도(파일 도면 이어받기 짝 — 설계서 2026-11-25 §3-5, 시트 id 에는 ``:`` 가 없어 겹치지 않는다).
     """
     by_slot: MarkIndex = {}
     by_sheet: SheetIndex = {}
     for row in marks:
         by_slot[(int(row.order_id), str(row.drawing_key), str(row.part))] = row
+        by_sheet.setdefault((int(row.order_id), f"file:{row.drawing_key}"), []).append(row)
         if row.sheet_id:
             by_sheet.setdefault((int(row.order_id), str(row.sheet_id)), []).append(row)
     return by_slot, by_sheet
@@ -170,23 +204,24 @@ def _prev_word(row: Any) -> str:
 
 
 def replaced_info(order_id: int, entry: dict[str, Any], current_keys: set[str], by_sheet: SheetIndex,
-                  part: str) -> Optional[dict[str, Any]]:
+                  part: str, successor: str = "") -> Optional[dict[str, Any]]:
     """바뀐 도면 짝(D56) — 같은 시트 신원의 옛 key 줄이 있으면 전 판 진행을 붙인다.
 
     Args:
         order_id: 주문 id.
-        entry: 지금 확정 도면 항목(``sheet_id`` 가 없으면 짝 없음 — 직접 올린 파일).
+        entry: 지금 확정 도면 항목(``sheet_id`` 가 없으면 ``successor`` 로만 짝 — 직접 올린 파일).
         current_keys: 그 주문 지금 확정 도면 key 집합.
         by_sheet: :func:`index_marks` 의 시트 신원 사전.
         part: 보고 있는 파트.
+        successor: 파일 도면이 이어받은 옛 key(``drawing_fix.file_successor`` — 설계서 2026-11-25 §3-5, 없으면 빈 글).
 
     Returns:
         ``{label, prev:{part:{state, name}}}`` 또는 None. ``label`` 은 보는 파트의 전 판 진행(없으면 '바뀐 도면').
     """
-    sheet_id = str(entry.get("sheet_id") or "")
-    if not sheet_id:
+    slot = str(entry.get("sheet_id") or "") or (f"file:{successor}" if successor else "")
+    if not slot:
         return None
-    old = [r for r in by_sheet.get((order_id, sheet_id), []) if str(r.drawing_key) not in current_keys]
+    old = [r for r in by_sheet.get((order_id, slot), []) if str(r.drawing_key) not in current_keys]
     if not old:
         return None
     latest: dict[str, Any] = {}
@@ -208,6 +243,47 @@ def _badge(state: str, mine_mode: bool, picked_by_me: bool) -> Optional[str]:
     return state if state in ("done", "basic") else None
 
 
+def _other_words(order_id: int, key: str, part: str, marks: MarkIndex, hands: dict[str, Any],
+                 ctx: dict[str, Any]) -> list[dict[str, str]]:
+    """다른 파트 한 줄 — 표시 줄 낱말. 손으로 체크한 파트(카드 안 씀)는 그 파트 모든 장이 완료라 '끝'(B5′).
+    여러 파트 계정이 그 파트도 담당이면 "내 담당"(§4-12)."""
+    words = []
+    for other in PRODUCTION_PART_KEYS:
+        if other == part:
+            continue
+        row = marks.get((order_id, key, other))
+        state = "done" if hands.get(other) else MarkSnapshot.from_row(row).seen_key
+        words.append(other_part_word(other, state, mine_other(row, other, ctx["user_id"], ctx["own_parts"])))
+    return words
+
+
+def _card_state(row: dict[str, Any], entry: dict[str, Any], snap: MarkSnapshot, ctx: dict[str, Any]) -> dict[str, Any]:
+    """3판 칸 — 손 체크 · 막힘 · 밤 넘김 · 바뀐 기록 · 내 담당 꼬리 · 첫 카드(§4-6 · §4-8 · §4-9 · §4-11).
+
+    막힘은 그 장 단위(2026-11-25 설계서 §3-3) — 주문 통째(보류 · 도면 고치는 중)는 모든 장, 도면별 막힘은 그 장만(같은 모양 · 같은 글).
+    """
+    order_id, part, me, key = int(row["id"]), ctx["part"], ctx["user_id"], entry["key"]
+    sd = row.get("structured_data") or {}
+    marks = ctx["order_marks"].get(order_id, [])
+    hands = ctx["hands"][order_id]
+    hand = hands.get(part)
+    state = "hand" if hand else snap.seen_key
+    picked_by_me = snap.picked_by_user_id is not None and snap.picked_by_user_id == me
+    card_block = ctx["blocks"][order_id] or order_block(row, entry, fix=ctx["fix"][order_id])  # 쿼리 0(이미 든 주문 JSON)
+    block = None
+    if state in ("none", "need"):
+        block = card_block or (inspect_block(sd, marks, key) if part == PART_INSPECT else None)
+    # 주문 막힘(보류 · 도면 고치는 중)은 상태와 상관없이 카드에 싣는다 — 완료 · 기본 카드를 되돌린 뒤 JS 가 그리는 칸이
+    # 서버가 그리는 칸(막힌 칸 · [맡기 취소][막힌 칸])과 같게(검수 전 막힘은 JS 가 다른 파트 줄로 다시 본다)
+    notes = claim_notes(snap, ctx["today"], mine=picked_by_me and ctx["writable"])
+    mark = mark_payload(snap) if snap.seen_key != "none" else {}
+    notes.update(picked_day=mark.get("picked_day"), picked_at=mark.get("picked_at"), handed_from_name=snap.handed_from_name,
+                 handed_at=mark.get("handed_at"))
+    return {"state": state, "hand": hand, "block": block, "order_block": card_block, "picked_by_me": picked_by_me,
+            "mine_row": state == "need" and picked_by_me and ctx["writable"],
+            "first_card": not row.get("home_has_run"), "hand_parts": sorted(p for p, h in hands.items() if h), **notes}
+
+
 def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, int, int], marks: MarkIndex,
                ctx: dict[str, Any]) -> dict[str, Any]:
     """카드 한 장(확정 도면 한 장) 자료.
@@ -217,19 +293,20 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
         entry: 확정 도면 항목.
         position: ``(주문 순서, 장 번호 1부터, 장 수)``.
         marks: :func:`index_marks` 의 자리 사전.
-        ctx: ``{part, mine, user_id, by_sheet, current_keys}``.
+        ctx: ``{part, mine, writable, user_id, today, by_sheet, current_keys, order_marks, hands, blocks, fix}``.
 
     Returns:
-        카드 dict(주문 · 장 key · 도면 n/N · 품목 · 내 파트 상태 · 이름 · 배지 · 칸 소속 · 다른 파트 · 바뀐 도면).
+        카드 dict(주문 · 장 key · 도면 n/N · 품목 · 내 파트 상태 · 이름 · 배지 · 칸 소속 · 다른 파트 · 바뀐 도면) + 3판 칸
+        (``hand`` 손 체크 · ``block`` 막힘 · ``held_note`` · ``tag`` · ``mine_row`` · ``first_card`` · ``picked_by_user_id``).
+        손으로 체크한 파트의 장은 ``state`` 가 ``hand``(완료로 셈 — 파트 계정 '완료' 칸에는 안 셈, §4-2 '판 숫자').
     """
     order_id, key, part, me = int(row["id"]), entry["key"], ctx["part"], ctx["user_id"]
     snap = MarkSnapshot.from_row(marks.get((order_id, key, part)))
-    state = snap.seen_key
-    picked_by_me = snap.picked_by_user_id is not None and snap.picked_by_user_id == me
+    extra = _card_state(row, entry, snap, ctx)
+    state = extra["state"]
+    picked_by_me = extra["picked_by_me"]
     done_by_me = snap.done_by_user_id is not None and snap.done_by_user_id == me
     item_label, item_spec = card_item_text(row.get("structured_data") or {}, entry, row)
-    others = [other_part_word(p, MarkSnapshot.from_row(marks.get((order_id, key, p))).seen_key)
-              for p in PRODUCTION_PART_KEYS if p != part]
     finished = state in ("done", "basic")
     return {
         "order_id": order_id, "customer_name": row.get("customer_name") or "-", "has_changes": bool(row.get("has_changes")),
@@ -238,26 +315,27 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
         "key": key, "filename": entry.get("filename") or "", "view_url": entry.get("view_url") or "",
         "is_image": is_part_thumb_image(entry),
         "sheet_id": entry.get("sheet_id"), "order_pos": position[0], "no": position[1], "of": position[2],
-        "item_label": item_label, "item_spec": item_spec, "state": state,
+        "item_label": item_label, "item_spec": item_spec,
         "picked_by_name": snap.picked_by_name, "done_by_name": snap.done_by_name,
-        "picked_by_me": picked_by_me, "done_by_me": done_by_me,
+        "picked_by_user_id": snap.picked_by_user_id, "done_by_me": done_by_me,
         "taken_by_other": state == "need" and not picked_by_me,
         "badge": _badge(state, ctx["mine"], picked_by_me),
         "in_need": state == "need" and (picked_by_me or not ctx["mine"]),
-        "in_done": finished and (done_by_me or not ctx["mine"]),
-        "others": others,
-        "replaced": replaced_info(order_id, entry, ctx["current_keys"][order_id], ctx["by_sheet"], part),
+        "in_done": (finished and (done_by_me or not ctx["mine"])) or (state == "hand" and not ctx["mine"]),
+        "others": _other_words(order_id, key, part, marks, ctx["hands"][order_id], ctx),
+        "replaced": replaced_info(order_id, entry, ctx["current_keys"][order_id], ctx["by_sheet"], part,
+                                  file_successor(row.get("structured_data")).get(key, "")),
+        **extra,
     }
 
 
 def sort_cards(cards: list[dict[str, Any]], part: str) -> list[dict[str, Any]]:
-    """카드 순서 — 재단은 안 본 장 먼저, 그다음 주문 · 장 번호 순. 그 밖 파트는 주문 · 장 번호 순.
+    """카드 순서 — 모든 파트 남은 일 앞 · 완료 뒤(설계서 2026-11-23 §8-1 '판 순서', :func:`sort_rank`), 묶음 안은 주문 · 장 번호 순.
 
-    주문 순서는 만들 것 줄 순서(``order_pos``) 그대로다.
+    재단 · 엣지 · 조립 = 미정 → 담당 → 완료, 검수 = 검수 할 수 있음 → 담당 → 검수 전 → 완료. 주문 순서는 만들 것 줄 순서
+    (``order_pos``) 그대로다.
     """
-    if part == PART_CUT:
-        return sorted(cards, key=lambda c: (0 if c["state"] == "none" else 1, c["order_pos"], c["no"]))
-    return sorted(cards, key=lambda c: (c["order_pos"], c["no"]))
+    return sorted(cards, key=lambda c: (sort_rank(c, part), c["order_pos"], c["no"]))
 
 
 def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
@@ -268,6 +346,11 @@ def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
         "done": sum(1 for c in cards if c["in_done"]),
         "unseen": sum(1 for c in cards if c["state"] == "none"),
     }
+
+
+def bulk_count(cards: list[dict[str, Any]]) -> int:
+    """[남은 N장 모두 기본] 숫자 — 막힌(보류 · 도면 고치는 중) 안 본 장은 빼고 센다. 창이 여는 목록과 같은 기준(parts.js bulkable)."""
+    return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block"))
 
 
 def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]) -> dict[str, Any]:
@@ -282,21 +365,34 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
         ``{key, cards, hidden, counts, orders_total, drawn_orders, wait_rows, no_drawing_rows, wait_count, done_count}``.
     """
     cards: list[dict[str, Any]] = []
+    elsewhere: list[dict[str, Any]] = []
     no_drawing: list[dict[str, Any]] = []
-    for order_pos, row in enumerate(pane.get("make_rows") or []):
+    # 2공장(§4-13): 남의 공장 장만 있는 줄(elsewhere_rows)도 카드로 — 남의 공장 카드는 판 뒤 묶음(누름 없음 · 숫자 밖)
+    for order_pos, row in enumerate([*(pane.get("make_rows") or []), *(pane.get("elsewhere_rows") or [])]):
         files = ctx["files"][int(row["id"])]
         if not files:
             no_drawing.append(row)  # 생산 단계인데 확정 도면 0장 — '도면 없음' 으로 기다림 묶음에
             continue
+        sd = row.get("structured_data") or {}
         for index, entry in enumerate(files):
-            cards.append(build_card(row, entry, (order_pos, index + 1, len(files)), marks, ctx))
+            card = build_card(row, entry, (order_pos, index + 1, len(files)), marks, ctx)
+            factory = sheet_factory(sd, entry) if ctx["scene"] else ctx["factory"]
+            if factory != ctx["factory"]:
+                card["elsewhere"] = elsewhere_info(card, ctx["part"], factory)
+                elsewhere.append(card)
+            else:
+                cards.append(card)
     cards = sort_cards(cards, ctx["part"])
+    elsewhere = sorted(elsewhere, key=lambda c: (c["order_pos"], c["no"]))
     wait_rows = list(pane.get("wait_rows") or [])
     return {
         "key": pane.get("key"),
         "cards": cards[:PART_BOARD_CARD_CAP],
         "hidden": max(0, len(cards) - PART_BOARD_CARD_CAP),
         "counts": card_counts(cards),
+        "bulk": bulk_count(cards),
+        "elsewhere": elsewhere[:PART_BOARD_CARD_CAP],
+        "elsewhere_head": elsewhere_head(other_factories(ctx["factory"])[0], len(elsewhere)) if elsewhere else "",
         "orders_total": int(pane.get("total") or 0),
         "drawn_orders": len(pane.get("make_rows") or []) - len(no_drawing),
         "wait_rows": wait_rows,
@@ -307,7 +403,8 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
 
 
 def resolve_board_part(user: Any, requested: Any) -> tuple[str, Optional[str]]:
-    """보기 모드와 볼 파트 — 파트 계정은 늘 자기 파트, 관리자 · 읽기 전용은 고른 파트(모르면 재단).
+    """보기 모드와 볼 파트 — 파트 계정은 고른 파트가 내 파트일 때만 그 파트, 아니면 내 첫 파트(정의 순서, 2026-11-23 §4-12).
+    관리자 · 대신 · 읽기 전용은 고른 파트(모르면 재단).
 
     Returns:
         ``(모드, 파트 key)`` — 볼 수 없는 사람은 ``("none", None)``.
@@ -315,38 +412,77 @@ def resolve_board_part(user: Any, requested: Any) -> tuple[str, Optional[str]]:
     mode = part_view_mode(user)
     if mode == VIEW_NONE:
         return mode, None
-    if mode == VIEW_PART:
-        return mode, part_account_part(user)
     text = str(requested or "").strip().lower()
+    if mode == VIEW_PART:
+        mine = part_account_parts(user)
+        return mode, text if text in mine else mine[0]
     return mode, text if text in PRODUCTION_PART_KEYS else PART_CUT
 
 
-def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = None) -> Optional[dict[str, Any]]:
+def board_parts(mode: str, user: Any) -> list[dict[str, str]]:
+    """판 머리에서 고를 파트 — 관리자 · 대신 · 읽기 전용 = 네 파트(지금 ``pp-parts``), 파트 계정 = 내 파트들(둘 이상일 때만 고르기)."""
+    keys = part_account_parts(user) if mode == VIEW_PART else PRODUCTION_PART_KEYS
+    return [{"key": key, "label": PRODUCTION_PART_LABELS[key]} for key in keys]
+
+
+def _order_marks(marks: Iterable[Any]) -> dict[int, list[Any]]:
+    out: dict[int, list[Any]] = {}
+    for row in marks:
+        out.setdefault(int(row.order_id), []).append(row)
+    return out
+
+
+def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = None, marks: Optional[list[Any]] = None,
+                     today: Optional[datetime.date] = None, factory: Any = None) -> Optional[dict[str, Any]]:
     """그날들(날짜 탭 ``panes`` 전부)의 파트 도면 카드 판. 쿼리는 표시 줄 읽기 한 번만 더한다.
 
     Args:
         db: 세션.
         user: 보는 사람.
         days: :func:`production_home_days` 결과(``panes`` 를 쓴다).
-        part: 관리자 · 읽기 전용이 고른 파트(``?part=``). 파트 계정은 무시하고 자기 파트.
+        part: 고른 파트(``?part=``). 관리자 · 대신 · 읽기 전용은 네 파트 중, 파트 계정은 내 파트일 때만(아니면 내 첫 파트).
+        marks: 이미 읽은 그 주문들 표시 줄(넘기면 다시 읽지 않는다 — 칸 아래 이름과 같은 줄, 쿼리 0).
+        today: KST 오늘(시험용, 없으면 지금) — "어제부터" 판정.
+        factory: 관리자가 고른 공장(``?factory=``, 3단계) — 그 밖 사람은 계정 공장.
 
     Returns:
-        ``{mode, part, part_label, parts, writable, mine, cap, panes:{key: 장 판}}`` 또는 None(볼 수 없는 사람).
+        ``{mode, part, part_label, parts, pick, url_part, writable, mine, cap, factory, scene, factory_pick, url_factory,
+        panes:{key: 장 판}}`` 또는 None(볼 수 없는 사람). 2공장 그림이 켜지면 장 판마다 ``elsewhere``(남의 공장 카드) ·
+        ``elsewhere_head`` 가 차고, 칸 숫자는 내 공장 카드만 센다.
     """
     mode, board_part = resolve_board_part(user, part)
     if board_part is None:
         return None
     panes = list(days.get("panes") or [])
-    rows = [row for pane in panes for row in (pane.get("make_rows") or [])]
+    rows = [row for pane in panes for row in [*(pane.get("make_rows") or []), *(pane.get("elsewhere_rows") or [])]]
     files = {int(row["id"]): resolve_final_drawing_files(row.get("structured_data") or {}) for row in rows}
-    by_slot, by_sheet = index_marks(fetch_part_marks(db, (oid for oid, entries in files.items() if entries)))
+    if marks is None:
+        marks = fetch_part_marks(db, (oid for oid, entries in files.items() if entries))
+    by_slot, by_sheet = index_marks(marks)
+    order_marks = _order_marks(marks)
+    factory = board_factory(user, factory)
+    scene = scene_on((r.get("structured_data") or {} for r in days.get("all_rows") or rows), factory)
+    writable = board_part in writable_parts(user)
+    parts = board_parts(mode, user)
+    pick = mode == VIEW_PART and len(parts) > 1
     ctx = {
-        "part": board_part, "mine": mode == VIEW_PART, "user_id": getattr(user, "id", None), "files": files,
+        "part": board_part, "mine": mode == VIEW_PART, "writable": writable, "user_id": getattr(user, "id", None),
+        "factory": factory, "scene": scene,
+        "own_parts": own_parts(user),
+        "files": files, "today": today or get_today_kst(), "order_marks": order_marks,
         "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in files.items()},
+        "blocks": {int(row["id"]): order_block(row) for row in rows},  # 주문 통째(보류 · 도면 고치는 중)
+        "fix": {int(row["id"]): blocked(row.get("structured_data") or {}) for row in rows},  # 도면별 막힘(2026-11-25 §3-3, 쿼리 0)
+        "hands": {int(row["id"]): {p: hand_cell(row.get("structured_data") or {}, order_marks.get(int(row["id"]), []), p)
+                                   for p in PRODUCTION_PART_KEYS} for row in rows},
     }
     return {
         "mode": mode, "part": board_part, "part_label": PRODUCTION_PART_LABELS[board_part],
-        "parts": [{"key": key, "label": label} for key, label in PRODUCTION_PART_DEFS],
-        "writable": board_part in writable_parts(user), "mine": ctx["mine"], "cap": PART_BOARD_CARD_CAP,
+        # 고를 파트 · 여러 파트 고르기(파트 계정 둘 이상) · 주소에 실을 파트(파트 하나인 계정의 날짜 탭은 지금처럼 안 실음)
+        "parts": parts, "pick": pick, "url_part": board_part if (mode != VIEW_PART or pick) else None,
+        "writable": writable, "mine": ctx["mine"], "cap": PART_BOARD_CARD_CAP,
+        # 2공장(§4-13 · §19 열한째): 보는 공장 · 관리자 판 머리 공장 고르기(2공장 그림이 켜졌을 때만) · 주소에 실을 공장
+        "factory": factory, "scene": scene, "factory_pick": scene and mode == VIEW_ADMIN,
+        "url_factory": factory if scene and mode == VIEW_ADMIN else None,
         "panes": {pane.get("key"): build_pane_board(pane, by_slot, ctx) for pane in panes},
     }

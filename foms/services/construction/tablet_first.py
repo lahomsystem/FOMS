@@ -31,7 +31,7 @@ from foms.services.common.address_query import strip_sido
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.construction_read_model import CONSTRUCTION_ACTIVE_STAGE_CODES, CONSTRUCTION_ALL_STAGE_CODES
-from foms.services.datetime_kst import get_today_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.erp_permissions import (
     _current_dialect_name,
     _json_string_token_condition,
@@ -51,7 +51,9 @@ from foms.services.orders.schedule_row_kind import (
     row_is_as,
 )
 from foms.services.production_home_read_model import production_home_steps
+from foms.services.shipment.packing_factory import packing_glance
 from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
+from foms.services.orders.drawing_factory import load_split
 from foms.services.shipment_dashboard_helpers import (
     _normalize_worker_name,
     visible_items_for_dates,
@@ -260,7 +262,14 @@ def _packing_fields(sd: dict) -> tuple[str, str]:
         return "포장 전", "none"
     departed = str(packing.get("departed_at") or "")
     if departed:
-        return (f"출발 {departed[11:16]}" if len(departed) >= 16 else "출발"), "departed"
+        # 한국 시각으로(패킹 API 는 UTC +00:00 으로 적는다 — 예전엔 글자를 그대로 잘라 14:48 이 05:48 로 보였다).
+        # 시간대 없는 옛 값은 한국 시각으로 본다(패킹 시트 머리 JS 의 new Date() 가 기기 시각 = 한국으로 읽는 것과 같게).
+        hm = format_datetime_kst(departed, "%H:%M", assume_utc_if_naive=False) if len(departed) >= 16 else None
+        return (f"출발 {hm}" if hm else "출발"), "departed"
+    glance = packing_glance(sd)  # 2공장 장이 섞인 주문 — "포장 1공장 3/3 · 2공장 0/2"(설계서 2026-11-23 '승인 때 고친 것' 6)
+    if glance is not None:
+        # 공장 둘로 나뉜 글은 상태 split — 좁은 칸에서 말줄임 대신 두 줄(foms-packing-factory.css 의 .is-split)
+        return f"포장 {glance['text']}", ("split" if glance["groups"] > 1 else "packing")
     items = [it for it in (packing.get("items") or []) if isinstance(it, dict)]
     if not items:
         return "포장 전", "none"
@@ -363,6 +372,8 @@ def build_row_view(row: _DayRow) -> dict:
         "packing_state": packing_state,
         "drawing_text": drawing_text,
         "drawing_missing": drawing_missing,
+        # 상차 줄(설계서 2026-11-23 §4-15) — 2공장 장이 섞인 주문만 '출고' 칸 아래 작은 글, 그 밖 None. 쿼리 0.
+        "load_text": (load_split(sd) or {}).get("text"),
     }
 
 
@@ -469,7 +480,11 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
         "days": strip, "selected_count": counts.get(sel, 0),
         "next_date": preview, "next_count": counts.get(preview, 0) if preview else 0,
         "worker": chosen,
+        # 공장 둘로 나뉜 포장 글이 있으면 그 모양 파일을 싣는다(없으면 응답 바이트 그대로).
+        "has_packing_split": any(r["packing_state"] == "split" for sec in sections for g in sec["groups"] for r in g["rows"]),
         "worker_options": _worker_options(worker_settings, sections, include_settings=not is_freelancer),
         "worker_colors": {p["name"]: p["color_index"] for sec in reversed(sections) for p in sec["people"]},  # 고른 날 색 우선
         "sections": sections, "cap": DAY_ROWS_CAP, "undated_count": counts.get(UNDATED_KEY, 0),
+        # 상차 줄 모양(css)을 실을지 — 그날 · 미리 볼 날 줄에 상차 줄이 하나라도 있을 때만(없으면 응답 바이트 그대로).
+        "has_load_split": any(r["load_text"] for sec in sections for g in sec["groups"] for r in g["rows"]),
     }

@@ -1,4 +1,4 @@
-"""라홈시스템(2공장)·지방주문 플래그 변경 권한 (ORDER-FLAG-01).
+"""라홈시스템 계약·지방주문 플래그 변경 권한 (ORDER-FLAG-01).
 
 두 값은 업무 축을 가른다 — ``structured_data['flags']['factory2']`` 는 견적서 공급자와
 입금 계좌를, ``Order.is_regional`` 은 지방 대시보드·지도·체크리스트의 모집단을 정한다.
@@ -32,7 +32,7 @@ ORDER_FLAG_ALLOWED_ROLES = frozenset({"ADMIN"})
 #: 팀으로 통과하는 집합. ``CS`` = 라홈팀/하우드팀 (foms/web/auth/routes.py ``TEAMS``).
 ORDER_FLAG_ALLOWED_TEAMS = frozenset({"CS"})
 
-#: 라홈시스템(2공장)만 넓힌 집합. 영업이 견적 공급자·계좌를 직접 고른다(2026-10-01).
+#: 라홈시스템 계약만 넓힌 집합. 영업이 견적 공급자·계좌를 직접 고른다(2026-10-01).
 FACTORY2_FLAG_ALLOWED_TEAMS = frozenset({"CS", "SALES"})
 
 
@@ -56,7 +56,7 @@ def can_toggle_order_flags(user: Any) -> bool:
 
 
 def can_toggle_factory2_flag(user: Any) -> bool:
-    """기존 주문의 라홈시스템(2공장) 체크박스를 바꿀 수 있는지 판정한다.
+    """기존 주문의 라홈시스템 계약 체크박스를 바꿀 수 있는지 판정한다.
 
     :param user: 현재 사용자(``role``·``team`` 속성). ``None`` 이면 거부.
     :return: 관리자(ADMIN)이거나 CS·영업(SALES) 소속이면 ``True``.

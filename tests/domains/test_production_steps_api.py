@@ -17,7 +17,7 @@ from db import db_session
 from models import Order, OrderEvent, User
 
 
-def _make_user(username: str, *, role: str = "STAFF", team: str | None = None) -> User:
+def _make_user(username: str, *, role: str = "STAFF", team: str | None = None, lead: bool | None = None) -> User:
     user = User(
         username=username,
         password=generate_password_hash("pw"),
@@ -25,6 +25,7 @@ def _make_user(username: str, *, role: str = "STAFF", team: str | None = None) -
         team=team,
         name=f"{username} 이름",
         is_active=True,
+        production_lead=lead,
     )
     db_session.add(user)
     db_session.commit()
@@ -183,7 +184,7 @@ def test_legacy_paint_step_is_hidden_but_not_rewritten(client):
 
 
 def test_production_team_allowed(client):
-    user = _make_user("prod_worker", role="STAFF", team="PRODUCTION")
+    user = _make_user("prod_worker", role="STAFF", team="PRODUCTION", lead=True)  # 반장(승인 때 고친 것 5)
     _login(client, user)
     order_id = _make_order().id
 

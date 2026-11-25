@@ -1,11 +1,16 @@
-/** Sync globals used by detail DOM (MY_ID / 팀 등) from .erp-dashboard data-* — runs on full load and fragment rebind. */
+/** Sync globals used by detail DOM (MY_ID / 팀 등) from .erp-dashboard data-* — runs on full load and fragment rebind.
+ *  MY_ROLE 만: 속성이 있는 화면(주문 대시보드)은 그 값(지금 그대로), 없는 화면(생산 · 시공 · 이력 · 정산 …)은 레이아웃이 서버에서
+ *  심은 값을 둔다 — 빈 값으로 덮어 관리자 사유 창(foms-admin-override.js)이 안 뜨던 것(2026-11-25 스테이징 실측). 아무도 안 심었으면 빈 값.
+ *  MY_ID · MY_TEAM · MY_NAME 은 레이아웃이 심지 않는 값이라 지금 그대로(속성이 없으면 빈 값) — 셸 이동으로 온 사람과 처음 연 사람의
+ *  화면이 갈리지 않게. */
         window.fomsSyncErpDashboardUserGlobals = function fomsSyncErpDashboardUserGlobals() {
           var el = document.querySelector('.erp-dashboard');
           if (!el) return;
           window.MY_ID = el.getAttribute('data-user-id') || '';
           window.MY_TEAM = el.getAttribute('data-user-team') || '';
           window.MY_NAME = el.getAttribute('data-user-name') || '';
-          window.MY_ROLE = el.getAttribute('data-user-role') || '';
+          if (el.hasAttribute('data-user-role')) { window.MY_ROLE = el.getAttribute('data-user-role') || ''; }
+          else if (window.MY_ROLE == null) { window.MY_ROLE = ''; }
         };
         window.fomsSyncErpDashboardUserGlobals();
 

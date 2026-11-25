@@ -23,6 +23,7 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
+from foms.services.production.part_card_state import order_block
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from foms.services.production_read_model import (
@@ -317,8 +318,9 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
 
     줄 아래 "곧 올 것" = 바로 앞 공정에 와 있는 주문(재단은 제작 대기) — 줄이 적어도 화면이 비지 않는다(사용자 11-10).
 
-    보류 중인 주문은 줄에 두되 [끝] 단추 없이 '보류' 글만. 제작 대기(run 없음)·검수까지 끝난 주문은
-    줄에 없고 아래 한 줄 숫자로만(시작·제작 완료는 작업 시트에서).
+    보류 중인 주문은 줄에 두되 [끝] 단추 없이 '보류' 글만. 도면 고치는 중인 주문도 같은 자리에 '도면 고치는 중'(사장님 2026-11-25
+    "보류처럼 막기" — 줄의 ``revise_block`` = 도면 카드 판과 같은 :func:`order_block` 값, 서버 공정 API 도 켜기를 409 로 막는다).
+    제작 대기(run 없음)·검수까지 끝난 주문은 줄에 없고 아래 한 줄 숫자로만(시작·제작 완료는 작업 시트에서).
     """
     queues = [{'key': key, 'label': label, 'rows': []} for key, label in PRODUCTION_HOME_STEP_DEFS]
     by_key = {q['key']: q for q in queues}
@@ -327,6 +329,7 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
     for row in rows:
         key = production_home_queue_key(row)
         if key is not None:
+            row['revise_block'] = None if row.get('hold_active') else order_block(row)  # 쿼리 0(이미 든 주문 JSON)
             by_key[key]['rows'].append(row)
         elif row.get('home_view') == 'prod' and row.get('home_stage') == '제작 대기':
             waiting_rows.append(row)
@@ -340,7 +343,9 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
     for q in queues:
         q['rows'].sort(key=_due_sort_key)
         q['count'] = len(q['rows'])
-        q['incoming'] = waiting_rows if prev is None else [r for r in prev['rows'] if not r.get('hold_active')]
+        # 곧 올 것 = 바로 앞 공정 줄에서 막히지 않은 주문(보류 · 도면 고치는 중은 멈춰 있어 오지 않는다 — 2026-11-25 보류처럼)
+        q['incoming'] = waiting_rows if prev is None else [r for r in prev['rows']
+                                                           if not r.get('hold_active') and not r.get('revise_block')]
         q['incoming_label'] = '제작 대기' if prev is None else f"{prev['label']} 중"
         prev = q
     return {'queues': queues, 'waiting': len(waiting_rows), 'finished': finished, 'deadline_missed': missed}

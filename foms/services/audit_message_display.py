@@ -198,6 +198,9 @@ ACTION_LABELS: dict[str, str] = {
     "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
     "PRODUCTION_STEP_CHECKED": "생산 공정 체크",
     "PRODUCTION_PART_MARKED": "생산 파트 체크",
+    # 도면 장의 공장 지정(설계서 2026-11-23 §6-3 · §11) — 막힌 옮김은 거절 한 줄
+    "DRAWING_SHEET_FACTORY_CHANGED": "도면 공장 지정",
+    "DRAWING_SHEET_FACTORY_REFUSED": "도면 공장 지정 거절",
     "PRODUCTION_DEFECT_REPORTED": "생산 불량 보고",
     "PRODUCTION_HOLD_SET": "생산 보류",
     "PRODUCTION_HOLD_RELEASED": "생산 보류 해제",
@@ -440,7 +443,7 @@ PATH_LABELS: dict[str, str] = {
     "workflow.stage": "단계",
     "flags.urgent": "긴급",
     "flags.urgent_reason": "긴급 사유",
-    "flags.factory2": "라홈시스템(2공장)",
+    "flags.factory2": "라홈시스템 계약",
     "flags.happy_call": "해피콜 상태",
     # 평면 컬럼이라 structured 경로가 없다. 원장에는 컬럼명을 그대로 경로로 싣는다
     # (drawing_order_change 의 변경 리스트도 같은 bare 키 규약을 쓴다).

@@ -7,6 +7,7 @@
   [확인했어요]는 쓰기가 아니라 개인 확인 기록이라 기기 · 쓰기 팀과 상관없이 ``can_ack_production_change``(보는 사람 모두, §13 결정 5).
 - :func:`attach_pc_rows` — PC 줄이 쓰는 값(시공일 칸 · 공정 칸 마우스 글 · 늦음 표)을 이미 읽은 행에 단다(쿼리 0).
   PC 응답에서만 부른다 — 태블릿 · 폰 출력은 그대로다.
+- :func:`pc_row_view` — 도면 목록 창(2026-11-24)에서 체크한 뒤 그 줄의 공정 칸 · 상태 칸을 같은 함수로 다시 만든다(쿼리 0).
 """
 
 from __future__ import annotations
@@ -19,8 +20,14 @@ from foms.services.feature_flags import pointer_hint
 from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date
 from foms.services.production.home_step_panel import _hold_reason, _prev_line, _run_start_text
 from foms.services.production.late_rule import production_late_view
+from foms.services.production.part_access import steps_lock
+from foms.services.production.part_holders import attach_part_holders
 from foms.services.production.write_access import can_ack_production_change, can_write_production
-from foms.services.production_home_read_model import production_home_queue_key
+from foms.services.production_home_read_model import (
+    production_home_queue_key,
+    production_home_stage,
+    production_home_steps,
+)
 
 #: [고치기] 쿠키 — 값 = 켠 시각(epoch 초, 서버 시각 기준으로 JS 가 심는다). Path=/erp/production · 세션 쿠키 · SameSite=Lax.
 EDIT_COOKIE = 'foms_prod_edit'
@@ -63,16 +70,23 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
         기기 무관 · PC 보기 전용 포함, §13 결정 5)
         · ``edit_on``([고치기] 켬) · ``edit_toggle``([고치기] 단추를 그림) · ``edit_now``(JS 가 심을 서버 시각)
         · ``write_omitted``(쓰기 팀인데 기기 쿠키가 없거나 이상해 단추를 뺐다 — 화면이 표식을 남기면 터치 기기는
-        foms-wide-surface-recover.js 가 쿠키가 심긴 뒤 한 번 다시 받는다, §12).
+        foms-wide-surface-recover.js 가 쿠키가 심긴 뒤 한 번 다시 받는다, §12)
+        · ``can_check_steps``('내 공정' [끝] · PC [고치기] 공정 [끝] — 쓰기 단추를 그리는데 공정 칸 잠금이 없을 때, 2026-11-23
+        '승인 때 고친 것' 5: 파트도 반장도 아닌 생산팀은 [끝]만 빠지고 보류 · 불량 · 제작 시작/완료는 ``can_act`` 그대로)
+        · ``steps_lock_note``(그때 판 상태 줄에 둘 한 줄 — 잠금이 없으면 빈 글).
     """
     now = time.time() if now_epoch is None else now_epoch
     pointer = _pointer(request)
     pc = pointer == 'fine'
     writer = can_write_production(user)
     edit_on = bool(writer and pc and edit_cookie_fresh(request, now))
+    can_act = bool(writer and (pointer == 'coarse' or edit_on))
+    lock = steps_lock(user) if can_act else None
     return {
         'pc_view': pc,
-        'can_act': bool(writer and (pointer == 'coarse' or edit_on)),
+        'can_act': can_act,
+        'can_check_steps': bool(can_act and lock is None),
+        'steps_lock_note': lock.message if lock else '',
         'can_ack': can_ack_production_change(user),
         'edit_on': edit_on,
         'edit_toggle': bool(writer and pc),
@@ -188,6 +202,37 @@ def attach_pc_rows(rows: list[dict[str, Any]], today: datetime.date) -> None:
         row['pc_status_tip'] = f"제작 시작 {started}" if started else ''
         row['pc_prev'] = _prev_parts(row)
         row['pc_hold_reason'] = _hold_reason(row.get('structured_data') or {}) if row.get('hold_active') else ''
+
+
+def pc_row_view(order_id: int, sd: dict[str, Any], construction_date: Any, marks: list[Any], run_started_at: Any,
+                has_run: bool, today: datetime.date) -> dict[str, Any]:
+    """도면 목록 창에서 체크한 뒤 그 줄의 공정 칸 · 상태 칸을 다시 그릴 행 — 첫 화면과 같은 함수로(쿼리 0).
+
+    생산 단계 주문 한 건의 행을 첫 화면(:func:`~foms.services.production_home_read_model.build_production_home`)과 같은
+    공정 칸 · 큰 글자 · 칸 아래 이름(:func:`~foms.services.production.part_holders.attach_part_holders`) · PC 값
+    (:func:`attach_pc_rows`)으로 만든다. 부르는 쪽이 매크로 ``pc_steps`` · ``pc_status`` 로 그린다(같은 HTML).
+
+    Args:
+        order_id: 주문 id.
+        sd: 주문 ``structured_data``(읽기만).
+        construction_date: 납작 시공일 칸(``erp_construction_date``).
+        marks: 그 주문 표시 줄 전부.
+        run_started_at: 지금 회차 시작 시각(없으면 None).
+        has_run: 지금 회차가 있는지.
+        today: KST 오늘.
+    """
+    production = sd.get('production') if isinstance(sd.get('production'), dict) else {}
+    hold = production.get('hold') if isinstance(production.get('hold'), dict) else {}
+    steps = production_home_steps(sd, mark_now=has_run)
+    big, sub, view = production_home_stage('PRODUCTION', has_run, steps, bool(hold.get('active')))
+    row: dict[str, Any] = {
+        'id': order_id, 'structured_data': sd, 'construction_date': construction_date, 'hold_active': bool(hold.get('active')),
+        'home_steps': steps, 'home_has_run': has_run, 'run_started_at': run_started_at, 'home_stage': big,
+        'home_stage_sub': sub, 'home_view': view, 'home_alerts': [],
+    }
+    attach_part_holders([row], {order_id: list(marks)}, today)
+    attach_pc_rows([row], today)
+    return row
 
 
 def attach_pc_inbox(changes: dict[str, Any] | None, rows: list[dict[str, Any]]) -> None:

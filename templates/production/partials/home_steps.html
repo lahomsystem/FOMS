@@ -2,8 +2,9 @@
    오른쪽 판(step_panel, 설계서 2026-11-21-production-my-steps-panel · 사용자 결정 11-21 '추천안 반반'): 태블릿 가로(모바일 v2 + 터치 + 넓은 창)만 —
    공정 줄마다 줄 칸 | 판 반반, 줄을 누르면 판이 바뀐다(foms-production-home-steps.js). 서버는 공정 줄마다 고른 줄 판 하나만 그리고
    다른 줄 판은 누를 때 조각(view=panel)으로 받아 끼운다(2026-11-22 — 숨은 판을 다 그리면 주문 150건에 396KB · DOM 13,100 이라 화면이 얼었다).
-   받는 동안 · 못 받으면 판 자리에 data-foms-step-wait 한 칸. 판 [끝]은 확인 창 없이 바로 저장 + 화면 상태 줄 [되돌리기](2026-11-22 사장님
-   "확인 창 빼기"), data-foms-step-base = 다음 줄이 없을 때 · 되돌린 뒤 다시 받을 주소. 판이 없으면 아래 출력은 지금과 한 글자도 같다.
+   받는 동안 · 못 받으면 판 자리에 data-foms-step-wait 한 칸. 판 [끝]은 바로 저장 + 화면 상태 줄 [되돌리기](2026-11-22 사장님
+   "확인 창 빼기") — 확정 도면이 있는 주문만 먼저 한 번 묻는다(2026-11-25 "도면이 있는 주문만 한 번 묻기": 줄 · 판 [끝]의
+   data-foms-sheet-parts = 서버 step_confirm, 창 = 작업 시트와 같은 sheet_step_confirm.html · 글 = foms-production-sheet-parts.js), data-foms-step-base = 다음 줄이 없을 때 · 되돌린 뒤 다시 받을 주소. 판이 없으면 아래 출력은 지금과 한 글자도 같다.
    7판(설계서 2026-11-22-production-drawing-arrival-upgrade §5-4): 위 안내에 '도면 마감 지난 집 n건', 줄 시공 칸은 지난 날이면 빨강 +
    'n일 지남'(날짜 탭 시공일 표 is-past 와 같은 색). 줄 순서 · 오른쪽 판 · [끝] · 곧 올 것은 그대로. #}{% from 'production/partials/home_date_macros.html' import home_href %}
 {% set _on = step_pin or (queues.queues[0].key if queues.queues else '') %}{% set _note %}<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 도면 마감 지난 집 <b>{{ queues.deadline_missed }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>{% endset %}<div class="fph-steptabs" role="tablist" aria-label="공정"{% if step_pin %} data-foms-home-step-pin="{{ step_pin }}"{% endif %}{% if step_panel %} data-foms-step-base="{{ home_href('steps') }}"{% endif %}>
@@ -15,18 +16,20 @@
 {% endif %}{% for q in queues.queues %}
 <div class="fph-q{% if step_panel %} fph-q--sp{% if q.rows %} has-sp{% endif %}{% endif %}" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if q.key != _on %} hidden{% endif %}>{% if step_panel %}<div class="fph-q__list">{{ _note }}{% endif %}
   {% for r in q.rows %}
-  {% set _sel = step_panel and r.id == q.selected_id %}<div class="fph-qr{% if r.hold_active %} is-hold{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if _sel %} is-on{% endif %}" data-foms-home-qrow="{{ r.id }}"{% if _sel %} aria-current="true"{% endif %}>
+  {% set _sel = step_panel and r.id == q.selected_id %}<div class="fph-qr{% if r.hold_active %} is-hold{% elif r.revise_block %} is-revise{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if _sel %} is-on{% endif %}" data-foms-home-qrow="{{ r.id }}"{% if _sel %} aria-current="true"{% endif %}>
     <span class="fph-qr__n">{{ loop.index }}</span>
     <a class="fph-qr__who" href="{% if step_panel %}{{ home_href('steps', order=r.id) }}" data-foms-erp-no-shell="1" data-foms-step-sheet="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% else %}{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% endif %}">
-      <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if step_panel and r.hold_active %}<span class="fph-qr__holdtag">보류</span>{% endif %}{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
+      <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if step_panel and r.hold_active %}<span class="fph-qr__holdtag">보류</span>{% elif step_panel and r.revise_block %}<span class="fph-qr__holdtag">{{ r.revise_block.text }}</span>{% endif %}{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
       <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}{% if r.has_changes %} · <em>{{ r.change_line }}</em>{% endif %}</span>
     </a>
     {%- set _past = r.day_sub and r.day_sub.endswith('지남') %}
     <span class="fph-qr__due{% if _past %} is-past{% endif %}">시공<b>{{ r.day_label }}</b>{% if _past %}<small>{{ r.day_sub }}</small>{% endif %}</span>
     {% if r.hold_active %}
     <span class="fph-qr__hold">보류</span>
-    {% elif can_act %}
-    <button type="button" class="fph-qr__done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>
+    {% elif r.revise_block %}{# 도면 고치는 중 — 보류와 같은 자리 · 같은 꼴(사장님 2026-11-25, 공정 API 도 켜기 409) #}
+    <span class="fph-qr__hold">{{ r.revise_block.text }}</span>
+    {% elif can_check_steps %}{# 공정 [끝] — 파트도 반장도 아닌 생산팀은 단추 없이(읽기 전용 모습, 승인 때 고친 것 5) #}
+    <button type="button" class="fph-qr__done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"{% if r.step_confirm %} data-foms-sheet-parts="{{ r.step_confirm | tojson | forceescape }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>
     {% endif %}
   </div>
   {% else %}

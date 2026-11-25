@@ -27,6 +27,17 @@
   --fph-dw-soon: #68550d;
   --fph-dw-ok: #047857;
   --fph-why: #92400e;
+  /* 파트 맡기 고침(설계서 2026-11-23-production-self-claim-and-factory2 §8-9 · §10) — 날짜 줄 칸 아래 이름 · 어제부터(호박) · 칸 폭.
+     어제부터 칩 · 아침 칩도 이 값을 쓴다(parts.css 는 이 파일 뒤에 실린다). 값은 시험이 못 박는다(test_production_selfclaim_css.py). */
+  --fph-old-50: #ffedd5;
+  --fph-old-300: #fdba74;
+  --fph-old-700: #9a3412;
+  --fph-holder: var(--fph-text2);
+  --fph-holder-done: var(--fph-brand-dark);
+  --fph-holder-none: var(--fph-text3);
+  --fph-step-w: calc(76px * var(--foms-fs, 1));
+  /* 공장 색(1공장 자주 · 2공장 청록)은 이 파일에 두지 않는다 — 공장 칩 한 곳(components/foms-factory-chip.css, 2공장 그림이 켜진
+     화면에만 실린다)의 --foms-fac1-* · --foms-fac2-* 를 쓴다(사장님 2026-11-24 식별성). */
   background: var(--fph-bg);
   color: var(--fph-text);
   min-height: 60vh;
@@ -306,7 +317,7 @@
 .fph-q[hidden] { display: none; }
 .fph-qr { min-height: 96px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr) calc(150px * var(--foms-fs, 1)) 190px; align-items: center; padding-right: 16px; gap: 0 10px; }
 .fph-qr.is-chg { border-color: var(--fph-danger); }
-.fph-qr.is-hold { opacity: .7; }
+.fph-qr.is-hold, .fph-qr.is-revise { opacity: .7; } /* 도면 고치는 중 줄도 보류처럼 흐리게(사장님 2026-11-25 "보류처럼") */
 .fph-qr__n { font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); text-align: center; }
 .fph-qr__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: inherit; text-decoration: none; padding: 8px 0; }
 .fph-qr__who:hover, .fph-qr__who:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
@@ -438,10 +449,11 @@
 .fph-pane__none { margin: 0; padding: 10px 4px; font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text3); }
 .fph-dr {
   content-visibility: auto; /* 화면 밖 줄은 그리기를 미룬다(11-14) — 크기는 한 번 그린 뒤 기억 */
-  contain-intrinsic-size: auto 96px;
+  /* 자리표시 키 = 한 줄 꼴 실측(글자 100% 74~88 · 120% 101 CSS px, 2026-11-23 §10 F2). 두 줄 꼴 · 폰은 아래 덩이에서 140px × 배율 */
+  contain-intrinsic-size: auto calc(84px * var(--foms-fs, 1));
   min-height: 74px;
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr) auto calc(92px * var(--foms-fs, 1)); /* 도면 칸은 글자 배율 따라(R8) */
+  grid-template-columns: 128px minmax(0, 1fr) auto calc(108px * var(--foms-fs, 1)); /* 도면 칸은 글자 배율 따라(R8) — 108px = 섞인 주문 "2공장 12장 완료" 한 줄(2026-11-24 검토) */
   align-items: center;
   gap: 0 12px;
   padding-right: 12px;
@@ -488,6 +500,39 @@
 .fph-dr__st.is-done i { background: var(--fph-brand); border-color: var(--fph-brand); }
 .fph-dr__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
 .fph-dr__dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+/* 2공장(설계서 2026-11-23 §4-13 · §4-14 · §8-2) — 섞인 주문 도면 칸 두 줄("1공장 3장" / "2공장 2장 완료"): 보는 사람 공장 줄이 위 · 굵게,
+   한 줄씩("완료"까지 — 칸 108px × 배율). 칸을 숨기는 폰 규칙(.fph-dr__dw display:none)은 그대로 이긴다(칸 꼴 안 바꿈). */
+.fph-dr__dw.is-split { justify-self: end; white-space: normal; line-height: 1.2; text-align: left; } /* 칩이 세로로 한 줄에 서게 — 칸은 오른쪽 끝, 줄은 왼쪽 맞춤 */
+.fph-dr__dw.is-split .fph-fac { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); white-space: nowrap; }
+.fph-dr__dw.is-split .fph-fac + .fph-fac { margin-top: 3px; }
+.fph-dr__dw.is-split .fph-fac.is-me { font-weight: 800; color: var(--fph-text); }
+.fph-dr__dw .is-ok { font-weight: 800; color: var(--fph-ok); }
+/* 남의 공장 장만 있는 줄(한 공장 계정) — 만들 것 묶음 끝 작은 머리 아래, 바탕 그대로 · 그 공장 칩 색 점선 테두리. '바뀜' 빨강이 이긴다(§10 F17).
+   공장은 줄 안 칩(.foms-fac--1 · --2)으로 가른다 — 1공장 계정에게는 2공장 줄, 2공장 계정에게는 1공장 줄. */
+.fph-dr__fs { word-break: keep-all; } /* 단계 글 "[2공장] 제작 완료만 남음" — 칩과 글이 한 흐름으로 낱말에서 꺾인다 */
+.fph-dr.is-elsewhere { border: 2px dashed var(--fph-text3); }
+.fph-dr.is-elsewhere:has(.foms-fac--1) { border-color: var(--foms-fac1-line); }
+.fph-dr.is-elsewhere:has(.foms-fac--2) { border-color: var(--foms-fac2-line); }
+.fph-dr.is-elsewhere .fph-dr__sg { color: var(--fph-text2); }
+.fph-dr.is-elsewhere.is-chg { border-style: solid; border-color: var(--fph-danger); }
+.fph-pane__g.is-elsewhere { margin-top: 10px; padding-top: 10px; border-top: 2px dashed var(--fph-text3); color: var(--fph-text); }
+.fph-pane__g.is-elsewhere:has(.foms-fac--1) { border-top-color: var(--foms-fac1-line); }
+.fph-pane__g.is-elsewhere:has(.foms-fac--2) { border-top-color: var(--foms-fac2-line); }
+/* 위 줄 공장 이름(한 공장 계정, 2공장 그림이 켜졌을 때만) — "[2공장] · 11월 24일 (화) · 전체 39건", 색은 칩 */
+.foms-prod-home__date .fph-fac-now { font-weight: 800; }
+/* 공정 칸 아래 이름(설계서 2026-11-23 §4-10 · §10) — 하는 중이면 담당, 완료면 완료한 사람, 없으면 "미정". 줄에 이름이 있을 때만
+   공정 묶음이 .has-hd 를 단다(지금 줄은 그대로). 칸 폭 76px × 글자 배율, 글 15px × 배율(80% 에서 보이는 12px), 한 줄 · 줄바꿈 없음.
+   이름(b)만 말줄임, 꼬리(span — ' 외 n' · ' 바뀜')는 안 줄인다. 좁은 폭(폰 · 세로 · 두 줄 꼴 · 한 줄 꼴 문턱 아래)은 아래 덩이에서 숨긴다. */
+.fph-dr__steps.has-hd { gap: 0 4px; flex-wrap: wrap; max-width: calc(4 * var(--fph-step-w) + 12px); }
+.fph-dr__steps.has-hd .fph-dr__st { width: var(--fph-step-w); }
+.fph-dr__hd { display: flex; justify-content: center; max-width: 100%; min-height: calc(18px * var(--foms-fs, 1)); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; color: var(--fph-holder); white-space: nowrap; }
+.fph-dr__hd b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
+.fph-dr__hd span { flex-shrink: 0; margin-left: .25em; }
+.fph-dr__hd.is-done { color: var(--fph-holder-done); }
+.fph-dr__hd.is-none { color: var(--fph-holder-none); font-weight: 700; }
+.fph-dr__hd.is-old { color: var(--fph-old-700); }
+/* 단계 칸 둘째 줄: 카드 부분 완료 "2장 미완료"(§4-2) — 바뀐 줄(.is-chg)의 빨간 작은 글보다 뒤에 와서 이긴다 */
+.fph-dr .fph-dr__sg small.is-miss { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fph-why); }
 .fph-wg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 .fph-wi { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--fph-line); background: var(--fph-raised); color: var(--fph-text2); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; text-decoration: none; white-space: nowrap; overflow: hidden; }
 .fph-wi:hover, .fph-wi:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; outline: none; }
@@ -559,6 +604,12 @@
 .fph-nx span { grid-column: 1; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fph-nx em { grid-column: 2; grid-row: 1 / 3; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); white-space: nowrap; }
 
+/* ── 내 공정 [<공정> 끝] 확인 창(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") = 작업 시트와 같은 조각(sheet_step_confirm.html) —
+   겉틀은 공용 사유 시트, 본문 한 줄 · 태블릿 누름 칸(보이는 44px · 틈 8px)은 sheet.css 와 같은 값(첫 화면은 sheet.css 를 싣지 않는다) ── */
+.foms-prod-home .fpp-confirm-body { margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fph-text); word-break: keep-all; }
+.foms-prod-home .fpp-confirm .foms-reason-sheet__actions > .foms-btn { font-size: calc(17px * var(--foms-fs, 1)); }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) { .foms-prod-home .fpp-confirm .foms-reason-sheet__actions { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); } .foms-prod-home .fpp-confirm .foms-reason-sheet__actions > .foms-btn { min-height: calc(44px / var(--foms-ui-zoom, 1)); } }
+
 /* ── 가로 태블릿 · PC(992px 이상): 제목 줄은 늘 한 줄(11-14) — 글꼴이 늦게 오거나 글자를 키워도 높이(73px = --fph-bar-h 기본값)가
    그대로라 날 단추가 그려진 뒤 위아래로 움직이지 않는다(스테이징 실측: 두 줄 139px → 한 줄 73px 로 줄며 단추가 66px 올라갔다).
    넘치면 날짜 글이 먼저 말줄임으로 줄고, 그다음 화면 탭 줄이 옆으로 밀린다. ── */
@@ -610,10 +661,10 @@
   .fph-panes { container: fph-pane / inline-size; }
   .foms-prod-home__list { container: fph-list / inline-size; }
   .fph-q { container: fph-q / inline-size; }
-  /* 날짜 장(fph-dr): 단계 128 + 공정 4 × max(34, 글 2자 1.5rem) + 틈 18 + 도면 5.75rem(92px × 배율) + 칸 틈 36 + 여백 12 + 테두리 2
+  /* 날짜 장(fph-dr): 단계 128 + 공정 4 × max(34, 글 2자 1.5rem) + 틈 18 + 도면 6.75rem(108px × 배율) + 칸 틈 36 + 여백 12 + 테두리 2
      + 이름 12 × 1.25rem(20px × 배율) */
-  @container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 20.75rem - 0.02px)) {
-    .fph-dr { grid-template-columns: 128px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 8px; }
+  @container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 21.75rem - 0.02px)) {
+    .fph-dr { grid-template-columns: 128px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 8px; contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1)); }
     .fph-dr__sg { grid-row: 1 / 3; }
     .fph-dr__who { grid-column: 2 / 4; padding-bottom: 2px; }
     .fph-dr__steps { grid-column: 2; grid-row: 2; }
@@ -634,6 +685,20 @@
     .fph-qr__who { grid-column: 2 / 4; }
     .fph-qr__due { grid-column: 2; grid-row: 2; flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
     .fph-qr__done, .fph-qr__hold { grid-column: 3; grid-row: 2; }
+  }
+}
+
+/* ── 날짜 장 공정 칸 아래 이름(.fph-dr__hd)은 한 줄 꼴에 들어갈 때만(설계서 2026-11-23 §10 '숨길 곳', 지휘 판정 11-23 이름 칸 16자) ──
+   단계 128 + 칸 틈 36 + 여백 12 + 테두리 2 + 공정 칸 틈 12 = 190px, 칸 넷 4 × 4.75rem(76px × 배율), 도면 6.75rem(108px × 배율)
+   + 이름 16 × 1.25rem(20px × 배율) = 26.75rem. 이보다 좁으면 이름 줄을 숨기고 칸 폭도 지금 꼴로. 이 문턱은 어느 글자 배율에서나
+   위 두 줄 꼴 문턱보다 넓어 두 줄 꼴에서도 늘 숨는다(두 줄 꼴 덩이는 자리만 바꾸고 아무것도 숨기지 않는다 — 11-14 규칙 그대로).
+   기본 규칙(.fph-dr__steps.has-hd)보다 뒤라 같은 특이도에서 이긴다. 1rem = 16px × 글자 배율일 때만 맞는 식이다
+   (2000px 넘는 화면은 뿌리 글자가 18px — foms-ui-zoom.css — 이라 조금 일찍 숨는다. 쿼리 조건에는 var() 를 못 쓴다). */
+@media (min-width: 992px) {
+  @container fph-pane (max-width: calc(190px + 4 * 4.75rem + 26.75rem - 0.02px)) {
+    .fph-dr__hd { display: none; }
+    .fph-dr__steps.has-hd { gap: 6px; }
+    .fph-dr__steps.has-hd .fph-dr__st { width: auto; }
   }
 }
 
@@ -684,11 +749,15 @@
   .fph-strip__f { margin-top: 0; display: flex; border-top: 0; }
   .fph-sf { flex: 0 0 calc(124px * var(--foms-fs, 1)); border-left: 1px solid var(--fph-line); }
   .fph-panes { padding: 4px 10px 90px; }
-  .fph-dr { grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto; padding: 0 10px 8px 0; }
+  .fph-dr { grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto; padding: 0 10px 8px 0; contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1)); }
   .fph-dr__sg { grid-row: 1 / 3; font-size: calc(16px * var(--foms-fs, 1)); }
   .fph-dr__who { padding: 8px 0 2px; }
   .fph-dr__steps { grid-column: 2; }
   .fph-dr__dw { display: none; }
+  /* 공정 칸 아래 이름은 폰 · 세로에서 숨긴다 — 칸 넷이 지금 꼴(226px)에 들어가 '검수' 칸이 안 잘린다(설계서 2026-11-23 §10 M1 안 나) */
+  .fph-dr__hd { display: none; }
+  .fph-dr__steps.has-hd { gap: 6px; }
+  .fph-dr__steps.has-hd .fph-dr__st { width: auto; }
   /* 시공일 표(11-21): 좁은 칸에서는 이름을 한 글자로 줄이지 않고 표를 다음 줄로 내린다(폰 390 실측 '바…') */
   .fph-dr__nm, .foms-prod-home__name { flex-wrap: wrap; row-gap: 2px; }
   .fph-wi { flex-wrap: wrap; row-gap: 2px; padding-block: 5px; }

@@ -1,7 +1,9 @@
 {# 생산 파트 도면 카드의 겉틀 — 화면에 하나씩만(설계서 §15.6 '확인 창' · '크게 보기', 시안 f63 · f65~f67). home.html 이 include.
    설정은 data-* JSON 하나(JS 가 safeJsonParse 로 읽는다). data-pp-since = 30초 받아 오기의 첫 since(서버가 그린 시각, P15-7). 확인 창은 쓸 수 있는 사람에게만 둔다(D55 — 읽기 전용은 창 0).
    확인 창 = 진짜 생산 보드 창 꼴(foms-prod-change-modal, 모양 CSS 는 foms-tablet-production-kanban.css 그대로 — 복사 0),
-   id 는 옛 보드 창(foms-prod-change-modal)과 달라 tablet-domain-sheets.js 가 건드리지 않는다. 목록 줄은 JS 가 채운다. #}
+   id 는 옛 보드 창(foms-prod-change-modal)과 달라 tablet-domain-sheets.js 가 건드리지 않는다. 목록 줄은 JS 가 채운다.
+   2026-11-23 §8-1: 몸 글(.pp-mbody — 첫 카드 · 제작 완료 물음) · 관리자 고르기(.pp-mchoices) · 진 경합(창에 .is-lost)은
+   foms-production-parts-modal.js 가 채운다. 창이 열린 동안 판 본문은 inert, 초점은 창 안에서만 돈다. #}
 <div class="pp-overlays" data-foms-parts-config="{{ part_config | tojson | forceescape }}" data-pp-since="{{ part_since or '' }}" hidden></div>
 {% if part_board.writable %}
 <div id="foms-part-confirm-modal" class="foms-prod-change-modal pp-modal" data-pp-modal role="dialog" aria-modal="true" aria-labelledby="foms-part-confirm-title" hidden>
@@ -12,7 +14,9 @@
     </div>
     <p class="pp-mnote" data-pp-modal-note hidden></p>
     <ul class="foms-prod-change-modal__list" data-pp-modal-list></ul>
-    <p class="pp-merr" data-pp-modal-err role="alert" hidden></p>
+    <p class="pp-mbody" data-pp-modal-body hidden></p>
+    <p class="pp-merr" data-pp-modal-err role="alert" aria-live="assertive" hidden></p>
+    <div class="pp-mchoices" data-pp-modal-choices role="group" aria-label="고르기" hidden></div>
     <div class="foms-prod-change-modal__foot">
       <button type="button" class="foms-prod-change-modal__btn foms-prod-change-modal__btn--close pp-mbtn" data-pp-modal-close>취소</button>
       <button type="button" class="foms-prod-change-modal__btn pp-mbtn pp-mgo" data-pp-modal-run>확인</button>

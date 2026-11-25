@@ -26,11 +26,30 @@ from foms.services.feature_flags import (
     wants_wide_only_surfaces,
     wants_wide_viewport_surfaces,
 )
+from foms.services.production.factory_constants import factory_label
+from foms.services.production.factory_home import attach_factory_rows, attach_factory_stage
+from foms.services.production.factory_scope import home_factory, scene_on
 from foms.services.production.home_access import can_view_production_home
-from foms.services.production.home_step_panel import attach_step_panels, parse_step_order, step_panel_for
-from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
+from foms.services.production.home_step_panel import (
+    attach_step_confirm,
+    attach_step_panels,
+    parse_step_order,
+    step_confirm_ids,
+    step_panel_for,
+)
+from foms.services.production.part_access import (
+    VIEW_ADMIN,
+    VIEW_PART,
+    VIEW_READONLY,
+    VIEW_SUB,
+    part_account_parts,
+    part_view_mode,
+    user_factory,
+)
 from foms.services.production.part_board import build_part_board, part_sync_cursor
-from foms.services.production.part_constants import PART_CUT
+from foms.services.production.part_constants import PART_CUT, production_parts_label
+from foms.services.production.part_marks_query import marks_by_order
+from foms.services.production.part_screen import morning_chip, read_screen_marks
 from foms.services.production.pc_view import attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_home_changes import (
@@ -48,6 +67,9 @@ from foms.services.production_home_read_model import (
 )
 
 _HOME_TABS = ('date', 'steps', 'changes', 'all', 'parts')
+#: '도면 카드' 화면(?tab=parts)을 여는 보기 모드 — 관리자 · 대신(반장, 2026-11-23 §4-12 · 승인 때 고친 것 5) · 읽기 전용(D55).
+#: 파트 계정은 날짜 탭에서 바로 카드를 본다(D50).
+_PARTS_TAB_MODES = (VIEW_ADMIN, VIEW_SUB, VIEW_READONLY)
 #: 날짜 한 장 조각(``?view=day&day=``) — 날을 누르면 JS 가 그 장만 받아 끼운다(설계서 §15.6 '날 고르기', 11-14).
 #: 셸 조각(``view=fragment`` + 셸 머리글, 탭 몸통 전체)과 다른 값이라 둘이 섞이지 않는다.
 DAY_VIEW = 'day'
@@ -83,40 +105,107 @@ def _resolve_home_tab(raw, mode: str, surface: bool) -> str:
     tab = raw if raw in _HOME_TABS else 'date'
     if tab == 'steps' and mode == VIEW_PART:
         return 'date'
-    if tab == 'parts' and not (surface and mode in (VIEW_ADMIN, VIEW_READONLY)):
+    if tab == 'parts' and not (surface and mode in _PARTS_TAB_MODES):
         return 'date'
     return tab
 
 
-def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
-    """파트 화면 템플릿 값 — 판(없으면 None) · [도면 카드로 보기] · '내 공정' 숨김 · 위 줄 제목 · JS 설정.
+def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=None, today=None, full: bool = False) -> dict:
+    """파트 화면 템플릿 값 — 판(없으면 None) · [도면 카드로 보기] · '내 공정' 숨김 · 위 줄 제목 · JS 설정 · 아침 칩.
 
-    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1).
+    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 대신 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1 —
+    날짜 탭은 칸 아래 이름이 읽은 줄 ``marks`` 를 다시 써 0).
     ``days`` 는 그릴 장만 담은 묶음(``{'panes': [고른 장]}``) — 다른 날 판은 그 날을 누를 때 조각으로 만든다(11-14).
+    아침 칩(설계서 2026-11-23 §4-9)은 파트 계정의 전체 페이지(``full``)에서만 — 쿼리 1, 날 조각에는 없다. 여러 파트 계정은
+    내 파트 전부를 센다(같은 쿼리 한 번, §4-12).
     """
     board = None
     # 30초 받아 오기(P15-7)의 첫 since = 그리는 서버 시각(기기 시계 아님). 표시 줄을 읽기 **전**에 잡는다.
     since = part_sync_cursor()
     if days is not None and surface and ((tab == 'date' and mode == VIEW_PART) or tab == 'parts'):
-        board = build_part_board(db, user, days, part=request.args.get('part'))
+        board = build_part_board(db, user, days, part=request.args.get('part'), marks=marks, today=today,
+                                 factory=request.args.get('factory'))
     name = getattr(user, 'name', None) or getattr(user, 'username', '') or ''
     config = None
+    chip = None
     if board is not None:
         config = {
             'mode': board['mode'], 'part': board['part'], 'label': board['part_label'], 'writable': board['writable'],
             'verb': '자름' if board['part'] == PART_CUT else board['part_label'], 'me': name,
             'me_id': getattr(user, 'id', None),
+            # 서버 KST 오늘 — 받아 오기로 고친 카드의 "어제부터" 판정(기기 시계 대신, 설계서 2026-11-23 §4-9)
+            'today': (today or get_today_kst()).isoformat(),
         }
+        if full and mode == VIEW_PART and tab == 'date':
+            chip = morning_chip(db, user, tuple(p['key'] for p in board['parts']), full_rows_of(days),
+                                today or get_today_kst())
     return {
         'part_board': board,
         'part_config': config,
         'part_since': since if board is not None else None,
-        # 날짜 장 제목 옆 [도면 카드로 보기](11-21 사용자 ② — '도면 카드' 탭을 뺀 자리). 문은 예전 탭과 같고(관리자 · 읽기 전용 +
+        'part_morning': chip,
+        # 날짜 장 제목 옆 [도면 카드로 보기](11-21 사용자 ② — '도면 카드' 탭을 뺀 자리). 문은 예전 탭과 같고(관리자 · 대신 · 읽기 전용 +
         # 터치 기기), 화면 긴 변이 992 미만인 폰(``foms_scr``)은 가로로 돌려도 카드를 못 보니 뺀다. 주소(?tab=parts)는 그대로 열린다.
-        'parts_link': surface and mode in (VIEW_ADMIN, VIEW_READONLY) and wants_wide_only_surfaces(),
+        'parts_link': surface and mode in _PARTS_TAB_MODES and wants_wide_only_surfaces(),
         'hide_steps_tab': mode == VIEW_PART,
-        'part_title': (board['part_label'], name) if board is not None and mode == VIEW_PART else None,
+        'part_title': (_title_parts(board), name) if board is not None and mode == VIEW_PART else None,
+        'nav_part': _nav_part(mode, user, board),
     }
+
+
+def _nav_part(mode: str, user, board) -> str | None:
+    """여러 파트 계정이 고른 파트 — 위 탭 [날짜] · [바뀐 것] · [찾기] · [다시 받기]가 주소에 싣는다(2026-11-23 §4-12).
+
+    '바뀐 것' · '찾기'에 갔다 [날짜]로 돌아와도 고른 파트가 남게 한다. 판이 있으면 판이 고른 파트, 없으면(다른 탭 · PC · 폰) 주소
+    ``part`` 가 내 파트일 때만. 파트 하나 · 파트 없는 계정 · 관리자 · 읽기 전용은 None — 지금 주소 그대로.
+    """
+    if mode != VIEW_PART:
+        return None
+    if board is not None:
+        return board['part'] if board.get('pick') else None
+    mine = part_account_parts(user)
+    asked = str(request.args.get('part') or '').strip().lower()
+    return asked if len(mine) > 1 and asked in mine else None
+
+
+def _title_parts(board: dict) -> str:
+    """위 줄 큰 제목의 파트 이름 — 파트 하나면 그 이름(지금 그대로), 여럿이면 "재단 · 엣지"(2026-11-23 §8-1 여러 파트)."""
+    if board.get('pick'):
+        return production_parts_label([p['key'] for p in board['parts']]) or board['part_label']
+    return board['part_label']
+
+
+def full_rows_of(days) -> list:
+    """아침 칩이 세는 줄 — 전체 행(``days['all_rows']``, 없으면 그릴 장의 만들 것)."""
+    if days.get('all_rows') is not None:
+        return days['all_rows']
+    return [row for pane in days.get('panes') or [] for row in pane.get('make_rows') or []]
+
+
+def _factory_scene(user, rows: list, pc_view: bool) -> dict:
+    """2공장 그림(설계서 2026-11-23 §4-13 · §4-14 · §8-2) — 켜지면 행에 공장 칸을 달고 묶을 공장 · 위 줄 공장 글을 돌려준다.
+
+    한 공장 계정(파트 계정 · 반장)의 태블릿 · 폰만 날짜 줄을 공장으로 묶는다(남의 공장 줄 · 내 공장 완료). 관리자 · 보기만 하는
+    직원 · PC(감독용)는 두 공장을 합쳐 본다. 2공장 장이 하나도 없고 보는 공장이 1공장이면 아무것도 안 단다(지금 화면 그대로).
+    """
+    group = None if pc_view else home_factory(user)
+    viewer = group or user_factory(user)
+    if not scene_on((r.get('structured_data') or {} for r in rows), viewer):
+        return {'group': None, 'label': None, 'on': False}
+    attach_factory_rows(rows, viewer=viewer, group=group)
+    return {'group': group, 'label': factory_label(group) if group else None, 'on': True}
+
+
+def _screen_marks(db, tab: str, pane, rows: list, pc_view: bool, today):
+    """칸 아래 이름(설계서 2026-11-23 §4-10)을 달 줄의 표시 줄을 한 번 읽는다 — 날짜 탭 고른 장 · PC 찾기 탭 생산 줄.
+
+    '도면 카드' 탭(판만)은 판이 그 장 줄을 읽게 None 을 돌려준다(쿼리 수 그대로). 그 밖 탭은 0.
+    """
+    if tab == 'date' and pane is not None:  # 남의 공장 줄(2공장 묶음)도 같은 한 번에 — 판이 그 카드 글을 같은 줄로 그린다
+        return read_screen_marks(db, [*(pane.get('make_rows') or []), *(pane.get('elsewhere_rows') or [])], today)
+    if tab == 'all' and pc_view:
+        read_screen_marks(db, rows, today)
+    return None
 
 
 def _step_panel_screen(tab: str, surface: bool, queues: dict | None) -> dict:
@@ -140,7 +229,23 @@ def _step_panel_screen(tab: str, surface: bool, queues: dict | None) -> dict:
     }
 
 
-def _step_panel_response(tab: str, surface: bool, rows: list, flags: dict):
+def _attach_step_confirm(db, queues: dict | None, flags: dict) -> None:
+    """'내 공정' [<공정> 끝] 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") — [끝]을 그리는 사람(``can_check_steps``)만,
+    도면 있는 막히지 않은 줄의 표시 줄을 한 번에 읽는다(+1, 그런 줄이 없으면 0). 묻기를 단추에 실어 두어 누를 때 받기(GET)가 없다 —
+    공장 와이파이에서 [끝]이 늦게 먹는 일(11-22 터치 점검)을 만들지 않는다.
+
+    같은 표시 줄로 "남은 장이 고치는 도면뿐"인 줄은 [끝] 자리에 "도면 2 고치는 중"(2026-11-25 D1 검토 판결 D). [끝]이 없는 사람도 같은
+    줄을 보도록, 도면별로 막힌 장이 있는 줄이 있을 때만 그 줄들의 표시 줄을 읽는다(그런 줄이 없으면 0 — 지금 쿼리 그대로).
+    """
+    if queues is None:
+        return
+    confirm = bool(flags.get('can_check_steps'))
+    ids = step_confirm_ids(queues, fix_only=not confirm)
+    if ids:
+        attach_step_confirm(queues, marks_by_order(db, ids), confirm=confirm)
+
+
+def _step_panel_response(db, tab: str, surface: bool, rows: list, flags: dict):
     """'내 공정' 판 하나 조각(``view=panel``) — 문 · 권한은 한 화면을 다 그릴 때와 같다(읽기만, 새 쓰기 길 없음).
 
     문 = 판이 있는 화면(``_step_panel_screen`` 과 같은 '내 공정' 탭 + 터치 v2 + 넓은 창). 파트 계정은 탭이 날짜로 돌아가(D50)
@@ -149,7 +254,9 @@ def _step_panel_response(tab: str, surface: bool, rows: list, flags: dict):
     """
     door = tab == 'steps' and surface and wants_wide_viewport_surfaces()
     order = parse_step_order(request.args.get('order')) if door else None
-    panel = step_panel_for(production_home_step_queues(rows), request.args.get('step') or '', order) if door else None
+    queues = production_home_step_queues(rows) if door else None
+    _attach_step_confirm(db, queues, flags)  # [끝] 확인 창 자료(+1, 판 하나 조각도 다 그릴 때와 같은 단추)
+    panel = step_panel_for(queues, request.args.get('step') or '', order) if door else None
     if panel is None:
         abort(404)
     _t0 = time.perf_counter()
@@ -185,7 +292,7 @@ def erp_production_home():
     더 좁다(관리자 · 생산팀, ``write_access.can_write_production``). 협력사 계정은 없다. 금액은 뷰 모델에 싣지 않는다(D7).
 
     생산 파트(설계서 §15.6, P15-5): 파트 계정 + 태블릿이면 날짜 탭의 장에 도면 카드 판을 더 그리고(지금 장은
-    태블릿 가로에서만 숨김), 관리자 · 읽기 전용 직원은 태블릿에서 날짜 장 제목 옆 [도면 카드로 보기](``?tab=parts&part=&day=``, 11-21 위 탭에서 뺐다)로 본다.
+    태블릿 가로에서만 숨김), 관리자 · 대신 · 읽기 전용 직원은 태블릿에서 날짜 장 제목 옆 [도면 카드로 보기](``?tab=parts&part=&day=``, 11-21 위 탭에서 뺐다)로 본다.
     파트 계정은 '내 공정' 탭이 없다(D50, 기기 무관).
 
     날짜 · 도면 카드 탭은 고른 날 장 하나만 그린다(11-14, 예전 D5 는 15장을 다 보냈다). 띠 숫자는 모든 날을 센다.
@@ -208,7 +315,8 @@ def erp_production_home():
     if flags['pc_view']:
         attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
     if request.args.get('view') == PANEL_VIEW:
-        return _step_panel_response(tab, surface, rows, flags)  # '내 공정' 판 하나(누른 줄) — 행 읽기 뒤 쿼리 0
+        return _step_panel_response(db, tab, surface, rows, flags)  # '내 공정' 판 하나(누른 줄) — 행 읽기 뒤 [끝] 확인 창 자료만 +1
+    scene = _factory_scene(user, rows, flags['pc_view'])  # 2공장 칸(켜졌을 때만) — 날짜 묶기 전에 단다
     past_hidden = stats['past_hidden']
     # 띠 숫자는 모든 날을 같은 행에서 센다(쿼리 없음). 그리는 장은 고른 날 하나뿐 — 나머지 날은 누를 때 조각으로(11-14).
     # 주소 order= (옛 focus_order=)는 그 주문의 날 장을 고르고 줄에 테두리를 친다(바로가기 · 알림 · 검색, §9-10).
@@ -216,7 +324,12 @@ def erp_production_home():
                                  focus_order=parse_step_order(request.args.get('order') or request.args.get('focus_order')))
             if tab in ('date', 'parts') else None)
     pane = selected_day_pane(days) if days is not None else None
-    screen = _part_screen(db, user, tab, mode, surface, {'panes': [pane]} if pane is not None else None)
+    marks = _screen_marks(db, tab, pane, rows, flags['pc_view'], today)
+    if scene['group'] is not None and marks is not None:  # "2공장 제작 완료만 남음"(§4-4) — 읽은 표시 줄로, 쿼리 0
+        attach_factory_stage(pane.get('make_rows') or [], marks, scene['group'])
+    screen = _part_screen(db, user, tab, mode, surface,
+                          {'panes': [pane], 'all_rows': rows} if pane is not None else None,
+                          marks=marks, today=today, full=not day_view)
     _t0 = time.perf_counter()
     if day_view:
         pane_tpl = 'production/partials/home_pc_day_pane.html' if flags['pc_view'] else 'production/partials/home_day_pane.html'
@@ -239,6 +352,7 @@ def erp_production_home():
     if tab == 'all':
         production_home_attach_change_by(db, rows)
     queues = production_home_step_queues(rows, today) if tab == 'steps' else None
+    _attach_step_confirm(db, queues, flags)  # '내 공정' [끝] 확인 창 자료(도면 있는 줄만 묻는다, 2026-11-25)
     # 셸 조각(레일 · 아래 메뉴에서 온 view=fragment): 몸통 + 이 화면 CSS · 스크립트(다른 탭 조각과 같은 꼴, 11-14).
     template_name = ('production/partials/home_fragment.html' if wants_erp_shell_tab_body(request)
                      else 'production/home.html')
@@ -257,6 +371,8 @@ def erp_production_home():
         **_step_panel_screen(tab, surface, queues),
         **flags,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
+        factory_now=scene['label'],
+        factory_scene=scene['on'],  # 공장 칩 CSS 를 실을지(home_styles.html)
     ))
     apply_ept_b7_render_headers(response, route_id='erp_production_home', render_ms=(time.perf_counter() - _t0) * 1000)
     apply_erp_shell_fragment_headers(response, request, etag_ignore=_ETAG_VOLATILE)

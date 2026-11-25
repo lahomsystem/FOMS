@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.erp_display import _erp_get_stage
-from foms.services.orders.confirm_drawing_gate import revision_in_flight_block
+from foms.services.orders.confirm_drawing_gate import revision_status_block
 from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
 from foms.services.orders.item_construction_view import partial_board_label, partial_visit_closed
 from foms.services.orders.quest_approve_cta import display_quest_title
@@ -67,9 +67,9 @@ def build_board_state(order, sd, stage_code, *, has_current_run=False, current_q
     if stage_code == "PRODUCTION":
         if current_quest and not current_quest.get("is_synthesized") and not current_quest.get("is_done"):
             return None
-        # 생산 단계에 새 도면이 와 있으면(수정 중·수령 전) [제작 시작]이 막힌다 — 영업이 확정할
-        # 곳(도면 작업실)으로 보낸다. 판정은 생산 보드 배지와 같은 함수.
-        block = revision_in_flight_block(sd)
+        # 생산 단계에 새 도면이 와 있으면(수정 중·수령 전) — 영업이 확정할 곳(도면 작업실)으로 보낸다. 영업 요청이 도면 일부만
+        # 가리켜도(생산 쪽은 그 도면만 막음) 이 칸은 지금처럼 "도면 수정 중"(2026-11-25 D1 검토 판결 F) — 도면 상태로만 본다.
+        block = revision_status_block(sd)
         if block is not None:
             return _state(
                 "production",
