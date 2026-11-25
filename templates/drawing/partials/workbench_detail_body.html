@@ -1838,6 +1838,13 @@
         </div>
         <hr>
         {% endif %}
+        {% if drawing_hotfix_stage %}
+        {#- 생산·시공 단계 수정본(설계서 2026-11-25 §2-3, D2) — '바뀐 도면' 줄 · 파일 도면 고르기 · 메모 꼭 적기 · 보내기 전 확인 창 -#}
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125a">
+        <script src="{{ url_for('static', filename='js/drawing/drawing-fix-send.js') }}?v=20261125a" defer></script>
+        <script src="{{ url_for('static', filename='js/drawing/workbench-transfer-fix.js') }}?v=20261125a" defer></script>
+        <div class="dfx-changed" data-dfx-changed role="status" hidden></div>
+        {% endif %}
         <div class="mb-3 small text-muted">
           <strong>추가:</strong> 기존 도면 유지, 새 도면 추가<br>
           <strong>교체:</strong> 선택한 도면만 새 파일로 교체 (다중 선택 가능)<br>
@@ -1845,7 +1852,8 @@
           <strong>도면 마법사 시트:</strong> 방식과 상관없이 같은 시트의 옛 판은 이번 판으로 바뀝니다. 다른 시트 도면은 그대로 남습니다.
         </div>
         {% if drawing_hotfix_stage %}
-        <div class="alert alert-danger small mb-3 dw-transfer-hotfix-notice" role="note">
+        {#- data-foms-no-autodismiss: runtime/script.js 가 5초 뒤 .alert 를 모두 닫아 이 안내와 확인 글 꼬리(submitTransfer)가 사라졌다 -#}
+        <div class="alert alert-danger small mb-3 dw-transfer-hotfix-notice" role="note" data-foms-no-autodismiss>
           <i class="fas fa-bolt" aria-hidden="true"></i>
           <strong>생산·시공 단계입니다.</strong> 보내면 영업 확인 없이 바로 최종 도면이 되고,
           생산팀·영업·CS 에 알림이 갑니다. 전달 취소로 되돌릴 수 없습니다.
@@ -1906,6 +1914,12 @@
             <i class="fas fa-check-square"></i> 전체 선택
           </button>
         </div>
+        {% if drawing_hotfix_stage %}
+        <div class="dfx-picks" data-dfx-picks hidden>
+          <div class="dfx-pick-head">파일로 올린 도면은 바꿀 도면을 골라 주세요. 새로 더하는 도면이면 '새 도면'을 골라요.</div>
+          <div data-dfx-pick-rows></div>
+        </div>
+        {% endif %}
         {% if order.partner_org_id %}
         {#- 협력사 주문 옵션 확인(설계서 2026-11-03-partner-statement §5.3) — partner-option-review.js 가 창이 열릴 때 채운다.
             옵션 줄이 없는 주문이면 숨은 채로 있다(지금 전달 그대로). -#}
@@ -1919,8 +1933,12 @@
         <script src="{{ asset_url('js/drawing/partner-option-review.js') }}" defer></script>
         {% endif %}
         <div class="mb-3">
-          <label class="form-label fw-bold">메모</label>
+          <label class="form-label fw-bold" for="dw-transfer-note">메모{% if drawing_hotfix_stage %}<span class="dfx-must">꼭 적기</span>{% endif %}</label>
           <textarea id="dw-transfer-note" class="form-control" rows="3" placeholder="전달 메모"></textarea>
+          {% if drawing_hotfix_stage %}
+          <div class="dfx-error" data-dfx-note-error role="alert" hidden>공장에 남길 메모를 적어 주세요.</div>
+          <div class="dfx-hint">생산으로 넘어간 주문은 메모를 적어야 보낼 수 있어요.</div>
+          {% endif %}
         </div>
         <div class="mb-3">
           {% if drawing_pending %}
@@ -2883,6 +2901,13 @@
         showWorkbenchToast('전달할 도면이 없습니다. 저장된 대기 도면을 선택하거나 파일을 추가해주세요.', 'error');
         return;
       }
+      // 생산·시공 단계 수정본(설계서 2026-11-25 §2-3) — 메모 꼭 적기 · 파일마다 바꿀 도면(workbench-transfer-fix.js).
+      const fix = window.FomsWorkbenchFix && window.FomsWorkbenchFix.active() ? window.FomsWorkbenchFix : null;
+      const fixWhy = fix ? fix.check(note, files.length) : '';
+      if (fixWhy) {
+        showWorkbenchToast(fixWhy, 'error');
+        return;
+      }
       // 협력사 주문 옵션 확인 — 달라진 품목은 까닭이 있어야 보낸다(partner-option-review.js, 설계서 2026-11-03 §5.3).
       const optionReview = window.FomsPartnerOptionReview ? window.FomsPartnerOptionReview.collect() : { ok: true, data: null };
       if (!optionReview.ok) {
@@ -2899,7 +2924,8 @@
         const checkedBoxes = document.querySelectorAll('#dw-transfer-target-cards .drawing-target-checkbox:checked');
         replaceTargetKeys = Array.from(checkedBoxes).map(cb => cb.value);
 
-        if (drawingFiles.length > 0 && replaceTargetKeys.length === 0) {
+        // 파일만 보내는 생산·시공 단계 수정본은 파일마다 고른 도면이 교체 대상이다.
+        if (drawingFiles.length > 0 && replaceTargetKeys.length === 0 && !(fix && files.length && !pendingSheetIds.length)) {
           showWorkbenchToast('교체 모드에서는 대상 도면을 선택해야 합니다.', 'error');
           return;
         }
@@ -2924,7 +2950,13 @@
         confirmMsg += '\n\n생산·시공 단계라 영업 확인 없이 바로 최종 도면이 되고 생산팀에 알림이 갑니다. 전달 취소로 되돌릴 수 없습니다.';
       }
 
-      if (!confirm(confirmMsg)) return;
+      // 확인은 한 번 — 작업이 닿은 도면 · 시공 대기면 보내기 전 확인 창(그때만 ack_worked), 아니면 지금 확인 글.
+      let ackWorked = false;
+      if (fix) {
+        const asked = await fix.confirmSend(confirmMsg);
+        if (!asked.ok) return;
+        ackWorked = asked.ack;
+      } else if (!confirm(confirmMsg)) return;
 
       try {
         // 버튼 비활성화 + 스피너
@@ -2938,21 +2970,23 @@
           : [];
         const payload = {
           note: note,
-          files: createdFiles,
+          files: fix ? fix.attachPicks(createdFiles, files) : createdFiles,
           mode: mode,
           is_retransfer: isRetransfer,
           replace_target_keys: replaceTargetKeys.length > 0 ? replaceTargetKeys : null,
           pending_sheet_ids: pendingSheetIds.length > 0 ? pendingSheetIds : null,
           partner_options: optionReview.data,
+          ack_worked: ackWorked,
         };
-        const res = await fetch(`/api/orders/${orderId}/transfer-drawing`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
+        const data = fix
+          ? await fix.send(`/api/orders/${orderId}/transfer-drawing`, payload)
+          : await (await fetch(`/api/orders/${orderId}/transfer-drawing`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          })).json();
         if (!data.success) {
-          showWorkbenchToast(data.message || '도면 전달 실패', 'error');
+          if (!data.cancelled) showWorkbenchToast(data.message || '도면 전달 실패', 'error');
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="fas fa-check"></i> 전달 완료';

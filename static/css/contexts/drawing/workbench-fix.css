@@ -1,0 +1,195 @@
+/* 생산 넘어간 주문의 도면 수정 — 보내는 창(작업실 전달 창 · 마법사 [저장] 창) · 보내기 전 확인 창
+   (설계서 docs/specs/2026-11-25-production-stage-drawing-revision_SPEC.md §2-3, D2 — D3 · D4 도 이 파일에 줄을 더한다).
+   인라인 스타일 금지 규칙 때문에 전용 파일로 둔다. 새 글자 크기는 calc(Npx * var(--foms-fs, 1)) — PC 80% 배율에서도 줄이지 않는다.
+   무채색 배지 금지 — 안내 줄은 노랑 · 빨강 바탕. */
+
+/* '바뀐 도면' 줄 — "바뀐 도면: 도면 2 (고침) · 도면 6 (새 도면)" */
+.dfx-changed {
+    margin: 8px 0;
+    padding: 6px 10px;
+    border: 1px solid var(--bs-warning, #f0c36d);
+    border-radius: 6px;
+    background: #fff8e1;
+    color: #5c4300;
+    font-weight: 600;
+    font-size: calc(14px * var(--foms-fs, 1));
+}
+
+/* 메모 꼭 적기 · 안내 · 빈 메모 거절 글 */
+.dfx-must {
+    margin-left: 4px;
+    color: var(--bs-danger, #dc3545);
+    font-weight: 600;
+    font-size: calc(12px * var(--foms-fs, 1));
+}
+
+.dfx-hint {
+    margin-top: 4px;
+    color: #5f6b7a;
+    font-size: calc(12px * var(--foms-fs, 1));
+}
+
+.dfx-error {
+    margin-top: 4px;
+    color: var(--bs-danger, #dc3545);
+    font-size: calc(13px * var(--foms-fs, 1));
+}
+
+.dfx-note-invalid {
+    border-color: var(--bs-danger, #dc3545);
+}
+
+/* 파일로 올린 도면 — 바꿀 도면 고르기(파일마다 한 줄) */
+.dfx-picks {
+    margin: 8px 0 12px;
+}
+
+.dfx-pick-head {
+    margin-bottom: 6px;
+    color: #7a4b00;
+    font-weight: 600;
+    font-size: calc(13px * var(--foms-fs, 1));
+}
+
+.dfx-pick-row {
+    margin-bottom: 8px;
+}
+
+.dfx-pick-name {
+    margin-bottom: 4px;
+    color: #4a5562;
+    font-size: calc(13px * var(--foms-fs, 1));
+    overflow-wrap: anywhere;
+}
+
+.dfx-pick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.dfx-chip {
+    min-height: 36px;
+    padding: 4px 14px;
+    border: 1px solid #b8c4d2;
+    border-radius: 8px;
+    background: #fff;
+    color: #24303d;
+    font-weight: 600;
+    font-size: calc(14px * var(--foms-fs, 1));
+    cursor: pointer;
+}
+
+.dfx-chip.is-on {
+    border-color: #1f6feb;
+    background: #e7f0ff;
+    color: #0b4fbf;
+}
+
+/* 보내기 전 확인 창(<dialog> — 맨 위 층에 뜬다) */
+.dfx-dialog {
+    width: min(480px, calc(100vw - 32px));
+    padding: 0;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.28);
+    color: #1f2933;
+}
+
+.dfx-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.dfx-dialog__head {
+    padding: 14px 18px;
+    border-bottom: 1px solid #e3e8ee;
+    font-weight: 600;
+    font-size: calc(18px * var(--foms-fs, 1));
+}
+
+.dfx-dialog__body {
+    padding: 14px 18px;
+}
+
+.dfx-warn {
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    border: 1px solid #f1aeb5;
+    border-radius: 6px;
+    background: #fdecee;
+}
+
+.dfx-warn__text {
+    color: #842029;
+    font-weight: 600;
+    font-size: calc(15px * var(--foms-fs, 1));
+}
+
+.dfx-warn__line {
+    margin-top: 4px;
+    color: #842029;
+    font-size: calc(13px * var(--foms-fs, 1));
+}
+
+.dfx-dialog__note {
+    color: #3d4852;
+    font-size: calc(14px * var(--foms-fs, 1));
+    white-space: pre-line;
+}
+
+.dfx-dialog__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid #e3e8ee;
+}
+
+.dfx-btn {
+    min-height: 40px;
+    padding: 6px 16px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: calc(15px * var(--foms-fs, 1));
+    cursor: pointer;
+}
+
+.dfx-btn--cancel {
+    background: #6c757d;
+    color: #fff;
+}
+
+.dfx-btn--go {
+    background: #0d6efd;
+    color: #fff;
+}
+
+/* 마법사 [저장] 창 — 생산 · 시공 단계 '도면 발송'을 켜면 보이는 칸 */
+.dws-savesend-fix {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #d6dde6;
+}
+
+.dws-savesend-fix .dfx-changed {
+    margin-top: 0;
+    font-size: calc(13px * var(--foms-fs, 1));
+}
+
+.dws-savesend-memo {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: calc(13px * var(--foms-fs, 1));
+}
+
+.dws-savesend-note {
+    width: 100%;
+    min-height: 64px;
+    padding: 6px 8px;
+    border: 1px solid #c5ced8;
+    border-radius: 6px;
+    font: inherit;
+    font-size: calc(13px * var(--foms-fs, 1));
+    resize: vertical;
+}

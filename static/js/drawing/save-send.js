@@ -18,6 +18,8 @@
  *   '투도어 2'가 빠져 5장 중 4장만 도면방에 갔다). 대기함 그림도 넣은 뒤 다시 고쳤으면(지문이 다르면) 다시 그린다.
  * - Ctrl+S 는 이 창을 거치지 않는다(wizard.js 단축키가 save() 를 바로 부른다).
  * 권한 · 잠금 · 알림은 기존 서버 경로가 다시 검사한다 — 여기 값(save_send)은 칸을 잠그고 숨기는 화면 표시용이다.
+ * - 생산·시공 단계 수정본(설계서 2026-11-25 §2-3, D2): 발송을 켜면 '바뀐 도면' 줄 + 전달 메모(꼭 적기). 확인은 한 번 —
+ *   작업이 닿은 도면 · 시공 대기면 보내기 전 확인 창(drawing-fix-send.js, 그때만 ack_worked), 아니면 지금 확인 글 그대로.
  */
 (function () {
   'use strict';
@@ -48,8 +50,13 @@
   var goBtn = pop.querySelector('[data-savesend-go]');
   var cancelBtn = pop.querySelector('[data-savesend-cancel]');
   var rememberBox = pop.querySelector('[data-savesend-remember]');
+  var fixBox = pop.querySelector('[data-savesend-fix]');   // 생산·시공 단계에만 그린다
+  var noteEl = pop.querySelector('[data-savesend-note]');
+  var noteErr = pop.querySelector('[data-savesend-note-error]');
   var kind = 'one';
   var busy = false;
+  var sendNote = '';
+  var sendAck = false;
 
   var canTransfer = CFG.can_transfer === true;
   var isPartner = CFG.is_partner === true;   // 협력사는 채널톡에 없다 — 도면방 PUSH 칸 없음(사용자 11-05)
@@ -91,6 +98,19 @@
       b.closest('.dws-savesend-opt').classList.toggle('is-on', b.checked && !b.disabled);
     });
     goBtn.textContent = wantPush() ? '저장 + 전달 + 도면방' : (wantSend() ? '저장 + 전달' : '저장만');
+    if (fixBox) { fixBox.hidden = !(CFG.hotfix_stage === true && wantSend()); }
+    if (fixBox && !fixBox.hidden && window.FomsFixSend) {
+      predicted().then(function (o) { return o ? window.FomsFixSend.preview(ORDER_ID, o) : null; }).then(function (plan) {
+        window.FomsFixSend.setChanged(pop.querySelector('[data-savesend-changed]'), plan);
+      });
+    }
+  }
+
+  /** 보낼 시트 미리 보기(저장 전) — 한 장 저장은 planIds 와 같은 계산(지금 시트는 늘 넣는다), 일괄은 모든 시트. */
+  function predicted() {
+    var c = core(), sheets = (c && c.state().sheets) || [], cur = c && c.sheet();
+    if (kind === 'all') { return Promise.resolve({ sheets: sheets.map(function (s) { return s.id; }), mode: '' }); }
+    return !cur ? Promise.resolve(null) : planIds(sheets, cur.id).then(function (p) { return p && { sheets: p.send, mode: 'APPEND' }; });
   }
 
   function applyLocks() {
@@ -166,11 +186,13 @@
 
   /** 방금 저장한 시트(들)를 영업에게 전달한다. 성공이면 true. */
   function transfer(sheetIds) {
-    var body = { note: '', files: [], pending_sheet_ids: sheetIds, mode: kind === 'one' ? 'APPEND' : '' };
-    return postJson('/api/orders/' + ORDER_ID + '/transfer-drawing', body).then(function (data) {
+    var body = { note: sendNote, files: [], pending_sheet_ids: sheetIds, mode: kind === 'one' ? 'APPEND' : '', ack_worked: sendAck };
+    var url = '/api/orders/' + ORDER_ID + '/transfer-drawing';
+    return (CFG.hotfix_stage === true && window.FomsFixSend ? window.FomsFixSend.post(url, body) : postJson(url, body)).then(function (data) {
       var c = core();
       if (c && c.refreshPending) { c.refreshPending(); }   // 전달한 시트는 대기함에서 빠진다
       if (data.success === true) { return true; }
+      if (data.cancelled) { return false; }
       var why = String(data.message || data.error || '전달 실패');
       if (why.indexOf('교체할 도면') >= 0) { why += ' — 작업실 [전달하기] 에서 골라 주세요'; }
       say('저장은 됐어요 · 전달 못 함: ' + why, { error: true });
@@ -188,10 +210,18 @@
     if (!c || busy) { return; }
     var send = wantSend();
     var push = wantPush();
+    var hot = send && CFG.hotfix_stage === true;
+    sendNote = noteEl ? String(noteEl.value || '').trim() : '';
+    if (hot && noteEl && !sendNote) { noteErr.hidden = false; noteEl.focus(); return; }   // 메모 꼭 적기 — 창은 그대로
     writeChoice();
     close();
-    if (send && CFG.hotfix_stage === true && !window.confirm(HOTFIX_MSG)) { return; }
+    var F = hot ? window.FomsFixSend : null;
+    (F ? F.gate(ORDER_ID, predicted(), HOTFIX_MSG) : Promise.resolve({ ok: !hot || window.confirm(HOTFIX_MSG), ack: false }))
+      .then(function (asked) { if (asked.ok) { sendAck = asked.ack; go(c, send, push); } });
+  }
 
+  /** 저장 → (전달) → (도면방 PUSH) — 확인을 마친 뒤. */
+  function go(c, send, push) {
     var sheets = c.state().sheets || [];
     var cur = c.sheet();
     var ids = kind === 'all'
@@ -246,6 +276,7 @@
   }
 
   sendBox.addEventListener('change', function () { sync(sendBox); });
+  if (noteEl) { noteEl.addEventListener('input', function () { noteErr.hidden = true; }); }
   pushBox.addEventListener('change', function () { sync(pushBox); });
   goBtn.addEventListener('click', run);
   cancelBtn.addEventListener('click', close);

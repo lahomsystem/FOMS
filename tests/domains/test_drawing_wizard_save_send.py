@@ -57,7 +57,9 @@ def test_popover_markup_sits_with_save_buttons_and_has_no_inline_style():
 
 
 def test_save_send_script_loads_after_wizard_core():
-    assert TPL.index("js/drawing/wizard.js') }}?v=20261111a") < TPL.index("js/drawing/save-send.js') }}?v=20261112a")
+    assert TPL.index("js/drawing/wizard.js') }}?v=20261111a") < TPL.index("js/drawing/save-send.js') }}?v=20261125a")
+    # 생산·시공 단계 보내기 전 확인 창(drawing-fix-send.js)은 저장 창보다 먼저 읽힌다(defer 차례).
+    assert TPL.index("js/drawing/drawing-fix-send.js") < TPL.index("js/drawing/save-send.js")
 
 
 def test_buttons_open_popover_but_ctrl_s_saves_directly():
@@ -92,8 +94,11 @@ def test_batch_with_failed_sheet_does_not_transfer():
 
 
 def test_hotfix_stage_asks_before_anything():
-    assert "if (send && CFG.hotfix_stage === true && !window.confirm(HOTFIX_MSG)) { return; }" in SEND_JS
-    assert SEND_JS.index("window.confirm(HOTFIX_MSG)") < SEND_JS.index("c.saveAll().then")
+    """생산·시공 단계는 저장 전에 한 번만 묻는다 — 2026-11-25 D2 로 뜻이 바뀜: 작업이 닿은 도면 · 시공 대기면 보내기 전 확인 창
+    (drawing-fix-send.js gate — 아래 글이 지금 생산 확인 글), 아니면 지금 확인 글 그대로(window.confirm)."""
+    assert "F ? F.gate(ORDER_ID, predicted(), HOTFIX_MSG)" in SEND_JS
+    assert "window.confirm(HOTFIX_MSG)" in SEND_JS
+    assert SEND_JS.index("F.gate(ORDER_ID") < SEND_JS.index("function go(") < SEND_JS.index("c.saveAll().then")
 
 
 # ---- 2026-11-06 보고: 일괄 전달 뒤 한 장을 고쳐 다시 보내면 고치기 전 도면이 나간다 ----
@@ -301,3 +306,28 @@ def test_queue_sheets_hook_renders_only_given_sheets():
     assert "function eachSheetToBlob(handler, label, onlyIds) {" in JS
     assert "queueSheets: queueSheets," in JS
     assert "}, '바뀐 시트 넣는 중', ids).then(function (res) {" in JS
+
+
+# ---- 2026-11-25 생산 넘어간 주문의 도면 수정 D2 §2-3: 생산·시공 단계 저장 창 — 전달 메모 꼭 적기 · 확인 한 번 ----
+
+
+def test_hotfix_send_without_memo_keeps_the_window_open_and_sends_nothing():
+    out = _run({"kind": "one", "sheets": ["s-1"], "current": "s-1", "pending": ["s-1"], "send": True, "push": False,
+                "hotfix": True, "note": "   "})
+    # '바뀐 도면' 줄 미리 보기(읽기)만 — 저장 · 확인 · 전달은 없다
+    assert [c for c in out["calls"] if c["method"] != "GET"] == [] and out["noteError"] is True and out["open"] is True
+
+
+def test_hotfix_send_asks_once_before_saving_and_carries_memo_and_ack():
+    out = _run({"kind": "one", "sheets": ["s-1", "s-2"], "current": "s-1", "pending": ["s-1"], "send": True, "push": False,
+                "hotfix": True, "note": "상판 깊이 600 → 580", "warnings": [{"text": "도면 1은 재단이 완료된 도면입니다."}]})
+    urls = [c["url"] for c in out["calls"]]
+    assert urls.count("gate") == 1 and urls.index("gate") < urls.index("/api/orders/77/transfer-drawing")
+    body = _transfer_body(out)
+    assert body["note"] == "상판 깊이 600 → 580" and body["ack_worked"] is True   # 확인 창에서 고른 것 = ack
+
+
+def test_hotfix_send_without_warnings_sends_without_ack():
+    out = _run({"kind": "one", "sheets": ["s-1"], "current": "s-1", "pending": ["s-1"], "send": True, "push": False,
+                "hotfix": True, "note": "메모"})
+    assert _transfer_body(out)["ack_worked"] is False   # 서버가 그사이 바뀐 것을 409 로 다시 물을 수 있게
