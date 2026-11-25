@@ -1891,3 +1891,21 @@
 
 - `safe_push`(smoke_push92): `21883 passed, 830 skipped` / `174 passed, 27 skipped` / `PUSHED 44b6d2042` / CI 넷 초록 / `[일치] staging: 44b6d204 배포됨 status=SUCCESS` / 운영 `363d7082` 그대로.
 - 남은 것: 가(동작) 검토 고침 → 내 확인 → origin/deploy 위로 옮기며 핀 겹침 풀기 + CSS(링크 밑줄 · `is-elsewhere`) → `safe_push`(smoke_push93).
+
+## 비평 고침 가 검토 고침 보고 · 내 확인 (11-26)
+
+일꾼 주장(커밋 `8831b5619`, 옮긴 뒤 `0dc3cdbc8`):
+
+- ① 받아 오기 쿼리 1 은 주문(id · `mutation_version` · status · `erp_stage_code`) ⟕ 바뀐 표시 줄만. 막힘은 프로세스 안 캐시 `sync_blocks.cached_blocks`(LRU 2,000칸 · 수명 5분 · 열쇠 주문 id · 버전 · 상태 · 단계). 캐시에 없는 주문만 쿼리 2 로 JSON. 캐시가 찬 뒤 쿼리 2개(막힘 넣기 전과 같음) · JSON 읽기 0, 주문 하나 바뀌면 +1(그 주문만).
+- `mutation_version` 오름 시험으로 확인한 길: 보류 켜기 · 풀기 / [수정 시작] · 취소 / 영업 수정 요청 / 제작 완료 · 완료 취소 · 제작 취소 / 도면 재전달. 안 오르는 길 없음.
+- 버전 올림 글자가 안 보여 확인만 한 쓰기 자리(수명 5분이 받침): `stage_override.py:432`(단계가 열쇠에 있음) · `partners/drawing_confirm.py:143` · `partners/drawing_request.py:106` · `orders/field_update.py:983`.
+- ② `applyBlocks` 가 `cards.held(card)` 면 건너뛰고 `since` 를 안 옮김. 409 바로 뒤(`syncTick(true)`)는 그대로 그림. 노드 시험 있음.
+- ③ 시험: 협력사 403 / 표시 줄 6줄 바뀐 주문 = 막힘 하나 · JSON 한 번 / 수명 · LRU. `tests/conftest.py` 가 시험마다 캐시 비움.
+- ④ 거절 글 "도면 n장이 미완료예요…"(옮기며 보니 갈래 나가 상수를 이미 고쳐 둠 — 겹친 주석 한 줄만 손으로 맞춤).
+- 끝 줄: `1972 passed, 15927 deselected` / `2012 passed` / domains 전체 `17893 passed, 6 skipped` / PG 레인 `12 passed` / node OK(parts 297 · sync 179줄) / 인벤토리 다섯 0 / `APP_OK`. 핀 parts.js `20261125v` · parts-sync.js `20261125u`.
+
+내 확인:
+
+- 고침 diff 직접 읽음(캐시 · 쿼리 · `applyBlocks`). `python -m pytest tests/domains -k production` = `1972 passed, 15927 deselected`.
+- `work/crit-a` 를 origin/deploy(44b6d2042) 위로 옮김. 겹친 넷을 손으로 맞춤: `factory_scope.py`(도면 칸 칩은 갈래 나의 "2공장" 유지) · `home_early.html`(steppane `b` + home-steps `m4`) · `test_production_home_step_panel.py`(m4 + sheet-page `j`) · `part_mark_gates.py`(주석). 옮긴 뒤 머리 `0dc3cdbc8`.
+- 남은 것: 새 막힘 둘이 보류 색을 입고 링크 밑줄이 그어짐 → 꾸밈 일꾼(갈래 나 일꾼 이어서)에게 `c:/tmp/foms-w-crit-a` 에서 색 · 꼴 맞추기 시킴. 끝나면 내 확인 → `safe_push`(smoke_push93).
