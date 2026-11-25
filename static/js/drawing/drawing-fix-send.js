@@ -6,7 +6,7 @@
  * - 확인은 한 번: 경고가 있으면 이 창 하나(아래 글 = 지금 생산 확인 글), 없으면 부른 쪽 확인 글(window.confirm).
  *   [그래도 보내기]를 누르면 물어본 도면 열쇠 목록(ack_worked) · 시공 대기 표지(ack_order_made)를 싣는다 — 서버는 목록에 없는
  *   작업된 도면이 있으면 그 도면 글로 다시 409 를 주고, 그때만 그 글로 한 번 더 묻는다(D2 검토 I).
- * - R1 을 못 받으면 옛 확인 글로 묻지 않는다 — 서버 409 창 한 번만(D2 검토 J).
+ * - R1 을 못 받으면(통신 · 5xx · JSON 아님) 지금 확인 글로 한 번 묻는다 — 그 뒤 서버 409 창이 한 번 더 뜰 수 있다(셋째 판 1).
  * - 창은 <dialog>(맨 위 층). 부트스트랩 창 위에서도 초점이 갇히지 않게 그 창 안에 붙인다(host).
  */
 (function () {
@@ -119,10 +119,15 @@
   }
 
   /** 보내기 전 한 번 묻기 — {ok, ack}. 경고가 있으면 확인 창, 없으면 fallback 글(글 또는 plan → 글). opts 는 값 또는 Promise.
-      미리 보기를 못 받았거나(R1 실패 · 보낼 것 모름) 미리 보기가 거절될 계획이면 묻지 않는다 — 서버가 409 · 400 으로 한 번 답한다. */
-  function gate(orderId, opts, fallback, host) {
+      미리 보기를 못 받았으면(R1 실패 · 보낼 것 모름) 지금 확인 글(oldText, 없으면 글 fallback)로 묻는다 — 최종 도면이 되는 길을 확인 없이
+      두지 않는다. 미리 보기가 거절될 계획(plan.error)이면 묻지 않는다 — 서버가 400 으로 답하고 아무것도 안 바뀐다. */
+  function gate(orderId, opts, fallback, host, oldText) {
     return Promise.resolve(opts).then(function (o) { return o ? preview(orderId, o) : null; }).then(function (plan) {
-      if (!plan || plan.error) { return { ok: true, ack: noAck() }; }
+      if (!plan) {
+        var text = oldText || (typeof fallback === 'string' ? fallback : HOTFIX_TEXT);
+        return { ok: window.confirm(text), ack: noAck() };
+      }
+      if (plan.error) { return { ok: true, ack: noAck() }; }
       var warnings = plan.warnings || [];
       if (warnings.length) {
         return ask(warnings, HOTFIX_TEXT, host).then(function (ok) { return { ok: ok, ack: ok ? ackOf(warnings) : noAck() }; });

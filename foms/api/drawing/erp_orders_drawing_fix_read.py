@@ -39,6 +39,7 @@ from foms.services.orders.drawing_transfer_plan import (
     changed_line,
     changed_numbers,
     changed_old_entries,
+    is_manual_file,
     plan_transfer_files,
 )
 from foms.services.orders.state_axes import read_main_stage
@@ -81,7 +82,8 @@ def _plan(order: Order, sd: dict[str, Any], marks: list[Any], hotfix: bool) -> d
         mode=str(request.args.get("mode") or ""), replace_target_keys=_arg_list("target"),
         is_retransfer=request.args.get("retransfer") == "1", picks=picks if hotfix else None)
     if plan.error:
-        return {"error": plan.error, "changed": None, "changed_line": "", "warnings": [], "order_made": False}
+        return {"error": plan.error, "changed": None, "changed_line": "", "warnings": [], "order_made": False,
+                "sheet_taken": []}
     changed = changed_numbers(old_files, plan.updated_files, plan.pairs)
     stage = read_main_stage(order)
     warnings: list[dict[str, Any]] = []
@@ -90,7 +92,21 @@ def _plan(order: Order, sd: dict[str, Any], marks: list[Any], hotfix: bool) -> d
     elif stage == STAGE_PRODUCTION:
         warnings = worked_warnings(sd, marks, changed_old_entries(old_files, plan.updated_files))
     return {"error": None, "changed": changed, "changed_line": changed_line(changed), "warnings": warnings,
-            "order_made": stage == STAGE_CONSTRUCTION}
+            "order_made": stage == STAGE_CONSTRUCTION, "sheet_taken": _sheet_taken(sd, old_files, new_files, hotfix)}
+
+
+def _sheet_taken(sd: dict[str, Any], old_files: list, new_files: list, hotfix: bool) -> list[str]:
+    """이번 시트 파일만으로 바뀌거나 빠지는 옛 도면 key — 파일 고르기가 그 도면 단추를 끈다(고르면 서버 400 PICK_TARGET, 셋째 판 4).
+
+    마법사에서 지운 시트의 옛 판(빠짐)도 들어간다. 직접 올린 파일은 빼고 같은 함수로 다시 계산한다(쿼리 0).
+    """
+    sheets_only = [f for f in new_files if not is_manual_file(f)]
+    plan = plan_transfer_files(old_files, sheets_only, sd, drawing_status=effective_drawing_status(sd, default="PENDING"),
+                               hotfix=hotfix, mode=str(request.args.get("mode") or ""), replace_target_keys=_arg_list("target"),
+                               is_retransfer=request.args.get("retransfer") == "1", picks={} if hotfix else None)
+    if plan.error or not sheets_only:
+        return []
+    return [str(f.get("key") or "") for _no, f in changed_old_entries(old_files, plan.updated_files)]
 
 
 @erp_orders_drawing_bp.route("/<int:order_id>/drawing/fix/progress", methods=["GET"])

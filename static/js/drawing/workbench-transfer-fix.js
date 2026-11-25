@@ -16,6 +16,7 @@
 
   var pickOrder = null;    // 고름이 속한 주문
   var timer = null;
+  var sheetTaken = [];     // R1 미리 보기가 준 '이번 시트가 바꾸거나 빼는 도면' — 고르기 단추를 끈다(셋째 판 4)
 
   function modal() { return document.getElementById('dwTransferModal'); }
   function changedEl() { var m = modal(); return m ? m.querySelector('[data-dfx-changed]') : null; }
@@ -48,6 +49,7 @@
         files: chosenFiles,
         currents: function () { return (cfg().drawing_files || []).filter(function (f) { return f && f.key; }); },
         blockedSheets: function () { return checkedValues('#dw-transfer-pending-cards .dw-pending-checkbox:checked'); },
+        blockedKeys: function () { return sheetTaken; },
         onChange: function () { refresh(); }
       });
     }
@@ -75,6 +77,10 @@
     timer = window.setTimeout(function () {
       window.FomsFixSend.preview(cfg().order_id, sendPlan()).then(function (plan) {
         window.FomsFixSend.setChanged(changedEl(), plan);
+        var before = pickBox() ? picks.list().join('|') : '';
+        sheetTaken = (plan && plan.sheet_taken) || [];
+        renderPicks();
+        if (pickBox() && picks.list().join('|') !== before) { refresh(); }   // 못 고르게 된 고름이 지워졌다 — 줄을 다시
       });
     }, 200);
   }
@@ -96,12 +102,13 @@
     return pickBox() && picks.missing() ? window.FomsFixSend.PICK_MSG : '';
   }
 
-  /** 확인 한 번 — 작업된 도면 · 시공 대기면 보내기 전 확인 창, 아니면 '바뀐 도면' 줄 + 생산 확인 글. {ok, ack}. */
-  function confirmSend() {
+  /** 확인 한 번 — 작업된 도면 · 시공 대기면 보내기 전 확인 창, 아니면 '바뀐 도면' 줄 + 생산 확인 글. 미리 보기를 못 받으면
+      지금 확인 글(oldText — 인라인 confirmMsg)로 묻는다(셋째 판 1). {ok, ack}. */
+  function confirmSend(oldText) {
     var hotfix = window.FomsFixSend.HOTFIX_TEXT;
     return window.FomsFixSend.gate(cfg().order_id, sendPlan(), function (plan) {
       return [plan.changed_line, hotfix].filter(Boolean).join('\n\n');
-    }, modal());
+    }, modal(), oldText);
   }
 
   function attachPicks(created, originals) { return pickBox() ? picks.attach(created, originals) : created; }

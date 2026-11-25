@@ -7,7 +7,7 @@
   [바뀐 기록 보기]가 연다(요약 "박엣지에서 바뀜 14:20" 은 표시 줄 칸이 이미 들고 있다 — 이 API 는 전체 목록).
 * 거르기: ``part`` = 그 파트(카드 이벤트의 ``part`` · 공정 칸 이벤트의 ``key``), ``key`` · ``sheet_id`` = 그 장의 카드
   이벤트만(둘 다 주면 어느 하나라도 맞는 것 — 판이 바뀌어도 같은 시트를 잇는다). 장을 거르면 공정 칸 이벤트는 뺀다.
-* 쿼리 ≤ 2(로그인 사용자 읽기 빼고): 이벤트 ⋈ 주문(살아 있는 ERP 주문만) 1 + 이름 스냅샷 칸(``by_name``)이 없는 옛
+* 쿼리 ≤ 2(로그인 사용자 읽기 빼고): 이벤트 ⋈ 주문(살아 있는 ERP 주문만) 1 + 이름 스냅샷(``by_name``)이 없는 옛
   이벤트의 사용자 이름 ``id IN`` 1(새 이벤트만이면 0). 날짜 탭 · PC 쿼리 상한과 무관하다(누를 때만, N+1 없음).
 * 문: 생산 첫 화면을 볼 수 있는 직원(:func:`can_view_production_home`) + 주문 읽기 범위(:func:`user_can_read_order`) —
   30초 받아 오기(``part_marks_read.py``)와 같다. 읽기라 쓰기 정책 가드 · CSRF 대상이 아니다(GET).
@@ -27,6 +27,7 @@ from foms.services.datetime_kst import parse_datetime_utc
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS
+from foms.services.production.step_expand import UNKNOWN_FINISHER
 from models import Order, OrderEvent, User
 
 MARK_EVENT = "PRODUCTION_PART_MARKED"
@@ -104,7 +105,7 @@ def _matches(event: OrderEvent, filters: dict[str, Any]) -> bool:
 def _missing_names(db: Any, events: list[OrderEvent]) -> dict[int, str]:
     """이름 스냅샷이 없는 옛 이벤트의 사용자 이름 — 있을 때만 쿼리 1(``id IN``)."""
     ids = sorted({int(e.created_by_user_id) for e in events if e.created_by_user_id is not None
-                  and not (isinstance(e.payload, dict) and "by_name" in e.payload)})
+                  and not (isinstance(e.payload, dict) and (e.payload.get("by_name") or e.payload.get(UNKNOWN_FINISHER)))})
     if not ids:
         return {}
     return {int(uid): (name or username) for uid, name, username in
@@ -124,8 +125,11 @@ def history_item(event: OrderEvent, names: dict[int, str]) -> dict[str, Any]:
     """
     payload = event.payload if isinstance(event.payload, dict) else {}
     is_mark = event.event_type == MARK_EVENT
-    # 이름 스냅샷 칸이 있으면 그 값(빈 값 = 이름 모름 — 손 처리 풀어 쓰기, D2 검토 F), 칸이 없는 옛 이벤트만 사용자 표에서
-    by_name = payload["by_name"] if "by_name" in payload else names.get(int(event.created_by_user_id or 0))
+    # 손 처리 풀어 쓰기에서 완료한 사람을 모르면(표지) 이름 없음 — 보낸 도면팀원 이름을 쓰지 않는다(D2 검토 F · 셋째 판 3)
+    if payload.get(UNKNOWN_FINISHER):
+        by_name = None
+    else:
+        by_name = payload.get("by_name") or names.get(int(event.created_by_user_id or 0))
     return {
         "at": _iso(event.created_at),
         "kind": payload.get("action") if is_mark else ("step_on" if payload.get("done") else "step_off"),

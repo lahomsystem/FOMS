@@ -114,7 +114,7 @@
     var sheets = String(btn.getAttribute("data-foms-fix-sheets") || "").split(",").filter(Boolean);
     var asked = await F.gate(orderId, { sheets: sheets, mode: "" }, function (plan) {
       return [plan.changed_line, F.HOTFIX_TEXT].filter(Boolean).join("\n\n");
-    });
+    }, null, "전달 대기 중인 저장 시트를 담당자에게 전달할까요?");   // 미리 보기를 못 받으면 지금 확인 글(셋째 판 1)
     if (!asked.ok) return;
     btn.disabled = true;
     var data;

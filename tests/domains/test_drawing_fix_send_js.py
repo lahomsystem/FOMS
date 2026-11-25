@@ -54,9 +54,16 @@ def test_gate_without_warnings_confirms_the_changed_line_only():
     assert out["result"]["ack"] == {"idents": [], "orderMade": False}
 
 
-@pytest.mark.parametrize("plan", [None, {"error": "바꿀 도면을 골라 주세요.", "warnings": []}])
-def test_gate_without_preview_skips_the_old_confirm_and_leaves_it_to_the_server(plan):
-    out = _send({"action": "gate", "plan": plan})
+@pytest.mark.parametrize("answer", [True, False])
+def test_gate_without_preview_asks_the_old_confirm_once(answer):
+    """셋째 판 1: R1 을 못 받으면(통신 · 5xx · JSON 아님) 지금 확인 글로 한 번 묻는다 — 확인 없이 최종 도면이 되는 길을 없앤다."""
+    out = _send({"action": "gate", "plan": None, "confirm": answer, "oldText": "도면 2장을 전달합니다. 진행할까요?"})
+    assert out["confirms"] == ["도면 2장을 전달합니다. 진행할까요?"] and out["dialogs"] == []
+    assert out["result"] == {"ok": answer, "ack": {"idents": [], "orderMade": False}}
+
+
+def test_gate_with_a_refused_plan_leaves_it_to_the_server():
+    out = _send({"action": "gate", "plan": {"error": "바꿀 도면을 골라 주세요.", "warnings": []}})
     assert out["result"] == {"ok": True, "ack": {"idents": [], "orderMade": False}}
     assert out["confirms"] == [] and out["dialogs"] == []
 
@@ -111,6 +118,13 @@ def test_a_drawing_taken_by_another_file_or_a_waiting_sheet_is_switched_off():
     assert one["view"][0]["chips"] == ["도면 1*", "도면 2(off)", "도면 3", "새 도면"]       # 도면 2 = 대기 시트 s2 새 판
     assert one["view"][1]["chips"] == ["도면 1(off)", "도면 2(off)", "도면 3", "새 도면"]   # 도면 1 = a 가 고름
     assert tried["check"] == "바꿀 도면을 골라 주세요."                                   # 꺼진 단추는 안 골라짐
+
+
+def test_a_drawing_the_sheets_take_is_switched_off_after_the_preview():
+    """셋째 판 4: 미리 보기의 sheet_taken(지운 시트의 옛 판 등)은 단추를 끄고, 이미 고른 값도 지운다."""
+    before, after = _wb("dropped")["steps"]
+    assert before["view"][0]["chips"] == ["도면 1", "도면 2", "도면 3*", "새 도면"]
+    assert after["view"][0]["chips"] == ["도면 1", "도면 2", "도면 3(off)", "새 도면"] and after["check"] == "바꿀 도면을 골라 주세요."
 
 
 def test_reopening_the_window_or_another_order_clears_the_picks():

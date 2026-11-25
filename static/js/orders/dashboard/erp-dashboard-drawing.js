@@ -84,7 +84,7 @@ const msg = __isRetransfer
 // 확인은 한 번 — 생산·시공 단계는 보내기 전 확인 창(물어본 도면 열쇠만 ack) 또는 '바뀐 도면' 줄 + 생산 확인 글.
 let ack = null;
 if (fix) {
-const asked = await fix.confirmSend();
+const asked = await fix.confirmSend(msg);
 if (!asked.ok) return;
 ack = asked.ack;
 } else if (!confirm(msg)) return;

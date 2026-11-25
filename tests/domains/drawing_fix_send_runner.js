@@ -54,7 +54,7 @@ eval(src);   // eslint-disable-line no-eval — 시험 전용: 실제 파일을 
 
 const F = window.FomsFixSend;
 const run = input.action === 'gate'
-  ? F.gate(77, { sheets: ['s-1'] }, (plan) => [plan.changed_line, F.HOTFIX_TEXT].filter(Boolean).join('\n\n'))
+  ? F.gate(77, { sheets: ['s-1'] }, (plan) => [plan.changed_line, F.HOTFIX_TEXT].filter(Boolean).join('\n\n'), null, input.oldText)
   : F.post('/api/orders/77/transfer-drawing', input.body || {});
 run.then((result) => {
   process.stdout.write(JSON.stringify({ result, calls, dialogs, confirms }));

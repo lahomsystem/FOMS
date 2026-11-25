@@ -44,6 +44,9 @@ from models import OrderEvent, ProductionPartMark
 
 #: 풀어 적었다는 표지(이벤트 · 감사 ``via``).
 VIA_STEP_EXPAND = "step_expand"
+#: 풀어 쓴 장의 "완료한 사람 모름" 표지(이벤트 payload) — 공정 칸에 이름이 없을 때. 바뀐 기록은 이 표지가 있을 때만 이름을 비운다
+#: (이름 칸이 빈 옛 이벤트는 지금처럼 사용자 표 이름 — D2 셋째 판 3).
+UNKNOWN_FINISHER = "by_unknown"
 #: 한 문장 넣기 · 고치기(``INSERT … ON CONFLICT``) — 운영 PostgreSQL · 시험 SQLite.
 _UPSERT_BUILDERS = {"postgresql": postgresql.insert, "sqlite": sqlite.insert}
 _UNIQUE_MARK = ("order_id", "drawing_key", "part")
@@ -106,6 +109,8 @@ def expand_hand_step(db: Any, order: Any, sd: Any, marks: Iterable[Any], part: s
                                 done_at=done_at or write.values["done_at"])
             # 장별 기록(part-history 는 payload ``by_name`` 을 먼저 읽는다)이 표시 줄과 같은 사람(칸을 켠 사람)을 말하게(D2 검토)
             write.event["payload"]["by_name"] = done_by_name or None
+            if not done_by_name:
+                write.event["payload"][UNKNOWN_FINISHER] = True
         write.event["payload"]["via"] = VIA_STEP_EXPAND
         writes.append(write)
     if writes:
@@ -181,4 +186,4 @@ def apply_step_expand(db: Any, order: Any, sd: dict[str, Any], marks: list[Any],
                    "skipped_numbers": plan["numbers"], **expanded_words(plan["numbers"])}
 
 
-__all__ = ["VIA_STEP_EXPAND", "apply_step_expand", "expand_hand_step", "step_expand_plan", "with_written_marks"]
+__all__ = ["UNKNOWN_FINISHER", "VIA_STEP_EXPAND", "apply_step_expand", "expand_hand_step", "step_expand_plan", "with_written_marks"]

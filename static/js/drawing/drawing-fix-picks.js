@@ -25,7 +25,7 @@
 
   /**
    * 고르기 하나 — opts: {rows(): 줄 칸, wrap(): 감싼 칸(파일이 없으면 숨김), files(): File[], currents(): [{key, sheet_id}],
-   * blockedSheets(): 막힌 시트 id[], onChange(): 고름이 바뀐 뒤}.
+   * blockedSheets(): 막힌 시트 id[], blockedKeys(): 이번 시트가 바꾸거나 빼는 도면 key[](R1 sheet_taken), onChange(): 고름이 바뀐 뒤}.
    */
   function create(opts) {
     var picks = {};
@@ -36,6 +36,7 @@
       var sheets = opts.blockedSheets ? opts.blockedSheets() : [];
       var taken = {};
       opts.currents().forEach(function (f) { if (f.sheet_id && sheets.indexOf(f.sheet_id) >= 0) { taken[f.key] = true; } });
+      (opts.blockedKeys ? opts.blockedKeys() : []).forEach(function (k) { taken[k] = true; });   // 지운 시트의 옛 판 등(셋째 판 4)
       Object.keys(picks).forEach(function (k) { if (k !== fileKey && picks[k] !== NEW) { taken[picks[k]] = true; } });
       return taken;
     }
