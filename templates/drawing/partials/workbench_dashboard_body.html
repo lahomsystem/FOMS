@@ -78,6 +78,12 @@
           <div class="erp-pro-pipeline__count text-warning">{{ stats.unread }}</div>
           <div class="erp-pro-pipeline__label"><i class="fas fa-bell me-1 text-warning"></i>미확인</div>
         </div>
+
+        {# '생산 중'(설계서 2026-11-25 §2-1) — 생산 단계 + 시공일이 오늘이거나 남은 시공 대기. 누적 완료처럼 떨어진 칸(전체에 안 더함). #}
+        <div class="erp-pro-pipeline__stage erp-pro-pipeline__stage--detached ms-2 {% if (filters.get('status') or '') == 'PRODUCTION' %}erp-pro-pipeline__stage--active{% endif %}" data-status="PRODUCTION" role="button" tabindex="0" title="생산 중만 보기">
+          <div class="erp-pro-pipeline__count">{{ stats.PRODUCTION|default(0) }}</div>
+          <div class="erp-pro-pipeline__label">생산 중</div>
+        </div>
       </div>
     </div>
   </div>
@@ -114,6 +120,9 @@
             <option value="RETURNED" {% if filters.get('status') == 'RETURNED' %}selected{% endif %}>수정 요청됨</option>
             <option value="TRANSFERRED" {% if filters.get('status') == 'TRANSFERRED' %}selected{% endif %}>확정 대기</option>
             <option value="CONFIRMED" {% if filters.get('status') == 'CONFIRMED' %}selected{% endif %}>완료</option>
+            {%- if filters.get('status') == 'PRODUCTION' %}
+            <option value="PRODUCTION" selected>생산 중</option>{# '생산 중' 칸에서 거르개를 바꿔도 칸을 지킨다 — 다른 칸에서는 안 그린다 #}
+            {%- endif %}
           </select>
         </div>
         <div class="erp-pro-filter-group">
@@ -152,6 +161,11 @@
     </div>
 
     <div class="card-body foms-drawing-legacy-table">
+      {%- if production_tab %}
+      {#- '생산 중' 칸 줄 모양(설계서 2026-11-25 §2-1, D3) · 공장 칩 — 다른 칸 · 기본 목록은 싣지 않는다 #}
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125d3">
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">
+      {%- endif %}
       {% if rows %}
       <!-- 일괄 작업 플로팅 바 -->
       <div id="batch-action-bar" class="alert alert-primary d-none align-items-center justify-content-between mb-3" style="position: sticky; top: 70px; z-index: 100;" data-foms-no-autodismiss>
@@ -215,7 +229,7 @@
           </thead>
           <tbody>
             {% for r in rows %}
-            <tr class="erp-workbench-row" data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" style="cursor:pointer;">
+            <tr class="erp-workbench-row{% if r.prod_row_class %} {{ r.prod_row_class }}{% endif %}" data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" style="cursor:pointer;">
               <td onclick="event.stopPropagation();">
                 <input type="checkbox" class="form-check-input order-checkbox" value="{{ r.id }}" data-pending="{{ r.pending_count|default(0) }}" onchange="updateBatchBar()">
               </td>
@@ -237,6 +251,9 @@
                   <i class="fas fa-user-slash"></i> 담당 미지정
                 </span>
                 {% endif %}
+                {%- if r.prod_markers %}
+                <div class="dw-prod-marks">{% for m in r.prod_markers %}<span class="dw-event-chip is-{{ m.tone }}">{{ m.text }}</span>{% endfor %}</div>
+                {%- endif %}
               </td>
               <td class="fw-semibold dw-cdate-cell">
                 {% set _c = (r.construction_date or '') %}
@@ -246,7 +263,7 @@
                 {% if not _cparts and r.construction_requested %}<span class="badge dw-cdate-badge is-{{ r.construction_requested_level|default('info') }} me-1" title="협력사 희망 시공일 · 확정 대기">희망 {{ r.construction_requested }}</span>
                 {% elif not _cparts %}<span class="text-muted">-</span>{% endif %}
               </td>
-              <td class="small dw-next-action is-{{ r.next_action_tone|default('mine') }}">{{ r.next_action }}</td>
+              <td class="small dw-next-action is-{{ r.next_action_tone|default('mine') if not r.prod_next_action else 'mine' }}">{{ r.prod_next_action or r.next_action }}</td>
               <td>
                 <span>{{ r.assignee_text }}</span>
                 <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
@@ -259,6 +276,9 @@
                 {% if r.drawing_status == 'TRANSFERRED' %}{% set badge_cls = 'bg-info text-dark' %}{% endif %}
                 {% if r.drawing_status == 'RETURNED' %}{% set badge_cls = 'bg-danger' %}{% endif %}
                 {% if r.drawing_status == 'CONFIRMED' %}{% set badge_cls = 'bg-success' %}{% endif %}
+                {%- if r.in_production_tab %}
+                <span class="dw-stage-word">{{ r.prod_stage_word }}</span>
+                {%- endif %}
                 <span class="badge {{ badge_cls }}">{{ r.drawing_status_label }}</span>
                 <div class="small text-muted mt-1">파일 {{ r.file_count }}건</div>
                 {% if r.pending_count and r.pending_count > 0 %}
@@ -268,9 +288,12 @@
                   </span>
                 </div>
                 {% endif %}
+                {%- for line in r.prod_progress|default([]) %}
+                <div class="dw-prod-prog">{% if line.made %}<b>제작 완료</b>{% else %}{% if line.label %}{{ line.label|factory_chips }}{% endif %}{% for p in line.parts %}{% if not loop.first %} · {% endif %}{{ p.label }} {% if p.full %}<b>{{ p.done }}/{{ p.total }}</b>{% else %}{{ p.done }}/{{ p.total }}{% endif %}{% endfor %}{% endif %}</div>
+                {%- endfor %}
               </td>
               <td>
-                {% if r.target_no %}
+                {% if r.prod_targets %}<span class="dw-fix-target">{{ r.prod_targets }}</span>{% elif r.target_no %}
                 <span class="badge bg-light text-dark border">{{ r.target_no }}번</span>
                 {% else %}
                 <span class="text-muted small">-</span>
@@ -373,6 +396,9 @@
         </div>
       </nav>
       {% endif %}
+      {%- if production_tab and production_hidden %}
+      <div class="dw-prod-more" role="note">더 있는 {{ production_hidden }}건은 안 보여요. 찾기로 찾아 주세요.</div>
+      {%- endif %}
       
       {% else %}
       <div class="text-center text-muted py-5 d-none d-lg-block">
