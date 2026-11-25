@@ -105,7 +105,7 @@ def open_request_idents(sd: Any) -> frozenset[str]:
     out: list[str] = []
     for request in requests if isinstance(requests, list) else []:
         if isinstance(request, dict) and request.get("state") == REQUEST_OPEN and isinstance(request.get("targets"), list):
-            out += _clean_idents(request["targets"])
+            out += request_left(request)
     return frozenset(out)
 
 
@@ -338,32 +338,62 @@ def unhandled_requests(sd: Any) -> list[dict[str, Any]]:
     return [r for r in requests or [] if isinstance(r, dict) and r.get("state") == REQUEST_OPEN and not request_checked(r)]
 
 
-def close_requests_on_transfer(sd: dict[str, Any], idents: Iterable[str], *, by_name: str, at: str) -> list[str]:
-    """수정본 전달이 건드린 열쇠를 가리키는 열린 공장 요청을 ``done``(+ ``done_at``)으로 닫는다(제자리 — 설계서 §3-4).
+def request_left(request: Any) -> list[str]:
+    """공장 요청이 아직 막는 열쇠 = ``targets`` − ``resolved``(수정본이 간 열쇠, 2026-11-25 D2 지휘 N — "고치는 도면만 막기 ·
+    수정본을 보내면 풀림"). 요청이 열린 동안만 뜻이 있다(닫힌 요청은 부르는 쪽이 거른다)."""
+    if not isinstance(request, dict) or not isinstance(request.get("targets"), list):
+        return []
+    resolved = set(_clean_idents(request.get("resolved") or [])) if isinstance(request.get("resolved"), list) else set()
+    return [ident for ident in _clean_idents(request["targets"]) if ident not in resolved]
 
-    안 건드린 도면만 가리키는 요청은 열린 채(그 도면은 그대로 막힘). 닫은 것이 있으면 ``log`` 에 ``done`` 한 줄.
+
+def _target_numbers(request: dict[str, Any], idents: Iterable[str]) -> list[int]:
+    """요청 ``numbers`` 가 ``targets`` 와 짝이면 그 열쇠들의 번호(짝이 아니면 빈 목록 — 기록용)."""
+    targets, numbers = _clean_idents(request.get("targets") or []), request.get("numbers") or []
+    if len(targets) != len(numbers):
+        return []
+    wanted = set(idents)
+    return [n for t, n in zip(targets, numbers) if t in wanted and isinstance(n, int)]
+
+
+def close_requests_on_transfer(sd: dict[str, Any], idents: Iterable[str], *, by_name: str, at: str) -> list[str]:
+    """수정본 전달이 건드린 열쇠를 열린 공장 요청의 ``resolved`` 에 적고, 대상이 모두 풀린 요청만 ``done``(+ ``done_at``)으로
+    닫는다(제자리 — 설계서 §3-4 "안 건드린 도면은 그대로 막힘", 지휘 N).
+
+    일부만 풀린 요청은 ``open`` · ``checked`` 그대로 — 남은 도면은 막힌 채이고, 도면팀이 남은 도면을 마저 보내거나 [요청 반려]로
+    닫는다. 풀린 것이 있으면 ``log`` 에 ``done`` 한 줄(이번에 풀린 열쇠 · 번호 · 손댄 요청 · 닫은 요청).
 
     Args:
         sd: 고칠 사본. idents: 건드린 열쇠. by_name: 보낸 사람 이름. at: 보낸 때(UTC iso).
 
     Returns:
-        닫은 요청 id(없으면 빈 목록).
+        이번에 닫은(``done``) 요청 id(없으면 빈 목록).
     """
     wanted = set(_clean_idents(idents))
     requests = _fix_table(sd).get("requests")
-    hit = [r for r in requests or [] if isinstance(r, dict) and r.get("state") == REQUEST_OPEN
-           and isinstance(r.get("targets"), list) and wanted & set(_clean_idents(r["targets"]))]
-    if not hit:
+    touched, closed, freed, numbers = [], [], set(), set()
+    for request in requests or []:
+        if not (isinstance(request, dict) and request.get("state") == REQUEST_OPEN):
+            continue
+        hit = [ident for ident in request_left(request) if ident in wanted]
+        if not hit:
+            continue
+        resolved = _clean_idents(request.get("resolved") or []) if isinstance(request.get("resolved"), list) else []
+        request["resolved"] = list(dict.fromkeys(resolved + hit))
+        touched.append(str(request.get("id") or ""))
+        freed.update(hit)
+        numbers.update(_target_numbers(request, hit))
+        if not request_left(request):
+            request.update(state="done", done_at=at)
+            closed.append(str(request.get("id") or ""))
+    if not touched:
         return []
-    for request in hit:
-        request.update(state="done", done_at=at)
     table = _writable_fix(sd)
     log = [row for row in table.get("log") or [] if isinstance(row, dict)]
-    log.append({"act": LOG_DONE, "idents": sorted({i for r in hit for i in _clean_idents(r["targets"])}),
-                "numbers": sorted({n for r in hit for n in r.get("numbers") or [] if isinstance(n, int)}),
-                "requests": [str(r.get("id") or "") for r in hit], "by_name": by_name, "at": at})
+    log.append({"act": LOG_DONE, "idents": sorted(freed), "numbers": sorted(numbers), "requests": touched,
+                "closed": closed, "by_name": by_name, "at": at})
     table["log"] = log[-FIX_LOG_CAP:]
-    return [str(r.get("id") or "") for r in hit]
+    return closed
 
 
 def inherit_file_successors(sd: dict[str, Any], pairs: dict[str, str], old_files: Iterable[Any]) -> None:
@@ -394,7 +424,7 @@ def inherit_file_successors(sd: dict[str, Any], pairs: dict[str, str], old_files
 __all__ = [
     "Block", "DRAWING_FIX_KEY", "FILE_PREFIX", "REQUEST_OPEN", "SHEET_PREFIX", "WHY_FACTORY", "WHY_FIXING", "WHY_SALES",
     "close_requests_on_transfer", "file_successor", "inherit_file_successors", "release_fixing_on_transfer", "request_checked",
-    "unhandled_requests",
+    "request_left", "unhandled_requests",
     "blocked", "blocked_entries", "blocked_left_numbers", "complete_blocked", "confirm_extras", "drawing_blocked", "entry_blocked",
     "expand_confirm", "expand_confirm_body", "expand_done_text", "expand_plan", "expanded_words", "factory_complete_blocked", "factory_has_blocked", "fix_ident", "fixing_idents", "fixing_label", "idents_for_keys",
     "number_topic", "numbers_text", "open_request_idents", "per_drawing_numbers", "sales_request_idents", "skip_tail",

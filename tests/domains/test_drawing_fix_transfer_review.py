@@ -5,6 +5,7 @@
 * E 고침 · 빠짐 = 옛 번호(전체 교체에서 "도면 2 (고침) · 도면 2 (빠짐)" 이 안 나옴).
 * F 손 처리 칸에 이름이 없으면 완료한 사람을 비워 둔다(보낸 도면팀원 아님) · 시각 = 칸 시각, 없으면 지금(대조: 이름 있는 칸).
 * G [반영 완료](``checked``)는 막힘을 안 푼다 — 보낼 수는 있고, 건드린 도면의 요청만 ``done``(대조: 체크 안 한 요청 400).
+* N 대상이 여러 장인 요청은 보낸 열쇠만 풀린다(``resolved``) — 막는 열쇠 = ``targets`` − ``resolved``, 모두 풀려야 ``done``.
 * H 그 밖 단계 감사 줄에 ``changed`` 칸이 안 붙는다(대조: 생산 단계는 붙음).
 * I ``ack_worked`` = 물어본 도면 열쇠 목록 — 빠진 도면이 있으면 그 도면 글로 다시 409, 참 · 거짓은 받지 않는다.
 이름은 모두 지어낸 값이다.
@@ -160,13 +161,41 @@ def test_checked_factory_request_lets_the_fix_go_and_only_the_touched_one_closes
     assert fx.blocked(sd_of(oid)).idents == frozenset({"sheet:s1", "sheet:s2"})   # [반영 완료]여도 막힌 채
     login(client, team.drawer)
     progress = client.get(f"/api/orders/{oid}/drawing/fix/progress").get_json()["data"]["drawings"]
-    assert progress[1]["requests"] == [{"id": "fr_1", "from": "factory", "checked": True}]
+    assert progress[1]["requests"] == [{"id": "fr_1", "from": "factory", "checked": True, "left": ["sheet:s1"]}]
     assert send(client, "drawing", oid, "s1").status_code == 200
     sd = sd_of(oid)
     first, second = sd["drawing_fix"]["requests"]
     assert first["state"] == "done" and first["done_at"] and first["checked"] is True
     assert second["state"] == "open"                                   # 안 건드린 도면 3 은 열린 채
     assert fx.blocked(sd).idents == frozenset({"sheet:s2"})
+
+
+def test_request_on_two_drawings_frees_only_the_sent_one_until_both_are_sent(client, quiet, team):
+    request = _request("fr_9", "sheet:s1", checked=True)
+    request.update(targets=["sheet:s1", "sheet:s2"], numbers=[2, 3])
+    oid = make_order(assignees=(team.drawer.id,), extra={"drawing_fix": {"requests": [request]}})
+    login(client, team.drawer)
+    assert send(client, "drawing", oid, "s1").status_code == 200       # 도면 2 만 고쳐 보냄
+    sd = sd_of(oid)
+    row = sd["drawing_fix"]["requests"][0]
+    assert (row["state"], row["resolved"], row["checked"]) == ("open", ["sheet:s1"], True)
+    assert fx.blocked(sd).idents == frozenset({"sheet:s2"}) and fx.open_request_idents(sd) == frozenset({"sheet:s2"})
+    progress = client.get(f"/api/orders/{oid}/drawing/fix/progress").get_json()["data"]["drawings"]
+    assert progress[1]["requests"] == [] and progress[2]["requests"][0]["left"] == ["sheet:s2"]
+    assert sd["drawing_fix"]["log"][-1]["idents"] == ["sheet:s1"] and sd["drawing_fix"]["log"][-1]["closed"] == []
+    assert send(client, "drawing", oid, "s2").status_code == 200       # 남은 도면 3 을 보냄 → 닫힘
+    sd = sd_of(oid)
+    row = sd["drawing_fix"]["requests"][0]
+    assert (row["state"], row["resolved"]) == ("done", ["sheet:s1", "sheet:s2"]) and row["done_at"]
+    assert fx.blocked(sd).idents == frozenset() and sd["drawing_fix"]["log"][-1]["closed"] == ["fr_9"]
+
+
+def test_control_one_drawing_request_closes_at_once(client, quiet, team):
+    oid = make_order(assignees=(team.drawer.id,), extra={"drawing_fix": {"requests": [_request("fr_1", "sheet:s1", checked=True)]}})
+    login(client, team.drawer)
+    assert send(client, "drawing", oid, "s1").status_code == 200
+    row = sd_of(oid)["drawing_fix"]["requests"][0]
+    assert (row["state"], row["resolved"]) == ("done", ["sheet:s1"]) and fx.blocked(sd_of(oid)).idents == frozenset()
 
 
 def test_control_unchecked_open_request_still_stops_the_fix(client, quiet, team):

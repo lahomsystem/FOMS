@@ -21,6 +21,7 @@ from foms.services.orders.drawing_fix import (
     fix_ident,
     number_topic,
     request_checked,
+    request_left,
 )
 from foms.services.production.part_constants import (
     MARK_STATE_BASIC,
@@ -136,14 +137,19 @@ def order_made_warning() -> list[dict[str, Any]]:
 
 
 def _open_requests_by_ident(sd: Any) -> dict[str, list[dict[str, Any]]]:
-    """열린 공장 요청(``state == 'open'`` — 막는 요청)을 대상 열쇠마다 ``{id, from, checked}``(체크 여부 포함, R1)."""
+    """열린 공장 요청(``state == 'open'`` — 막는 요청)을 **남은 대상** 열쇠마다 ``{id, from, checked, left}``(R1).
+
+    ``left`` = 아직 막는 열쇠(``targets`` − ``resolved`` — 수정본이 간 열쇠는 빠진다, 지휘 N). 풀린 도면에는 그 요청이 안 붙는다.
+    """
     table = sd.get("drawing_fix") if isinstance(sd, dict) else None
     out: dict[str, list[dict[str, Any]]] = {}
     for request in (table.get("requests") if isinstance(table, dict) else None) or []:
         if isinstance(request, dict) and request.get("state") == REQUEST_OPEN:
-            row = {"id": request.get("id"), "from": request.get("from") or "factory", "checked": request_checked(request)}
-            for ident in request.get("targets") or []:
-                out.setdefault(str(ident), []).append(row)
+            left = request_left(request)
+            row = {"id": request.get("id"), "from": request.get("from") or "factory", "checked": request_checked(request),
+                   "left": left}
+            for ident in left:
+                out.setdefault(ident, []).append(row)
     return out
 
 
