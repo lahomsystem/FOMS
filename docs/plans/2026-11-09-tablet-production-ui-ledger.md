@@ -1909,3 +1909,17 @@
 - 고침 diff 직접 읽음(캐시 · 쿼리 · `applyBlocks`). `python -m pytest tests/domains -k production` = `1972 passed, 15927 deselected`.
 - `work/crit-a` 를 origin/deploy(44b6d2042) 위로 옮김. 겹친 넷을 손으로 맞춤: `factory_scope.py`(도면 칸 칩은 갈래 나의 "2공장" 유지) · `home_early.html`(steppane `b` + home-steps `m4`) · `test_production_home_step_panel.py`(m4 + sheet-page `j`) · `part_mark_gates.py`(주석). 옮긴 뒤 머리 `0dc3cdbc8`.
 - 남은 것: 새 막힘 둘이 보류 색을 입고 링크 밑줄이 그어짐 → 꾸밈 일꾼(갈래 나 일꾼 이어서)에게 `c:/tmp/foms-w-crit-a` 에서 색 · 꼴 맞추기 시킴. 끝나면 내 확인 → `safe_push`(smoke_push93).
+
+## '내 공정' 막힘 둘 꾸밈(갈래 나 일꾼 이어서) 보고 · 내 확인 (11-26)
+
+일꾼 주장(커밋 `0128f9329`, 세션 가지 `791e344ee`):
+
+- 템플릿은 class 이름만(`is-cards` · `is-elsewhere` 를 `fph-qr__hold` · `fph-qr__holdtag` · `fph-sp__hold` · `fpc-hold` 에).
+- 도면 칸 막힘 = 도면 판 "엣지 · 조립 미완료" 칸과 같은 노랑(`--fph-pre-50/300/700`, 토큰을 parts.css → home.css 로 옮김, PC 는 `--fpc-pre-*`). 밑줄 뺌 · 초점 테두리. 세로 · 폰 줄 끝 누름 칸 40 → 44px. 대비 5.4 → 7.45.
+- 남의 공장 = 흰 바탕 · 회색 테두리 · 공장 칩, 줄은 날짜 탭 남의 공장 줄과 같은 공장 색 점선('바뀜' 빨강이 이김). 대비 7.3.
+- PC 는 색 · 테두리 · 밑줄만(184×44 그대로). PC 줄 전체 점선은 안 넣음(`_row_class` 조건이 필요).
+- 핀: home.css `sf` · parts.css `u` · pc.css `j`. 시험 보탬 "막힘 둘은 보류 색을 안 쓴다".
+- 끝 줄: `1987 passed, 15927 deselected` / `2012 passed` / SSOT lint 89 / `APP_OK` / 인벤토리 다섯 0.
+- 알아 둘 것: '보류' 이름 옆 표 글이 보류 색이 아니라 회색(전부터, 공용 규칙이 이김) / PC 위 줄 주황 [고치는 중] 대비 3.19(전부터).
+
+내 확인: 그림 셋 직접 봄(가로 도면 칸 막힘 판 · 남의 공장 판 · 세로) — 노랑 미완료 칸 · 흰 공장 칸 · 보류 대조군 줄은 보류 색 그대로. `python -m pytest tests/domains -k production` = `1987 passed`. 세션 가지에 넷 얹음(충돌 없음) → `safe_push`(smoke_push93).
