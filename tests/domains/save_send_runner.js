@@ -1,7 +1,7 @@
 // save-send.js 를 작은 가짜 화면에서 돌려 보낸 요청을 적는다(node 로 실행 — tests/domains/test_drawing_wizard_save_send.py).
 // 입력(stdin JSON): {kind, sheets:[id], current:id, pending:[id], send, push,
 //   sent:{id: 전달본 지문|null}(전달본 있는 시트), sigs:{id: 지금 지문}, pendingSigs:{id: 대기함 지문}, empty:[빈 시트 id],
-//   queueFail:bool}
+//   queueFail:bool, hotfix:bool(생산·시공 단계), note:'전달 메모', warnings:[보내기 전 확인 글](있으면 확인 창 → ack)}
 // 출력(stdout JSON): {calls:[{url, method, body}], toasts:[...]}
 'use strict';
 const fs = require('fs');
@@ -31,12 +31,18 @@ const parts = {
   '[data-savesend-cancel]': el(),
   '[data-savesend-remember]': el({ type: 'checkbox' }),
 };
+if (input.hotfix) {   // 생산·시공 단계 템플릿만 그리는 칸(설계서 2026-11-25 D2)
+  parts['[data-savesend-fix]'] = el();
+  parts['[data-savesend-note]'] = el({ value: input.note || '' });
+  parts['[data-savesend-note-error]'] = el();
+  parts['[data-savesend-changed]'] = el();
+}
 const pop = el({ querySelector: (sel) => parts[sel] || null });
 const byId = {
   'dws-root': el({ getAttribute: (name) => (name === 'data-order-id' ? '77' : null) }),
   'dws-savesend': pop,
   'dws-savesend-head': el(),
-  'drawing-wizard-config': el({ textContent: JSON.stringify({ save_send: { user_id: 1, can_transfer: true, hotfix_stage: false, is_partner: false } }) }),
+  'drawing-wizard-config': el({ textContent: JSON.stringify({ save_send: { user_id: 1, can_transfer: true, hotfix_stage: !!input.hotfix, is_partner: false } }) }),
 };
 
 const calls = [];
@@ -62,6 +68,17 @@ global.FomsWizardCore = {
   refreshPending: () => {},
   toast: (msg) => { toasts.push(msg); },
 };
+if (input.hotfix) {
+  global.FomsFixSend = {
+    preview: () => Promise.resolve({ changed_line: '바뀐 도면: 도면 1 (고침)', warnings: input.warnings || [] }),
+    setChanged: () => {},
+    gate: (id, opts, text) => Promise.resolve(opts).then((o) => {
+      calls.push({ url: 'gate', method: 'CALL', body: o });
+      return { ok: true, ack: (input.warnings || []).length > 0 };
+    }),
+    post: (url, body) => { calls.push({ url, method: 'POST', body }); return Promise.resolve({ success: true }); },
+  };
+}
 global.FomsSaveStatus = {
   sheetSig: (s) => ((input.sigs || {})[s.id] || ''),
   tagSig: (x) => (x ? 'v2:' + x : ''),
@@ -87,4 +104,7 @@ parts['[data-savesend="send"]'].checked = !!input.send;
 parts['[data-savesend="push"]'].checked = !!input.push;
 parts['[data-savesend="send"]'].fire('change');
 parts['[data-savesend-go]'].fire('click');
-setTimeout(() => { process.stdout.write(JSON.stringify({ calls, toasts })); }, 50);
+setTimeout(() => {
+  const errEl = parts['[data-savesend-note-error]'];
+  process.stdout.write(JSON.stringify({ calls, toasts, noteError: errEl ? !errEl.hidden : null, open: !pop.hidden }));
+}, 50);
