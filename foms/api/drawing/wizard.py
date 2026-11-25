@@ -1754,6 +1754,7 @@ def api_post_drawing_wizard_transfer_pending(order_id):
             note=note, mode=mode, files=files,
             prepare_structured=lambda sd: stage_pending_snapshot(
                 sd, order_id, current_user, sheet_ids=None, stale_keys=stale_keys),
+            ack_worked=bool(data.get('ack_worked')),  # 생산·시공 단계 보내기 전 확인(설계서 2026-11-25 §2-3)
         )
         if not payload.get('success'):
             return jsonify(payload), status
@@ -1762,7 +1763,8 @@ def api_post_drawing_wizard_transfer_pending(order_id):
         count = len(files)
         return jsonify({
             'success': True,
-            'data': {'count': count, 'message': payload.get('message') or f'{count}장 전달됨'},
+            'data': {'count': count, 'message': payload.get('message') or f'{count}장 전달됨',
+                     'changed': payload.get('changed')},
         })
     except Exception as e:
         if db is not None:

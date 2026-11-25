@@ -254,8 +254,10 @@ def test_hotfix_transfer_new_key_turns_part_step_off(client):
     assert _step(oid, "cut")["done"] is True
     version = _fresh(oid).mutation_version
     _login(client, drawer)
+    # 2026-11-25 D2: 생산 단계 수정본은 메모 · 고른 도면 · 보내기 전 확인(재단 끝난 도면 — ack)을 싣는다.
     resp = client.post(f"/api/orders/{oid}/transfer-drawing", json={
-        "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png"}]})
+        "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png",
+                   "replace_of": _keys(oid)[0]}], "note": "치수 고침", "ack_worked": True})
     assert resp.status_code == 200, resp.get_json()
     assert _keys(oid) == [f"orders/{oid}/drawing_wizard/exports/fix.png"]  # 한 장 교체(바로 반영)
     cut = _step(oid, "cut")
@@ -265,13 +267,35 @@ def test_hotfix_transfer_new_key_turns_part_step_off(client):
     assert last.payload["trigger"] == "drawing_transfer" and last.payload["done"] is False
 
 
-def test_control_hotfix_transfer_without_marks_keeps_manual_step(client):
+def test_hotfix_transfer_replacing_every_drawing_turns_hand_step_off(client):
+    """2026-11-25 D2 로 뜻이 바뀜(사장님 답 Q13 "고친 도면만 다시 할 일로"): 손으로 켠 칸(카드 0장)도 고친 도면이 오면 풀린다.
+    한 장뿐인 도면을 고쳐 안 바뀐 장이 없으면 풀어 쓸 줄이 없어 칸만 끈다(전에는 손 값을 그대로 둬 새 판도 완료로 보였다).
+    안 바뀐 장이 있는 경우(그 장은 완료로 남음)는 ``test_drawing_fix_transfer_writes.py``."""
     drawer = _user("도면", team="DRAWING")
     oid = _drawing_order(assignee=drawer.id)
     order = db_session.get(Order, oid)
     sd = copy.deepcopy(order.structured_data)
     sd["production"]["steps"][0].update(done=True, by_name="사무실")
     order.structured_data = sd
+    db_session.commit()
+    _login(client, drawer)
+    assert client.post(f"/api/orders/{oid}/transfer-drawing", json={
+        "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png", "replace_of": _keys(oid)[0]}],
+        "note": "치수 고침", "ack_worked": True}).status_code == 200
+    assert _step(oid, "cut")["done"] is False
+    last = _step_events(oid)[-1]
+    assert last.payload["trigger"] == "drawing_transfer" and last.payload["done"] is False
+
+
+def test_control_drawing_stage_transfer_keeps_manual_step(client):
+    """대조: 생산 · 시공 단계가 아니면 공정 칸을 건드리지 않는다(지금 그대로)."""
+    drawer = _user("도면", team="DRAWING")
+    oid = _drawing_order(assignee=drawer.id)
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data)
+    sd["production"]["steps"][0].update(done=True, by_name="사무실")
+    sd["workflow"]["stage"] = "DRAWING"
+    order.structured_data, order.erp_stage_code = sd, "DRAWING"
     db_session.commit()
     _login(client, drawer)
     assert client.post(f"/api/orders/{oid}/transfer-drawing", json={

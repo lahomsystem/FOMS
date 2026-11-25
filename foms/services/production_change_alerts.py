@@ -40,6 +40,7 @@ from foms.services.production_dashboard_display import (
     _production_stage_label_from_stage,
 )
 from foms.services.production_read_model import fetch_production_current_run_ids
+from foms.services.orders.drawing_transfer_plan import changed_detail
 from foms.services.production.factory_constants import factory_label
 
 __all__ = [
@@ -265,12 +266,15 @@ def _build_change_lists(
         note = entry.get("note")
         by_id = entry.get("by_user_id")
         by_name = entry.get("by_user_name")
+        # 생산·시공 단계 수정본은 바뀐 도면 번호 + 메모 "도면 2 바뀜 · 메모: …"(설계서 2026-11-25 §2-4 · §10). 번호가 없는 옛 줄은 메모만.
+        changed = entry.get("changed") if action == "TRANSFER" and isinstance(entry.get("changed"), dict) else None
         _classify(
             ts,
             {
                 "kind": "drawing",
                 "label": label,
-                "detail": note.strip() if isinstance(note, str) and note.strip() else "",
+                "detail": changed_detail(changed, note) if changed is not None
+                else (note.strip() if isinstance(note, str) and note.strip() else ""),
                 "by_id": by_id if isinstance(by_id, int) else None,
                 "by_name": by_name.strip() if isinstance(by_name, str) else "",
             },

@@ -16,6 +16,7 @@ from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.drawing_wizard_part_memory import load_policy as load_part_memory_policy
 from foms.services.orders.as_drawing_views import wizard_config_view
+from foms.services.orders.drawing_fix_transfer import can_fix_production_drawing
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
 from foms.services.orders.drawing_factory_view import wizard_factory_view
 from foms.services.orders.erp_policy_permissions import can_set_sheet_factory, can_transfer_drawing
@@ -47,7 +48,9 @@ def _save_send_config(current_user: Any, order: Order) -> dict:
     """
     return {
         'user_id': int(getattr(current_user, 'id', 0) or 0),
-        'can_transfer': bool(current_user and can_transfer_drawing(current_user, order)),
+        # 생산·시공 단계는 도면팀 누구나 · 관리자(설계서 2026-11-25 §4-1 — 전달 API 와 같은 술어).
+        'can_transfer': bool(current_user and (can_transfer_drawing(current_user, order)
+                                               or can_fix_production_drawing(current_user, order))),
         'hotfix_stage': bool(is_drawing_hotfix_stage(order)),
         'is_partner': bool(getattr(order, 'partner_org_id', None)),
         'can_set_factory': bool(current_user and can_set_sheet_factory(current_user)),

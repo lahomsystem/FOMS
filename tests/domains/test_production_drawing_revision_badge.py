@@ -138,8 +138,11 @@ def test_badge_and_start_block_follow_revision_then_vanish_on_receipt(client, mo
     assert client.post(f"/api/orders/{oid}/request-revision-check",
                        json={"request_at": req["at"], "by_user_id": req["by_user_id"], "checked": True}).status_code == 200
     key = f"orders/{oid}/drawing_wizard/exports/v2.png"
+    # 2026-11-25 D2: 생산 단계 수정본은 메모를 적고 직접 올린 파일은 바꿀 도면(v1)을 고른다.
     sent = client.post(f"/api/orders/{oid}/transfer-drawing",
-                       json={"files": [{"key": key, "filename": "v2.png"}], "mode": "APPEND", "is_retransfer": True})
+                       json={"files": [{"key": key, "filename": "v2.png",
+                                        "replace_of": f"orders/{oid}/drawing_wizard/exports/v1.png"}],
+                             "mode": "APPEND", "is_retransfer": True, "note": "손잡이 색 변경"})
     assert sent.status_code == 200, sent.get_json()
     # 생산 단계 재전달 = 도면팀 바로 반영(2026-10-27 결정) — 영업 수령 확정 없이 곧바로 확정이라
     # "확정 대기" 중간 상태가 없다. 새로고침 즉시 배지·막힘이 사라지고 버튼이 돌아온다(캐시 무효화 포함).
