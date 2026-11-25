@@ -72,8 +72,9 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         erp_orders_revision_bp,
         erp_orders_sheet_factory_bp,
         erp_orders_drawing_wizard_bp,
+        erp_orders_drawing_fix_bp,
     )
-    from foms.api.production import erp_orders_factory_done_bp, erp_orders_production_bp
+    from foms.api.production import erp_orders_drawing_request_bp, erp_orders_factory_done_bp, erp_orders_production_bp
     from foms.api.construction import erp_orders_construction_bp
     from foms.api.cs import (
         erp_orders_as_bp,
@@ -138,10 +139,12 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_draftsman_bp)
     app.register_blueprint(erp_orders_item_cancel_bp)
     app.register_blueprint(erp_orders_sheet_factory_bp)  # 도면 장의 공장 지정(설계서 2026-11-23 §7, DRAWING_TEAM)
+    app.register_blueprint(erp_orders_drawing_fix_bp)  # [수정 시작] · [수정 취소](설계서 2026-11-25 N1 · N2, DRAWING_TEAM)
     app.register_blueprint(erp_orders_as_drawing_bp)
     app.register_blueprint(erp_orders_drawing_wizard_bp)
     app.register_blueprint(erp_orders_production_bp)
     app.register_blueprint(erp_orders_factory_done_bp)  # 공장마다 제작 완료(설계서 2026-11-23 §7 factory-done, PRODUCTION_EDIT)
+    app.register_blueprint(erp_orders_drawing_request_bp)  # 공장 [도면 수정 요청] · 사진(설계서 2026-11-25 N3, PRODUCTION_EDIT)
     app.register_blueprint(erp_orders_construction_bp)
     app.register_blueprint(erp_orders_cs_bp)
     app.register_blueprint(erp_orders_as_bp)

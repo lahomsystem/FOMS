@@ -4,7 +4,8 @@
 ``manager_name``)에서 만들고, 공휴일은 ``business_calendar`` 의 파일 캐시를 쓴다(DB 안 읽음).
 
 - 내려옴 = 행 보기 ``home_view != 'wait'``(생산 · 시공 단계, 보류 포함). 도면 상태와 상관없다(§4-1).
-- 도면 마감 = 시공일 앞 영업일 둘째 날(:data:`DRAWING_DEADLINE_WORKDAYS`, §4-2). 기준 시공일 = 장을 고르는 납작 칸(§4-6).
+- 도면 마감 = 기준 출고일 앞 영업일 둘째 날(:data:`DRAWING_DEADLINE_WORKDAYS`, §4-2). 기준 날 = 장 · 띠와 같은 출고일
+  (:func:`foms.services.production.ship_dates.row_due` — 사장님 2026-11-25 "출고 일정 = 제작 일정", §4-6 "한 날을 써야").
 - 마감 상태 넷(§4-3): 늦음 빨강 · 빠듯(마감 오늘 · 다음 영업일) 주황 · 다 옴 초록 · 여유 남색. 무채색 없음.
 - 막힌 까닭 다섯(§4-4)과 담당 이름(§4-5)은 화면 · 작업 시트 · 늦음 표가 같이 쓴다.
 """
@@ -18,6 +19,7 @@ from typing import Any, Iterable
 from foms.services.common.business_calendar import add_business_days
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
+from foms.services.production.ship_dates import row_due
 
 #: 도면이 늦어도 생산에 내려와야 하는 날 = 시공일 앞 영업일 수(사장님 2026-11-22 "늦어도 시공 2영업일 전").
 DRAWING_DEADLINE_WORKDAYS = 2
@@ -194,32 +196,41 @@ def attach_drawing_arrival(rows: list[dict[str, Any]], today: datetime.date) -> 
     날짜마다 마감은 한 번만 센다. 내려온 행에는 아무것도 달지 않는다(그 행의 도면 글은 지금 그대로).
 
     Args:
-        rows: ``build_production_home`` 행(``construction_date`` = 납작 칸 · ``structured_data`` · ``manager_name``).
+        rows: ``build_production_home`` 행(기준 출고일 ``ship_due`` · ``structured_data`` · ``manager_name``).
         today: KST 오늘.
     """
     deadlines: dict[datetime.date, datetime.date] = {}
     for row in rows:
         if row.get('home_view') != 'wait':
             continue
-        day = _parse_day(row.get('construction_date'))
+        day = row_due(row)
         deadline = None
         if day is not None:
             if day not in deadlines:
                 deadlines[day] = drawing_deadline(day)
             deadline = deadlines[day]
         sd = row.get('structured_data') or {}
-        row['dw_deadline'] = deadline
-        row['dw_deadline_md'] = f"{deadline.month}/{deadline.day}" if deadline else ''
-        row['dw_state'] = deadline_state(deadline, today, all_in=False)
+        row.update(deadline_fields(deadline, today))
         row['dw_blocker'] = drawing_blocker(sd)
         row['dw_people'] = drawing_people(sd, row.get('manager_name'))
+
+
+def deadline_fields(deadline: datetime.date | None, today: datetime.date) -> dict[str, Any]:
+    """기다림 행의 마감 칸 ``{dw_deadline, dw_deadline_md, dw_state}`` — 첫 화면 행 · 날짜 장마다 다시 센 행이 같이 쓴다.
+
+    Args:
+        deadline: 도면 마감(:func:`drawing_deadline`, 출고일이 없으면 None).
+        today: KST 오늘.
+    """
+    return {'dw_deadline': deadline, 'dw_deadline_md': f"{deadline.month}/{deadline.day}" if deadline else '',
+            'dw_state': deadline_state(deadline, today, all_in=False)}
 
 
 def _wait_state(row: dict[str, Any], today: datetime.date) -> tuple[str, datetime.date | None]:
     """기다림 행 하나의 (상태, 마감) — 단 값이 있으면 그것, 없으면(시험 · 단 값을 안 단 행) 그 자리에서 센다."""
     if 'dw_state' in row:
         return row['dw_state'], row.get('dw_deadline')
-    day = _parse_day(row.get('construction_date'))
+    day = row_due(row)
     deadline = drawing_deadline(day) if day is not None else None
     return deadline_state(deadline, today, all_in=False), deadline
 
@@ -259,8 +270,8 @@ def wait_head_for_day(day: datetime.date, today: datetime.date) -> dict[str, Any
     return {'text': deadline_head(deadline, today, state), 'state': state if state in (LATE, SOON) else ''}
 
 
-#: 시공일 없음 장 기다림 묶음 머리(§4-6).
-NO_DATE_WAIT_HEAD = {'text': '시공일이 없어 마감이 없어요', 'state': ''}
+#: 출고일 없음 장 기다림 묶음 머리(§4-6) · 작업 시트 도면 칸 — 사장님 2026-11-25 "모두 '출고'로".
+NO_DATE_WAIT_HEAD = {'text': '출고일이 없어 마감이 없어요', 'state': ''}
 
 
 def sheet_wait_view(sd: Any, construction_date: Any, manager_name: Any, today: datetime.date) -> dict[str, Any]:
@@ -268,7 +279,7 @@ def sheet_wait_view(sd: Any, construction_date: Any, manager_name: Any, today: d
 
     Args:
         sd: 주문 ``structured_data``.
-        construction_date: 기준 시공일(납작 칸 ``erp_construction_date`` — 첫 화면 장과 같은 날, §4-6).
+        construction_date: 기준 출고일(``ship_dates.due_day`` — 첫 화면 장 · 띠와 같은 날, §4-6).
         manager_name: 영업 담당 이름(첫 화면 행 ``manager_name`` 과 같은 규칙).
         today: KST 오늘.
 

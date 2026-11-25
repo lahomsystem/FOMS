@@ -14,7 +14,7 @@ import pytest
 from db import db_session
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from models import Order, OrderEvent
-from tests.domains.test_production_parts_screen import _get, _login as _part_login, _parts_block, _seed_day, _today_pane, _user
+from tests.domains.test_production_parts_screen import _get, _login as _part_login, _parts_block, _seed_day, _first_pane, _user
 from tests.domains.test_production_pc_viewer import PC, ROOT, _login, _seed
 from tests.support.production_home_step_panel_seed import HOME, get_html, set_cookies
 
@@ -31,7 +31,7 @@ def test_파트_계정_기다림_묶음은_카드_위_머리에_마감_칩에_�
     me, park = _user("김재단", part="cut"), _user("박재단", part="cut")
     ids = _seed_day(me, park)
     _part_login(client, me)
-    block = _parts_block(_today_pane(_get(client, HOME)))
+    block = _parts_block(_first_pane(_get(client, HOME)))
     assert block.index('class="fph-pane__g pp-wait-g"') < block.index("data-pp-grid")
     head = block.split('class="fph-pane__g pp-wait-g"')[1].split("</h3>")[0]
     assert '<small><span class="is-late">마감 ' in head and "지났어요</span> · 도면이 오면 카드로 나와요</small>" in head
@@ -99,8 +99,9 @@ def test_7판_CSS_는_목업_덩이_그대로_글자는_배율을_따르고_무�
 
 
 def test_PC_여러_시공일_기다림_줄_늦음은_띠와_같은_날(client, cohort) -> None:
-    """§4-6: 납작 칸 = 열흘 뒤(띠 · 장: 마감 여유), 다른 제품 날 = 내일(PC ① 칸 '가장 가까운 날'). 늦음 색은 띠와 같은 날로 —
-    ① 칸은 그대로 가까운 날 + 외 1(PC 설계서 §6-3 결정 5)."""
+    """출고일이 여럿(납작 칸 = 열흘 뒤, 다른 제품 날 = 내일)이면 두 날 장에 다 서고, 장마다 그 장의 날로 판정 · 표시한다(사장님
+    2026-11-25 "출고 일정 = 제작 일정" · 검토 "장마다 그 날", 예전 §4-6 은 납작 칸) — 내일 장은 마감 지남 · 늦음, 열흘 뒤 장은 여유.
+    ① 칸은 그 장의 날 + 외 1(PC 설계서 §6-3 결정 5). 띠 두 줄의 도면 글도 줄마다 그 날."""
     flat = (get_today_kst() + datetime.timedelta(days=10)).isoformat()
     near = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
     order = _wait_order("가여럿", 10, drawing_assignees=[{"id": 1, "name": "장가짜"}],
@@ -111,9 +112,14 @@ def test_PC_여러_시공일_기다림_줄_늦음은_띠와_같은_날(client, c
     pane = get_html(client, HOME + f"?view=day&day={flat}")
     head = pane.split(f'data-foms-home-dayrow="{oid}"', 1)[0].rsplit("<div ", 1)[1]
     row = pane.split(f'data-foms-home-dayrow="{oid}"', 1)[1].split('<div class="fpc-r', 1)[0]
-    assert "is-late" not in head and "is-tight" not in head and "늦음" not in row  # 가까운 날로 셌다면 늦음
-    assert "<small>외 1</small>" in row  # ① 칸은 그대로 가까운 날 + 외 n
+    assert "is-late" not in head and "is-tight" not in head and "늦음" not in row  # 열흘 뒤 장 = 열흘 뒤로 판정
+    assert "<small>외 1</small>" in row and "<span>D-10</span>" in row  # ① 칸은 그 장의 날 + 외 n
+    near_pane = get_html(client, HOME + f"?view=day&day={near}")  # 내일 장에도 선다 — 내일로 판정
+    head = near_pane.split(f'data-foms-home-dayrow="{oid}"', 1)[0].rsplit("<div ", 1)[1]
+    row = near_pane.split(f'data-foms-home-dayrow="{oid}"', 1)[1].split('<div class="fpc-r', 1)[0]
+    assert "is-late" in head and "늦음 — 도면 마감" in row and "<span>내일</span>" in row and "<small>외 1</small>" in row
     strip = get_html(client, HOME)
+    assert "마감 지남" in strip.split(f'data-foms-home-daybtn="{near}"')[1].split("</a>")[0]
     assert "마감 지남" not in strip.split(f'data-foms-home-daybtn="{flat}"')[1].split("</a>")[0]
 
 

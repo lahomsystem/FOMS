@@ -83,9 +83,20 @@ from foms.services.orders.as_drawing import current_round as current_as_round
 from foms.services.orders.as_drawing import is_as_drawing_stage
 from foms.services.drawing_workbench_read_model import (
     fetch_drawing_seed_order_ids,
-    hydrate_drawing_orders_by_ids,
+    fetch_production_tab_order_ids,
+    hydrate_with_production_count,
     count_confirmed_drawing_orders,
 )
+from foms.services.drawing_workbench_production import (
+    PRODUCTION_TAB_STATUS,
+    attach_progress_lines,
+    fix_progress_view,
+    production_row_fields,
+    production_sort_key,
+)
+from foms.services.datetime_kst import get_today_kst
+from foms.services.drawing_fix_requests_view import factory_requests_view
+from foms.services.production.home_access import can_view_production_home
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, record_phase
 from foms.services.request_utils import get_search_query_arg
@@ -699,6 +710,9 @@ def erp_drawing_workbench_dashboard():
     mobile_v2_active = is_mobile_v2_shell(
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
+    # '생산 중' 칸(설계서 2026-11-25 §2-1, D3) — 생산 단계 + 시공일이 오늘이거나 남은 시공 대기. 다른 칸 · 기본 목록은 그대로.
+    production_tab = status_filter == PRODUCTION_TAB_STATUS
+    _today = get_today_kst().isoformat()
 
     orders_query = (
         db.query(Order)
@@ -756,9 +770,17 @@ def erp_drawing_workbench_dashboard():
         slice_name="workbench_queue_ids",
     )
     order_ids = [int(x) for x in (_seed_blob.get("order_ids") or [])]
+    # '생산 중' 칸: 모집단 SQL 두 번(요청 · 고치는 중 전부 + 나머지 시공일 순 1,000건) — 하이드레이트는 기본 큐와 한 번에
+    # (프로세스 맵 다른 칸 숫자는 기본 큐 줄로 그대로 센다). 다른 칸 · 기본 목록은 이 길을 타지 않는다(쿼리 0 증가).
+    # 캐시에 두지 않는다 — 생산 · 시공 단계 쓰기는 도면 캐시 갈래를 지우지 않아 5분까지 낡는다(D3 검토 4).
+    _production_blob = fetch_production_tab_order_ids(orders_query, today=_today) if production_tab else {}
+    production_ids = [int(x) for x in (_production_blob.get("order_ids") or [])]
+    production_id_set = set(production_ids)
     record_phase("seed", (time.perf_counter() - _t_phase) * 1000)
     _t_phase = time.perf_counter()
-    orders = hydrate_drawing_orders_by_ids(orders_query, order_ids)
+    # '생산 중' 칸 숫자는 하이드레이트 문장의 스칼라 하위 질의로 — 요청마다 새 값(캐시 밖), 쿼리 수 그대로.
+    orders, production_count = hydrate_with_production_count(
+        orders_query, list(dict.fromkeys(order_ids + production_ids)), today=_today)
 
     # 검색 카드 딥링크(?focus_order=)는 seed 캡·필터와 무관하게 해당 주문이 착지해야 한다.
     # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
@@ -806,12 +828,16 @@ def erp_drawing_workbench_dashboard():
         # 수령확정 주문은 도면 단계에 남아 있어도(전달·수령확정은 stage 를 안 바꾼다) 기본 목록에서
         # 뺀다 — '전체' 타일(열린 큐 합)과 '전체' 목록 건수가 같은 모집단을 보게 한다.
         # 컨펌 포함(토글·완료 칸·검색)일 때만 단계와 무관하게 넣는다.
+        # '생산 중' 칸 모집단 주문은 기본 큐 밖이어도 줄을 만든다(in_queue=False — 다른 칸 숫자 · 목록에는 안 셈).
+        in_queue = True
         if as_open or as_search_hit:
             pass
         elif is_confirmed:
             if not include_confirmed:
-                continue
+                in_queue = False
         elif not (is_drawing_stage or is_active_revision or is_post_drawing_receipt):
+            in_queue = False
+        if not in_queue and o.id not in production_id_set:
             continue
 
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
@@ -1031,6 +1057,9 @@ def erp_drawing_workbench_dashboard():
                 sd, is_drawing_assignee=is_drawing_assignee, is_sales_owner=is_sales_owner) or {})
         elif as_search_hit and not is_active_revision:
             row.update(as_search_hit_row_fields())
+        row['in_queue'] = in_queue
+        if o.id in production_id_set:
+            row.update(production_row_fields(o, sd))  # 요청 · 고치는 중 표시 · 다음 액션 · 대상 번호 · 단계(쿼리 0)
         rows.append(row)
     record_phase("rows", (time.perf_counter() - _t_phase) * 1000)
     _t_phase = time.perf_counter()
@@ -1042,6 +1071,8 @@ def erp_drawing_workbench_dashboard():
     # 에서 빼야 모드에 따라 숫자가 흔들리지 않는다.
     stats = {'total': 0, 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0, 'd3': 0, 'pending_transfer': 0}
     for r in rows:
+        if not r.get('in_queue', True):
+            continue  # '생산 중' 칸만의 줄은 기본 큐 칸 숫자에 안 센다
         bucket = r.get('bucket') or _workbench_bucket(r)
         if bucket not in WORKBENCH_OPEN_BUCKETS:
             continue
@@ -1061,6 +1092,8 @@ def erp_drawing_workbench_dashboard():
     # 카운트로 읽는다(목록과 같은 최상위 우선 판정). 컨펌 포함 모드에서도 같은 값을 써서
     # 토글·검색에 따라 숫자가 바뀌지 않게 한다(구 캐시 블롭이면 0 폴백).
     stats['CONFIRMED'] = int(_seed_blob.get('confirmed_count') or 0)
+    # '생산 중' 칸 숫자 = 그 사람 범위(내 것만 · 협력사 거르개)의 모집단 수 — 캐시 밖 SQL 카운트(목록 필터와 무관).
+    stats['PRODUCTION'] = production_count
 
     if focus_order_id:
         # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
@@ -1085,7 +1118,9 @@ def erp_drawing_workbench_dashboard():
         if q:
             rows = [r for r in rows if q in (r.get('search_hay') or '')]
 
-        if status_filter:
+        if production_tab:
+            rows = [r for r in rows if r.get('in_production_tab')]
+        elif status_filter:
             def _match_status(row: dict[str, Any]) -> bool:
                 """타일 숫자와 같은 판정(_workbench_bucket)으로 거른다 — 칸을 누르면 그 숫자만큼 나온다."""
                 return (row.get('bucket') or _workbench_bucket(row)) == status_filter
@@ -1133,12 +1168,18 @@ def erp_drawing_workbench_dashboard():
             0 if r.get('post_drawing_receipt') else 1,
             0 if r.get('my_todo') else 1,
         ))
+    if production_tab and not sort_by:
+        # ① 열린 요청(요청 시각 오래된 것 먼저) ② 고치는 도면이 있는 주문 ③ 나머지 시공일 빠른 순(없음은 맨 뒤) — sort= 가 이긴다.
+        rows.sort(key=production_sort_key)
 
     total_count = len(rows)
     total_pages = max(1, (total_count + per_page - 1) // per_page) if per_page > 0 else 1
     page = min(page, total_pages)
     start_idx = (page - 1) * per_page
     rows = rows[start_idx:start_idx + per_page]
+    if production_tab:
+        # 한 쪽 줄의 공장 진행 요약 — 생산 단계 주문의 파트 표시를 한 번에(쿼리 1, N+1 없음).
+        attach_progress_lines(db, rows, {int(o.id): _ensure_dict(o.structured_data) for o in orders})
 
     template_name = (
         'drawing/partials/workbench_dashboard_fragment.html'
@@ -1162,6 +1203,9 @@ def erp_drawing_workbench_dashboard():
             erp_order_enabled=True,
             erp_mine_only=mine_only,
             drawing_thumb_enabled=_drawing_thumb_enabled,
+            # '생산 중' 칸(설계서 2026-11-25 §2-1) — 줄 값 · 상한 안내("더 있는 N건은 안 보여요.")
+            production_tab=production_tab,
+            production_hidden=int(_production_blob.get('hidden') or 0),
         )
     )
     apply_ept_b7_render_headers(
@@ -1506,6 +1550,12 @@ def erp_drawing_workbench_detail(order_id):
     sheet_factory = workbench_factory_view(
         s_data, order_id=order.id, can_set=bool(current_user and can_set_sheet_factory(current_user)),
         stage=read_main_stage(order))
+    # '공장 진행' 칸 · 머리 "생산 작업 시트 열기"(설계서 2026-11-25 §2-2, D3) — 생산 · 시공 단계만(그 밖 None · 조회 0, 생산은 표시 1번).
+    fix_progress = fix_progress_view(db, order, s_data, current_user)
+    production_sheet_url = (
+        url_for('erp_production_page.erp_production_sheet_page', order_id=order.id)
+        if is_drawing_hotfix_stage(order) and can_view_production_home(current_user) else ''
+    )
 
     ctx = dict(
         order=order,
@@ -1565,6 +1615,10 @@ def erp_drawing_workbench_detail(order_id):
         stray_drawing_files=stray_drawing_files,
         sheet_factory=sheet_factory,
         sheet_factory_send=pending_split_text(drawing_pending, sheet_factory['by_sheet']) if sheet_factory else '',
+        fix_progress=fix_progress,
+        # 요청사항 칸 공장 요청 줄 · [반영 완료] · [요청 반려](설계서 2026-11-25 §2-2, D4) — 조회 0, 공장 요청이 없으면 빈 목록.
+        factory_requests=factory_requests_view(order, s_data, current_user),
+        production_sheet_url=production_sheet_url,
         # 완료 주문 AS 도면 카드·맨 위 단추(설계서 2026-11-11-as-drawing-after-completion §6.1) — 조회 0.
         as_drawing=as_drawing_detail,
         # 생산·시공 단계 = 보내면 영업 확인 없이 바로 최종(전달 창 안내·기본 교체).

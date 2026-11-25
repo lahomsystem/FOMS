@@ -3,7 +3,7 @@
   "policy_ssot": "foms/services/orders/order_mutation_policy.py",
   "description": "AUTH-01 URL-map inventory: 모든 cookie-auth state-changing route 의 policy_id. mode=guard 는 order_mutation_policy.evaluate_policy 로 §2.1 정책 enforce(before_request enforce_order_mutation_policy). mode=exempt 는 서명 검증 webhook/Function·anonymous RUM 처럼 쿠키 세션 미사용 자기 정책으로 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 미분류=static gate fail(tests/domains/test_auth_enforcement.py).",
   "exempt_count": 5,
-  "guard_count": 249,
+  "guard_count": 253,
   "routes": {
     "admin.discard_sent_unregistered_draft": {
       "mode": "guard",
@@ -665,6 +665,26 @@
       "policy_id": "ITEM_CANCEL",
       "rule": "/api/orders/<int:order_id>/items/<uid>/cancel"
     },
+    "erp_orders_drawing_fix.api_drawing_fix_start": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/start"
+    },
+    "erp_orders_drawing_fix.api_drawing_fix_stop": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/stop"
+    },
+    "erp_orders_drawing_fix.api_drawing_fix_request_reject": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/requests/<rid>/reject"
+    },
+    "erp_orders_drawing_fix.api_drawing_fix_request_check": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/requests/<rid>/check"
+    },
     "erp_orders_sheet_factory.api_order_sheet_factory": {
       "mode": "guard",
       "policy_id": "DRAWING_TEAM",
@@ -684,6 +704,16 @@
       "mode": "guard",
       "policy_id": "PRODUCTION_EDIT",
       "rule": "/api/orders/<int:order_id>/production/factory-done"
+    },
+    "erp_orders_drawing_request.api_production_drawing_request": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_EDIT",
+      "rule": "/api/orders/<int:order_id>/production/drawing-request"
+    },
+    "erp_orders_drawing_request.api_production_drawing_request_photo": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_EDIT",
+      "rule": "/api/orders/<int:order_id>/production/drawing-request/photo"
     },
     "erp_orders_production.api_production_complete": {
       "mode": "guard",

@@ -311,6 +311,32 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .fph-wi.pp-elsewhere-note:hover { color: var(--fph-text); border-color: var(--fph-line2); }
 .fph-wi.pp-elsewhere-note span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── [도면 수정 요청](설계서 2026-11-25 §2-4 · N3, 시안 04 ① ②) — 그 공장 도면 위 작은 단추(높이 44) · 창(위 확인 창과 같은 겉틀).
+   카드 단추 칸(.pp-actbox) 위 한 줄, 왼쪽 붙임. '작업 필요' 칸(그림 왼쪽 큰 카드)은 남는 칸(5줄) 위쪽에 — 큰 완료 단추는 그 칸 아래쪽 그대로.
+   창: 도면 고르기(누른 장 미리 골라짐 · 여러 장, 고른 장 = 남색 바탕) · 사유(꼭 적기 빨강) · 사진 올리기 + 작은 그림. 토큰은 새로 안 만든다. ── */
+.pp-card .pp-req { align-self: flex-start; min-height: 44px; margin: 2px 0; padding: 0 14px; border-color: var(--fph-brand); color: var(--fph-brand-dark); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+.pp-card .pp-req:hover, .pp-card .pp-req:focus { color: var(--fph-brand-dark); }
+.pp-card .pp-req:active { background: var(--fph-brand-50); }
+.pp-card .pp-req[hidden] { display: none; }
+.pp-grid.is-need .pp-card .pp-req { grid-row: 5; align-self: start; justify-self: start; }
+.foms-prod-home .pp-rq .pp-rq__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px 18px 6px; } /* 낮은 화면(1176×626)에서도 아래 단추 줄이 보이게 — 몸만 굴러감 */
+.pp-rq__label { margin: 0; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text); }
+.pp-rq__must { margin-left: 6px; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-danger); }
+.pp-rq__picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp-rq__pick { min-height: 48px; min-width: 88px; padding: 0 14px; border: 1.5px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); color: var(--fph-text); font: inherit; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
+.pp-rq__pick.is-on { background: var(--fph-brand-dark); border-color: var(--fph-brand-dark); color: #fff; }
+.pp-rq__pick:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.pp-rq__note { width: 100%; min-height: 96px; padding: 10px 12px; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); color: var(--fph-text); font: inherit; font-size: calc(17px * var(--foms-fs, 1)); resize: vertical; }
+.pp-rq__note:focus { outline: 3px solid var(--fph-brand); outline-offset: 1px; }
+.pp-rq__photo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.foms-prod-home .pp-rq .pp-rq__add { min-height: 48px; font-size: calc(16px * var(--foms-fs, 1)); }
+.pp-rq__thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp-rq__thumbs:empty { display: none; }
+.pp-rq__thumb { width: 104px; display: flex; flex-direction: column; gap: 2px; }
+.pp-rq__thumb img { display: block; width: 104px; height: 78px; object-fit: cover; border: 1px solid var(--fph-line); border-radius: 8px; background: #fff; }
+.pp-rq__thumb.is-wait img { opacity: .55; }
+.pp-rq__thumb small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fph-text2); }
+
 /* ── 가로 터치 태블릿 누름 칸 · 틈(설계서 2026-11-23 §10 M4 · F3 · F4) — 화면 크기 80% 에서도 보이는 44px · 이웃 틈 8px.
    '÷ 배율' 규칙은 이 덩이 안에만(test_tablet_touch_targets_zoom.py). 지금 칸(거르개 · [기본][내가 자름] 짝 등)은 건드리지 않는다. ── */
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
@@ -333,4 +359,8 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
   /* 관리자 공장 고르기(2공장) — 보이는 44px · 이웃 틈 8px */
   .pp-parts--fac .pp-part { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
   .pp-parts--fac { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+  /* [도면 수정 요청](2026-11-25 N3) — 보이는 44px · 아래 단추 칸과 보이는 8px(카드 틈 3 + 단추 칸 위 4 = 7px 에 모자란 만큼) */
+  .pp-card .pp-req { min-height: calc(44px / var(--foms-ui-zoom, 1)); margin-bottom: max(2px, calc(8px / var(--foms-ui-zoom, 1) - 7px)); }
+  .pp-rq__pick, .foms-prod-home .pp-rq .pp-rq__add { min-height: max(48px, calc(44px / var(--foms-ui-zoom, 1))); }
+  .pp-rq__picks { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
 }

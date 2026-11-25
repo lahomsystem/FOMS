@@ -13,10 +13,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, exists, func, or_
 
 from foms.services.orders.as_drawing import AS_DRAWING_STATUS_KEY, OPEN_STATUSES as AS_DRAWING_OPEN_STATUSES
-from models import Order
+from foms.services.orders.drawing_factory import DRAWING_FIX_KEY
+from models import Order, OrderConstructionAttempt
 
 logger = logging.getLogger(__name__)
 
@@ -167,3 +168,88 @@ def hydrate_drawing_orders_by_ids(orders_query: Any, order_ids: list[int]) -> li
     rows = orders_query.filter(Order.id.in_(order_ids)).all()
     by_id = {int(o.id): o for o in rows}
     return [by_id[i] for i in order_ids if i in by_id]
+
+
+# --------------------------------------------------------------------------- #
+# '생산 중' 칸(설계서 2026-11-25 §2-1 · §7, D3)
+# --------------------------------------------------------------------------- #
+#: 생산 단계 · 시공 단계 미러 컬럼 값(코드/한글). 모집단 = 생산 전부 + 시공일이 오늘(KST)이거나 뒤이고 시공 방문이 안 열린 시공 대기.
+PRODUCTION_TAB_STAGE_CODES = ('PRODUCTION', '생산')
+CONSTRUCTION_WAIT_STAGE_CODES = ('CONSTRUCTION', '시공')
+#: 나머지(요청 · 고치는 중이 아닌) 주문 상한 — 요청 · 고치는 중 주문은 상한 없이 먼저 모두 든다(잘리지 않음).
+PRODUCTION_TAB_CAP = 1000
+
+
+def build_production_tab_filter(today: str):
+    """'생산 중' 칸 모집단 술어(SQL) — 생산 단계 전부 ∪ (시공 단계 ∧ 시공일 ≥ 오늘 ∧ 열린 시공 방문 없음).
+
+    단계는 색인 있는 미러 컬럼(``erp_stage_code``), 시공일은 미러 컬럼(``erp_construction_date`` — 'YYYY-MM-DD' 글이라 글 비교가
+    날짜 비교와 같다), 시공 시작은 ``order_construction_attempts.is_current`` 줄(부분 유일 색인 — 주문당 0/1). 시공일이 지난 것 ·
+    시공을 시작한 것은 빠진다(사장님 답 Q1 · Q15 — 검색으로 찾는다). PostgreSQL · SQLite 모두 같은 SQL(JSON 연산 없음).
+
+    Args:
+        today: 오늘(KST) 'YYYY-MM-DD'.
+    """
+    started = exists().where(and_(OrderConstructionAttempt.order_id == Order.id, OrderConstructionAttempt.is_current.is_(True)))
+    return or_(
+        Order.erp_stage_code.in_(PRODUCTION_TAB_STAGE_CODES),
+        and_(Order.erp_stage_code.in_(CONSTRUCTION_WAIT_STAGE_CODES), Order.erp_construction_date >= today, ~started),
+    )
+
+
+def _production_flagged_filter():
+    """요청 · 고치는 중 후보(상위집합) — 영업 수정 요청(RETURNED, 두 상태 키) 또는 ``drawing_fix`` 칸이 있는 주문.
+
+    ``drawing_fix`` 는 풀린 뒤에도 ``log`` 로 남으므로 상위집합이다 — 열린 요청 · 고치는 중인지는 행 판정(파이썬)이 가른다.
+    JSONB ``?`` 대신 ``->>`` 의 NULL 여부로 본다(SQLite 시험 · PostgreSQL 운영 같은 뜻). 단계 술어가 색인으로 먼저 좁힌다.
+    """
+    nested, flat = _drawing_status_exprs()
+    return or_(nested == 'RETURNED', flat == 'RETURNED', Order.structured_data[DRAWING_FIX_KEY].as_string().isnot(None))
+
+
+def fetch_production_tab_order_ids(orders_query: Any, *, today: str, cap: int = PRODUCTION_TAB_CAP) -> dict[str, Any]:
+    """'생산 중' 칸 주문 id — SQL 두 번(① 요청 · 고치는 중 후보 전부 ② 나머지 시공일 순 ``cap`` 건). 캡에 닿으면 경고 로그 + 수 한 번 더.
+
+    Args:
+        orders_query: active/ERP/mine/협력사 스코프가 적용된 ``Order`` 쿼리.
+        today: 오늘(KST) 'YYYY-MM-DD'.
+        cap: ② 상한.
+
+    Returns:
+        ``{"order_ids": [...], "hidden": N}`` — ① 다음 ② (겹치면 한 번), ``hidden`` = 캡 때문에 안 보이는 주문 수(캡에 안 닿으면 0).
+    """
+    population = build_production_tab_filter(today)
+    flagged = [int(row[0]) for row in orders_query.filter(population, _production_flagged_filter())
+               .with_entities(Order.id).order_by(Order.id).all()]
+    rest = [int(row[0]) for row in orders_query.filter(population).with_entities(Order.id)
+            .order_by(Order.erp_construction_date.is_(None), Order.erp_construction_date, Order.id).limit(cap).all()]
+    ids = list(dict.fromkeys(flagged + rest))
+    hidden = 0
+    if len(rest) >= cap:
+        hidden = max(0, int(orders_query.filter(population).count()) - len(ids))
+        logger.warning("drawing workbench production tab cap reached (cap=%s, hidden=%s) — 목록 아래 안내", cap, hidden)
+    return {"order_ids": ids, "hidden": hidden}
+
+
+def production_tab_count_column(orders_query: Any, *, today: str):
+    """'생산 중' 칸 숫자 식 — 모집단 수 스칼라 하위 질의(바깥과 묶지 않는다, ``orders_query`` 범위 = 내 것만 · 협력사 거르개)."""
+    return (orders_query.filter(build_production_tab_filter(today)).with_entities(func.count(Order.id))
+            .statement.correlate(None).scalar_subquery())
+
+
+def hydrate_with_production_count(orders_query: Any, order_ids: list[int], *, today: str) -> tuple[list[Order], int]:
+    """하이드레이트(:func:`hydrate_drawing_orders_by_ids` 와 같은 결과) + '생산 중' 칸 숫자를 **한 문장**으로(캐시 밖).
+
+    칸 숫자는 5분 캐시(seed 블롭)에 두지 않는다 — 생산 · 시공 단계 쓰기(제작 완료 · 시공 시작 · 시공일 · [수정 시작] 등)는
+    도면 캐시 갈래를 지우지 않아 숫자가 낡고 줄 수와 어긋났다(D3 검토 4). 하이드레이트 문장에 스칼라 하위 질의로 실어 요청마다 새
+    값이면서 쿼리 수는 그대로다. 줄이 하나도 없으면(빈 큐) 숫자만 한 번 센다.
+
+    Returns:
+        ``(주문 목록 — order_ids 순서, 모집단 수)``.
+    """
+    count_col = production_tab_count_column(orders_query, today=today)
+    rows = orders_query.filter(Order.id.in_(order_ids)).add_columns(count_col).all() if order_ids else []
+    if not rows:
+        return [], int(orders_query.session.query(count_col).scalar() or 0)
+    by_id = {int(order.id): order for order, _count in rows}
+    return [by_id[i] for i in order_ids if i in by_id], int(rows[0][1] or 0)

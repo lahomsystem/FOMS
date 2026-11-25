@@ -8,15 +8,15 @@
     "log_access"
   ],
   "baselines": {
-    "total": 321,
+    "total": 327,
     "unaudited": 3
   },
   "classification_counts": {
-    "AUDITED": 281,
+    "AUDITED": 287,
     "EXEMPT": 37,
     "UNAUDITED": 3
   },
-  "coverage_percent": 98.9,
+  "coverage_percent": 99.0,
   "unaudited_sites": [
     {
       "path": "foms/api/brain_chat.py",
@@ -766,6 +766,42 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/api/drawing/erp_orders_drawing_fix.py",
+      "endpoint": "api_drawing_fix_request_check",
+      "lineno": 341,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing_fix.py",
+      "endpoint": "api_drawing_fix_request_reject",
+      "lineno": 335,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing_fix.py",
+      "endpoint": "api_drawing_fix_start",
+      "lineno": 183,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing_fix.py",
+      "endpoint": "api_drawing_fix_stop",
+      "lineno": 189,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
       "endpoint": "api_order_item_cancel_after_confirm",
       "lineno": 67,
@@ -1389,7 +1425,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_ack",
-      "lineno": 837,
+      "lineno": 847,
       "methods": [
         "POST"
       ],
@@ -1398,7 +1434,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_archive",
-      "lineno": 751,
+      "lineno": 761,
       "methods": [
         "POST"
       ],
@@ -1407,7 +1443,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_mark_read",
-      "lineno": 667,
+      "lineno": 677,
       "methods": [
         "POST"
       ],
@@ -1416,7 +1452,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_archive_all",
-      "lineno": 788,
+      "lineno": 798,
       "methods": [
         "POST"
       ],
@@ -1425,7 +1461,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_delete_all",
-      "lineno": 868,
+      "lineno": 878,
       "methods": [
         "POST"
       ],
@@ -1434,7 +1470,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_mark_all_read",
-      "lineno": 708,
+      "lineno": 718,
       "methods": [
         "POST"
       ],
@@ -1443,7 +1479,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 988,
+      "lineno": 998,
       "methods": [
         "POST"
       ],
@@ -1452,7 +1488,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_urgent_call",
-      "lineno": 1289,
+      "lineno": 1299,
       "methods": [
         "POST"
       ],
@@ -1922,6 +1958,24 @@
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_void",
       "lineno": 275,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/production/drawing_request.py",
+      "endpoint": "api_production_drawing_request",
+      "lineno": 231,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/production/drawing_request.py",
+      "endpoint": "api_production_drawing_request_photo",
+      "lineno": 271,
       "methods": [
         "POST"
       ],

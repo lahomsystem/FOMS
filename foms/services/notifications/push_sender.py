@@ -32,6 +32,13 @@ from foms.services.notifications.drawing_deadline_push import (
     drawing_deadline_deep_link,
     drawing_deadline_push_text,
 )
+from foms.services.notifications.drawing_factory_request_push import (
+    REJECTED_TYPE as DRAWING_FACTORY_REQUEST_REJECTED,
+    REQUEST_TYPE as DRAWING_FACTORY_REQUEST,
+    factory_request_deep_link,
+    factory_request_push_text,
+    is_factory_request_type,
+)
 from foms.services.notifications.erp_action_push import (
     ERP_ACTION_PROPOSAL_TYPE,
     erp_action_deep_link,
@@ -109,6 +116,8 @@ _HIGH_URGENCY_TYPES = frozenset(
         "AS_DRAWING_REVISION",
         # 도면 마감 날 아침 · 저녁(설계서 2026-11-22-production-drawing-arrival-upgrade §9) — 그날 안에 닿아야 뜻이 있다.
         DRAWING_DEADLINE_DUE,
+        # 공장 도면 수정 요청(설계서 2026-11-25 §6 — 사장님 "영업 수정 요청과 똑같이") — DRAWING_REVISION 과 같은 무리.
+        DRAWING_FACTORY_REQUEST,
     }
 )
 
@@ -167,6 +176,10 @@ _DEFAULT_P1_TYPES = frozenset(
         # 도면 마감 알림(설계서 2026-11-22-production-drawing-arrival-upgrade §9-5) — 벨 + 폰. 도면 담당 · 영업 쪽이
         # 마감 날 아침 · 저녁, 마감이 지나면 일하는 날 아침마다 받는다.
         DRAWING_DEADLINE_DUE,
+        # 공장 도면 수정 요청(설계서 2026-11-25 §6) — 영업 수정 요청(DRAWING_REVISION)과 똑같이 도면팀 전원 + 관리자 폰에.
+        DRAWING_FACTORY_REQUEST,
+        # 도면팀 [요청 반려] — 요청한 사람(반장 · 파트 담당) 폰에(종 + 폰, 설계서 2026-11-25 §6).
+        DRAWING_FACTORY_REQUEST_REJECTED,
     }
 )
 
@@ -284,6 +297,9 @@ def _deep_link(notif: Notification) -> str:
         if ntype in ("AS_DRAWING_REQUEST", "AS_DRAWING_REVISION"):
             # 도면팀이 일하는 곳 — 실행판 맨 위 AS 도면 카드.
             return f"/erp/drawing-workbench/{oid}"
+        if is_factory_request_type(ntype):
+            # 공장 요청 = 도면 작업실 그 주문 요청사항 칸, 반려 = 생산 첫 화면 '바뀐 것'(설계서 2026-11-25 §6).
+            return factory_request_deep_link(ntype, oid)
         if ntype == DRAWING_DEADLINE_DUE:
             # 도면 마감 — 도면 작업실 그 주문(그리기 · 고치기 · 담당 정하기 · 수령 확정을 거기서 한다, §9-5).
             return drawing_deadline_deep_link(oid)
@@ -512,6 +528,9 @@ def _build_payload(
     if is_partner_notification_type(ntype):
         # 협력사 알림 문장은 협력사 알림 서비스가 주소 · 메모 없이, 고객 이름을 가려서 만든다.
         title, body = partner_push_text(ntype, notif.message)
+    elif is_factory_request_type(ntype) and notif.order_id:
+        # 공장 도면 수정 요청 · 반려 — 제목 + 번호 · 고객 이름 · 고정 글(사유는 잠금 화면에 싣지 않는다).
+        title, body = factory_request_push_text(ntype, int(notif.order_id), name)
     elif ntype == DRAWING_DEADLINE_DUE and notif.order_id:
         # 도면 마감 — 제목은 코드가 만든 세 글 가운데 하나일 때만 그대로, 본문은 번호 · 고객 이름 · 고정 글(알림 글은 안 읽는다).
         title, body = drawing_deadline_push_text(notif.title, int(notif.order_id), name)

@@ -211,7 +211,7 @@ def test_일주일_넘게_지난_시공일은_맨_아래_한_묶음으로() -> N
     assert [g["key"] for g in groups] == ["2026-11-05", "2026-11-12", "none", "past"]
     past = groups[-1]
     assert past["count"] == 2 and past["changed"] == 1 and past["is_open"] is False
-    assert past["label"].startswith("지난 시공일")
+    assert past["label"] == "지난 출고일 (7일 넘음)" and groups[2]["label"] == "출고일 없음"  # 묶음 이름 = 출고일(사장님 2026-11-25)
     assert all(r["day_key"] == "past" for r in past["rows"])
     # 오늘·내일이 없으니 첫 묶음(4일 지남)만 펼침
     assert [g["is_open"] for g in groups] == [True, False, False, False]

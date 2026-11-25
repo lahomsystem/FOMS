@@ -1,4 +1,5 @@
-{# 탭 "날짜"(안 3, 사용자 11-10 "3안으로") — 왼쪽 2주 띠(시공일마다 막대 + 만들 것/전체) + 오른쪽 고른 날. home.html 이 include.
+{# 탭 "날짜"(안 3, 사용자 11-10 "3안으로") — 왼쪽 2주 띠(출고일마다 막대 + 만들 것/전체, 날 줄은 내일부터 — 사장님 2026-11-25
+   "출고 일정 = 제작 일정" · "내일 부터", 놓는 규칙 foms/services/production/ship_dates.py) + 오른쪽 고른 날. home.html 이 include.
    시공이 있는 띠 줄은 막대 밑에 도면 글 한 줄(fph-sd__mid · d.arrival — 설계서 2026-11-22-production-drawing-arrival-upgrade §5-1:
    '도면 5/6 마감 지남' 빨강 · '도면 3/7 마감 내일' 주황 · '도면 5/5 다 옴' 초록 · '도면 0/4' 남색). 줄 높이 · 줄 수 · 아래 단추 둘은 그대로.
    오른쪽은 고른 날 장 하나만 그린다(home_day_pane.html, 11-14 — 예전 D5 는 15장을 다 보내고 보이기/숨기기만 했다). 다른 날을 누르면
@@ -11,8 +12,8 @@
   {# fph-stripbox: 가로 터치 화면에서만 상자가 되어 띠가 왼쪽 칸 키를 채우고, 띠가 쓸 수 있는 키를 잰다(home.css 컨테이너 fph-strip —
      날 13줄이 줄마다 44px 로 들어가면 칸을 나눠 채우고, 안 들어가면 48px 그대로 띠 안에서 굴린다). 그 밖에는 display: contents 라 없는 것과 같다. #}
   <div class="fph-stripbox">
-  <aside class="fph-strip" aria-label="시공일 2주">
-    <div class="fph-strip__h">시공일 2주<small>만들 것 / 전체</small></div>
+  <aside class="fph-strip" aria-label="출고일 2주">
+    <div class="fph-strip__h">출고일 2주<small>만들 것 / 전체</small></div>
     {% for d in days.strip %}
     <a class="fph-sd{% if d.key == days.selected %} is-on{% endif %}{% if d.is_weekend %} is-wk{% endif %}{% if not d.total %} is-zero{% endif %}"
        href="{{ home_href(tab, part_board.url_part if part_board else None, d.key, factory=part_board.url_factory if part_board else None) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>

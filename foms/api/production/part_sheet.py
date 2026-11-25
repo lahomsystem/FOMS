@@ -37,6 +37,7 @@ from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import step_api_extras
 from foms.services.production.pc_sheet import START_NOTE, build_part_sheet
 from foms.services.production.pc_view import pc_row_view
+from foms.services.production.ship_dates import ship_fields
 from foms.services.production_read_model import fetch_production_current_run_starts
 from models import Order
 
@@ -67,8 +68,9 @@ def _row_html(order: Order, sd: dict[str, Any], marks: list[Any], starts: dict[i
     """그 줄의 PC 공정 칸 · 상태 칸 HTML 과 늦음 표(생산 단계가 아니면 비운다 — 화면은 칸을 그대로 둔다)."""
     if read_main_stage(order) != "PRODUCTION":
         return {"cells_html": None, "status_html": None, "late": None}
+    today = get_today_kst()
     row = pc_row_view(int(order.id), sd, order.erp_construction_date, marks, starts.get(int(order.id)),
-                      int(order.id) in starts, get_today_kst())
+                      int(order.id) in starts, today, ship=ship_fields(order, today))
     return {"cells_html": str(get_template_attribute(PC_MACROS, "pc_steps")(row)),
             "status_html": str(get_template_attribute(PC_MACROS, "pc_status")(row)),
             "late": (row.get("pc_late") or {}).get("level")}

@@ -117,10 +117,13 @@
   function render() {
     var card = state.list[state.index];
     if (!card || !viewer) { return; }
-    var head = paneOf(card).querySelector('.pp-head .fph-pane__h');
+    var pane = paneOf(card);
+    var head = pane.querySelector('.pp-head .fph-pane__h');
     var day = head && head.firstChild ? head.firstChild.textContent.trim() : '';
+    // 하루 장(열쇠 YYYY-MM-DD)만 '… 출고' — 묶음 장(지난 7일 · 그 뒤 · 지난 출고일 · 출고일 없음)은 장 이름 그대로
+    var dated = /^\d{4}-\d{2}-\d{2}$/.test(pane.getAttribute('data-pp-pane') || '');
     viewer.querySelector('[data-pp-v-title]').textContent = cardText(card, '.fph-dr__nm b') + ' ' + cardText(card, '.fph-dr__nm small');
-    viewer.querySelector('[data-pp-v-sub]').textContent = cardText(card, '.pp-item') + (day ? ' · ' + day + ' 시공' : '');
+    viewer.querySelector('[data-pp-v-sub]').textContent = cardText(card, '.pp-item') + (day ? ' · ' + day + (dated ? ' 출고' : '') : '');
     viewer.querySelector('[data-pp-v-page]').textContent = card.getAttribute('data-no') + ' / ' + card.getAttribute('data-of');
     var by = viewer.querySelector('[data-pp-v-by]');
     var src = card.querySelector('.pp-by');

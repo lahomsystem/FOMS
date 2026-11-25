@@ -223,3 +223,237 @@
     font-size: calc(13px * var(--foms-fs, 1));
     resize: vertical;
 }
+
+/* ------------------------------------------------------------------------------------------------
+   D3 — 도면 작업실 '생산 중' 칸 줄 · 상세 '공장 진행' 칸 · [수정 시작]/[수정 취소] 확인 창
+   (설계서 §2-1 · §2-2, 시안 dfix/mock 01 · 02). 공장 칩은 components/foms-factory-chip.css 그대로(크기 안 정함).
+   ------------------------------------------------------------------------------------------------ */
+
+/* 목록 상태 칸 — 단계 낱말("생산" · "시공 대기") · 공장 진행 요약("재단 5/5 · 엣지 3/5 …", 다 끝난 파트는 초록 굵게) */
+.dw-stage-word {
+    display: block;
+    margin-bottom: 2px;
+    color: #14171c;
+    font-weight: 800;
+    font-size: calc(14px * var(--foms-fs, 1));
+}
+
+.dw-prod-prog {
+    margin-top: 3px;
+    color: #4b525d;
+    font-size: calc(13px * var(--foms-fs, 1));
+    line-height: 1.45;
+    white-space: nowrap;
+}
+
+.dw-prod-prog b {
+    color: #047857;
+    font-weight: 800;
+}
+
+.dw-prod-prog .foms-fac {
+    margin-right: 4px;
+}
+
+/* 목록 주문/고객 칸 아래 표시("수정 요청 · 영업" 빨강 · "수정 요청 · 공장" 주황 · "도면 고치는 중" 파랑 — dw-event-chip 색 그대로) */
+.dw-prod-marks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+/* 대상 번호 칸 "도면 2" · "도면 2 · 3" */
+.dw-fix-target {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border: 1px solid #f5a524;
+    border-radius: 6px;
+    background: #fff8e6;
+    color: #5c3d00;
+    font-weight: 600;
+    font-size: calc(12px * var(--foms-fs, 1));
+    white-space: nowrap;
+}
+
+/* 줄 왼쪽 띠 — 열린 요청(영업 빨강 · 공장 주황) · 고치는 중(파랑). 표 hover 칠은 같이 둔다. */
+.dw-req-row > td:first-child {
+    box-shadow: inset 4px 0 0 #ef4444, inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg, transparent)));
+}
+
+.dw-req-row.is-factory > td:first-child {
+    box-shadow: inset 4px 0 0 #f59e0b, inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg, transparent)));
+}
+
+.dw-fix-row > td:first-child {
+    box-shadow: inset 4px 0 0 #3b82f6, inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg, transparent)));
+}
+
+/* 목록 아래 상한 안내 "더 있는 N건은 안 보여요. 찾기로 찾아 주세요." */
+.dw-prod-more {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border: 1px solid #f0c36d;
+    border-radius: 6px;
+    background: #fff8e1;
+    color: #5c4300;
+    font-weight: 600;
+    font-size: calc(14px * var(--foms-fs, 1));
+}
+
+/* 상세 '공장 진행' 칸 — 도면마다 한 줄(완료 초록 · 작업 중 분홍 · 미정 점선 남색, 생산 화면 색과 같은 결) */
+.dwp-wrap {
+    overflow-x: auto;
+}
+
+.dwp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: calc(14px * var(--foms-fs, 1));
+}
+
+.dwp-table th,
+.dwp-table td {
+    padding: 6px;
+    border-bottom: 1px solid #e8eef8;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.dwp-table th {
+    color: #4b525d;
+    font-weight: 700;
+    font-size: calc(13px * var(--foms-fs, 1));
+    white-space: nowrap;
+}
+
+.dwp-no {
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.dwp-no .foms-fac {
+    margin-left: 4px;
+}
+
+.dwp-sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.dwp-cell,
+.dwp-fix,
+.dwp-req {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid;
+    border-radius: 7px;
+    font-weight: 800;
+    font-size: calc(13px * var(--foms-fs, 1));
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+.dwp-done {
+    border-color: #6ee7b7;
+    background: #a7f3d0;
+    color: #065f46;
+}
+
+.dwp-taken {
+    border-color: #dca3bb;
+    background: #eecbda;
+    color: #7a3f5c;
+}
+
+.dwp-none {
+    border-color: #c5c9ff;
+    border-style: dashed;
+    background: #fff;
+    color: #3a4490;
+}
+
+/* 고치는 중 · 요청이 걸린 줄 — 빨간 바탕(공장에서 그 도면만 막힘) */
+.dwp-fixrow > td {
+    background: #fef2f2;
+}
+
+.dwp-fix {
+    border-color: #ef4444;
+    background: #fca5a5;
+    color: #7f1d1d;
+}
+
+.dwp-req {
+    border-color: #f59e0b;
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.dwp-act {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dwp-made {
+    margin-right: 6px;
+    color: #047857;
+    font-weight: 800;
+}
+
+.dwp-err {
+    margin: 8px 0 0;
+    color: var(--bs-danger, #dc3545);
+    font-weight: 600;
+    font-size: calc(14px * var(--foms-fs, 1));
+}
+
+/* [수정 시작] · [수정 취소] 확인 창 — 모양은 위 dfx-dialog, 본문 한 문장 · [수정 취소]는 빨강 */
+.dwp-dialog__text {
+    margin: 0;
+    font-size: calc(15px * var(--foms-fs, 1));
+    line-height: 1.55;
+}
+
+.dwp-btn--stop {
+    background: #dc3545;
+    color: #fff;
+}
+
+/* 요청사항 칸 공장 요청 줄(설계서 2026-11-25 §2-2 · §10, D4) — "수정 요청 · 공장"은 '공장 진행' 칸 표(.dwp-req)와 같은 주황.
+   상태 표 "미완료"는 회색 대신 주황(무채색 금지), "반영 완료"는 지금 초록(bg-success) 그대로. 반려 기록 줄 = 진한 빨강 글.
+   [요청 반려] 창 = 위 dfx-dialog · 사유 칸(꼭 적기) · [요청 반려] 빨강(.dwp-btn--stop). */
+.dfr-src {
+    margin-right: 4px;
+}
+
+.dfr-open {
+    border: 1px solid #f59e0b;
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.dfr-reject {
+    color: #842029;
+    font-weight: 600;
+}
+
+.dfr-note-input {
+    display: block;
+    width: 100%;
+    min-height: 88px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid #c5ced8;
+    border-radius: 8px;
+    font: inherit;
+    font-size: calc(15px * var(--foms-fs, 1));
+    resize: vertical;
+}
+
+.dfr-dialog-error {
+    margin-top: 8px;
+}

@@ -16,7 +16,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from sqlalchemy import or_
+from sqlalchemy import not_
 
 from models import Order
 from foms.services.datetime_kst import get_today_kst
@@ -24,6 +24,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
 from foms.services.production.part_card_state import order_block
+from foms.services.production.ship_dates import PAST_DAYS, live_condition, row_due, ship_fields
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from foms.services.production_read_model import (
@@ -194,19 +195,29 @@ def _by_parts(row: dict[str, Any]) -> list[dict[str, str]]:
     return parts
 
 
-#: 시공일이 이보다 더 지난 주문은 맨 아래 "지난 시공일" 한 묶음으로 모은다(스테이징 실측 11-09: 139일 지난
+#: 출고일이 이보다 더 지난 주문은 맨 아래 "지난 시공일" 한 묶음으로 모은다(스테이징 실측 11-09: 139일 지난
 #: 도면 대기 주문이 첫 줄에 오고 33묶음 중 대부분이 지난 날짜였다 — 작업자에겐 오늘·이번 주가 먼저다).
-PRODUCTION_HOME_PAST_DAYS = 7
+PRODUCTION_HOME_PAST_DAYS = PAST_DAYS
 PAST_GROUP_KEY = 'past'
+#: 출고일 없는 묶음 · 장 이름(줄의 시공일 표 '시공일 없음' 은 진짜 시공일이 없다는 뜻이라 그대로 둔다).
+NO_SHIP_LABEL = '출고일 없음'
+
+
+def _group_sort_key(row: dict[str, Any]) -> tuple[int, str]:
+    """찾기 묶음 순서 — 판정 기준 출고일(``day_key``) 빠른 순, 출고일 없음 맨 뒤(같은 날은 지금 순서)."""
+    day = _parse_date(row.get('day_key'))
+    return (0, day.isoformat()) if day else (1, '')
 
 
 def production_home_groups(
     rows: list[dict[str, Any]], today: datetime.date | None = None, *, past_hidden: int = 0
 ) -> list[dict[str, Any]]:
-    """날짜 묶음(모바일 실측 탭처럼 접었다 펴는 단위). 행은 이미 시공일 순이라 연속 구간만 자른다.
+    """날짜 묶음(모바일 실측 탭처럼 접었다 펴는 단위). 묶음 열쇠 = 행의 ``day_key``(판정 기준 출고일, 사장님 2026-11-25
+    "출고 일정 = 제작 일정") — 행을 그 날 순으로 세운 뒤 연속 구간을 자르고, 머리 글은 그 날에서 만든다.
     ``past_hidden`` = 캡에 밀려 안 읽은 지난 주문 수(``build_production_home``) — 지난 묶음 머리줄에 적는다.
 
-    - 시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 보다 더 지난 행은 맨 아래 "지난 시공일" 한 묶음(접힘)으로.
+    - 출고일이 ``PRODUCTION_HOME_PAST_DAYS`` 보다 더 지난 행은 맨 아래 "지난 출고일" 한 묶음(접힘, 최근 것부터)으로.
+      출고일이 없는 행 묶음 이름은 "출고일 없음"(사장님 2026-11-25 "모두 '출고'로").
       일주일 안에 지난 것은 아직 급한 일이라 제자리(맨 위)에 둔다.
     - 처음 펼쳐 두는 묶음 = 오늘·내일. 둘 다 없으면 첫 묶음 하나만 펼친다(화면이 비어 보이지 않게).
     - 묶음마다 ``arrival`` = 머리의 도면 글(띠와 같은 글 · 색), 묶음 안 순서 = 기다림 → 생산 → 제작 완료(같은 칸 안은 지금 순서,
@@ -216,10 +227,10 @@ def production_home_groups(
     cutoff = today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)
     groups: list[dict[str, Any]] = []
     past: dict[str, Any] = {
-        'key': PAST_GROUP_KEY, 'label': f"지난 시공일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)", 'sub': '',
+        'key': PAST_GROUP_KEY, 'label': f"지난 출고일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)", 'sub': '',
         'is_today': False, 'is_open': False, 'rows': [], 'changed': 0,
     }
-    for row in rows:
+    for row in sorted(rows, key=_group_sort_key):
         day = _parse_date(row.get('day_key'))
         if day is not None and day < cutoff:
             past['rows'].append(row)
@@ -227,14 +238,11 @@ def production_home_groups(
                 past['changed'] += 1
             continue
         if not groups or groups[-1]['key'] != row['day_key']:
+            head = production_home_day(day, today)
+            label = head['label'] if day is not None else NO_SHIP_LABEL  # 묶음 이름은 출고일(줄의 '시공일 없음' 표와 다르다)
             groups.append({
-                'key': row['day_key'],
-                'label': row['day_label'],
-                'sub': row['day_sub'],
-                'is_today': bool(row['day_is_today']),
-                'is_open': bool(row['day_is_today']) or str(row['day_label']).startswith('내일'),
-                'rows': [],
-                'changed': 0,
+                'key': row['day_key'], 'label': label, 'sub': head['sub'], 'is_today': head['is_today'],
+                'is_open': head['is_today'] or head['label'].startswith('내일'), 'rows': [], 'changed': 0,
             })
         groups[-1]['rows'].append(row)
         if row.get('has_changes'):
@@ -242,6 +250,7 @@ def production_home_groups(
     if groups and not any(g['is_open'] for g in groups):
         groups[0]['is_open'] = True
     if past['rows'] or past_hidden:
+        past['rows'].sort(key=lambda r: r['day_key'], reverse=True)  # 최근 것부터(같은 날은 지금 순서)
         for row in past['rows']:
             row['day_key'] = PAST_GROUP_KEY  # 카드의 data-day 가 묶음 키와 같아야 거르기가 맞다
         if past_hidden:
@@ -277,6 +286,7 @@ def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str,
             'day_label': row.get('day_label') or '',
             'day_sub': row.get('day_sub') or '',
             'day_is_today': bool(row.get('day_is_today')),
+            'ship_mark': row.get('ship_mark'),
             'alerts': alerts,
         })
     for tomb in tombstones or []:
@@ -305,15 +315,16 @@ def production_home_queue_key(row: dict[str, Any]) -> str | None:
 
 
 def _due_sort_key(row: dict[str, Any]) -> tuple[int, str, int]:
-    """공정 줄·곧 올 것 순서 = 시공일 빠른 순(지난 날이 맨 앞) · 시공일 없음 맨 뒤 · 같은 날은 주문 번호 순(M2)."""
-    day = _parse_date(row.get('construction_date'))
+    """공정 줄·곧 올 것 순서 = 출고일(판정 기준 날, ``ship_dates.row_due``) 빠른 순(지난 날이 맨 앞) · 출고일 없음 맨 뒤 ·
+    같은 날은 주문 번호 순(M2)."""
+    day = row_due(row)
     return (0, day.isoformat(), int(row.get('id') or 0)) if day else (1, '', int(row.get('id') or 0))
 
 
 def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date | None = None) -> dict[str, Any]:
     """탭 "내 공정"(안 3): 공정 4탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
 
-    위 안내의 ``deadline_missed`` = 도면 마감이 지났는데 아직 안 내려온 집(시공일 ≥ 오늘만 — 시공일이 이미 지난 옛 주문은
+    위 안내의 ``deadline_missed`` = 도면 마감이 지났는데 아직 안 내려온 집(기준 출고일 ≥ 오늘만 — 이미 지난 옛 주문은
     안 센다, 설계서 2026-11-22-production-drawing-arrival-upgrade §5-4). 같은 행의 ``dw_state``(쿼리 0).
 
     줄 아래 "곧 올 것" = 바로 앞 공정에 와 있는 주문(재단은 제작 대기) — 줄이 적어도 화면이 비지 않는다(사용자 11-10).
@@ -336,9 +347,9 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
         elif row.get('home_view') == 'prod' and row.get('home_stage') == '검수 끝':
             finished += 1
     waiting_rows.sort(key=_due_sort_key)
-    today_iso = (today or get_today_kst()).isoformat()
+    today = today or get_today_kst()
     missed = sum(1 for r in rows if r.get('home_view') == 'wait' and r.get('dw_state') == DEADLINE_LATE
-                 and str(r.get('construction_date') or '')[:10] >= today_iso)
+                 and (row_due(r) or datetime.date.min) >= today)
     prev: dict[str, Any] | None = None
     for q in queues:
         q['rows'].sort(key=_due_sort_key)
@@ -374,22 +385,20 @@ def build_production_home(
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """첫 화면 행 + 통계 ``{'past_hidden', 'total'}``(total = 캡과 무관한 실제 총계). 쿼리 4회 + run(id · 시작 시각) 1회.
 
-    시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 안이거나 앞날·미정인 주문은 **전부** 읽는다(일거리). 그보다 지난 주문은
-    최근 것부터 ``PRODUCTION_KANBAN_MAX_ROWS`` 에 남는 자리만 채운다 — 운영 실측(2026-11-09)에서 옛 주문이
-    300건을 넘어 시공일 오름차순 캡이 최근·앞날 주문을 통째로 잘랐다(이번 주·내 공정 탭이 0).
-    ``erp_construction_date`` 는 'YYYY-MM-DD' 문자열이라 ISO 문자열 비교가 날짜 비교와 같다(빈 문자열은 미정).
+    출고일(:mod:`foms.services.production.ship_dates`)이 ``PRODUCTION_HOME_PAST_DAYS`` 안이거나 앞날·미정일 수 있는 주문은
+    **전부** 읽는다(일거리 — :func:`~foms.services.production.ship_dates.live_condition`: 납작 열이 오래됐어도 다른 시공일 ·
+    지방 상차 예정일이 그 안이면 읽는다). 나머지(출고일이 모두 더 지난 주문)는 최근 것부터 ``PRODUCTION_KANBAN_MAX_ROWS`` 에
+    남는 자리만 채운다 — 운영 실측(2026-11-09)에서 옛 주문이 300건을 넘어 시공일 오름차순 캡이 최근·앞날 주문을 통째로 잘랐다.
+    날 칸은 'YYYY-MM-DD' 문자열이라 ISO 문자열 비교가 날짜 비교와 같다(빈 문자열은 미정).
     """
     today = today or get_today_kst()
     cutoff = (today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)).isoformat()
     base = build_production_orders_query(
         db, user, '', '', False, partner_org, stage_codes=PRODUCTION_HOME_STAGE_CODES
     )
-    live_q = base.filter(or_(
-        Order.erp_construction_date.is_(None), Order.erp_construction_date == '',
-        Order.erp_construction_date >= cutoff,
-    ))
-    orders = apply_production_dashboard_sort(live_q, '', '').all()
-    past_q = base.filter(Order.erp_construction_date < cutoff)
+    live = live_condition(cutoff)
+    orders = apply_production_dashboard_sort(base.filter(live), '', '').all()
+    past_q = base.filter(not_(live))
     past_total = past_q.order_by(None).count()
     live_count = len(orders)
     room = max(0, PRODUCTION_KANBAN_MAX_ROWS - len(orders))
@@ -405,19 +414,21 @@ def build_production_home(
     run_ids = set(run_starts)
     rows = build_production_home_enriched_rows(orders, run_ids)
     alerts_by_id = collect_production_change_alerts(db, orders, user.id if user else None, with_ack_time=True)
-    # 장 나누기도 캡·정렬과 같은 출처(납작 열)로 — 행의 construction_date 는 JSONB 라 직접 SQL 로 고친 옛 주문에서
-    # 어긋나면 "앞날이라 읽은 주문이 지난 시공일 장에" 선다(R6, 11-11). 이 행 사전은 첫 화면 전용이다.
-    flat_dates = {o.id: o.erp_construction_date for o in orders}
+    # 출고 칸(출고일 전부 · 판정 기준 날 · 상차/희망일 표)은 읽은 주문 칸에서(쿼리 0). 장 · 묶음 · 마감 · 늦음 · 줄 차례가 이 값을
+    # 같이 쓴다(사장님 2026-11-25 "출고 일정 = 제작 일정"). ``construction_date`` 는 납작 열 그대로(옛 행 꼴 · 시험용).
+    by_id = {o.id: o for o in orders}
 
     for row in rows:
-        row['construction_date'] = flat_dates.get(row['id'])
+        order = by_id[row['id']]
+        row['construction_date'] = order.erp_construction_date
+        row.update(ship_fields(order, today))
         sd = row.get('structured_data') or {}
         raw_stage = row.get('raw_stage')
         has_run = row['id'] in run_ids
         in_production = raw_stage in _PRODUCTION_STAGES and has_run
         steps = production_home_steps(sd, mark_now=in_production)
         big, sub, view = production_home_stage(raw_stage, has_run, steps, bool(row.get('hold_active')))
-        day = production_home_day(row.get('construction_date'), today)
+        day = production_home_day(row['build_day'], today)  # 줄의 "시공 11/28" 표 = 진짜 시공일(판정 날과 같은 규칙)
         # 바뀐 것(숫자·받은함·빨간 테두리·정렬·찾기 거르기)은 생산팀이 만들 주문만 — 도면·컨펌 기다림과 제작 완료는
         # 알림이 있어도 치지 않는다(사용자 D20 11-10 "만들 주문만": 운영 '바뀐 것 218' 대부분이 도면 단계 재전달이었다).
         change = (alerts_by_id.get(row['id']) or {}) if view == 'prod' else {}
@@ -435,7 +446,7 @@ def build_production_home(
         row['home_stage_sub'] = sub
         row['home_view'] = view
         row['home_soon'] = view == 'wait'
-        row['day_key'] = day['key']
+        row['day_key'] = row['ship_due'].isoformat() if row['ship_due'] else 'none'  # 찾기 묶음 열쇠 = 판정 기준 출고일
         row['day_label'] = day['label']
         row['day_sub'] = day['sub']
         row['day_is_today'] = day['is_today']

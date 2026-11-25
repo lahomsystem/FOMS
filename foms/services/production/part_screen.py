@@ -17,6 +17,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.part_holders import attach_part_holders
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS, PRODUCTION_PART_LABELS
 from foms.services.production.part_marks_query import my_old_claims
+from foms.services.production.ship_dates import pane_slots
 from models import ProductionPartMark
 
 _WEEKDAY_KO = "월화수목금토일"
@@ -47,17 +48,17 @@ def read_screen_marks(db: Any, rows: list[dict[str, Any]], today: datetime.date)
     return marks
 
 
-def _day_label(day_key: str) -> str:
-    try:
-        day = datetime.date.fromisoformat(day_key)
-    except (TypeError, ValueError):
-        return "시공일 없음"
-    return f"시공 {day.month}/{day.day} ({_WEEKDAY_KO[day.weekday()]})"
+def _day_label(day: Optional[datetime.date]) -> str:
+    """아침 칩 줄 이름 — 그 주문이 선 장의 출고일(사장님 2026-11-25 "모두 '출고'로")."""
+    if day is None:
+        return "출고일 없음"
+    return f"출고 {day.month}/{day.day} ({_WEEKDAY_KO[day.weekday()]})"
 
 
 def morning_chip(db: Any, user: Any, parts: Any, rows: list[dict[str, Any]],
                  today: datetime.date) -> Optional[dict[str, Any]]:
-    """아침 칩 "어제부터 내 담당 2장" — 시공일마다 몇 장인지(작은 창 [보기] 링크용).
+    """아침 칩 "어제부터 내 담당 2장" — 출고일마다 몇 장인지(작은 창 [보기] 링크용 — 그 주문이 선 첫 날짜 장, 띠와 같은
+    ``ship_dates.pane_slots``. 오늘 나가는 주문은 '지난 7일' 장으로 간다, 사장님 2026-11-25 "내일 부터").
 
     지금 확정 도면 장(옛 판 key 는 뺀다) · 생산 줄만 센다. 하나도 없으면 None(칩을 안 그린다). 칩 숫자 = 내 파트 전부의 합.
     파트가 여럿이면 줄을 시공일 · 파트마다 나누고 줄에 파트 이름(``part_label``)과 그 파트(``part``)를 싣는다 — [보기]가 그 파트
@@ -81,20 +82,25 @@ def morning_chip(db: Any, user: Any, parts: Any, rows: list[dict[str, Any]],
         return None
     by_id = {int(r["id"]): r for r in prod}
     split = len(parts) > 1
-    counts: dict[tuple[str, str], int] = {}
+    counts: dict[tuple[str, str, str], int] = {}
+    days_of: dict[str, Optional[datetime.date]] = {}
     for mark in claims:
         row = by_id.get(int(mark.order_id))
         keys = {e["key"] for e in resolve_final_drawing_files((row or {}).get("structured_data") or {})}
         if row is None or mark.drawing_key not in keys:
             continue
-        slot = (row.get("day_key") or "", str(mark.part) if split else "")
+        pane, day = pane_slots(row, today)[0]
+        day_iso = day.isoformat() if day else ""
+        days_of[day_iso] = day
+        slot = (day_iso, pane, str(mark.part) if split else "")
         counts[slot] = counts.get(slot, 0) + 1
     if not counts:
         return None
     order = {key: i for i, key in enumerate(PRODUCTION_PART_KEYS)}
-    days = [{"key": key, "label": _day_label(key), "count": n, "part": part or None,
+    ranked = sorted(counts.items(), key=lambda kv: (not kv[0][0], kv[0][0], order.get(kv[0][2], -1)))  # 날 없음 맨 뒤
+    days = [{"key": pane, "label": _day_label(days_of[day_iso]), "count": n, "part": part or None,
              "part_label": PRODUCTION_PART_LABELS.get(part) if part else None}
-            for (key, part), n in sorted(counts.items(), key=lambda kv: (kv[0][0], order.get(kv[0][1], -1)))]
+            for (day_iso, pane, part), n in ranked]
     return {"count": sum(counts.values()), "days": days}
 
 

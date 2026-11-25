@@ -27,6 +27,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.drawing_fix_marks import release_on_stage_exit
 from foms.services.orders.status_constants import (
     BULK_ACTION_STATUS,
     STATUS,
@@ -296,6 +297,9 @@ def _sync_erp_stage(order: Order, new_status: str, user_id: Any, db: Any, *, bul
         workflow["stage"] = new_status
         workflow["stage_updated_at"] = now_utc_naive().isoformat()
         structured_data["workflow"] = workflow
+        # 생산 밖으로 나가면 도면팀 [수정 시작] 표시도 같은 쓰기에서 지운다(설계서 2026-11-25 · 사장님 답 "둘 다").
+        release_on_stage_exit(db, order.id, structured_data, from_stage=old_stage, to_stage=new_status, user_id=user_id,
+                              at=workflow["stage_updated_at"] + "Z")
         setattr(order, "structured_data", structured_data)
         flag_modified(order, "structured_data")
         sync_erp_flat_columns(order, structured_data)

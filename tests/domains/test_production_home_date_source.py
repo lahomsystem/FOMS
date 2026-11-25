@@ -1,10 +1,10 @@
-"""생산팀 첫 화면 시공일 출처 한 벌(R6, 2026-11-11).
+"""생산팀 첫 화면 날짜 출처 한 벌(R6 2026-11-11 → 출고일 2026-11-25).
 
-첫 화면은 주문을 시공일로 두 번 가른다 — SQL(``Order.erp_construction_date`` 납작 열)로 "7일 넘게 지난 것"을
-골라 개수 제한을 걸고, 파이썬으로 날짜 장·묶음을 나눈다. 행의 ``construction_date`` 는
-``structured_data.schedule.construction.date``(JSONB)에서 오므로, 저장 때 맞추는 ``sync_erp_flat_columns`` 를
-거치지 않은 옛 데이터(직접 SQL 로 고친 것)에서 두 값이 어긋나면 SQL 은 "앞날 주문"이라고 가져온 주문을
-화면은 "지난 시공일" 장에 넣었다(거꾸로도). 고침: 첫 화면 읽기 모델 안에서 장 나누기도 납작 열을 쓴다.
+첫 화면은 주문을 두 번 가른다 — SQL 로 "7일 넘게 지난 것"을 골라 개수 제한을 걸고, 파이썬으로 날짜 장·묶음을 나눈다.
+예전(R6)에는 둘 다 납작 열(``Order.erp_construction_date``)을 썼다. 이제 장 · 묶음은 출고일(``ship_dates`` — 시공일 전부는
+``structured_data`` 의 ``all_construction_dates``, 출고 화면 일정 표와 같은 출처, 사장님 2026-11-25)로 나누고, SQL 경계는
+납작 열에 더해 일정 표 · 지방 상차 예정일도 본다(``ship_dates.live_condition``). 그래서 납작 열과 JSONB 가 어긋난 옛 데이터도
+"앞날 출고가 있는 주문"은 캡에 밀리지 않고, 장은 JSONB 날로 선다.
 """
 
 from __future__ import annotations
@@ -59,30 +59,31 @@ def _names(rows) -> list[str]:
     return sorted(r["customer_name"] for r in rows)
 
 
-def test_어긋난_옛_주문도_SQL_이_가른_자리와_같은_장에_선다(client, monkeypatch) -> None:
+def test_어긋난_옛_주문도_출고일로_읽고_그_장에_선다(client, monkeypatch) -> None:
     user = _make_user("home_date_src_staff")
     _add_order("앞날", 3, 3)
-    _add_order("납작은앞날", 2, -60)    # SQL: 앞날(전부 읽음) · JSONB: 60일 지남
-    _add_order("납작은옛날", -50, 1)    # SQL: 지난 것(캡 대상) · JSONB: 내일
+    _add_order("납작은앞날", 2, -60)    # 납작 열: 앞날(전부 읽음) · 출고일(JSONB): 60일 지남
+    _add_order("납작은옛날", -50, 1)    # 납작 열: 지난 것 · 출고일(JSONB · 일정 표): 내일 → 캡에 안 밀린다
     _add_order("옛주문", -30, -30)
     monkeypatch.setattr(home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 3)
 
     rows, stats = build_production_home(db_session, user)
-    # 앞날 2건 전부 + 지난 것 중 최근 1건(옛주문 -30) — 납작은옛날(-50)은 캡에 밀린다
-    assert _names(rows) == ["납작은앞날", "앞날", "옛주문"]
+    # 출고일이 7일 안 · 앞날일 수 있는 3건 전부 — 출고일이 모두 지난 옛주문(-30)만 캡에 밀린다
+    assert _names(rows) == ["납작은앞날", "납작은옛날", "앞날"]
     assert stats == {"past_hidden": 1, "total": 4}
 
     days = production_home_days(rows, get_today_kst(), past_hidden=stats["past_hidden"])
     panes = {p["key"]: p for p in days["panes"]}
-    # 장 나누기도 SQL 과 같은 출처 — 앞날로 읽힌 주문은 그 날 장에, 지난 장은 SQL 이 지난 것으로 가져온 것만
-    assert _names(panes[_iso(2)]["make_rows"]) == ["납작은앞날"]
-    assert _names(panes["past"]["make_rows"]) == ["옛주문"]
+    # 장은 출고일(JSONB) — 납작 열이 옛날이어도 내일 출고면 내일 장, 납작 열이 앞날이어도 출고일이 지났으면 지난 출고일 장
+    assert _names(panes[_iso(1)]["make_rows"]) == ["납작은옛날"]
+    assert _names(panes[_iso(3)]["make_rows"]) == ["앞날"]
+    assert _names(panes["past"]["make_rows"]) == ["납작은앞날"]
     assert panes["past"]["hidden"] == 1
-    assert panes[_iso(1)]["total"] == 0
+    assert panes[_iso(2)]["total"] == 0
 
     groups = production_home_groups(rows, get_today_kst(), past_hidden=stats["past_hidden"])
-    assert [g["key"] for g in groups] == [_iso(2), _iso(3), "past"]
-    assert _names(groups[-1]["rows"]) == ["옛주문"]
+    assert [g["key"] for g in groups] == [_iso(1), _iso(3), "past"]
+    assert _names(groups[-1]["rows"]) == ["납작은앞날"]
     assert len({g["key"] for g in groups}) == len(groups)  # 같은 날 묶음이 두 번 서지 않는다
 
 

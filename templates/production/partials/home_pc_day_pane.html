@@ -6,9 +6,9 @@
 {% from 'production/partials/home_pc_macros.html' import pc_row, pc_mini %}
 {% from 'production/partials/home_date_macros.html' import fph_wait_head %}
 <section class="fph-pane fpc-pane" data-foms-home-daypane="{{ d.key }}">
-  <h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }}{% if d.arrival %} · <span class="fph-dwst is-{{ d.arrival.state }}">{{ d.arrival.pane }}</span>{% endif %}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
+  <h2 class="fph-pane__h">{{ d.title }} <small>출고 {{ d.total }}건 · 만들 것 {{ d.make }}{% if d.arrival %} · <span class="fph-dwst is-{{ d.arrival.state }}">{{ d.arrival.pane }}</span>{% endif %}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
   {% if not d.total and not d.note %}
-  <p class="fph-pane__none">이 날은 시공이 없어요.</p>
+  <p class="fph-pane__none">이 날은 출고가 없어요.</p>
   {% endif %}
   {% if d.wait_rows %}
   <h3 class="fph-pane__g">도면·컨펌 기다림 {{ d.wait_rows | length }} <small>{{ fph_wait_head(d.wait_head) }}도면이 오면 아래로 내려가요</small></h3>

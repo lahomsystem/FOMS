@@ -1003,6 +1003,9 @@
               title="담당자 변경">
               <i class="fas fa-user-edit"></i>
             </button>
+            {%- if production_sheet_url %}
+            <a class="btn btn-sm btn-outline-primary ms-2" href="{{ production_sheet_url }}" target="_blank" rel="noopener">생산 작업 시트 열기</a>
+            {%- endif %}
           </div>
         </div>
         <div class="dw-detail-header-right">
@@ -1375,6 +1378,7 @@
         <div class="small text-muted mb-2">
           타임라인/요청/파일비교는 보조 정보로 접어두고 필요 시 열어 확인합니다.
         </div>
+        {%- if fix_progress %}{% include 'drawing/partials/workbench_fix_progress.html' %}{% endif %}
 
         <details class="dw-secondary-collapse" {% if active_tab=='timeline' or (order_change_pending and active_tab not in ('requests', 'compare')) %}open{% endif %}>
           <summary>
@@ -1444,10 +1448,11 @@
         <details class="dw-secondary-collapse" {% if active_tab=='requests' %}open{% endif %}>
           <summary>
             <span><i class="fas fa-comments"></i> 요청사항</span>
-            <span class="badge bg-light text-dark border">{{ revision_requests|length if revision_requests else 0
-              }}</span>
+            <span class="badge bg-light text-dark border">{{ (revision_requests|length if revision_requests else 0)
+              + (factory_requests|length if factory_requests else 0) }}</span>
           </summary>
           <div class="dw-secondary-body">
+            {%- if factory_requests %}{% include 'drawing/partials/workbench_fix_requests.html' %}{% endif %}
             {% if revision_requests %}
             {% for r in revision_requests %}
             {% set review = r.review_check if r.review_check is mapping else {} %}
@@ -1486,7 +1491,7 @@
               {% endif %}
             </div>
             {% endfor %}
-            {% else %}
+            {% elif not factory_requests %}
             <div class="text-muted small">수정 요청 이력이 없습니다.</div>
             {% endif %}
           </div>
@@ -1840,7 +1845,7 @@
         {% endif %}
         {% if drawing_hotfix_stage %}
         {#- 생산·시공 단계 수정본(설계서 2026-11-25 §2-3, D2) — '바뀐 도면' 줄 · 파일 도면 고르기 · 메모 꼭 적기 · 보내기 전 확인 창 -#}
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125c">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125e">
         <script src="{{ url_for('static', filename='js/drawing/drawing-fix-send.js') }}?v=20261125c" defer></script>
         <script src="{{ url_for('static', filename='js/drawing/drawing-fix-picks.js') }}?v=20261125b" defer></script>
         <script src="{{ url_for('static', filename='js/drawing/workbench-transfer-fix.js') }}?v=20261125d" defer></script>

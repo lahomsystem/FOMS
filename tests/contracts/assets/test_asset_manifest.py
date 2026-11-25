@@ -32,7 +32,7 @@ from tests.support.asset_urls import (
 )
 
 PILOT_TEMPLATE_NAME = "orders/partials/erp_order_js.html"
-PILOT_ASSET_COUNT = 51  # CSS 17 · JS 34 (계획서 §1 + 2026-10-15 할인 항목 줄 CSS·JS + 2026-10-30 담당자 뱃지 CSS·JS + 2026-11-02 실측 끝 · 도면 넘기기 JS + 2026-11-04 출고팀 시공일 화면 JS + 2026-11-09 AS 접수 초안 보관 JS + 2026-11-11 완료 주문 AS 도면 묶음 CSS·JS + 2026-11-20 같은 고객 진행 중 주문 안내 JS + 2026-11-21 AS 접수 취소 JS + 2026-11-21 제품마다 시공 끝 JS + 2026-11-24 네이버 쿠폰 표시 CSS·JS)
+PILOT_ASSET_COUNT = 53  # CSS 18 · JS 35 (계획서 §1 + 2026-10-15 할인 항목 줄 CSS·JS + 2026-10-30 담당자 뱃지 CSS·JS + 2026-11-02 실측 끝 · 도면 넘기기 JS + 2026-11-04 출고팀 시공일 화면 JS + 2026-11-09 AS 접수 초안 보관 JS + 2026-11-11 완료 주문 AS 도면 묶음 CSS·JS + 2026-11-20 같은 고객 진행 중 주문 안내 JS + 2026-11-21 AS 접수 취소 JS + 2026-11-21 제품마다 시공 끝 JS + 2026-11-24 네이버 쿠폰 표시 CSS·JS + 2026-11-25 여러 날짜 달력 CSS·JS)
 PILOT_IMAGE_COUNT = 4  # 결제 아이콘 — 버전 없는 이미지는 그대로 둔다
 
 _HASH_VERSION = re.compile(r"^[0-9a-f]{12}$")
@@ -227,8 +227,8 @@ def test_pilot_template_source_uses_asset_url_for_every_css_js() -> None:
     calls = _ASSET_URL_CALL.findall(source)
     assert len(calls) == PILOT_ASSET_COUNT, calls
     assert len(set(calls)) == PILOT_ASSET_COUNT, "같은 자산이 두 번 실렸다"
-    assert sum(c.endswith(".css") for c in calls) == 17
-    assert sum(c.endswith(".js") for c in calls) == 34
+    assert sum(c.endswith(".css") for c in calls) == 18
+    assert sum(c.endswith(".js") for c in calls) == 35
     assert not _DATE_PIN_URL_FOR.search(source), "시범 파일에 손 날짜 핀(?v=)이 남았다"
     assert "?v=" not in source
     images = re.findall(r"url_for\('static', filename='(images/[^']+\.png)'\)", source)

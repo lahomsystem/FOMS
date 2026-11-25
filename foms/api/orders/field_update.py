@@ -6,6 +6,7 @@ import copy
 import datetime
 import uuid
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.drawing_fix_marks import release_on_stage_exit
 from typing import Any, Callable
 
 from flask import current_app, jsonify, request, session
@@ -802,8 +803,12 @@ def update_order_field_from_payload(
             # SCHEDULED 등 물류 중간상태는 workflow.stage를 오염시키지 않는다.
             if should_sync_workflow_stage_on_status(value):
                 workflow = ensure_path(structured_data, "workflow")
+                stage_before = workflow.get("stage")
                 workflow["stage"] = value
                 workflow["stage_updated_at"] = now_utc_naive().isoformat()
+                # 생산 밖으로 나가면 도면팀 [수정 시작] 표시도 같은 쓰기에서 지운다(설계서 2026-11-25 · 사장님 답 "둘 다").
+                release_on_stage_exit(db, order.id, structured_data, from_stage=stage_before, to_stage=value,
+                                      user_id=getattr(user, "id", None), at=workflow["stage_updated_at"] + "Z")
                 structured_changed = True
         if as_overlay_kept:
             value = as_overlay_kept  # 감사 · 접근로그 에코는 실제 저장된 상태 글(AS 표시)로

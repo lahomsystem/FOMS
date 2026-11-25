@@ -23,6 +23,11 @@ from tests.domains.test_production_home_tabs import HOME, ROOT, _add_order, _mak
 
 # ── 리뷰 고침 묶음(원장 §16 R1·R2·R3·R5·R10, 2026-11-10) ──
 
+def _first_key() -> str:
+    """처음 여는 장 열쇠 = 내일(띠의 날 줄은 내일부터, 사장님 2026-11-25)."""
+    return (get_today_kst() + datetime.timedelta(days=1)).isoformat()
+
+
 def _reload_href(html: str) -> str:
     return re.search(r'data-foms-home-reload[^>]*? href="([^"]*)"', html).group(1)
 
@@ -37,12 +42,13 @@ def test_보류는_생산_단계만_도면_컨펌_보류는_기다림() -> None:
 
 def test_내_공정_탭_숫자는_공정_줄_합과_같다_보류_run_없음_포함(client) -> None:
     _make_user(client, "tabs_prod_r1", "PRODUCTION")
-    _add_order("PRODUCTION", "보류런없음", 0, hold=True)
-    _add_order("PRODUCTION", "보류런있음", 0, steps_done=("cut",), with_run=True, hold=True)
-    _add_order("DRAWING", "도면보류", 0, hold=True)
-    _add_order("PRODUCTION", "재단차례", 0, with_run=True)
-    _add_order("PRODUCTION", "아직대기", 0)
-    _add_order("PRODUCTION", "다끝남", 0, steps_done=tuple(k for k, _ in _PRODUCTION_STEP_DEFS), with_run=True)
+    # 처음 여는 장 = 내일(띠의 날 줄은 내일부터, 사장님 2026-11-25)
+    _add_order("PRODUCTION", "보류런없음", 1, hold=True)
+    _add_order("PRODUCTION", "보류런있음", 1, steps_done=("cut",), with_run=True, hold=True)
+    _add_order("DRAWING", "도면보류", 1, hold=True)
+    _add_order("PRODUCTION", "재단차례", 1, with_run=True)
+    _add_order("PRODUCTION", "아직대기", 1)
+    _add_order("PRODUCTION", "다끝남", 1, steps_done=tuple(k for k, _ in _PRODUCTION_STEP_DEFS), with_run=True)
 
     steps_html = client.get(HOME + "?tab=steps").get_data(as_text=True)
     lane_counts = [int(n) for n in re.findall(r'data-foms-home-steptab="[a-z]+"[^>]*>[^<]+<small>(\d+)</small>', steps_html)]
@@ -53,7 +59,7 @@ def test_내_공정_탭_숫자는_공정_줄_합과_같다_보류_run_없음_포
     # 날짜 탭: 도면 단계 보류는 큰 줄이 아니라 도면·컨펌 기다림 칸, 큰 줄 클래스 = 제작 대기 w · 만드는 중/보류 p · 검수 끝 f
     date_html = client.get(HOME).get_data(as_text=True)
     assert f">내 공정 <small>{sum(lane_counts)}</small></a>" in date_html
-    pane = _pane(date_html, get_today_kst().isoformat())
+    pane = _pane(date_html, _first_key())
     assert "만들 것 5 · <span class=\"fph-dwst is-late\">도면 5/6 내려옴</span>" in pane and ">도면·컨펌 기다림 1 <small>" in pane
     big = {m.group(2).strip(): m.group(1) for m in re.finditer(
         r'<a class="fph-dr is-([wfp])[^"]*"[^>]*>.*?fph-dr__nm"><b>([^<]+)</b> <small>', pane, re.S)}
@@ -76,17 +82,20 @@ def test_바뀐_것_숫자에_취소_주문이_모든_탭에서_든다(client) -
 
 def test_다시_받기_주소는_직접_고른_날만_붙인다(client) -> None:
     _make_user(client, "tabs_prod_r3", "PRODUCTION")
-    _add_order("PRODUCTION", "사흘뒤", 3)  # 오늘이 비어 자동으로 사흘 뒤 장이 열린다
+    _add_order("PRODUCTION", "사흘뒤", 3)  # 내일(처음 여는 장)이 비어 자동으로 사흘 뒤 장이 열린다
     today_key = get_today_kst().isoformat()
+    first_key = _first_key()
     auto = client.get(HOME).get_data(as_text=True)
     assert 'aria-current="true"' in auto.split(f'data-foms-home-daybtn="{(get_today_kst() + datetime.timedelta(days=3)).isoformat()}"')[1].split("</a>")[0]
     assert _reload_href(auto) == HOME
-    assert _reload_href(client.get(HOME + f"?day={today_key}").get_data(as_text=True)) == f"{HOME}?day={today_key}"
+    assert _reload_href(client.get(HOME + f"?day={first_key}").get_data(as_text=True)) == f"{HOME}?day={first_key}"
+    assert _reload_href(client.get(HOME + f"?day={today_key}").get_data(as_text=True)) == HOME  # 오늘 날 줄은 없다(모르는 값)
     assert _reload_href(client.get(HOME + "?day=recent").get_data(as_text=True)) == f"{HOME}?day=recent"
     assert _reload_href(client.get(HOME + "?day=뭐지").get_data(as_text=True)) == HOME
     assert _reload_href(client.get(HOME + "?tab=steps").get_data(as_text=True)) == f"{HOME}?tab=steps"
     days = production_home_days([], datetime.date(2026, 11, 11))
-    assert days["auto"] and not production_home_days([], datetime.date(2026, 11, 11), "2026-11-11")["auto"]
+    assert days["auto"] and not production_home_days([], datetime.date(2026, 11, 11), "2026-11-12")["auto"]
+    assert production_home_days([], datetime.date(2026, 11, 11), "2026-11-11")["auto"]  # 오늘 열쇠는 장이 아니다
 
 
 def test_지난_시공일_장은_안_읽은_수가_있으면_없어요를_숨기고_단추에_같이(client, monkeypatch) -> None:
@@ -97,14 +106,17 @@ def test_지난_시공일_장은_안_읽은_수가_있으면_없어요를_숨기
     _add_order("PRODUCTION", "옛주문둘", -30)
     html = client.get(HOME + "?day=past").get_data(as_text=True)
     past = _pane(html, "past")
-    assert "더 오래된 2건은 안 보여요" in past and "이 날은 시공이 없어요." not in past
+    assert "더 오래된 2건은 안 보여요" in past and "이 날은 출고가 없어요." not in past
+    assert '<h2 class="fph-pane__h">지난 출고일 (7일 넘음) <small>출고 0건 · 만들 것 0 · 더 오래된 2건은 안 보여요</small>' in past
     assert "옛주문하나" not in past
     btn = html.split('data-foms-home-daybtn="past"')[1].split("</a>")[0]
-    assert btn.endswith(">지난 시공일 0건<small>2건 더</small>")  # 안 읽은 수는 둘째 줄 작은 글(M5)
+    assert btn.endswith(">지난 출고일 0건<small>2건 더</small>")  # 안 읽은 수는 둘째 줄 작은 글(M5)
     # 시공일 없음 장은 안 읽은 수가 없으니 '없어요' 그대로, 단추는 한 줄(small 없음)
-    assert "이 날은 시공이 없어요." in _pane(client.get(HOME + "?day=none").get_data(as_text=True), "none")
+    none_pane = _pane(client.get(HOME + "?day=none").get_data(as_text=True), "none")
+    assert '<h2 class="fph-pane__h">출고일 없음 <small>출고 0건 · 만들 것 0</small></h2>' in none_pane
+    assert '<p class="fph-pane__none">이 날은 출고가 없어요.</p>' in none_pane
     none_btn = html.split('data-foms-home-daybtn="none"')[1].split("</a>")[0]
-    assert none_btn.endswith(">시공일 없음 0건") and "<small>" not in none_btn
+    assert none_btn.endswith(">출고일 없음 0건") and "<small>" not in none_btn
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     assert ".fph-sf small { display: block; font-size: calc(12px * var(--foms-fs, 1));" in css
 
@@ -129,7 +141,7 @@ def test_제목_줄_탭은_보드_없이_찾기로_끝나고_레일_생산이_�
     nav = nav[: nav.index("</nav>")]
     assert "data-foms-home-board" not in nav and "/erp/production/dashboard" not in nav and "navtab--out" not in nav
     assert nav.rstrip().endswith(">찾기</a>")
-    assert "home.css?v=20261125b" in html
+    assert "home.css?v=20261125sd" in html
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
     tools = html[html.index('class="foms-prod-home__tools"'):]
     tools = tools[: tools.index("</header>")]
@@ -182,15 +194,15 @@ def test_날짜_장은_그날_주문만_미리_보기와_밀린_것이_없다(cl
     by = {b["key"]: b for b in days["panes"]}
     assert all("previews" not in b for b in days["panes"])
     assert [r["id"] for r in by["2026-11-12"]["make_rows"]] == [10, 11]  # 그날 주문만
-    assert [r["id"] for r in by["2026-11-11"]["make_rows"]] == [] and by["2026-11-11"]["total"] == 0
+    assert "2026-11-11" not in by  # 오늘 날 줄은 없다(사장님 2026-11-25 "내일 부터")
     assert [r["id"] for r in by["recent"]["make_rows"]] == [100 + i for i in range(7)]
     assert not hasattr(production_home_days_module, "PREVIEW_MAX_ROWS")
-    # 화면: 오늘 장에 지난 7일 주문 · 다른 날 주문이 없고, 미리 보기 · 밀린 것 머리도 없다
+    # 화면: 내일 장에 지난 7일 주문 · 다른 날 주문이 없고, 미리 보기 · 밀린 것 머리도 없다
     _make_user(client, "tabs_prod_m4", "PRODUCTION")
     _add_order("PRODUCTION", "밀린주문", -3)
     _add_order("PRODUCTION", "모레주문", 2)
-    pane = _pane(client.get(HOME + f"?day={get_today_kst().isoformat()}").get_data(as_text=True), get_today_kst().isoformat())
-    assert "밀린주문" not in pane and "모레주문" not in pane and "이 날은 시공이 없어요." in pane
+    pane = _pane(client.get(HOME + f"?day={_first_key()}").get_data(as_text=True), _first_key())
+    assert "밀린주문" not in pane and "모레주문" not in pane and "이 날은 출고가 없어요." in pane
     assert "미리 보기" not in pane and "밀린 것" not in pane and "fph-pane__g--next" not in pane
     for tpl in ("home_day_pane.html", "home_pc_day_pane.html"):
         assert "previews" not in (ROOT / "templates/production/partials" / tpl).read_text(encoding="utf-8"), tpl
@@ -199,11 +211,16 @@ def test_날짜_장은_그날_주문만_미리_보기와_밀린_것이_없다(cl
 def test_날짜_장_큰_줄_긴_이름은_말줄임으로_줄고_주문_번호는_밖에_남는다(client) -> None:
     """M6(11-11): 글자 150% 에서 긴 이름이 말줄임 없이 잘리고 #번호까지 밀려 사라졌다 — flex 칸엔 text-overflow 가 안 먹는다."""
     _make_user(client, "tabs_prod_m6", "PRODUCTION")
-    order = _add_order("PRODUCTION", "아주긴상호이름가구인테리어주식회사본점", 0)
-    pane = _pane(client.get(HOME).get_data(as_text=True), get_today_kst().isoformat())
+    order = _add_order("PRODUCTION", "아주긴상호이름가구인테리어주식회사본점", 1)
+    today_order = _add_order("PRODUCTION", "오늘나가는아주긴상호가구인테리어본점", 0)
+    pane = _pane(client.get(HOME).get_data(as_text=True), _first_key())
     # 시공일 표는 이름 칸 안 맨 뒤(11-21) — 이름(b)만 줄고 번호 · 시공일은 안 줄어든다
     assert (f'<span class="fph-dr__nm"><b>아주긴상호이름가구인테리어주식회사본점</b> <small>#{order.id}</small>'
-            '<span class="fph-due is-today" data-foms-home-due><i>시공</i><b>오늘 ' in pane)
+            '<span class="fph-due" data-foms-home-due><i>시공</i><b>내일 ' in pane)
+    # 오늘 표(is-today)를 단 큰 줄도 같은 꼴 — 오늘 나가는 주문은 날 줄이 없어 지난 7일 장에 선다(사장님 2026-11-25 "내일 부터")
+    recent = _pane(client.get(HOME + "?day=recent").get_data(as_text=True), "recent")
+    assert (f'<span class="fph-dr__nm"><b>오늘나가는아주긴상호가구인테리어본점</b> <small>#{today_order.id}</small>'
+            '<span class="fph-due is-today" data-foms-home-due><i>시공</i><b>오늘 ' in recent)
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     assert ".fph-dr__nm > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }" in css
     assert ".fph-dr__nm > small { flex-shrink: 0;" in css
@@ -212,15 +229,15 @@ def test_날짜_장_큰_줄_긴_이름은_말줄임으로_줄고_주문_번호�
 def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에_보인다(client) -> None:
     """사용자 11-11 "태블릿 생산 탭 메인 > 발주사, 영업 담당 표기": 날짜 큰 줄 · 내 공정 줄만. 빈 쪽은 빼고 둘 다 없으면 안 그린다."""
     _make_user(client, "tabs_prod_by", "PRODUCTION")
-    both = _add_order("PRODUCTION", "둘다있음", 0, with_run=True, orderer="한샘대리점", manager="김영업")
-    only_o = _add_order("PRODUCTION", "발주만", 0, with_run=True, orderer="리바트")
-    only_m = _add_order("PRODUCTION", "담당만", 0, with_run=True, manager="이담당")
-    none = _add_order("PRODUCTION", "둘다없음", 0, with_run=True, manager="-")
-    _add_order("DRAWING", "도면주문", 0, orderer="작은칸발주", manager="작은칸담당")
+    both = _add_order("PRODUCTION", "둘다있음", 1, with_run=True, orderer="한샘대리점", manager="김영업")
+    only_o = _add_order("PRODUCTION", "발주만", 1, with_run=True, orderer="리바트")
+    only_m = _add_order("PRODUCTION", "담당만", 1, with_run=True, manager="이담당")
+    none = _add_order("PRODUCTION", "둘다없음", 1, with_run=True, manager="-")
+    _add_order("DRAWING", "도면주문", 1, orderer="작은칸발주", manager="작은칸담당")
     o, m = '<span class="fph-by is-o"><i>발주</i> {}</span>', '<span class="fph-by is-m"><i>담당</i> {}</span>'
     want = {both.id: o.format("한샘대리점") + " " + m.format("김영업"), only_o.id: o.format("리바트"), only_m.id: m.format("이담당")}
     date = client.get(HOME).get_data(as_text=True)
-    pane = _pane(date, get_today_kst().isoformat())
+    pane = _pane(date, _first_key())
     steps = client.get(HOME + "?tab=steps").get_data(as_text=True)
     cut = steps.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0].split("fph-q__nextlist")[0]
     for oid, text in want.items():
@@ -275,7 +292,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261125b" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261125sd" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -350,7 +367,7 @@ def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채�
     assert _pane(626, 1) < _pane(626, 0.9) < _px(1)  # 100% · 90%: 줄 48 그대로 띠 안에서 굴린다
     assert _pane(626, 0.9) < 40 + rows * 48 + 49
     assert _pane(800, 1) >= _px(1)  # 1280×800: 칸을 채운다(줄 49.1px)
-    assert "home.css') }}?v=20261125b" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261125sd" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_두_줄로_100퍼센트는_그대로() -> None:

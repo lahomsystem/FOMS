@@ -124,7 +124,9 @@ _MANIFEST: tuple[BodyCap, ...] = (
     # 신규주문 마법사 첨부(폰 사진·동영상)와 도면창구 업로드 폴백은 레거시 첨부와 같은
     # 성격의 multipart 업로드다(핸들러 자체 상한 20 MiB 이미지 / 동영상).
     BodyCap(r"^/api/erp/order-draft/attachments$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
-    BodyCap(r"^/api/orders/\d+/drawing-gateway-upload$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
+    # 공장 [도면 수정 요청] 사진(설계서 2026-11-25 N3 — 영업 창구 업로드와 같은 저장 자리 · 같은 상한). 빠지면 1 MiB 기본 캡에
+    # 걸려 휴대폰 사진이 413 이다(위 10-29 협력사 사고와 같은 꼴).
+    BodyCap(r"^/api/orders/\d+/(drawing-gateway-upload|production/drawing-request/photo)$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
     # 협력사 화면 사진 · 동영상 · 초안 도면(핸들러 상한 20 MiB 이미지 / 동영상)과 수정 요청 · AS 사진.
     # 빠져 있으면 1 MiB 기본 캡에 걸려 휴대폰 사진이 전부 413 이다(2026-10-29 운영 사고).
     # AS 고치기 · AS 파일 1개(2026-11-13 — 동영상 한 개 50MB 까지, 설계서 2026-11-13-partner-as-intake-edit-push D8).

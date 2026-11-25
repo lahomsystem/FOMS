@@ -9,17 +9,25 @@ import datetime
 from typing import Any
 
 from foms.services.datetime_kst import get_today_kst
-from foms.services.production.drawing_arrival import NO_DATE_WAIT_HEAD, arrival_line, wait_head_for_day
+from foms.services.production.drawing_arrival import (
+    NO_DATE_WAIT_HEAD,
+    arrival_line,
+    deadline_fields,
+    drawing_deadline,
+    wait_head_for_day,
+)
+from foms.services.production.pc_view import attach_pc_rows
+from foms.services.production.ship_dates import PANE_PAST, STRIP_DAYS, pane_slots, row_due
 from foms.services.production_home_read_model import (
     PRODUCTION_HOME_PAST_DAYS,
     _WEEKDAY_KO,
-    _parse_date,
     production_home_day,
 )
 
 
-#: 날짜 탭 왼쪽 띠에 서는 날 수(오늘 포함). 앞에 '지난 7일', 뒤에 '그 뒤' 한 줄씩 붙어 13줄.
-PRODUCTION_HOME_STRIP_DAYS = 11
+#: 날짜 탭 왼쪽 띠에 서는 날 수 — **내일부터**(사장님 2026-11-25 "당일은 이미 시공 중 … 내일 부터"). 앞에 '지난 7일'(오늘까지),
+#: 뒤에 '그 뒤' 한 줄씩 붙어 13줄(줄 수는 그대로 — 띠 칸 높이 · 줄 나누기 CSS 가 13줄을 잰다).
+PRODUCTION_HOME_STRIP_DAYS = STRIP_DAYS
 _BAR_ORDER = ('f', 'p', 'w', 'x')  # 막대 색 순서: 제작 완료 · 만드는 중 · 제작 대기 · 도면·컨펌 기다림
 
 
@@ -75,87 +83,93 @@ def _home_bucket(key: str, label: str, sub: str, title: str, rows: list[dict[str
     return bucket
 
 
+def _pane_row(row: dict[str, Any], day: datetime.date | None, today: datetime.date) -> dict[str, Any]:
+    """그 장에 설 행 — 장의 날이 행의 판정 날과 같으면 행 그대로, 다르면(시공일이 여럿인 주문의 둘째 장부터) 그 장의 날로
+    다시 센 얕은 사본(사장님 2026-11-25 검토 "장마다 그 날"): 판정 날 · 시공일 표 · 도면 마감 · PC 칸(쿼리 0).
+
+    다른 날이 서는 것은 시공일로 놓인 주문뿐이라(상차 · 희망일은 날이 하나) 장의 날이 곧 그 장의 진짜 시공일이다.
+    """
+    if day is None or day == row_due(row):
+        return row
+    copy = dict(row)
+    head = production_home_day(day, today)
+    copy.update(ship_due=day, build_day=day, day_label=head['label'], day_sub=head['sub'], day_is_today=head['is_today'])
+    if 'dw_state' in row:  # 기다림 행만 마감 칸이 있다(attach_drawing_arrival)
+        copy.update(deadline_fields(drawing_deadline(day), today))
+    if 'pc_due' in row:  # PC 응답만 PC 칸이 있다(attach_pc_rows)
+        attach_pc_rows([copy], today)
+    return copy
+
+
 def production_home_days(
     rows: list[dict[str, Any]], today: datetime.date | None = None, selected: Any = None, *, past_hidden: int = 0,
     focus_order: int | None = None,
 ) -> dict[str, Any]:
-    """탭 "날짜"(안 3, 사용자 11-10 "3안으로"): 왼쪽 2주 띠(시공일마다 막대 + 도면 글 + 만들 것/전체) + 오른쪽 고른 날.
+    """탭 "날짜"(안 3, 사용자 11-10 "3안으로"): 왼쪽 2주 띠(출고일마다 막대 + 도면 글 + 만들 것/전체) + 오른쪽 고른 날.
 
-    띠 = 지난 7일(한 줄) · 오늘부터 ``PRODUCTION_HOME_STRIP_DAYS`` 일 · 그 뒤(한 줄). 띠 아래 = 지난 시공일(7일 넘음) ·
-    시공일 없음. 오른쪽은 **그날 시공 주문만**(설계서 2026-11-22-production-drawing-arrival-upgrade §5-2 — 사장님 "당일 것만"):
-    도면·컨펌 기다림(작은 칸 + 막힌 까닭 · 담당) → 만들 것(제작 대기~검수 끝·보류, 큰 줄) → 제작 완료(작은 칸). 다른 날로 아래를
-    채우던 미리 보기 · 밀린 것은 뺐다(주문이 적은 날은 아래가 빈다 — 사장님 승인). ``selected`` 가 없거나 모르는 값이면 오늘
-    (오늘이 비었으면 일이 있는 가장 가까운 장).
+    주문은 출고일(:mod:`foms.services.production.ship_dates` — 출고 화면과 같은 날 · 지방 상차 예정일, 사장님 2026-11-25)로 놓는다:
+    내일 이후 출고일마다 그 날 줄에(시공일이 여럿이면 남은 날마다 — 그 뒤 장에는 한 번, 장마다 그 날로 판정 · 표시), 남은 날이 없으면 가장 늦은 지난 날
+    (오늘 포함) 하나에. 띠 = 지난 7일(오늘까지, 한 줄) · **내일부터** ``PRODUCTION_HOME_STRIP_DAYS`` 일 · 그 뒤(한 줄) — 오늘
+    출고는 이미 나가고 있어 날 줄이 없다(사장님 2026-11-25). 띠 아래 = 지난 출고일(7일 넘음) · 출고일 없음. 오른쪽은 **그날
+    출고 주문만**(설계서 2026-11-22-production-drawing-arrival-upgrade §5-2 — 사장님 "당일 것만"): 도면·컨펌 기다림(작은 칸 +
+    막힌 까닭 · 담당) → 만들 것(제작 대기~검수 끝·보류, 큰 줄) → 제작 완료(작은 칸). ``selected`` 가 없거나 모르는 값이면 내일
+    (내일이 비었으면 일이 있는 가장 가까운 장).
 
     ``focus_order``(주소 ``order=`` · 옛 ``focus_order=`` — 알림 · 검색 · 주문 목록 바로가기, 설계서 2026-11-21-production-pc-viewer
-    §9-10): ``selected`` 가 없거나 모르는 값이면 그 주문이 든 장을 고르고, 그 행에 ``home_focus`` 를 켠다(줄 테두리). 장 고르기는
+    §9-10): ``selected`` 가 없거나 모르는 값이면 그 주문이 선 첫 장을 고르고, 그 행에 ``home_focus`` 를 켠다(줄 테두리). 장 고르기는
     사용자가 고른 것과 같이 친다(``auto`` False — [다시 받기]가 그 날을 지킨다). 그 주문이 행에 없으면 지금처럼 고른다.
     """
     today = today or get_today_kst()
     recent_from = today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)
-    last = today + datetime.timedelta(days=PRODUCTION_HOME_STRIP_DAYS - 1)
-    by_key: dict[str, list[dict[str, Any]]] = {}
+    last = today + datetime.timedelta(days=PRODUCTION_HOME_STRIP_DAYS)
+    focus_row = next((r for r in rows if r.get('id') == focus_order), None) if focus_order is not None else None
+    if focus_row is not None:
+        focus_row['home_focus'] = True  # 장마다 다시 센 사본도 테두리를 같이 갖게 놓기 전에 켠다
+    placed: dict[str, list[tuple[datetime.date, dict[str, Any]]]] = {}
     for row in rows:
-        day = _parse_date(row.get('construction_date'))
-        if day is None:
-            key = 'none'
-        elif day < recent_from:
-            key = 'past'
-        elif day < today:
-            key = 'recent'
-        elif day > last:
-            key = 'later'
-        else:
-            key = day.isoformat()
-        by_key.setdefault(key, []).append(row)
+        for key, day in pane_slots(row, today):
+            placed.setdefault(key, []).append((day or datetime.date.min, _pane_row(row, day, today)))
+    # 여러 날 장(지난 7일 · 그 뒤 · 지난 출고일)은 놓은 날 순 — 지난 출고일은 최근 것부터(같은 날은 지금 행 순서)
+    by_key = {key: [row for _day, row in sorted(items, key=lambda item: item[0], reverse=key == PANE_PAST)]
+              for key, items in placed.items()}
 
     def _md(day: datetime.date) -> str:
         return f"{day.month}/{day.day}"
 
-    yesterday = today - datetime.timedelta(days=1)
     strip = [_home_bucket(
-        'recent', '지난 7일', f"{_md(recent_from)}~{_md(yesterday)}", f"지난 7일 {_md(recent_from)}~{_md(yesterday)}",
+        'recent', '지난 7일', f"{_md(recent_from)}~{_md(today)}", f"지난 7일 {_md(recent_from)}~{_md(today)}",
         by_key.get('recent', []), today, show_day=True,
     )]
-    for offset in range(PRODUCTION_HOME_STRIP_DAYS):
+    for offset in range(1, PRODUCTION_HOME_STRIP_DAYS + 1):
         day = today + datetime.timedelta(days=offset)
         weekday = _WEEKDAY_KO[day.weekday()]
         strip.append(_home_bucket(
-            day.isoformat(),
-            f"오늘 {_md(day)}" if offset == 0 else _md(day),
-            weekday if offset == 0 else f"{weekday} · {'내일' if offset == 1 else f'D-{offset}'}",
+            day.isoformat(), _md(day), f"{weekday} · {'내일' if offset == 1 else f'D-{offset}'}",
             production_home_day(day, today)['label'],
             by_key.get(day.isoformat(), []), today,
-            is_today=offset == 0, is_weekend=day.weekday() >= 5, wait_head=wait_head_for_day(day, today),
+            is_weekend=day.weekday() >= 5, wait_head=wait_head_for_day(day, today),
         ))
     after = last + datetime.timedelta(days=1)
     strip.append(_home_bucket('later', '그 뒤', f"{_md(after)}~", f"{_md(after)} 뒤", by_key.get('later', []), today,
                               show_day=True))
     footer = [
         _home_bucket(
-            'past', '지난 시공일', f"{PRODUCTION_HOME_PAST_DAYS}일 넘음", f"지난 시공일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)",
+            'past', '지난 출고일', f"{PRODUCTION_HOME_PAST_DAYS}일 넘음", f"지난 출고일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)",
             by_key.get('past', []), today, show_day=True,
             note=f"더 오래된 {past_hidden}건은 안 보여요" if past_hidden else '', hidden=past_hidden,
         ),
-        _home_bucket('none', '시공일 없음', '', '시공일 없음', by_key.get('none', []), today, wait_head=dict(NO_DATE_WAIT_HEAD)),
+        _home_bucket('none', '출고일 없음', '', '출고일 없음', by_key.get('none', []), today, wait_head=dict(NO_DATE_WAIT_HEAD)),
     ]
     panes = strip + footer
     key = str(selected or '')
     auto = not any(p['key'] == key for p in panes)  # True = 사용자가 고른 날이 아니라 자동으로 고른 장(R3)
-    focus = None
-    if focus_order is not None:
-        for bucket_key, bucket_rows in by_key.items():
-            row = next((r for r in bucket_rows if r.get('id') == focus_order), None)
-            if row is not None:
-                row['home_focus'] = True
-                focus = focus_order
-                if auto:
-                    key, auto = bucket_key, False
-                break
+    focus = focus_order if focus_row is not None else None
+    if focus_row is not None and auto:
+        key, auto = pane_slots(focus_row, today)[0][0], False
     if auto:
-        # 처음 여는 장 = 오늘. 오늘이 비었으면 일이 있는 가장 가까운 장(오늘 뒤 → 그 뒤 → 지난 7일 → 지난 시공일 → 시공일 없음)
+        # 처음 여는 장 = 내일. 내일이 비었으면 일이 있는 가장 가까운 장(내일 뒤 → 그 뒤 → 지난 7일 → 지난 출고일 → 출고일 없음)
         # — 스테이징처럼 앞날 주문이 없어도 첫 화면이 빈 장이 아니다(사용자 11-10 ②).
         nearest = strip[1:] + [strip[0]] + footer
-        key = next((b['key'] for b in nearest if b['total']), today.isoformat())
+        key = next((b['key'] for b in nearest if b['total']), strip[1]['key'])
     return {'strip': strip, 'footer': footer, 'panes': panes, 'selected': key, 'auto': auto, 'today_key': today.isoformat(),
             'focus': focus}

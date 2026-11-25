@@ -147,9 +147,9 @@ def test_붙이기는_기다림_행만_날짜마다_한_번(monkeypatch) -> None
     assert "dw_state" not in rows[3]  # 내려온 행은 그대로
 
 
-def test_여러_시공일_주문은_장을_고르는_납작_칸_기준(client) -> None:
-    """§4-6: 띠 · 장 제목 · 칸이 한 날을 써야 x/n 과 '마감은 묶음 머리에 한 번'이 맞는다 — 기준 = 납작 칸(먼저 적힌 날).
-    다른 제품 날이 더 이르면 마감이 늦게 잡힐 수 있다(§12 위험 — 규칙을 여기서 고정)."""
+def test_여러_시공일_주문은_가장_가까운_남은_출고일_기준(client) -> None:
+    """출고일이 여럿인 주문의 마감 기준 = 가장 가까운 남은 날(사장님 2026-11-25 "출고 일정 = 제작 일정" — 예전 §4-6 은 납작 칸,
+    먼저 적힌 날이었다). 다른 제품 날이 더 이르면 그 날로 마감을 센다(예전 §12 위험이 없어졌다)."""
     from db import db_session
     from foms.services.datetime_kst import get_today_kst
     from foms.services.production_home_read_model import build_production_home
@@ -169,5 +169,6 @@ def test_여러_시공일_주문은_장을_고르는_납작_칸_기준(client) -
     db_session.commit()
     rows, _stats = build_production_home(db_session, user, today=today)
     row = next(r for r in rows if r["customer_name"] == "여러날집")
-    assert row["dw_deadline"] == da.drawing_deadline(flat) != da.drawing_deadline(earlier)
+    assert row["dw_deadline"] == da.drawing_deadline(earlier) != da.drawing_deadline(flat)
+    assert row["ship_days"] == [earlier, flat] and row["ship_due"] == earlier
     assert row["dw_blocker"]["label"] == "담당 없음"

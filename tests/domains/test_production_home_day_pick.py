@@ -46,7 +46,8 @@ def _pane_keys(html: str) -> list[str]:
 
 
 def _seed_two_days(me, park) -> None:
-    """오늘(한빛 3장 · 늘봄 2장) + 모레(모레집 4장) — 모레 카드는 첫 응답에 없어야 한다.
+    """내일 = 처음 여는 장(한빛 3장 · 늘봄 2장, 띠의 날 줄은 내일부터 — 사장님 2026-11-25) + 모레(모레집 4장) — 모레 카드는
+    첫 응답에 없어야 한다.
     (모레집 줄 자체는 오늘 장 아래 '미리 보기'에 설 수 있다 — 카드 열쇠 ``om/`` 로 가른다.)"""
     _seed_day(me, park)
     _order("모레집", _files("om", 4), day=2)
@@ -60,7 +61,7 @@ def test_part_account_first_response_has_only_chosen_day_and_day_fragment_brings
     _seed_two_days(me, park)
     _login(client, me)
     html = _get(client, HOME)
-    assert _pane_keys(html) == [_day(0)]
+    assert _pane_keys(html) == [_day(1)]
     assert html.count('data-pp-pane="') == 1 and html.count("data-pp-card ") == 5
     assert 'data-key="om/' not in html  # 다른 날 카드 0(미리 보기 줄은 카드가 아니다)
     assert html.count('data-foms-home-daybtn="') == 15  # 띠 단추 · 숫자는 그대로 다 있다
@@ -83,7 +84,7 @@ def test_admin_parts_tab_and_readonly_day_fragment(client, cohort):
     _seed_two_days(me, park)
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     html = _get(client, HOME + "?tab=parts&part=edge")
-    assert _pane_keys(html) == [_day(0)] and 'data-key="om/' not in html
+    assert _pane_keys(html) == [_day(1)] and 'data-key="om/' not in html
     # '도면 카드' 탭의 날 링크는 탭 · 파트를 싣는다(조각 주소도 같은 링크에서 나온다)
     link = re.search(rf'<a [^>]*data-foms-home-daybtn="{_day(2)}"[^>]*>', html).group(0)
     assert f'href="{HOME}?tab=parts&amp;part=edge&amp;day={_day(2)}"' in link
@@ -99,13 +100,13 @@ def test_admin_parts_tab_and_readonly_day_fragment(client, cohort):
 
 def test_plain_account_and_mouse_pc_get_day_fragment_without_board(client, cohort):
     """대조군: 파트 없는 계정 · 마우스 PC 는 판 없이 그 날 줄만(조각 길은 같다)."""
-    _order("오늘집", _files("ot", 1))
+    _order("내일집", _files("ot", 1))
     _order("모레집", [], stage="DRAWING", day=2)  # 도면 기다림 — 미리 보기에 안 서고 그 날 장에만
     _login(client, _user("생산"), ptr="fine")
     html = _get(client, HOME)
-    assert _pane_keys(html) == [_day(0)] and "모레집" not in html and "data-pp-card" not in html
+    assert _pane_keys(html) == [_day(1)] and "모레집" not in html and "data-pp-card" not in html
     frag = _get(client, HOME + f"?day={_day(2)}&view=day")
-    assert "모레집" in frag and "data-pp-card" not in frag and "오늘집" not in frag
+    assert "모레집" in frag and "data-pp-card" not in frag and "내일집" not in frag
 
 
 # --------------------------------------------------------------------------- #
@@ -122,7 +123,7 @@ def test_home_serves_shell_fragment_with_its_css_and_scripts(client, cohort):
     for asset in ("home.css?v=", "parts.css?v=", "foms-production-home.js?v=", "foms-production-home-days.js?v=",
                   "foms-production-parts-viewer.js?v=", "foms-production-parts.js?v=", "foms-production-parts-sync.js?v="):
         assert asset in body, asset
-    assert _pane_keys(body) == [_day(0)]
+    assert _pane_keys(body) == [_day(1)]
     assert body.index("foms-production-home-days.js?v=") < body.index("data-foms-prod-home")  # 조각 맨 앞(먼저 묶임)
     # 전체 페이지: 날 고르기 JS 는 머리에 — 공용 defer 스크립트(셸 · 메뉴 …)보다 먼저 돈다(죽은 누름 구간 줄이기)
     page = _get(client, HOME)
@@ -303,7 +304,7 @@ def test_home_urls_are_built_in_one_place():
 
 
 def test_home_href_rules(client, cohort):
-    _order("오늘집", _files("ot", 1))
+    _order("내일집", _files("ot", 1))
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     html = _get(client, HOME + f"?tab=parts&part=edge&day={_day(1)}")
     reload = re.search(r'<a [^>]*data-foms-home-reload[^>]*>', html).group(0)

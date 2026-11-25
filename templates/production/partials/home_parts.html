@@ -56,7 +56,7 @@
 <div class="fph-parts" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
-    {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
+    {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
     {% if part_morning %}{# 아침 칩(설계서 2026-11-23 §4-9) — 밤 넘긴 내 담당. 누르면 시공일마다 [보기](그 날 장). 여러 파트 계정은
        내 파트 전부를 세고 줄마다 파트 이름 · [보기]는 그 파트 판(§4-12) #}
     <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 담당 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 담당" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ home_href(None, dd.part or pb.url_part, dd.key) }}" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
@@ -106,6 +106,11 @@
         <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
         {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
         <span class="fph-dr__by pp-by{% if c.tag %} has-tag{% endif %}">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}{{ pp_tag(c) }}</span>
+        {%- set req_opts = (pb.req_opts or {}).get(c.order_id) %}{% if req_opts and not (c.order_block and c.order_block.kind == 'revise') and req_opts | selectattr('no', 'equalto', c.no) | list %}
+        {#- [도면 수정 요청](설계서 2026-11-25 §2-4 · N3) — 그 공장 도면 위, 막히지 않은 장에만(막히면 '도면 고치는 중' 칸이 대신). 창 고르기 = 이 사람이
+           요청할 수 있는 그 주문 장(관리자 · 반장 모든 장, 파트 계정 자기 공장 장). 카드 단추 칸(data-pp-actbox) 밖이라 카드 고치기가 안 지운다. #}
+        <button type="button" class="foms-prod-home__btn pp-req" data-pp-req data-pp-req-opts="{{ req_opts | tojson | forceescape }}">도면 수정 요청</button>
+        {%- endif %}
         <div class="pp-actbox" data-pp-actbox><p class="pp-why" id="pp-why-{{ c.order_id }}-{{ c.no }}" role="status" hidden></p>{{ pp_act(c, pb, is_cut, verb) }}</div>
       </article>
       {% endfor %}

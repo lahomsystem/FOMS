@@ -159,17 +159,18 @@ def test_home_order_param_picks_that_day_and_outlines_row(client):
     user = make_user("focus_prod", "STAFF", "PRODUCTION")
     login(client, user)
     later = (get_today_kst() + timedelta(days=5)).isoformat()
-    make_order("가짜오늘고객", construction=get_today_kst().isoformat())
+    first = (get_today_kst() + timedelta(days=1)).isoformat()  # 처음 여는 장 = 내일(띠의 날 줄은 내일부터, 사장님 2026-11-25)
+    make_order("가짜내일고객", construction=first)
     target = make_order("가짜닷새뒤고객", construction=later)
     plain = client.get(PRODUCTION_HOME_PATH).get_data(as_text=True)
-    assert f'data-foms-home-daypane="{get_today_kst().isoformat()}"' in plain and "is-focus" not in plain
+    assert f'data-foms-home-daypane="{first}"' in plain and "is-focus" not in plain
     for param in ("order", "focus_order"):
         html = client.get(f"{PRODUCTION_HOME_PATH}?{param}={target.id}").get_data(as_text=True)
         assert f'data-foms-home-daypane="{later}"' in html, param
         assert "is-focus" in html, param
     # 고른 날(day=)이 있으면 그 날이 이긴다
-    html = client.get(f"{PRODUCTION_HOME_PATH}?order={target.id}&day={get_today_kst().isoformat()}").get_data(as_text=True)
-    assert f'data-foms-home-daypane="{get_today_kst().isoformat()}"' in html
+    html = client.get(f"{PRODUCTION_HOME_PATH}?order={target.id}&day={first}").get_data(as_text=True)
+    assert f'data-foms-home-daypane="{first}"' in html
 
 
 def test_home_days_focus_unknown_order_keeps_auto():

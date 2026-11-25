@@ -38,6 +38,7 @@ from foms.services.erp_display import _erp_get_stage
 from foms.services.orders.manager_names import manager_label_from_parties
 from foms.services.notifications.drawing_deadline_alert import sheet_alert_line
 from foms.services.production.drawing_arrival import sheet_wait_view
+from foms.services.production.ship_dates import due_day, order_ship_dates
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
 from foms.services.production_home_read_model import (
     PRODUCTION_HOME_STAGE_CODES,
@@ -248,14 +249,16 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
 def _drawing_wait(db: Any, order: Order, sd: dict[str, Any], today: datetime.date | None) -> dict[str, Any] | None:
     """안 내려온 주문(첫 화면 '도면·컨펌 기다림' 과 같은 판정)의 도면 칸 글 — 내려온 주문 · 첫 화면에 없는 단계는 None.
 
-    설계서 2026-11-22-production-drawing-arrival-upgrade §5-7: 까닭 · 도면 담당 · 영업 담당 · 마감(기준 시공일 = 납작 칸).
+    설계서 2026-11-22-production-drawing-arrival-upgrade §5-7: 까닭 · 도면 담당 · 영업 담당 · 마감(기준 날 = 첫 화면과 같은 출고일).
     '알림 보냄 …' 줄(§9-6)은 도면 마감 알림 스위치가 켜졌을 때만 기록 줄 하나를 읽는다(안 내려온 주문만 +1, 꺼지면 쿼리 0).
     """
     raw_stage = _erp_get_stage(order, sd)
     if raw_stage not in PRODUCTION_HOME_STAGE_CODES or production_home_stage(raw_stage, False, [], False)[2] != 'wait':
         return None
     manager = manager_label_from_parties(sd.get('parties')) or '-'
-    view = sheet_wait_view(sd, order.erp_construction_date, manager, today or get_today_kst())
+    day = today or get_today_kst()
+    # 마감 기준 = 첫 화면 띠 · 장과 같은 기준 출고일(사장님 2026-11-25 "출고 일정 = 제작 일정") — 이미 읽은 주문 칸, 쿼리 0
+    view = sheet_wait_view(sd, due_day((d for d, _k in order_ship_dates(order)), day), manager, day)
     view['alert_line'] = sheet_alert_line(db, order.id)
     return view
 
