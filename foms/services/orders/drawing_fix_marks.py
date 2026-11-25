@@ -18,18 +18,23 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.orders.confirm_drawing_gate import normalize_stage_code
 from foms.services.orders.drawing_factory import DRAWING_FIX_KEY, NOT_CURRENT_MESSAGE
 from foms.services.orders.drawing_fix import FIX_LOG_CAP, fix_ident, number_topic
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.orders.erp_policy_permissions import can_set_sheet_factory
 from foms.services.orders.state_axes import read_main_stage
+from models import OrderEvent, User
 
 #: 이벤트(``OrderEvent.event_type``) — 생산 '바뀐 것' 줄이 읽는다(``production_change_alerts``).
 FIX_STARTED_EVENT = "DRAWING_FIX_STARTED"
 FIX_STOPPED_EVENT = "DRAWING_FIX_STOPPED"
 LOG_START = "start"
 LOG_STOP = "stop"
+#: 단계가 생산 밖으로 나가며 저절로 풀린 줄(``OrderEvent`` payload ``via`` · ``log`` 의 ``via``).
+VIA_STAGE_EXIT = "stage_exit"
 #: 거절 code(§4-2).
 FIX_FORBIDDEN = "FIX_FORBIDDEN"
 FIX_STAGE = "FIX_STAGE"
@@ -171,6 +176,72 @@ def fixing_rows(sd: Any) -> list[dict[str, Any]]:
     return sorted(out, key=lambda r: (r["no"] is None, r["no"] or 0, r["ident"]))
 
 
+def clear_fixing_on_stage_exit(sd: dict[str, Any], *, from_stage: Any, to_stage: Any, by_name: str,
+                               at: str) -> list[dict[str, Any]]:
+    """주문이 **생산 단계에서 다른 단계로** 가는 쓰기 안에서 [수정 시작] 표시를 모두 지운다(제자리 — 사장님 답 "둘 다", 2026-11-25).
+
+    생산 → 시공(제작 완료) · 고객컨펌 등 되돌림 · 강제 단계 변경 모두 "나감"이다. 생산 → 생산 · 그 밖 → 생산(수정 제작 · 완료 취소)은
+    아무것도 안 한다(나갈 때 이미 지웠다). 지운 것이 있으면 ``log`` 에 ``stop`` 한 줄(``via: stage_exit``). 공장 요청(``requests``)은
+    건드리지 않는다(D4 몫). ``drawing_fix`` 칸은 새 dict 로 바꿔 끼운다 — 셸 복사(``dict(sd)``)로 넘기는 자리의 옛 값을 건드리지 않게.
+
+    Args:
+        sd: 쓰는 쪽 ``structured_data`` 사본(부르는 쪽이 재대입 · ``flag_modified``).
+        from_stage · to_stage: 바뀌기 전 · 뒤 단계(영문 코드 · 한글 이름 모두).
+        by_name: 그 쓰기를 한 사람 이름. at: 그 때(UTC iso).
+
+    Returns:
+        풀린 장 ``[{no, ident}]``(지금 도면 번호 — 없는 장은 적힌 번호). 지운 것이 없으면 빈 목록.
+    """
+    if normalize_stage_code(from_stage) != STAGE_PRODUCTION or normalize_stage_code(to_stage) == STAGE_PRODUCTION:
+        return []
+    rows = [{"no": r["no"], "ident": r["ident"]} for r in fixing_rows(sd)]
+    if not rows:
+        return []
+    table = dict(sd.get(DRAWING_FIX_KEY) or {})
+    table["fixing"] = {}
+    log = [row for row in table.get("log") or [] if isinstance(row, dict)]
+    log.append({"act": LOG_STOP, "idents": [r["ident"] for r in rows], "numbers": [r["no"] for r in rows],
+                "by_name": by_name, "at": at, "via": VIA_STAGE_EXIT})
+    table["log"] = log[-FIX_LOG_CAP:]
+    sd[DRAWING_FIX_KEY] = table
+    return rows
+
+
+def stage_exit_event(order_id: int, rows: list[dict[str, Any]], *, by_user_id: Optional[int], by_name: str,
+                     to_stage: Any) -> OrderEvent:
+    """단계가 나가며 풀린 [수정 시작]의 이벤트 — [수정 취소]와 같은 ``DRAWING_FIX_STOPPED``(공장 '바뀐 것' "도면 수정 취소" 한 줄,
+    폰 알림 없음). 누가 = 그 단계 쓰기를 한 사람."""
+    return OrderEvent(order_id=order_id, event_type=FIX_STOPPED_EVENT, created_by_user_id=by_user_id,
+                      payload={"numbers": [r["no"] for r in rows], "idents": [r["ident"] for r in rows], "by_name": by_name,
+                               "via": VIA_STAGE_EXIT, "to": normalize_stage_code(to_stage)})
+
+
+def release_on_stage_exit(session: Any, order_id: int, sd: Any, *, from_stage: Any, to_stage: Any, user_id: Any,
+                          at: Optional[str] = None, by_name: Optional[str] = None) -> list[dict[str, Any]]:
+    """단계를 바꾸는 쓰기 자리마다 부르는 한 함수 — 생산 밖으로 나가면 [수정 시작] 표시를 같은 사본에서 지우고(제자리)
+    '바뀐 것' "도면 수정 취소" 이벤트를 같은 세션에 더한다. 부르는 쪽이 사본 재대입 · ``flag_modified`` · 커밋을 한다.
+
+    지울 것이 없으면(생산 → 생산 · 그 밖 → 생산 · 고치는 중 없음 · 사본이 dict 아님) 아무것도 안 하고 쿼리 0. 이름(``by_name``)을
+    안 주면 지울 것이 있을 때만 그 사람 행을 읽는다(보통 같은 세션에 이미 있어 쿼리 0). ``at`` 을 안 주면 지금(UTC).
+
+    Returns:
+        풀린 장 ``[{no, ident}]``(없으면 빈 목록).
+    """
+    if normalize_stage_code(from_stage) != STAGE_PRODUCTION or normalize_stage_code(to_stage) == STAGE_PRODUCTION:
+        return []
+    if not isinstance(sd, dict) or not fixing_rows(sd):
+        return []
+    at = at or now_utc_naive().replace(microsecond=0).isoformat() + "Z"
+    if by_name is None:
+        actor = session.get(User, int(user_id)) if isinstance(user_id, int) or str(user_id or "").isdigit() else None
+        by_name = (getattr(actor, "name", None) or getattr(actor, "username", None) or "") if actor is not None else ""
+    rows = clear_fixing_on_stage_exit(sd, from_stage=from_stage, to_stage=to_stage, by_name=by_name, at=at)
+    if rows:
+        session.add(stage_exit_event(order_id, rows, by_user_id=int(user_id) if str(user_id or "").isdigit() else None,
+                                     by_name=by_name, to_stage=to_stage))
+    return rows
+
+
 def numbers_note(rows: list[dict[str, Any]]) -> str:
     """감사 · 이벤트 글의 번호 "도면 2" · "도면 2 · 3"."""
     return "도면 " + " · ".join(str(r["no"]) for r in rows)
@@ -191,5 +262,6 @@ def confirm_text(numbers: list[int], *, starting: bool) -> str:
 
 __all__ = [
     "FIX_FORBIDDEN", "FIX_NOT_CURRENT", "FIX_STAGE", "FIX_STARTED_EVENT", "FIX_STOPPED_EVENT", "FixRefusal", "LOG_START", "LOG_STOP",
-    "MESSAGES", "confirm_text", "fixing_rows", "numbers_note", "refusal_for", "resolve_targets", "start_fixing", "stop_fixing",
+    "MESSAGES", "VIA_STAGE_EXIT", "clear_fixing_on_stage_exit", "confirm_text", "fixing_rows", "numbers_note", "refusal_for",
+    "release_on_stage_exit", "resolve_targets", "stage_exit_event", "start_fixing", "stop_fixing",
 ]

@@ -29,6 +29,7 @@ from foms.services.orders.revision import (
 from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
+from foms.services.orders.drawing_fix_marks import release_on_stage_exit  # 생산 밖이면 [수정 시작] 표시도 같은 쓰기에서 지움(서비스는 import 가 돌아 잠금 콜백에서)
 from foms.api.orders.stage_override_admin import (
     extended_bulk_response,
     extended_single_response,
@@ -148,6 +149,7 @@ def stage_override_response(order_id: int):
                 close_remaining_items=data.get("close_remaining_items") is True,
                 user_name=str(getattr(user, "name", "") or ""),
             )
+            release_on_stage_exit(sess, o.id, o.structured_data, from_stage=payload.get("from"), to_stage=payload.get("to"), user_id=user_id, by_name=str(getattr(user, "name", "") or "") or None)
             captured["payload"] = payload
             captured["status"] = o.status
             captured["order"] = o
@@ -319,6 +321,7 @@ def _apply_locked_overrides(
             order=order, to_stage=to_stage, reason=reason, user_id=user_id, db=sess,
             close_remaining_items=close_items, user_name=user_name,
         )
+        release_on_stage_exit(sess, order.id, order.structured_data, from_stage=payload.get("from"), to_stage=payload.get("to"), user_id=user_id, by_name=user_name or None)
         results.append({"order_id": int(order.id), "order": order, **payload})
         families[int(order.id)] = [f"ORDER_DETAIL:{order.id}", "ORDERS_INDEX"]
     captured["results"] = results
