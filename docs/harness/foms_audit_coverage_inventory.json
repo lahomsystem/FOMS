@@ -8,15 +8,15 @@
     "log_access"
   ],
   "baselines": {
-    "total": 321,
+    "total": 323,
     "unaudited": 3
   },
   "classification_counts": {
-    "AUDITED": 281,
+    "AUDITED": 283,
     "EXEMPT": 37,
     "UNAUDITED": 3
   },
-  "coverage_percent": 98.9,
+  "coverage_percent": 99.0,
   "unaudited_sites": [
     {
       "path": "foms/api/brain_chat.py",
@@ -760,6 +760,24 @@
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
       "lineno": 583,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing_fix.py",
+      "endpoint": "api_drawing_fix_start",
+      "lineno": 145,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing_fix.py",
+      "endpoint": "api_drawing_fix_stop",
+      "lineno": 151,
       "methods": [
         "POST"
       ],
