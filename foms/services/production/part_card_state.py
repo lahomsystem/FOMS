@@ -12,6 +12,7 @@ import datetime
 from typing import Any, Optional
 
 from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
+from foms.services.orders.drawing_fix import Block, blocked, entry_blocked
 from foms.services.production.part_constants import PART_INSPECT, PRODUCTION_PART_LABELS
 from foms.services.production.part_holders import handed_text, since_text
 from foms.services.production.part_mark_gates import (
@@ -38,11 +39,18 @@ def _hold_reason(sd: Any) -> str:
     return reason.strip() if isinstance(reason, str) else ""
 
 
-def order_block(row: dict[str, Any]) -> Optional[dict[str, str]]:
-    """주문 전체가 막혔는지(B4) — 보류 · 도면 고치는 중. 칸 글 · 까닭 글 · 서버 코드.
+def order_block(row: dict[str, Any], entry: Optional[dict[str, Any]] = None, *,
+                fix: Optional[Block] = None) -> Optional[dict[str, str]]:
+    """주문 전체가 막혔는지(B4) — 보류 · 도면 고치는 중. 칸 글 · 까닭 글 · 서버 코드. ``entry`` 를 주면 그 장의 막힘(도면별 포함).
+
+    도면별 막힘(2026-11-25 설계서 §3-3 — 생산 단계 대상을 고른 영업 요청 · 고치는 중 · 공장 요청)은 그 장만 같은 모양 · 같은 글
+    ("도면 고치는 중" · ``REVISING_MESSAGE`` — §2-4 "막힌 도면 모양 = 지금 그대로, 범위만 그 도면")으로 막는다. 쓰기 API 의
+    :func:`~foms.services.production.part_mark_gates.order_gate` 와 같은 판정(화면 == 서버).
 
     Args:
         row: 첫 화면 행(``hold_active`` · ``structured_data``).
+        entry: 확정 도면 항목(카드 한 장) — None 이면 주문 통째만 본다(공정 줄 · PC 창 머리).
+        fix: 이 주문의 :func:`~foms.services.orders.drawing_fix.blocked` 를 이미 계산했으면 그 값(카드마다 다시 안 셈).
 
     Returns:
         ``{kind, text, why, code}`` 또는 None. 보류 글은 "보류 · 자재 기다림"(사유 없으면 "보류").
@@ -52,7 +60,7 @@ def order_block(row: dict[str, Any]) -> Optional[dict[str, str]]:
         reason = _hold_reason(sd)
         return {"kind": BLOCK_HOLD, "text": f"보류 · {reason}" if reason else "보류", "why": HOLD_MESSAGE,
                 "code": HOLD_ACTIVE}
-    if drawing_revision_in_progress(sd):
+    if drawing_revision_in_progress(sd) or (entry is not None and entry_blocked(fix if fix is not None else blocked(sd), entry)):
         return {"kind": BLOCK_REVISE, "text": "도면 고치는 중", "why": REVISING_MESSAGE, "code": DRAWING_REVISING}
     return None
 

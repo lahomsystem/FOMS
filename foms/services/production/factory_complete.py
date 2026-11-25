@@ -5,7 +5,8 @@
 (409 ``NO_FACTORY_SHEETS``) → 생산 단계(409 ``INVALID_STAGE`` — 이미 시공 대기면 "그사이 윤검수가 제작 완료했어요. …") →
 완료 취소면 그 공장 표지만 지움 → 이미 살아 있으면 같은 사람 200(바뀜 없음) · 다른 사람 409 ``FACTORY_DONE_ALREADY`` → 보류(409
 ``HOLD_ACTIVE``) → 도면 고치는 중(409 ``DRAWING_REVISING`` — 사장님 2026-11-25 "제작 완료도 막기", 보류와 같은 자리 · 같은 꼴 · 글은
-``REVISING_MESSAGE``, 완료 취소는 보류처럼 된다) → 그 공장 장 네 파트 완료(409 ``FACTORY_NOT_READY`` + ``left``) → 다른 있는 공장이 모두 살아 있으면 **마지막** =
+``REVISING_MESSAGE``, 완료 취소는 보류처럼 된다. 2026-11-25 설계서 §4-3: 주문 통째 또는 그 공장에 막힌 도면 · 마지막 공장이면 막힌 도면
+하나라도 — 도면별이면 ``numbers``) → 그 공장 장 네 파트 완료(409 ``FACTORY_NOT_READY`` + ``left``) → 다른 있는 공장이 모두 살아 있으면 **마지막** =
 제작 완료 길 그대로(:func:`~foms.services.production.complete_order._apply_complete_side_effects` 가 남은 표지를 같이 씀) → 시공
 대기, 아니면 표지만(버전 +1 · 이벤트 ``PRODUCTION_FACTORY_COMPLETED``).
 
@@ -22,7 +23,7 @@ from flask import jsonify
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.erp_display import _ensure_dict
-from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
+from foms.services.orders.drawing_fix import blocked, factory_complete_blocked, per_drawing_numbers
 from foms.services.orders.drawing_factory import factory_done_entry, present_factories
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError, execute_order_mutation, lock_order_row
@@ -74,6 +75,18 @@ def _done_by_other_message(sd: dict[str, Any], factory: Optional[int] = None) ->
         name, what = str(last.get("updated_by") or "").strip(), "제작 완료"
     who = f"{subject_particle(name)} " if name else ""
     return f"그사이 {who}{what}했어요. 더 할 일은 없어요."
+
+
+def _revising_fail(sd: dict[str, Any], factory: int, final: bool) -> Optional[Any]:
+    """도면 고치는 중 막힘 — 주문 통째(지금 그대로) · 그 공장에 막힌 도면 · 마지막 공장이면 막힌 도면 하나라도(= [제작 완료] 판정,
+    2026-11-25 설계서 §4-3 지휘 풀이). 도면별 막힘은 자료에 ``numbers``(막힌 장 번호)를 싣는다. 안 막히면 None."""
+    block = blocked(sd)
+    if block.whole:
+        return _fail(409, DRAWING_REVISING, REVISING_MESSAGE)
+    if not factory_complete_blocked(sd, factory, final=final, block=block):
+        return None
+    numbers = per_drawing_numbers(sd, block=block, factory=None if final else factory)
+    return _fail(409, DRAWING_REVISING, REVISING_MESSAGE, factory=factory, numbers=numbers)
 
 
 def factory_done_payload(sd: Any) -> dict[str, Any]:
@@ -191,14 +204,16 @@ def finish_factory(db: Any, order_id: int, user: Any, body: dict[str, Any], idem
                                                       "final": False, "changed": False}, "error": None})
         if _hold_active(sd)[0]:
             return _fail(409, "HOLD_ACTIVE", HOLD_MESSAGE)
-        if drawing_revision_in_progress(sd):  # 보류와 같은 자리(2026-11-25) — 마지막 공장(= 주문 제작 완료)도 여기서 막힌다
-            return _fail(409, DRAWING_REVISING, REVISING_MESSAGE)
+        others = [f for f in present_factories(sd) if f != factory]
+        final = all(factory_done_entry(sd, f) is not None for f in others)
+        revising = _revising_fail(sd, factory, final)  # 보류와 같은 자리(2026-11-25) — 마지막 공장(= 주문 제작 완료)도 여기서 막힌다
+        if revising is not None:
+            return revising
         marks = order_marks(db, order_id)
         state = complete_state(sd, marks, factory=factory)
         if not state["ready"]:
             return _fail(409, "FACTORY_NOT_READY", factory_left_message(factory, state), factory=factory, left=state["left"])
-        others = [f for f in present_factories(sd) if f != factory]
-        if all(factory_done_entry(sd, f) is not None for f in others):
+        if final:
             return _final_complete(db, order, user, sd, marks, body, idem_key, audit)
         return _write_mark(db, order, user, factory, True, body, idem_key, audit)
     except Exception:  # noqa: BLE001 - 최종 방어(구체 예외는 위에서 매핑) — 되감고 로그를 남긴 뒤 해요체 한 문장

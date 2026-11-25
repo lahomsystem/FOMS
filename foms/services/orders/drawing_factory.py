@@ -32,6 +32,8 @@ from foms.services.production.steps import step_done_map
 #: 주문 JSON 칸 이름(서버 소유) — 장의 공장 · 공장 완료 표지(``production`` 안, 3단계 ⑥ 이 쓴다).
 DRAWING_FACTORY_KEY = "drawing_factory"
 FACTORY_DONE_KEY = "factory_done"
+#: 생산 넘어간 주문의 도면 수정 칸(서버 소유 — 읽기 · 판정은 ``drawing_fix``, 여기서는 손님 쪽 값을 버릴 때만 쓴다).
+DRAWING_FIX_KEY = "drawing_fix"
 #: 이벤트 · 감사 행위 코드.
 SHEET_FACTORY_EVENT = "DRAWING_SHEET_FACTORY_CHANGED"
 SHEET_FACTORY_REFUSED = "DRAWING_SHEET_FACTORY_REFUSED"
@@ -383,10 +385,11 @@ def apply_factory_changes(sd: dict[str, Any], changes: list[FactoryChange], *, b
 
 
 def strip_client_factory_state(sd: Any) -> list[str]:
-    """손님 쪽이 보낸 ``structured_data`` 에서 서버 소유 공장 칸을 뺀다(제자리) — ``drawing_factory`` · ``production.factory_done``.
+    """손님 쪽이 보낸 ``structured_data`` 에서 서버 소유 공장 칸을 뺀다(제자리) — ``drawing_factory`` · ``production.factory_done`` ·
+    ``drawing_fix``(생산 넘어간 주문의 도면 수정 — 설계서 2026-11-25 §3-8).
 
     주문 만들기(``order_create._prepare_structured``) · 초안 자동 저장(``erp_orders_structured.api_erp_draft_autosave``)처럼 손님 쪽
-    JSON 을 통째로 저장하는 길이 부른다. 공장 지정 API · 공장별 완료(3단계 ⑥)만 이 칸을 쓴다.
+    JSON 을 통째로 저장하는 길이 부른다. 공장 지정 API · 공장별 완료(3단계 ⑥) · 도면 수정 API 만 이 칸을 쓴다.
 
     Returns:
         뺀 경로(감사 · 로그용, 없으면 빈 목록).
@@ -394,6 +397,8 @@ def strip_client_factory_state(sd: Any) -> list[str]:
     if not isinstance(sd, dict):
         return []
     removed = [DRAWING_FACTORY_KEY] if sd.pop(DRAWING_FACTORY_KEY, None) is not None else []
+    if sd.pop(DRAWING_FIX_KEY, None) is not None:
+        removed.append(DRAWING_FIX_KEY)
     production = sd.get("production")
     if isinstance(production, dict) and production.pop(FACTORY_DONE_KEY, None) is not None:
         removed.append(f"production.{FACTORY_DONE_KEY}")

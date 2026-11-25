@@ -24,6 +24,7 @@ from typing import Any, Optional
 from foms.services.datetime_kst import parse_datetime_utc
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
+from foms.services.orders.drawing_fix import blocked
 from foms.services.production.factory_constants import FACTORIES, factory_label
 from foms.services.production.part_board import card_item_text, is_part_thumb_image, other_part_word
 from foms.services.production.part_card_state import hand_cell, inspect_block, order_block
@@ -116,7 +117,8 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
         entry: 확정 도면 항목.
         no: 장 번호(1부터).
         of: 장 수.
-        ctx: ``{part, rows(장 key → 그 파트 표시 줄), marks(네 파트), hand, order_block, step_at, fallback, viewer_id}``.
+        ctx: ``{part, rows(장 key → 그 파트 표시 줄), marks(네 파트), hand, order_block(주문 통째), block_row, fix(도면별 막힘),
+            step_at, fallback, viewer_id}``.
 
     Returns:
         ``{key, no, of, label, item, image, filename, view_url, state, word, note, holder, done, handed, block, act, seen,
@@ -129,8 +131,9 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
     hand = ctx["hand"]
     state = "hand" if hand else snap.seen_key
     block = None
-    if state in ("none", "need"):
-        block = ctx["order_block"] or (inspect_block(sd, ctx["marks"], key) if part == PART_INSPECT else None)
+    if state in ("none", "need"):  # 도면별 막힘(2026-11-25 설계서 §3-3)은 그 장만 — 판 카드와 같은 판정
+        block = (ctx["order_block"] or order_block(ctx["block_row"], entry, fix=ctx["fix"])
+                 or (inspect_block(sd, ctx["marks"], key) if part == PART_INSPECT else None))
     name, spec = card_item_text(sd, entry, ctx["fallback"])
     act = None if state == "hand" or block else (ACT_UNCHECK if state in ("done", "basic") else ACT_CHECK)
     return {
@@ -192,8 +195,9 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
     progress = part_progress(sd, marks, part)
     hand = hand_cell(sd, marks, part)
     left = len(progress["left_keys"])
+    block_row = {"hold_active": hold_active, "structured_data": sd}
     ctx = {"part": part, "rows": marks_by_part(marks).get(part, {}), "marks": marks, "hand": hand,
-           "order_block": order_block({"hold_active": hold_active, "structured_data": sd}),
+           "order_block": order_block(block_row), "block_row": block_row, "fix": blocked(sd),
            "step_at": _step_at(sd, part), "fallback": _fallback_row(sd), "viewer_id": viewer_id}
     rows = [sheet_row(sd, entry, i + 1, len(entries), ctx) for i, entry in enumerate(entries)]
     _factory_rows(sd, entries, rows, writable)
@@ -202,7 +206,8 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
         "uses_cards": progress["uses_cards"],
         "notice": PART_USES_CARDS_MESSAGE.format(left=left) if progress["uses_cards"] and entries and left else None,
         # 보류 · 도면 고치는 중에는 통째 작업(공정 칸 켜기)을 서버가 막는다(사장님 2026-11-24 · 11-25) — [모두 작업]을 안 보인다.
-        # [모두 작업 취소](hand_off, 끄기)는 둘 다 된다(서버 step_cell_gate 와 같은 규칙)
+        # [모두 작업 취소](hand_off, 끄기)는 둘 다 된다(서버 step_cell_gate 와 같은 규칙). 도면별 막힘이면 보인다 — 같은 API 가
+        # 막힌 장을 빼고 처리한다(2026-11-25 설계서 §3-6 ①)
         "all": bool(entries) and not progress["uses_cards"] and not progress["done"] and not ctx["order_block"],
         "hand_off": bool(hand), "hand": hand["text"] if hand else None,
         "rows": rows, "keys": [entry["key"] for entry in entries],

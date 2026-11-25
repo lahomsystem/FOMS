@@ -24,6 +24,7 @@ from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.orders.drawing_factory import sheet_factory
+from foms.services.orders.drawing_fix import blocked
 from foms.services.production.part_access import (
     VIEW_ADMIN,
     VIEW_NONE,
@@ -253,25 +254,29 @@ def _other_words(order_id: int, key: str, part: str, marks: MarkIndex, hands: di
     return words
 
 
-def _card_state(row: dict[str, Any], key: str, snap: MarkSnapshot, ctx: dict[str, Any]) -> dict[str, Any]:
-    """3판 칸 — 손 체크 · 막힘 · 밤 넘김 · 바뀐 기록 · 내 담당 꼬리 · 첫 카드(§4-6 · §4-8 · §4-9 · §4-11)."""
-    order_id, part, me = int(row["id"]), ctx["part"], ctx["user_id"]
+def _card_state(row: dict[str, Any], entry: dict[str, Any], snap: MarkSnapshot, ctx: dict[str, Any]) -> dict[str, Any]:
+    """3판 칸 — 손 체크 · 막힘 · 밤 넘김 · 바뀐 기록 · 내 담당 꼬리 · 첫 카드(§4-6 · §4-8 · §4-9 · §4-11).
+
+    막힘은 그 장 단위(2026-11-25 설계서 §3-3) — 주문 통째(보류 · 도면 고치는 중)는 모든 장, 도면별 막힘은 그 장만(같은 모양 · 같은 글).
+    """
+    order_id, part, me, key = int(row["id"]), ctx["part"], ctx["user_id"], entry["key"]
     sd = row.get("structured_data") or {}
     marks = ctx["order_marks"].get(order_id, [])
     hands = ctx["hands"][order_id]
     hand = hands.get(part)
     state = "hand" if hand else snap.seen_key
     picked_by_me = snap.picked_by_user_id is not None and snap.picked_by_user_id == me
+    card_block = ctx["blocks"][order_id] or order_block(row, entry, fix=ctx["fix"][order_id])  # 쿼리 0(이미 든 주문 JSON)
     block = None
     if state in ("none", "need"):
-        block = ctx["blocks"][order_id] or (inspect_block(sd, marks, key) if part == PART_INSPECT else None)
+        block = card_block or (inspect_block(sd, marks, key) if part == PART_INSPECT else None)
     # 주문 막힘(보류 · 도면 고치는 중)은 상태와 상관없이 카드에 싣는다 — 완료 · 기본 카드를 되돌린 뒤 JS 가 그리는 칸이
     # 서버가 그리는 칸(막힌 칸 · [맡기 취소][막힌 칸])과 같게(검수 전 막힘은 JS 가 다른 파트 줄로 다시 본다)
     notes = claim_notes(snap, ctx["today"], mine=picked_by_me and ctx["writable"])
     mark = mark_payload(snap) if snap.seen_key != "none" else {}
     notes.update(picked_day=mark.get("picked_day"), picked_at=mark.get("picked_at"), handed_from_name=snap.handed_from_name,
                  handed_at=mark.get("handed_at"))
-    return {"state": state, "hand": hand, "block": block, "order_block": ctx["blocks"][order_id], "picked_by_me": picked_by_me,
+    return {"state": state, "hand": hand, "block": block, "order_block": card_block, "picked_by_me": picked_by_me,
             "mine_row": state == "need" and picked_by_me and ctx["writable"],
             "first_card": not row.get("home_has_run"), "hand_parts": sorted(p for p, h in hands.items() if h), **notes}
 
@@ -285,7 +290,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
         entry: 확정 도면 항목.
         position: ``(주문 순서, 장 번호 1부터, 장 수)``.
         marks: :func:`index_marks` 의 자리 사전.
-        ctx: ``{part, mine, writable, user_id, today, by_sheet, current_keys, order_marks, hands, blocks}``.
+        ctx: ``{part, mine, writable, user_id, today, by_sheet, current_keys, order_marks, hands, blocks, fix}``.
 
     Returns:
         카드 dict(주문 · 장 key · 도면 n/N · 품목 · 내 파트 상태 · 이름 · 배지 · 칸 소속 · 다른 파트 · 바뀐 도면) + 3판 칸
@@ -294,7 +299,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
     """
     order_id, key, part, me = int(row["id"]), entry["key"], ctx["part"], ctx["user_id"]
     snap = MarkSnapshot.from_row(marks.get((order_id, key, part)))
-    extra = _card_state(row, key, snap, ctx)
+    extra = _card_state(row, entry, snap, ctx)
     state = extra["state"]
     picked_by_me = extra["picked_by_me"]
     done_by_me = snap.done_by_user_id is not None and snap.done_by_user_id == me
@@ -462,7 +467,8 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         "own_parts": own_parts(user),
         "files": files, "today": today or get_today_kst(), "order_marks": order_marks,
         "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in files.items()},
-        "blocks": {int(row["id"]): order_block(row) for row in rows},
+        "blocks": {int(row["id"]): order_block(row) for row in rows},  # 주문 통째(보류 · 도면 고치는 중)
+        "fix": {int(row["id"]): blocked(row.get("structured_data") or {}) for row in rows},  # 도면별 막힘(2026-11-25 §3-3, 쿼리 0)
         "hands": {int(row["id"]): {p: hand_cell(row.get("structured_data") or {}, order_marks.get(int(row["id"]), []), p)
                                    for p in PRODUCTION_PART_KEYS} for row in rows},
     }

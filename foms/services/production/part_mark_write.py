@@ -29,10 +29,10 @@ from foms.services.audit_message_display import action_label, describe_order_act
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.audit_order_context import order_audit_context
-from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
+from foms.services.orders.drawing_fix import complete_blocked, factory_complete_blocked
 from foms.services.orders.revision import execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
-from foms.services.orders.drawing_factory import has_second_factory
+from foms.services.orders.drawing_factory import factory_done_entry, has_second_factory, present_factories, sheet_factory
 from foms.services.production.factory_home import factory_ready
 from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import is_part_admin
@@ -306,8 +306,18 @@ def _hold_active(sd: Any) -> bool:
 
 
 def _complete_blocked(sd: Any) -> bool:
-    """제작 완료가 막힌 주문 — 보류 · 도면 고치는 중(사장님 2026-11-25 "제작 완료도 막기", 제작 완료 API 와 같은 판정)."""
-    return _hold_active(sd) or drawing_revision_in_progress(sd)
+    """제작 완료가 막힌 주문 — 보류 · 도면 고치는 중(사장님 2026-11-25 "제작 완료도 막기", 제작 완료 API 와 같은 판정).
+
+    도면 고치는 중 = 주문 통째 또는 막힌 도면이 하나라도(2026-11-25 설계서 §4-3 — [제작 완료] 와 같은 판정).
+    """
+    return _hold_active(sd) or complete_blocked(sd)
+
+
+def _factory_complete_blocked(sd: Any, entry: dict[str, Any]) -> bool:
+    """그 장 공장의 [N공장 완료]가 막힌 주문 — 보류 · 그 공장에 막힌 도면 · 마지막 공장이면 [제작 완료] 판정(공장 완료 API 와 같다)."""
+    factory = sheet_factory(sd, entry)
+    final = all(factory_done_entry(sd, f) is not None for f in present_factories(sd) if f != factory)
+    return _hold_active(sd) or factory_complete_blocked(sd, factory, final=final)
 
 
 def order_ready(order: Order, views: list[Any], user: Any, req: MarkRequest, target: Optional[str]) -> Optional[dict]:
@@ -330,7 +340,7 @@ def _factory_ready(order: Order, entry: dict[str, Any], views: list[Any], user: 
     """섞인 주문의 "2공장 제작 완료할까요?"(:func:`~foms.services.production.factory_home.factory_ready`) — 쿼리 0."""
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     return factory_ready(sd, entry, views, user, order_id=int(order.id), part=req.part, target=target,
-                         stage=read_main_stage(order), hold=_complete_blocked(sd))  # 보류 · 도면 고치는 중이면 묻지 않는다
+                         stage=read_main_stage(order), hold=_factory_complete_blocked(sd, entry))  # 보류 · 도면 고치는 중이면 묻지 않는다
 
 
 def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool, user: Any = None) -> str:
@@ -363,7 +373,7 @@ def _decide(req: MarkRequest, order: Order, entry: dict[str, Any], rows: list[An
     if decision.kind == DECISION_SAME:
         return decision  # 같은 사람 · 같은 결과(멱등) — 막힘을 보지 않고 그대로 성공
     server_mark = {"mark": mark_body(row, req.order_id, req.key, req.part)}
-    gate = (factory_gate(user, sd, entry, action=req.action, row=row) or order_gate(sd, req.action)
+    gate = (factory_gate(user, sd, entry, action=req.action, row=row) or order_gate(sd, req.action, entry)
             or hand_step_gate(sd, rows, req.part))
     if gate is not None:
         raise MarkRefusal.from_gate(gate, server_mark)
@@ -432,7 +442,7 @@ def _bulk_one(user: Any, admin: bool, order: Optional[Order], key: str, row: Any
     if decision.kind not in (DECISION_APPLY, DECISION_CONFLICT):
         return None
     gate = (factory_gate(user, order.structured_data, entry, action=ACTION_BASIC)
-            or order_gate(order.structured_data, ACTION_BASIC)
+            or order_gate(order.structured_data, ACTION_BASIC, entry)
             or hand_step_gate(order.structured_data, cut_rows, BASIC_ALLOWED_PART))
     if gate is not None:
         raise MarkRefusal.from_gate(gate)

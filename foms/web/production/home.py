@@ -45,6 +45,7 @@ from foms.services.production.part_access import (
     part_account_parts,
     part_view_mode,
     user_factory,
+    writable_factories,
 )
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT, production_parts_label
@@ -237,8 +238,8 @@ def _attach_step_confirm(db, queues: dict | None, flags: dict) -> None:
     if queues is None or not flags.get('can_check_steps'):
         return
     ids = step_confirm_ids(queues)
-    if ids:
-        attach_step_confirm(queues, marks_by_order(db, ids))
+    if ids:  # 막힌 도면이 있는 주문은 보는 사람 공장 장 수로 확인 창 본문을 센다(2026-11-25 설계서 §2-4, 쿼리 0)
+        attach_step_confirm(queues, marks_by_order(db, ids), writable_factories(getattr(g, 'current_user', None)))
 
 
 def _step_panel_response(db, tab: str, surface: bool, rows: list, flags: dict):

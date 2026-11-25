@@ -26,6 +26,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from db import get_db
 from foms.api.production.part_marks import production_part_marks_bp
 from foms.services.datetime_kst import get_today_kst
+from foms.services.orders.drawing_fix import confirm_extras
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.production.home_access import can_view_production_home
@@ -111,7 +112,8 @@ def api_part_sheet():
     data = {"order_id": order_id, "customer_name": _customer(order, sd), "can_write": can_write,
             "me": getattr(user, "id", None), "has_run": has_run,
             "start_note": START_NOTE if in_production and not has_run else None,
-            **sheet, **step_api_extras(sd, marks), **_row_html(order, sd, marks, starts)}
+            **sheet, **step_api_extras(sd, marks), **_row_html(order, sd, marks, starts),
+            **confirm_extras(sd, writable_factories(user))}  # 막힌 도면이 있으면 [모두 작업] 확인 창 본문 재료(2026-11-25 §2-4)
     response = jsonify({"success": True, "data": data, "error": None})
     response.headers["Cache-Control"] = "private, no-store"
     return response, 200

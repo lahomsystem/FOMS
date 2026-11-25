@@ -31,7 +31,9 @@ from typing import Any, Optional
 
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.orders.drawing_factory import current_factories, factory_done_entry, factory_made, has_second_factory
+from foms.services.orders.drawing_fix import blocked, entry_blocked
 from foms.services.orders.drawing_transfer import clean_sheet_id
+from foms.services.production.part_mark_gates import DRAWING_REVISING, REVISING_MESSAGE
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, factory_label, normalize_factory
 from foms.services.shipment.packing_access import FACTORY_FORBIDDEN_CODE, factory_forbidden_message
 
@@ -101,6 +103,21 @@ def _doc_label(sd: dict[str, Any], entry: dict[str, Any], index: int, refs: dict
     return f"도면 {index} {tail}".strip()
 
 
+def doc_line_keys(sd: Any) -> list[tuple[str, dict[str, Any], int]]:
+    """도면 장 줄 열쇠 — 지금 확정 도면 장마다 ``(줄 열쇠, 항목, 공장)``(도면 번호 순). 같은 시트가 두 번 오면 ``sheet:<id>:2``."""
+    out: list[tuple[str, dict[str, Any], int]] = []
+    seen: dict[str, int] = {}
+    for entry, factory in current_factories(sd if isinstance(sd, dict) else {}):
+        sid = clean_sheet_id(entry.get("sheet_id"))
+        if sid:
+            seen[sid] = seen.get(sid, 0) + 1
+            key = f"sheet:{sid}" if seen[sid] == 1 else f"sheet:{sid}:{seen[sid]}"
+        else:
+            key = f"file:{entry['key']}"
+        out.append((key, entry, factory))
+    return out
+
+
 def factory_lines(sd: Any) -> list[dict[str, Any]]:
     """공장 꼴 줄 전부(공장 순 → 도면 장 · 철물 · 더한 줄) — 저장 상태를 열쇠로 얹는다. 쿼리 0."""
     sd = sd if isinstance(sd, dict) else {}
@@ -110,14 +127,7 @@ def factory_lines(sd: Any) -> list[dict[str, Any]]:
     items = sd.get("items") if isinstance(sd.get("items"), list) else []
     refs = {item_ref(items, i): it for i, it in enumerate(items) if isinstance(it, dict)}
     docs: list[dict[str, Any]] = []
-    seen: dict[str, int] = {}
-    for index, (entry, factory) in enumerate(current_factories(sd), 1):
-        sid = clean_sheet_id(entry.get("sheet_id"))
-        if sid:
-            seen[sid] = seen.get(sid, 0) + 1
-            key = f"sheet:{sid}" if seen[sid] == 1 else f"sheet:{sid}:{seen[sid]}"
-        else:
-            key = f"file:{entry['key']}"
+    for index, (key, entry, factory) in enumerate(doc_line_keys(sd), 1):
         docs.append(_line(key, _doc_label(sd, entry, index, refs), factory, "sheet", rows.get(key)))
     customs = [_line(str(r["key"]), str(r.get("label") or ""), _factory_of(r.get("factory")), "custom", r, r.get("qty") or 1)
                for r in stored if str(r["key"]).startswith(_CUSTOM)]
@@ -307,12 +317,15 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
     items = packing["items"]
     rows = {str(r.get("key")): r for r in items if isinstance(r, dict)}
     view = {l["key"]: l for l in factory_lines(sd)}
+    revising = _revising_lines(sd)
     changed = bool(add)
     for upd in updates or []:
         line = view.get(upd.get("key")) if isinstance(upd, dict) else None
         if line is None:
             continue
         _require(line["factory"], mine)
+        if "checked" in upd and line["key"] in revising:  # 고치는 도면 줄은 체크 · 체크 풀기 모두 막는다(C5)
+            raise PackingRefusal(409, DRAWING_REVISING, REVISING_MESSAGE, {"numbers": [revising[line["key"]]]})
         changed = True
         row = rows.get(line["key"])
         if row is None:
@@ -368,6 +381,44 @@ def apply_factory_write(sd: dict[str, Any], *, updates: Any, add: Optional[dict[
         changed = True
         result = {"event_type": "PACKING_DEPARTED", "factories": [g["factory"] for g in groups]}
     return {**result, "changed": changed}
+
+
+# --------------------------------------------------------------------------- #
+# 고친 도면 줄(2026-11-25 설계서 §3-7 — 공장 꼴 패킹만, 1공장뿐 주문의 제품 3줄은 그대로)
+# --------------------------------------------------------------------------- #
+def _revising_lines(sd: Any) -> dict[str, int]:
+    """막힌 도면(:mod:`~foms.services.orders.drawing_fix` — 통째면 모든 장)의 도면 장 줄 열쇠 → 도면 번호. 쿼리 0."""
+    block = blocked(sd)
+    if not block.whole and not block.idents:
+        return {}
+    return {key: no for no, (key, entry, _f) in enumerate(doc_line_keys(sd), 1) if entry_blocked(block, entry)}
+
+
+def release_packing_checks(sd: dict[str, Any], idents: Any) -> list[str]:
+    """바뀐 도면(열쇠 ``sheet:<id>`` · ``file:<key>``)의 패킹 줄 체크를 지운다(제자리 — 전달 쓰기가 같은 JSON 사본에서 부른다, D2).
+
+    사장님 답 Q10 "고친 도면 줄의 체크 풀기" — 출발 보고(``departed_at``) 뒤에는 그대로 둔다. 공장 꼴 패킹 줄만(같은 시트가 두 번 온
+    ``sheet:<id>:2`` 도 그 시트 줄). 상차 완료 기록은 고치지 않는다(체크가 풀리면 읽을 때 저절로 풀린다 — 지금 규칙). 누락 신고는 그대로.
+
+    Args:
+        sd: 고칠 ``structured_data`` 사본(부르는 쪽이 재대입 · ``flag_modified``).
+        idents: 바뀐 도면 열쇠들(:func:`~foms.services.orders.drawing_fix.fix_ident` 꼴).
+
+    Returns:
+        체크를 지운 줄 열쇠(없으면 빈 목록).
+    """
+    packing = stored_packing(sd)
+    wanted = {str(x) for x in idents or [] if isinstance(x, str) and x}
+    if packing is None or packing.get("departed_at") or not wanted:
+        return []
+    released = []
+    for row in packing["items"]:
+        key = str(row.get("key") or "") if isinstance(row, dict) else ""
+        base = key.rsplit(":", 1)[0] if key.startswith("sheet:") and key.count(":") == 2 else key
+        if base in wanted and row.get("checked"):
+            row.update(checked=False, at=None, by_name=None)
+            released.append(key)
+    return released
 
 
 def strip_client_packing_state(sd: Any) -> list[str]:

@@ -6,6 +6,8 @@
  *    '내 공정' [<공정> 끝](foms-production-home-steps.js 판 · foms-production-home.js 줄, 사장님 2026-11-25 "도면이 있는 주문만 한 번
  *    묻기")도 이 함수 하나 — 단추에 서버가 실은 자료(data-foms-sheet-parts, 열쇠 = data-step-key), [취소] · Esc · 바깥이면 no().
  *    창을 연 뒤 OPEN_GUARD_MS 안의 누름은 버린다(두 번 누름의 둘째가 [작업 완료] · 바깥에 떨어지지 않게).
+ *    막힌 도면이 있는 주문(서버 자료 fix — 2026-11-25 설계서 §2-4)은 본문만 "이 주문의 도면 5장 중 4장이 재단 완료로 처리돼요. 도면 2는
+ *    고치는 중이라 빼요."(뒤 문장 = 서버 글 fix.tail). 응답 expanded(막힌 장을 빼고 처리됨)는 그 칸 옆 글을 서버 글(expanded.note)로.
  *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "아직 미완료가 있어요 — 재단 1장 · 검수 3장".
  *    카드를 안 쓴 주문은 null(시트 JS 가 지금 글을 그대로 쓴다).
@@ -63,7 +65,11 @@
     if (opener && document.contains(opener)) { opener.focus(); }
     if (run && yes) { yes(); } else if (!run && no) { no(); }
   }
-  function ask(label, sheets, opener, go, no) {
+  function body(label, sheets, fix) {
+    if (fix && fix.tail) { return '이 주문의 도면 ' + sheets + '장 중 ' + fix.done + '장이 ' + label + ' 완료로 처리돼요. ' + fix.tail; }
+    return '이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.';
+  }
+  function ask(label, sheets, opener, go, no, fix) {
     var box = document.querySelector('[data-foms-sheet-confirm]');
     if (!box) { go(); return; }
     dlg.box = box;
@@ -72,7 +78,7 @@
     dlg.opener = opener;
     dlg.at = Date.now();
     box.querySelector('[data-foms-sheet-confirm-title]').textContent = obj(label, '를', '을') + ' 작업 완료로 처리할까요?';
-    box.querySelector('[data-foms-sheet-confirm-body]').textContent = '이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.';
+    box.querySelector('[data-foms-sheet-confirm-body]').textContent = body(label, sheets, fix);
     box.hidden = false;
     box.setAttribute('aria-hidden', 'false');
     var no = box.querySelector('[data-foms-sheet-confirm-no].foms-btn');
@@ -86,7 +92,7 @@
       btn.disabled = false;
       var part = info && info.parts ? info.parts[key] : null;
       if (!info || !info.sheets || !part || part.uses_cards) { go(); return; } // 카드 쓴 파트 · 도면 0장 · 자료 없음 = 서버가 판정
-      ask(LABELS[key] || key, info.sheets, btn, go, no);
+      ask(LABELS[key] || key, info.sheets, btn, go, no, info.fix);
     });
   }
 
@@ -109,10 +115,20 @@
     stepMsg(page, '');
     var h = holder(page);
     var info = data(page);
+    expandedNote(page, payload && payload.expanded);
     if (!h || !info || !payload || !payload.parts) { return; }
     info.parts = payload.parts;
     if (payload.sheets != null) { info.sheets = payload.sheets; }
+    if (payload.fix) { info.fix = payload.fix; } else { delete info.fix; }
     h.setAttribute('data-foms-sheet-parts', JSON.stringify(info));
+  }
+  function expandedNote(page, ex) { // 막힌 장을 빼고 처리된 파트 — 칸 옆 글 = 서버 글("도면 4/5 · 1장 미완료"), 카드 쓴 파트 글처럼 고정
+    if (!ex || !ex.note) { return; }
+    var cell = page.querySelector('[data-foms-sheet-step="' + ex.part + '"] [data-foms-sheet-step-meta]');
+    if (!cell) { return; }
+    cell.textContent = ex.note;
+    cell.setAttribute('data-foms-sheet-cardnote', '');
+    cell.classList.add('fpp-note', 'is-miss');
   }
   function why(page) {
     var info = data(page);

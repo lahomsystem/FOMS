@@ -89,7 +89,9 @@
         {# 파트 카드 3판(설계서 2026-11-23 §8-3): 카드를 쓴 파트의 칸 옆 글 "카드 3/5 · 2장 미완료" · "카드로 완료 · 김재단 11/24 15:02"(그 밖 칸은
            지금 글), 칸 아래 서버 거절 글(.fpp-stepmsg), [바뀐 기록 보기](카드를 쓴 주문만), 반장 손 체크 확인 창 자료(data-foms-sheet-parts —
            쓰기 단추가 있을 때만). 글 · 창은 foms-production-sheet-parts.js. #}
-        <section class="foms-prod-page__box" aria-label="공정"{% if can_act %} data-foms-sheet-parts="{{ {'sheets': order.final_sheet_count, 'parts': order.part_progress, 'keys': order.current_keys} | tojson | forceescape }}"{% endif %}>
+        {# 막힌 도면이 있는 주문만 'fix'(통째 작업 확인 창 본문 재료 — 2026-11-25 설계서 §2-4, 없으면 지금 자료 그대로) #}
+        {% set _sheet_parts = {'sheets': order.final_sheet_count, 'parts': order.part_progress, 'keys': order.current_keys} %}{% if order.fix_confirm %}{% set _sheet_parts = dict(_sheet_parts, fix=order.fix_confirm) %}{% endif %}
+        <section class="foms-prod-page__box" aria-label="공정"{% if can_act %} data-foms-sheet-parts="{{ _sheet_parts | tojson | forceescape }}"{% endif %}>
           <h2 class="foms-prod-page__h">공정 <small data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</small></h2>
           <div class="foms-prod-page__steps">
             {% for s in order.steps %}
@@ -223,7 +225,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261125a" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261125b" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124i" defer></script>{% if can_act and order.factory_sheet %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261124h" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261124i" defer></script>{% if edit_on %}

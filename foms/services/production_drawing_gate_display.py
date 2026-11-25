@@ -14,10 +14,13 @@ from typing import Any, Iterable, Mapping
 
 from foms.services.erp_display import _ensure_dict
 from foms.services.orders.confirm_drawing_gate import (
+    effective_drawing_status,
     production_block_reason,
     production_drawing_badge,
     production_start_block,
 )
+from foms.services.orders.drawing_fix import fixing_label, per_drawing_numbers
+from foms.services.production.part_mark_gates import REVISING_MESSAGE
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
 
 __all__ = ["attach_production_drawing_gate"]
@@ -36,7 +39,7 @@ def attach_production_drawing_gate(db: Any, rows: Iterable[dict[str, Any]], orde
     for row in rows:
         order = orders_by_id.get(row.get("id"))
         sd = _ensure_dict(getattr(order, "structured_data", None)) if order is not None else {}
-        row["drawing_badge"] = production_drawing_badge(sd)
+        row["drawing_badge"] = production_drawing_badge(sd) or _per_drawing_badge(sd)
         row["production_start_blocked"] = False
         row["production_start_block_reason"] = ""
         if order is None or row.get("stage") != _WAITING_LABEL or not row.get("is_sales_approved"):
@@ -53,6 +56,17 @@ def attach_production_drawing_gate(db: Any, rows: Iterable[dict[str, Any]], orde
         sales_names = assigned.get(row.get("id")) or [names.get(i, "") for i in ids]
         row["production_start_blocked"] = True
         row["production_start_block_reason"] = production_block_reason(block, sales_names)
+
+
+def _per_drawing_badge(sd: dict[str, Any]) -> dict[str, str] | None:
+    """도면별 막힘 배지(2026-11-25 설계서 §2-4 "통째 막힘은 지금 글, 도면별 막힘은 '도면 2 고치는 중'") — 없으면 None.
+
+    통째 배지(:func:`production_drawing_badge`)가 없을 때만 부른다. 말풍선은 도면 판 막힌 칸 까닭 글 그대로(새 글 없음). 쿼리 0.
+    """
+    numbers = per_drawing_numbers(sd)
+    if not numbers:
+        return None
+    return {"label": fixing_label(numbers), "title": REVISING_MESSAGE, "drawing_status": effective_drawing_status(sd)}
 
 
 def _assigned_sales_names(db: Any, order_ids: list[Any]) -> dict[int, list[str]]:

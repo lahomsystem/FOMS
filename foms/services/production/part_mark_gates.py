@@ -7,7 +7,8 @@
 코드                        상태   언제
 =========================  =====  ====================================================================
 ``HOLD_ACTIVE``             409    보류 중 — 맡기 취소 · 완료 취소만 된다 · 공정 칸 손 작업 켜기도 막힘(끄기는 됨)
-``DRAWING_REVISING``        409    도면 고치는 중(RETURNED · TRANSFERRED) — 같음(공정 칸 손 작업 켜기도 막힘, 사장님 2026-11-25)
+``DRAWING_REVISING``        409    도면 고치는 중(RETURNED · TRANSFERRED) — 같음(공정 칸 손 작업 켜기도 막힘, 사장님 2026-11-25).
+                                   생산 단계 도면별 막힘(2026-11-25 설계서 §3-3)은 그 장 누름만 막고 ``numbers`` 를 싣는다
 ``STEP_SET_BY_HAND``        409    카드를 안 쓴 파트의 공정 칸이 손으로 체크됨 — 그 파트 카드 쓰기
 ``INSPECT_NOT_READY``       409    그 장 재단 · 엣지 · 조립이 아직 — 검수 맡기 · 완료 · 담당 바꾸기(``left``)
 ``INSPECT_DONE_FIRST``      409    그 장 검수가 완료 — 앞 파트 완료 취소 · 기본 취소
@@ -23,7 +24,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
+from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
+from foms.services.orders.drawing_fix import blocked, entry_blocked
 from foms.services.production.part_constants import MARK_STATE_DONE, PART_INSPECT, PRODUCTION_PART_LABELS
 from foms.services.production.part_mark_rules import (
     ACTION_DONE,
@@ -89,12 +92,21 @@ def _hold_active(sd: Any) -> bool:
     return bool(isinstance(hold, dict) and hold.get("active"))
 
 
-def order_gate(sd: Any, action: str) -> Optional[Gate]:
+def revising_gate(numbers: list[int], **extra: Any) -> Gate:
+    """도면별 막힘 거절 — 지금 글 그대로(``REVISING_MESSAGE``) + 자료 ``numbers``(막힌 장 번호, 설계서 2026-11-25 §4-2)."""
+    return Gate(409, DRAWING_REVISING, REVISING_MESSAGE, {**extra, "numbers": numbers})
+
+
+def order_gate(sd: Any, action: str, entry: Optional[dict[str, Any]] = None) -> Optional[Gate]:
     """보류 · 도면 고치는 중이면 카드를 못 누른다(B4) — 맡기 취소 · 완료 취소는 된다.
+
+    도면 고치는 중: 주문 통째(지금 규칙) 또는 생산 단계 도면별 막힘(2026-11-25 설계서 §3-3)이면 **그 장**(``entry``)만 —
+    다른 장은 계속 작업한다(사장님 답 2). 도면별 거절은 자료에 ``numbers``(그 장 번호)를 싣는다.
 
     Args:
         sd: 잠근 주문의 ``structured_data``.
         action: 누름.
+        entry: 누른 장(확정 도면 항목). None 이면 주문 통째 막힘만 본다.
 
     Returns:
         막히면 :class:`Gate`, 아니면 None.
@@ -105,6 +117,9 @@ def order_gate(sd: Any, action: str) -> Optional[Gate]:
         return Gate(409, HOLD_ACTIVE, HOLD_MESSAGE)
     if drawing_revision_in_progress(sd):
         return Gate(409, DRAWING_REVISING, REVISING_MESSAGE)
+    if entry is not None and entry_blocked(blocked(sd), entry):
+        keys = [e["key"] for e in resolve_final_drawing_files(sd if isinstance(sd, dict) else {})]
+        return revising_gate([keys.index(entry["key"]) + 1] if entry.get("key") in keys else [])
     return None
 
 
@@ -193,7 +208,8 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
 
     * 보류 · 도면 고치는 중에 켤 때: 409 ``HOLD_ACTIVE`` · ``DRAWING_REVISING``(사장님 2026-11-24 "보류 중에는 통째 작업도 막기" ·
       2026-11-25 "도면 고치는 중도 보류처럼" — 도면 누름 :func:`order_gate` 와 같은 차례 · 같은 글). 끄기(작업 취소)는 둘 다 된다
-      (도면 쪽 :data:`ALLOWED_WHILE_BLOCKED` — 완료 취소 · 맡기 취소 — 와 같은 뜻).
+      (도면 쪽 :data:`ALLOWED_WHILE_BLOCKED` — 완료 취소 · 맡기 취소 — 와 같은 뜻). 여기 '도면 고치는 중'은 주문 **통째**만이다 —
+      도면별 막힘은 막지 않고 공정 API 가 막힌 장을 빼고 풀어 적는다(2026-11-25 설계서 §3-6 ①, ``part_steps_sync.expand_hand_step``).
     * 켤 때: 카드를 쓴 파트에 미완료 장이 1장 이상이면 409 ``PART_USES_CARDS`` + ``left``(쓰기 · 이벤트 없음).
       미완료 0장(확정 도면 0장 포함)이면 지금처럼 켜진다.
     * 끌 때: 카드를 쓴 파트의 지금 장이 모두 카드로 완료면 409 ``STEP_SET_BY_CARDS``(완료 취소는 카드에서).
@@ -227,5 +243,5 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
 __all__ = [
     "ALLOWED_WHILE_BLOCKED", "DRAWING_REVISING", "Gate", "GateRefusal", "HOLD_ACTIVE", "INSPECT_DONE_FIRST",
     "INSPECT_NOT_READY", "PART_USES_CARDS", "STEP_SET_BY_CARDS", "STEP_SET_BY_HAND", "hand_step_gate", "inspect_gate",
-    "order_gate", "step_cell_gate",
+    "order_gate", "revising_gate", "step_cell_gate",
 ]
