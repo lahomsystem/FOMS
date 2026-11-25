@@ -6,8 +6,8 @@
 (``orders/<id>/drawing_gateway/revisions``)에 둔다. 영업 쪽 업로드 길(``drawing-gateway-upload``)은 ``ERP_EDIT``(CS · 영업 + 관리자)라
 생산 계정(반장 · 파트 계정)이 못 지나서 생산 쪽 길을 따로 연다 — 저장 · 검사는 같은 함수(``normalize_revision_files``).
 
-* 누가(§4-1): 관리자 · 반장 = 모든 도면, 파트 계정 = 자기 공장 도면만(``drawing_fix_requests.can_request_drawing_fix``), 생산 단계만.
-  그 밖 403 ``REQUEST_FORBIDDEN`` · 생산 단계 아님 409 ``INVALID_STAGE``(§4-2 에 글이 없어 공장 완료 API 의 지금 글).
+* 누가(§4-1): 관리자 = 모든 도면, 반장 · 파트 계정 = 자기 공장 도면만(사장님 2026-11-25 답, ``drawing_fix_requests.can_request_drawing_fix``),
+  생산 단계만. 그 밖 403 ``REQUEST_FORBIDDEN``(남의 공장 도면이면 카드 쓰기의 지금 글 "2공장에서 작업하는 도면이에요. …") · 생산 단계 아님 409 ``INVALID_STAGE``(§4-2 에 글이 없어 공장 완료 API 의 지금 글).
 * 몸(§4-2): 사유 빈 글 400 ``REQUEST_NOTE_REQUIRED`` · 도면 0장 400 ``REQUEST_PICK`` · 사진 4장 이상 · 경로 이상 400 ``REQUEST_PHOTOS`` ·
   지금 도면에 없는 장 409 ``FIX_NOT_CURRENT``(D3 지금 글) · 이미 막힌 도면(고치는 중 · 영업 요청 · 열린 공장 요청 — 도면 판 카드와 같은
   판정)이 끼면 409 ``REQUEST_BLOCKED``(그 막힘의 지금 글). 같은 열쇠로 다시 왔는데 요청 줄이 없으면 409 ``REQUEST_CLOSED``.
@@ -67,6 +67,7 @@ from foms.services.orders.drawing_fix_requests import (
     clean_note,
     entry_block,
     find_request,
+    forbidden_message,
     has_requestable_drawing,
     numbers_label,
     photo_rows,
@@ -163,8 +164,9 @@ def _write(db: Any, user: Any, order_id: int, body: Any, idem: Optional[str]) ->
     note, targets, photos = _parse(order_id, body)
     order = _locked_order(db, order_id)
     picked = resolve_targets(_ensure_dict(order.structured_data), targets)
-    if not can_request_drawing_fix(user, order, [entry for _no, entry in picked]):
-        raise RequestRefusal(403, REQUEST_FORBIDDEN)
+    entries = [entry for _no, entry in picked]
+    if not can_request_drawing_fix(user, order, entries):  # 남의 공장 도면이면 카드 쓰기의 지금 글(사장님 "자기 공장 도면만")
+        raise RequestRefusal(403, REQUEST_FORBIDDEN, forbidden_message(user, _ensure_dict(order.structured_data), entries))
     rid = request_id(user.id, idem)
     at = now_utc_naive().replace(microsecond=0).isoformat() + "Z"
     made: dict[str, Any] = {}

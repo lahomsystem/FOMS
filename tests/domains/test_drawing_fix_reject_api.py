@@ -237,6 +237,32 @@ def test_leaving_production_closes_open_requests_in_the_same_write(client, sent,
     assert not _events(oid, "DRAWING_FIX_REQUEST_REJECTED")
 
 
+def _row_html(block: str, rid: str) -> str:
+    """요청사항 칸에서 그 공장 요청 한 줄만."""
+    start = block.index(f'id="factory-request-{rid}"')
+    return block[start:block.index("data-dfr-row", start + 40) if "data-dfr-row" in block[start + 40:] else len(block)]
+
+
+@pytest.mark.parametrize("checked", [False, True])
+def test_request_closed_by_leaving_production_shows_the_owner_words_or_reflected(client, sent, who, checked):
+    """사장님 2026-11-25 답 "주문 단계 변경으로 수정불가" — [반영 완료] 안 누른 채 닫힌 줄은 기록 줄(표 · 단추 없음),
+    누른 뒤 닫힌 줄은 지금처럼 "반영 완료"(대조군)."""
+    oid = _order(who, checked=checked)
+    mark_order_inspected(oid)
+    login(client, who.admin)
+    assert client.post(f"/api/orders/{oid}/production/complete",
+                       json={"admin_override": True, "override_reason": "시험 — 시공으로"}).status_code == 200
+    login(client, who.staff)
+    row = _row_html(_requests_block(client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True)), "fr_a1")
+    closed = re.findall(r'<div class="small mt-1 dfr-closed">([^<]*)</div>', row)
+    if checked:
+        assert closed == [] and '<span class="badge bg-success">반영 완료</span>' in row
+    else:
+        assert len(closed) == 1 and re.fullmatch(r"주문 단계 변경으로 수정불가 · \d{1,2}/\d{1,2} \d{2}:\d{2}", closed[0])
+        assert "badge" not in row.split("dw-target-chip")[0]                # 표 없음("미완료"도 아님)
+    assert "data-dfr-act" not in row
+
+
 def test_override_back_to_confirm_closes_and_coming_back_does_not_resurrect(client, sent, who):
     oid = _order(who)
     login(client, who.admin)
