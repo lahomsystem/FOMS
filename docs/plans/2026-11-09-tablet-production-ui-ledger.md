@@ -1327,3 +1327,5 @@
 - 사장님 할 일: `/admin/users` 에서 생산팀 계정 파트 · 반장 지정(반장 0명이라 통째 작업 · 대신 처리 · 공장 요청은 반장 지정 뒤).
 - 다음 운영 올리기 몫(말씀 때): D3(deploy bc7b759dc 까지) · 날짜 띠 · 모바일 날짜 칸 · D4.
 - 날짜 띠 스테이징 올림: deploy = c5746b23b. CI 넷 초록(perf-gate 포함 — 조각 바이트 예산 안), 스테이징 배포 일치.
+- 사장님 답(원문): 모바일 날짜 칸 = "다른 창 것 위에 우리 것 얹기 (Recommended)". `mdate-mobile` 셋째 판: 세션 가지 끝 위로 옮김 — 67463c337(아래 달력 · 보기 칸 · 큰 단추) · ab429a565(인라인 실행 취소 · 이름 · 키보드 · 가로 폰 · 다크). 부딪힌 곳은 `itemScheduleFieldClass` 한 줄(다른 창 것 그대로 — `itemDateInput` · `erp-item-date-pair` · `autocomplete="off"`), 우리 "두 칸 보이게"는 뺌. 쌓기(다른 창)와 보기 칸 줄바꿈(우리)이 같이 돎. 일꾼 끝 줄: 닿는 시험 `1197 passed, 1 skipped` · 계약/하네스 `868 passed`. 지휘: 세션 가지에 cherry-pick, 관련 시험 `215 passed`, 그림 `r3_phone390_item_three_dates.png` 직접 봄(쌓인 두 칸 · 날짜 셋 줄바꿈). → smoke → deploy.
+- D4 일꾼 `d4-request`(opus · xhigh), 워크트리 `c:/tmp/foms-w-d4`, 가지 `work/d4-factory-request`(세션 5728cf166 에서 땀) — 공장 [도면 수정 요청](N3 · 사진 · 알림) · [반영 완료](N5) · [요청 반려](N4) · 요청사항 칸 · 단계 나갈 때 요청도 닫기.
