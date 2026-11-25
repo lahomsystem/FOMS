@@ -34,7 +34,7 @@ NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
 PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow"}
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 CONFIRM_ATTR = re.compile(r'data-foms-sheet-parts="([^"]+)"')
-PARTS_PIN = "foms-production-sheet-parts.js?v=20261125m4"
+PARTS_PIN = "foms-production-sheet-parts.js?v=20261125m5"
 REASON_CSS = "css/components/foms-reason-sheet.css?v=20261122t"
 
 
@@ -199,7 +199,7 @@ def _node(tmp_path, page: str, want: dict) -> None:
     assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
 
 
-WORDS = {"key": "cut", "title": "재단을 작업 완료로 처리할까요?", "text": "이 주문의 도면 3장이 모두 재단 완료로 처리돼요."}
+WORDS = {"key": "cut", "title": "재단 완료할까요?", "text": "이 주문의 도면 3장이 모두 재단 완료로 처리돼요."}
 
 
 def test_node_tablet_panel_asks_once_cancel_posts_nothing_and_double_tap_is_dropped(client, cohort, tmp_path):
@@ -238,7 +238,7 @@ def test_js_contract_and_css_same_values_as_the_work_sheet():
         assert len(src.splitlines()) <= 300
         assert "sp.beforeToggle(btn, btn, true," in src and "btn.hasAttribute('data-foms-sheet-parts')" in src
         assert "document.contains(btn)" in src  # 창이 뜬 사이 단추가 화면에서 빠지면 저장하지 않는다
-        assert "작업 완료로 처리할까요" not in src  # 글은 sheet-parts.js 한 곳
+        assert "완료할까요" not in src  # 글은 sheet-parts.js 한 곳
     assert "document.addEventListener(" not in steps and re.findall(r"'/api/[^']*'", steps) == ["'/api/orders/'"]
     assert "var OPEN_GUARD_MS = 400;" in parts and "if (!S.bound) {" in parts and "S.api.close(" in parts
     assert "btn.getAttribute('data-foms-sheet-step') || btn.getAttribute('data-step-key')" in parts

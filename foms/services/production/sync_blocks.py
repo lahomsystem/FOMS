@@ -37,12 +37,19 @@ NOT_IN_PRODUCTION = "NOT_IN_PRODUCTION"
 _DONE_KIND = "done"
 _PRODUCTION = "PRODUCTION"
 _CONSTRUCTION = "CONSTRUCTION"
+#: 제작 완료 칸을 눌렀을 때 글(사장님 2026-11-26).
+DONE_WHY = "제작 완료된 주문이에요. 되돌리려면 작업 시트에서 [완료 취소]를 눌러 주세요."
 
 
 def stage_block(stage: Optional[str]) -> dict[str, str]:
-    """생산 단계가 아닌 주문의 카드 칸 — 글 = 첫 화면 단계 글(시공 단계 = "제작 완료"), 까닭 = 카드 쓰기 거절 글 그대로."""
-    return {"kind": _DONE_KIND if stage == _CONSTRUCTION else BLOCK_HOLD, "text": production_home_stage(stage, True, [], False)[0],
-            "why": NOT_IN_PRODUCTION_MESSAGE, "code": NOT_IN_PRODUCTION}
+    """생산 단계가 아닌 주문의 카드 칸 — 글 = 첫 화면 단계 글(시공 단계 = "제작 완료").
+
+    까닭 글: 시공 단계(제작 완료) = :data:`DONE_WHY`(사장님 2026-11-26 — 방금 완료한 사람에게 "생산 단계 주문이 아니에요"는 어색),
+    그 밖 단계 = 카드 쓰기 거절 글 그대로. 서버 거절(409) 글은 안 바꾼다.
+    """
+    done = stage == _CONSTRUCTION
+    return {"kind": _DONE_KIND if done else BLOCK_HOLD, "text": production_home_stage(stage, True, [], False)[0],
+            "why": DONE_WHY if done else NOT_IN_PRODUCTION_MESSAGE, "code": NOT_IN_PRODUCTION}
 
 
 #: 제작 완료(시공 단계) 칸 — 판 설정에 실어 제작 완료 성공 응답 때 판 JS 가 그 주문 카드에 그린다(C09).
@@ -141,5 +148,5 @@ def clear_sync_cache(order_ids: Optional[Iterable[int]] = None) -> None:
             del _cache[key]
 
 
-__all__ = ["CACHE_SIZE", "CACHE_TTL_SECONDS", "DONE_BLOCK", "NOT_IN_PRODUCTION", "cached_blocks", "clear_sync_cache",
+__all__ = ["CACHE_SIZE", "CACHE_TTL_SECONDS", "DONE_BLOCK", "DONE_WHY", "NOT_IN_PRODUCTION", "cached_blocks", "clear_sync_cache",
            "order_sync_block", "stage_block"]

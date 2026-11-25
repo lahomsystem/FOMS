@@ -9,7 +9,7 @@
  *    사람이 나 하나일 때만 시작 취소(release)까지 이어서 "안 봄 · 담당 미정"으로. 그 밖(태블릿에서 진짜 시작했다가 한참 뒤 완료 · 같이 작업한
  *    장 · 남의 장을 대신 완료)은 완료 취소만. 둘째 요청이 막히면 창이 서버 모습으로 다시 그리고 서버 글을 그 줄에(셋째 판).
  *  · [모두 완료 처리](아무도 안 시작한 파트, 옛 [모두 작업]) = 작업 시트와 같은 반장 손 체크 확인 창(foms-production-sheet-parts.js
- *    beforeToggle — 글 "재단을 작업 완료로 처리할까요?" · [작업 완료] 그대로) → POST /api/orders/<id>/production/steps {key, done:true}.
+ *    beforeToggle — 글 "재단 완료할까요?" · [재단 완료] 그대로) → POST /api/orders/<id>/production/steps {key, done:true}.
  *    손으로 통째 체크한 파트의 [모두 완료 취소] = 같은 길 {done:false}.
  *  · 마지막 검수 장을 완료해 서버가 order_ready 를 주면 창 안에 "제작 완료할까요?"(태블릿 창과 같은 글 · [나중에][제작 완료] · 실행 단추
  *    0.8초 잠금 · 초점 [나중에]) → [제작 완료] = 지금 제작 완료 API(POST /api/orders/<id>/production/complete) 그대로, 거절은 서버 글.

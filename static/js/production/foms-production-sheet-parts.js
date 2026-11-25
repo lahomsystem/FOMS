@@ -1,7 +1,7 @@
 /* 생산 작업 시트 — 파트 카드 3판 칸(설계서 2026-11-23 §4-2 · §8-3, 승인 때 고친 것 2 · 3). 루트 = [data-foms-prod-sheet-page].
  * foms-production-sheet-page.js 가 이 파일(window.FomsSheetParts)이 있을 때만 부른다 — 없으면 시트는 지금 그대로다.
  *  · beforeToggle: 반장 · 관리자가 카드를 안 쓴 파트의 공정 칸을 **켤 때**(끌 때는 아님), 확정 도면이 1장 이상이면 먼저 묻는다
- *    "재단을 작업 완료로 처리할까요?" · "이 주문의 도면 5장이 모두 재단 완료로 처리돼요." [취소] [작업 완료]. 카드를 쓴 파트는 묻지 않고 보낸다
+ *    "재단 완료할까요?" · "이 주문의 도면 5장이 모두 재단 완료로 처리돼요." [취소] [재단 완료]. 카드를 쓴 파트는 묻지 않고 보낸다
  *    (서버가 남은 장을 세어 막는다 — 409 PART_USES_CARDS). 확정 도면 0장이면 지금처럼 바로.
  *    '내 공정' [<공정> 완료](옛 [<공정> 끝] · foms-production-home-steps.js 판 · foms-production-home.js 줄, 사장님 2026-11-25 "도면이 있는 주문만 한 번
  *    묻기")도 이 함수 하나 — 단추에 서버가 실은 자료(data-foms-sheet-parts, 열쇠 = data-step-key), [취소] · Esc · 바깥이면 no().
@@ -26,7 +26,6 @@
   function safeJsonParse(value, fallback) {
     try { var text = String(value || '').trim(); return text ? JSON.parse(text) : fallback; } catch (e) { return fallback; }
   }
-  function obj(name, a, b) { var c = name.charCodeAt(name.length - 1) - 0xAC00; return name + (c >= 0 && c < 11172 && c % 28 === 0 ? a : b); }
   function toward(name) { var c = name.charCodeAt(name.length - 1) - 0xAC00; var f = c >= 0 && c < 11172 ? c % 28 : -1; return name + (f === 0 || f === 8 ? '로' : '으로'); }
   function kst(iso) { var t = Date.parse(iso || ''); return isNaN(t) ? null : new Date(t + 9 * 36e5); }
   function stamp(d, prev) {
@@ -83,7 +82,8 @@
     dlg.no = no || null;
     dlg.opener = opener;
     dlg.at = Date.now();
-    box.querySelector('[data-foms-sheet-confirm-title]').textContent = obj(label, '를', '을') + ' 작업 완료로 처리할까요?';
+    box.querySelector('[data-foms-sheet-confirm-title]').textContent = label + ' 완료할까요?'; // 누른 단추와 같은 말(사장님 2026-11-26)
+    box.querySelector('[data-foms-sheet-confirm-yes]').textContent = label + ' 완료';
     box.querySelector('[data-foms-sheet-confirm-body]').textContent = body(label, sheets, fix);
     box.hidden = false;
     box.setAttribute('aria-hidden', 'false');
