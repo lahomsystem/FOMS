@@ -196,6 +196,21 @@ def test_undo_is_own_share_only_and_lead_can_undo_for_them(client):
     assert _names(order.id, order.keys[0]) == [("이시영", False), ("김재단", False)]
 
 
+def test_lead_undo_without_target_reverts_every_finished_share(client):
+    """반장 · 관리자가 대상 없이 [되돌리기](PC [완료 취소]도 같은 길) = 두 사람 완료를 모두 되돌림(사장님 2026-11-25)."""
+    order = make_order(1)
+    lee, kim, _ = _two(client, order)
+    for who in (lee, kim):
+        login(client, who)
+        mark(client, order, 0, "cut", "done", "need")
+    assert row(order.id, order.keys[0], "cut").state == "DONE"
+    login(client, _lead())
+    back = mark(client, order, 0, "cut", "undo", "done").get_json()["data"]
+    assert (back["changed"], back["mark"]["state"], back["mark"]["done_n"], back["mark"]["holder_n"]) == (True, "need", 0, 2)
+    assert _names(order.id, order.keys[0]) == [("이시영", False), ("김재단", False)]  # 사람 목록은 그대로 · 둘 다 작업 중
+    assert "재단 재단 완료 → 작업 필요 (대신 처리)" in _audits(order.id)[-1]
+
+
 def test_release_rules_and_auto_complete_turns_step_on(client):
     order = make_order(1)
     lee, kim, _ = _two(client, order)
@@ -338,6 +353,49 @@ def test_inspect_waits_for_all_cutters_and_order_ready_waits_for_all_inspectors(
     login(client, yun)
     last = mark(client, order, 0, "inspect", "release", "need")  # 빠지면 남은 사람 모두 완료 = 저절로 완료(Q6)
     assert last.status_code == 200 and last.get_json()["data"]["order_ready"] == {"order_id": order.id}
+
+
+def _inspect_two(client, order):
+    """재단 · 엣지 · 조립 완료(관리) → 윤검수 · 강검수가 같이 검수(아직 아무도 완료 안 함). (관리, 강검수)."""
+    admin = make_user("관리", team="CS", role="ADMIN")
+    login(client, admin)
+    for part in ("cut", "edge", "assemble"):
+        finish(client, order, 0, part)
+    yun, kang = make_user("윤검수", part="inspect"), make_user("강검수", part="inspect")
+    for who in (yun, kang):
+        login(client, who)
+        assert mark(client, order, 0, "inspect", "take", "none").status_code == 200
+    return admin, kang
+
+
+def test_one_finished_inspector_blocks_earlier_part_undo(client):
+    """한 명이라도 검수 완료를 눌렀으면("검수 1/2 완료") 재단 · 엣지 · 조립 되돌리기를 막는다(사장님 2026-11-25) — 본인 · 반장
+    대신 모두. 검수 완료를 되돌려 0명이 되면 다시 된다."""
+    order = make_order(1)
+    admin, kang = _inspect_two(client, order)
+    half = mark(client, order, 0, "inspect", "done", "need").get_json()["data"]  # 강검수만 완료
+    assert (half["mark"]["state"], half["mark"]["done_n"]) == ("need", 1)
+    login(client, admin)
+    own = mark(client, order, 0, "cut", "undo", "done")
+    assert (own.status_code, code(own)) == (409, "INSPECT_DONE_FIRST")
+    assert own.get_json()["error"] == ("강검수가 이 장 검수를 완료했어요. 재단 완료를 취소하려면 강검수에게 검수 완료부터 "
+                                       "취소해 달라고 해 주세요.")
+    login(client, _lead())
+    assert code(mark(client, order, 0, "edge", "undo", "done")) == "INSPECT_DONE_FIRST"  # 반장 대신 되돌리기도
+    login(client, kang)
+    assert mark(client, order, 0, "inspect", "undo", "need", seen_me="done").status_code == 200  # 검수 완료 0명
+    login(client, admin)
+    assert mark(client, order, 0, "cut", "undo", "done").status_code == 200  # 다시 된다
+    assert row(order.id, order.keys[0], "cut").state == "NEED"
+
+
+def test_inspect_started_without_any_done_allows_earlier_part_undo(client):
+    """음성 대조군 — 검수를 시작만 하고 아무도 완료를 안 누른 도면은 앞 파트 되돌리기가 된다."""
+    order = make_order(1)
+    admin, _kang = _inspect_two(client, order)
+    login(client, admin)
+    assert mark(client, order, 0, "assemble", "undo", "done").status_code == 200
+    assert row(order.id, order.keys[0], "assemble").state == "NEED"
 
 
 def test_step_cell_stays_off_until_everyone_finishes(client):

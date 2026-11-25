@@ -20,6 +20,7 @@ from sqlalchemy import create_engine, inspect, text
 
 from foms.services.production import mark_crew as mc
 from foms.services.production.part_holders import part_holder
+from foms.services.production.part_mark_gates import inspect_gate
 from foms.services.production.part_mark_decide import decide_mark
 from foms.services.production.part_mark_rules import (
     MARK_COLUMNS,
@@ -234,6 +235,20 @@ def test_five_people_have_no_limit():
     crew = [_m(100 + j, f"재단{j}") for j in range(5)]
     decision = _decide(_row(crew), "join", "need", KIM)
     assert decision.kind == "apply" and len(decision.crew) == 6  # 인원 상한 없음(Q9)
+
+
+def test_one_finished_inspector_blocks_earlier_part_undo_gate():
+    """검수 줄에서 완료를 누른 사람이 한 명이라도 있으면 앞 파트 되돌리기를 막는다(사장님 2026-11-25) — 0명이면 된다."""
+    def gate(crew=None, **fields):
+        marks = [_row(crew, drawing_key="k", part="inspect", **fields)]
+        return inspect_gate({}, marks, "k", "cut", "undo")
+
+    half = gate([_m(LEE, "윤검수"), _done(KIM, "강검수")])
+    assert (half.code, half.extra["inspected_by"]) == ("INSPECT_DONE_FIRST", "강검수")
+    assert gate([_m(LEE, "윤검수"), _m(KIM, "강검수")]) is None  # 시작만 = 된다(음성 대조군)
+    assert gate([_done(LEE, "윤검수"), _done(KIM, "강검수")]).extra["inspected_by"] == "윤검수 · 강검수"
+    assert gate(state="DONE", done_by_name="박반장").code == "INSPECT_DONE_FIRST"  # 사람 없는 검수 완료(풀어 쓴 완료)
+    assert inspect_gate({}, [_row([_done(KIM, "강검수")], drawing_key="k", part="inspect")], "k", "inspect", "undo") is None
 
 
 # --------------------------------------------------------------------------- #
