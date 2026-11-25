@@ -219,6 +219,20 @@ def _current_round_block(sd: dict) -> str:
     return "\n".join([head, *lines])
 
 
+def _paid_billing_label(sd: dict) -> str:
+    """AS 비용 판정이 유상이면 표기 문구(금액 있으면 함께), 아니면 빈 문자열.
+
+    무상·미정은 줄 자체를 생략한다(사용자 요청: 유상일 때만 표기).
+    """
+    billing = _dict_at(sd, "shipment").get("as_billing")
+    if not isinstance(billing, dict) or billing.get("type") != "paid":
+        return ""
+    amount = billing.get("amount")
+    if isinstance(amount, int) and not isinstance(amount, bool) and amount > 0:
+        return f"유상 ({amount:,}원)"
+    return "유상"
+
+
 def build_as_push_text(order: Any) -> str:
     """저장된 주문으로 AS PUSH 본문을 조립한다.
 
@@ -277,6 +291,7 @@ def build_as_push_text(order: Any) -> str:
         text += f"시공자 - {worker_label}\n"
     if text:
         text += "\n"
+    text = _append_line(text, "비용", _paid_billing_label(sd))
     text = _append_line(text, "내용", as_content)
     round_block = _current_round_block(sd)
     if round_block:
