@@ -21,6 +21,7 @@ from foms.services.orders.drawing_factory import has_second_factory, sheet_facto
 from foms.services.orders.drawing_fix import confirm_extras
 from foms.services.production.factory_constants import FACTORY_2, factory_label
 from foms.services.production.factory_home import factory_sheet_view
+from foms.services.production.factory_scope import steps_factory_note
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import (
     _ensure_dict,
@@ -319,8 +320,10 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
         # 2공장(설계서 2026-11-23 §4-14): 섞인 주문만 공장 줄 · 공장 단추(한 공장 주문은 None — 지금 시트 그대로). 같은 표시 줄(쿼리 0)
         sheet['factory_sheet'] = factory_sheet_view(sd, marks, user, stage_label=stage_label)
         # 파트 계정 · 파트도 반장도 아닌 생산팀 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 · '승인 때 고친 것' 5 — 공정 API 403 과 같은 판정)
+        # · 반장에게 장이 모두 남의 공장인 주문(비평 C02 — 공정 API 403 OTHER_FACTORY 와 같은 판정, 글 = 남의 공장 카드 글)
         lock = steps_lock(user)
-        sheet.update(steps_locked=lock is not None, steps_locked_note=lock.message if lock else '')
+        note = lock.message if lock else steps_factory_note(user, sd)
+        sheet.update(steps_locked=bool(note), steps_locked_note=note or '')
         # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4, 쿼리 0). 없으면 None
         sheet['fix_confirm'] = confirm_extras(sd).get('fix')
         sheet['dw_wait'] = _drawing_wait(db, order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7 · 알림 켬이면 +1)

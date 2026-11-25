@@ -2,7 +2,7 @@
    위 칸(이름 · 품목 · 그림 · 색/앞 공정/다음 공정)은 판이 짧으면 판 안에서 굴러가고, 아래 묶음([끝] · [불량] [보류] · 다음 손님)은 늘 보인다.
    그림이 남는 키를 모두 가진다(빈 칸 없음, 사용자 11-10 ②). 엣지 줄 없음(D11). 금액 없음(D7). id 없음(판이 여럿) · 인라인 style · script 없음.
    아래 묶음 = 작업 시트 JS 루트([data-foms-prod-sheet-page] — [불량] 칩 · 최근 불량 · 상태 글), [보류] = tablet-domain-sheets.js 와 같은 단추 계약. #}
-{% from 'production/partials/home_date_macros.html' import fph_due %}
+{% from 'production/partials/home_date_macros.html' import fph_due, home_href %}
 <section class="fph-sp{% if p.hold_active %} is-hold{% elif p.revise_block %} is-revise{% endif %}" data-foms-step-pane="{{ p.id }}" aria-label="{{ p.name }} #{{ p.id }}"{% if p.id != q.selected_id %} hidden{% endif %}>
   <div class="fph-sp__top">
     <h2 class="fph-sp__nm"><a href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=p.id) }}" data-foms-step-name>{{ p.name }}</a> <small>#{{ p.id }}</small>{{ fph_due(p) }}</h2>
@@ -25,6 +25,10 @@
     <div class="fph-sp__hold"><b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>보류 중</b>{% if p.hold_reason %}<span>보류 사유 · {{ p.hold_reason }}</span>{% endif %}</div>
     {% elif p.revise_block %}{# 도면 고치는 중 — 보류와 같은 자리 · 같은 꼴 · 같은 멈춤 그림(사장님 2026-11-25), 글은 도면 카드 판 까닭 그대로 #}
     <div class="fph-sp__hold"><b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>{{ p.revise_block.text }}</b><span>{{ p.revise_block.why }}</span></div>
+    {% elif p.step_block and p.step_block.kind == 'cards' %}{# 도면 칸을 쓴 파트 — [끝] 대신 남은 장 · 거절 글, 누르면 그 주문 도면 판(비평 C03) #}
+    <a class="fph-sp__hold" href="{{ home_href('parts', p.key, order=p.id) }}" data-foms-step-cards><b>{{ p.step_block.text }}</b><span>{{ p.step_block.why }}</span></a>
+    {% elif p.step_block %}{# 장이 모두 남의 공장 — 누름 없음(비평 C02, 공정 API 도 403) #}
+    <div class="fph-sp__hold"><b>{{ p.step_block.text | factory_chips }}</b><span>{{ p.step_block.why }}</span></div>
     {% elif can_check_steps %}{# 공정 [끝] — 파트도 반장도 아닌 생산팀은 단추 없이, 아래 상태 줄에 한 줄(승인 때 고친 것 5) #}
     <button type="button" class="fph-sp__done" data-foms-step-finish data-order-id="{{ p.id }}" data-step-key="{{ p.key }}" data-step-label="{{ p.label }}"{% if p.next_id %} data-next-order="{{ p.next_id }}"{% endif %}{% if p.confirm %} data-foms-sheet-parts="{{ p.confirm | tojson | forceescape }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ p.label }} 완료</button>
     {% endif %}

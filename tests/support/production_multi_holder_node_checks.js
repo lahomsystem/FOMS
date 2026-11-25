@@ -3,7 +3,8 @@
 // 판 JS 다섯(viewer → claim → modal → crew → parts, 받아 오기 sync 는 want.sync 일 때)을 차례로 싣고 steps 를 차례로 한다:
 //   {do:'parity'} 모든 카드의 서버 단추 칸 ↔ JS 가 다시 그린 단추 칸 · {do:'click', key, act} 카드 단추 · {do:'modal'} 창 모습 ·
 //   {do:'notice', key} 넘김 말풍선 누름 ·
-//   {do:'run'} 실행 단추 · {do:'choice', text} 관리자 고르기 · {do:'who', index} 사람 고르기 · {do:'card', key} 카드 모습 · {do:'sync'} 받아 오기 한 번.
+//   {do:'run'} 실행 단추 · {do:'choice', text} 관리자 고르기 · {do:'who', index} 사람 고르기 · {do:'card', key} 카드 모습 · {do:'sync'} 받아 오기 한 번 ·
+//   {do:'timers'} 미뤄 둔 일(창 잠금 풀기 등)을 지금 돌림.
 // 서버 답(posts · gets)은 파이썬이 진짜 API 로 받은 JSON 이다(가짜 글 없음). 결과는 stdout JSON {out: [...], calls: [...]}.
 'use strict';
 const fs = require('fs');
@@ -176,6 +177,9 @@ function counts() {
       const ev = D.dispatch(note, 'click');
       const viewer = body.querySelector('[data-pp-viewer]');
       out.push({ do: 'notice', hidden: note.hidden, stopped: ev.stopped, viewer_open: viewer ? !viewer.hidden : null });
+    } else if (s.do === 'timers') {
+      timers.splice(0).forEach((t) => t.f());
+      out.push({ do: 'timers' });
     } else if (s.do === 'close') {
       click(modal.querySelector('[data-pp-modal-close]'));
       out.push({ do: 'close', hidden: modal.hidden });

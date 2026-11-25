@@ -162,14 +162,20 @@ def test_extra_query_only_for_writers_with_drawn_rows(client, cohort):
     assert _count(client, url) == bare_only  # 보기만(PC [고치기] 끔)은 0개 더함
 
 
-def test_part_that_uses_cards_is_marked_so_the_shared_rule_lets_the_server_decide(client, cohort):
-    drawn, *_ = _seed()
+def test_part_that_uses_cards_shows_left_sheets_instead_of_a_finish_that_is_always_refused(client, cohort):
+    """도면 칸을 쓴 파트의 [끝]은 서버가 늘 409 PART_USES_CARDS — [끝] 자리에 남은 장(비평 C03, 대조군 = 도면 칸을 안 쓴 줄은 [끝] 그대로)."""
+    drawn, bare, *_ = _seed()
     db_session.add(ProductionPartMark(order_id=drawn.id, drawing_key="orders/x/drawing/가짜도면집_0.png", part="cut", state="NEED"))
     db_session.commit()
     login(client)
     set_cookies(client, TABLET)
-    page = get_html(client, HOME + "?tab=steps")
-    assert _data(pane_html(page, drawn.id)) == {"parts": {"cut": {"uses_cards": True}}, "sheets": 3}  # beforeToggle 이 묻지 않고 보낸다
+    page = get_html(client, HOME + f"?tab=steps&order={drawn.id}")  # 막힌 줄은 처음 고른 줄에서 빠진다 — 주소로 고른다
+    pane = pane_html(page, drawn.id)
+    assert "data-foms-step-finish" not in pane and "data-foms-sheet-parts" not in pane
+    assert "<b>재단 0/3 · 3장 미완료</b><span>도면 3장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요.</span>" in pane
+    refused = client.post(f"/api/orders/{drawn.id}/production/steps", json={"key": "cut", "done": True})
+    assert refused.status_code == 409 and refused.get_json()["error"] in pane  # 판 글 = 서버 거절 글 그대로
+    assert f'data-foms-home-step-done data-order-id="{bare.id}"' in _row(page, bare.id)  # 대조군
 
 
 def test_second_factory_lead_gets_the_whole_order_count_like_the_work_sheet(client, cohort):

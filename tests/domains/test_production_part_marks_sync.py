@@ -93,6 +93,11 @@ def _marks(resp) -> list[dict]:
     return body["data"]["marks"]
 
 
+def _blocks(resp) -> dict:
+    """응답의 주문마다 막힘(비평 C06) — ``{주문 id 글: {all, keys}}``."""
+    return resp.get_json()["data"]["blocks"]
+
+
 # --------------------------------------------------------------------------- #
 # GET — since 뒤 줄만
 # --------------------------------------------------------------------------- #
@@ -204,6 +209,7 @@ def _count(fn):
 
 
 #: 실측(2026-11-13, SQLite 레인): 요청 하나 = 2(로그인 사용자 · 표시 줄 ⋈ 주문 한 번). 상한 = 실측 + 30% 내림.
+#: 2026-11-26(비평 C06): 주문 ⟕ 표시 줄 한 번으로 주문마다 막힘(blocks)도 같이 — 그대로 2.
 SYNC_QUERY_CAP = 2
 
 
@@ -225,7 +231,9 @@ def test_query_count_is_one_read_whatever_the_order_count(client):
     assert len(_marks(resp4)) == 8 and len(_marks(resp40)) == 80
     assert q4["n"] == q40["n"] <= SYNC_QUERY_CAP, (q4["n"], q40["n"], [s[:80] for s in q4["sql"]])
     reads = [s for s in q40["sql"] if "production_part_marks" in s]
-    assert len(reads) == 1 and "JOIN orders" in reads[0] and "production_part_marks.order_id IN" in reads[0]
+    assert len(reads) == 1 and "FROM orders LEFT OUTER JOIN production_part_marks" in reads[0]
+    assert "production_part_marks.order_id IN" in reads[0]  # 표시 줄 쪽은 유일 제약 앞머리(order_id)를 탄다
+    assert all(str(oid) in _blocks(resp40) for oid in large)  # 막힘은 주문마다 — 표시 줄과 같은 한 번(C06)
 
 
 # --------------------------------------------------------------------------- #

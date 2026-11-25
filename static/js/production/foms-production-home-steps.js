@@ -267,7 +267,7 @@
       return; // [불량] · [보류] 는 작업 시트 JS · 도메인 시트 JS 몫
     }
     var row = t.closest('[data-foms-home-qrow]');
-    if (!row || t.closest('[data-foms-home-step-done]') || e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) { return; }
+    if (!row || t.closest('[data-foms-home-step-done], [data-foms-step-cards]') || e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) { return; } // 도면 판 링크(C03)는 링크 그대로
     var link = t.closest('[data-foms-step-sheet]');
     if (!panelShown(row.closest('[data-foms-home-stepq]'))) {
       // 판이 안 보이는 화면(세로로 돌림): 줄 이름은 지금처럼 작업 시트로
