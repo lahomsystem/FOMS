@@ -91,7 +91,7 @@
   </div>
   <div class="pp-main">
     {% if pp.wait_count %}
-    <h3 class="fph-pane__g pp-wait-g">도면·컨펌 기다림 {{ pp.wait_count }} <small>{% if pp.wait_rows %}{{ fph_wait_head(d.wait_head) }}{% endif %}도면이 오면 카드로 나와요</small></h3>
+    <h3 class="fph-pane__g pp-wait-g">도면·컨펌 기다림 {{ pp.wait_count }} <small>{% if pp.wait_rows %}{{ fph_wait_head(d.wait_head) }}{% endif %}도면이 오면 여기 나와요</small></h3>
     <div class="fph-wg">{% for r in pp.wait_rows %}{{ fph_wait(r, d.show_day, 'pp-wait') }}{% endfor %}{% for r in pp.no_drawing_rows %}{{ fph_chip(r, false, 'pp-wait', '도면 없음') }}{% endfor %}</div>
     {% endif %}
     <div class="pp-grid" data-pp-grid>
@@ -152,4 +152,4 @@
     {% endif %}
   </div>
 </div>
-{% if tab == 'parts' %}<p class="pp-rotate">도면 카드는 태블릿을 가로로 두면 보여요.</p>{% endif %}
+{% if tab == 'parts' %}<p class="pp-rotate">도면은 태블릿을 가로로 두면 보여요.</p>{% endif %}

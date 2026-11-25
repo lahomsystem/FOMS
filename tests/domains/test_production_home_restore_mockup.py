@@ -39,7 +39,7 @@ def _tabs(html: str) -> list[str]:
 
 
 def _parts_links(html: str) -> list[str]:
-    return re.findall(r'<a class="fph-pane__cards" data-foms-home-partslink href="([^"]+)">도면 카드로 보기<svg', html)
+    return re.findall(r'<a class="fph-pane__cards" data-foms-home-partslink href="([^"]+)">도면으로 보기<svg', html)
 
 
 def _rail(html: str) -> str:

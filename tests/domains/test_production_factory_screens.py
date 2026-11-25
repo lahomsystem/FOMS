@@ -141,7 +141,8 @@ def test_board_puts_own_factory_first_and_other_factory_behind(client, cohort):
     assert 'data-pp-count="all">3<' in html  # 칸 숫자는 내 공장 카드만
     block = html[html.index('<section class="pp-elsewhere"'):html.index("</section>", html.index('<section class="pp-elsewhere"'))]
     assert "data-pp-act" not in block and "data-pp-card" not in block  # 누름 없음
-    assert f'{F2} 작업 <span data-pp-elsewhere-text>최가은 작업 중</span>' in block
+    assert f'{F2} <span data-pp-elsewhere-text>최가은 작업 중</span>' in block  # 칩은 공장 이름만('작업' 두 번 → 한 번, 생산 비평 C29)
+    assert f'{F2} 작업 <span data-pp-elsewhere-text>' not in block
     assert block.count('data-pp-why="2공장에서 작업하는 도면이에요."') == 2
 
 

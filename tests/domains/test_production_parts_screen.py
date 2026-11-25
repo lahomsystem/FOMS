@@ -273,7 +273,7 @@ def test_date_tab_html_equals_before_except_parts_link(client, cohort, monkeypat
     account = _user("관리자", team="CS", role="ADMIN") if who == "admin" else _user("생산사람")
     _login(client, account)
     now = _normalize(_get(client, HOME))
-    tab_line = re.search(r'<a class="fph-pane__cards" data-foms-home-partslink [^>]*>도면 카드로 보기<svg [^>]*>(<path [^>]*/>)+</svg></a>', now)
+    tab_line = re.search(r'<a class="fph-pane__cards" data-foms-home-partslink [^>]*>도면으로 보기<svg [^>]*>(<path [^>]*/>)+</svg></a>', now)
     assert tab_line, "태블릿 코호트 직원에게는 [도면 카드로 보기] 가 있어야 한다"
     # 파트 규칙을 끈 화면 = P15-5 전 화면(판 · 탭 · '내 공정' 숨김 모두 없음)
     monkeypatch.setattr("foms.web.production.home.part_view_mode", lambda user: "none")
@@ -299,11 +299,11 @@ def test_parts_css_fonts_tokens_and_no_achromatic_badges():
     sizes = re.findall(r"font-size:\s*([^;}]+)", css)
     assert sizes and all(re.fullmatch(r"calc\((\d+)px \* var\(--foms-fs, 1\)\)", s.strip()) for s in sizes), sizes
     assert min(int(re.search(r"(\d+)px", s).group(1)) for s in sizes) >= 13
-    for token in ("--fph-need-50: #c5c9ff", "--fph-taken-50: #eecbda", "--fph-taken-700: #7a3f5c", "--fph-done-50: #a7f3d0",
+    home = (PARTS_CSS.parent / "home.css").read_text(encoding="utf-8")  # 기다림 · 보류 토큰(home:)은 home.css 에만(생산 비평 C16 — 날짜 장 기다림 칸도 연두)
     for token in ("--fph-need-50: #c5c9ff", "--fph-taken-50: #eecbda", "--fph-taken-700: #7a3f5c", "--fph-done-50: #a7f3d0", "--fph-done-700: #047857", "--fph-basic-50: #ccedff",
                   "--fph-basic-700: #075985", "home:--fph-wait-50: #eeebb2", "home:--fph-wait-700: #57571f", "home:--fph-hold-50: #fed7aa", "home:--fph-hold-700: #9a3412"):
-        assert token in css
-    tokens = dict(re.findall(r"(--fph-[a-z]+-\d+):\s*(#[0-9a-f]{6})", css))
+        assert token[5:] in home and token[5:].split(":")[0] + ":" not in css if token.startswith("home:") else token in css, token
+    tokens = dict(re.findall(r"(--fph-[a-z]+-\d+):\s*(#[0-9a-f]{6})", home + css))
     # 막힌 칸 셋(보류 · 도면 고치는 중 · 검수 미완료 — 2026-11-23 설계서 §4-6 · §10)도 같은 규칙
     for sel in (".fph-wi.pp-st-need", ".fph-wi.pp-st-taken", ".fph-wi.pp-st-done", ".fph-wi.pp-st-basic", ".fph-wi.pp-wait",
                 ".fph-wi.pp-st-hold", ".fph-wi.pp-st-revise", ".fph-wi.pp-st-pre"):
