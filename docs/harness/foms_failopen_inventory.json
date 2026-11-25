@@ -49,7 +49,7 @@
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
-    "foms/platform/request_limits.py:252",
+    "foms/platform/request_limits.py:254",
     "foms/services/ai_staff/evals_run.py:427",
     "foms/services/app_init.py:145",
     "foms/services/brain/plan_proposals.py:375",
@@ -2987,7 +2987,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 252,
+      "lineno": 254,
       "handler_type": "base_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "platform",
@@ -2996,7 +2996,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 258,
+      "lineno": 260,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
