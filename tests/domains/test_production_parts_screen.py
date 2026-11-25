@@ -66,7 +66,7 @@ def _files(prefix: str, n: int, ext: str = "png") -> list[dict]:
     return [{"key": f"{prefix}/d{j}.{ext}", "filename": f"d{j}.{ext}", "sheet_id": f"{prefix}-s{j}"} for j in range(n)]
 
 
-def _order(name: str, files: list[dict], *, stage: str = "PRODUCTION", day: int = 0) -> Order:
+def _order(name: str, files: list[dict], *, stage: str = "PRODUCTION", day: int = 1) -> Order:
     when = (get_today_kst() + datetime.timedelta(days=day)).isoformat()
     sd = {"workflow": {"stage": stage}, "parties": {"customer": {"name": name, "phone": "010-0000-0000"}},
           "schedule": {"construction": {"date": when}}, "drawing_current_files": files,
@@ -91,7 +91,7 @@ def _mark(order: Order, key: str, part: str, state: str, *, picked: tuple | None
 
 
 def _seed_day(me: tuple, park: tuple) -> dict:
-    """오늘 생산 주문 둘(3장 · 2장) + 도면 기다림 하나 — 김재단 맡음 1 · 박재단 맡음 1 · 김재단 끝 1 · 박재단 기본 1 · 안 봄 1."""
+    """내일(처음 여는 장) 생산 주문 둘(3장 · 2장) + 도면 기다림 하나 — 김재단 맡음 1 · 박재단 맡음 1 · 김재단 끝 1 · 박재단 기본 1 · 안 봄 1."""
     a = _order("한빛", _files("oa", 3))
     b = _order("늘봄", _files("ob", 2))
     wait = _order("오하람", [], stage="DRAWING")
@@ -102,8 +102,9 @@ def _seed_day(me: tuple, park: tuple) -> dict:
     return {"a": a.id, "b": b.id, "wait": wait.id}
 
 
-def _today_pane(html: str) -> str:
-    key = get_today_kst().isoformat()
+def _first_pane(html: str) -> str:
+    """처음 여는 장(내일 — 띠의 날 줄은 내일부터, 사장님 2026-11-25)의 HTML. ``_order`` 기본 시공일도 내일."""
+    key = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
     return html.split(f'data-foms-home-daypane="{key}"')[1].split("data-foms-home-daypane=")[0]
 
 
@@ -125,7 +126,7 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
     ids = _seed_day(me, park)
     _login(client, me)
     html = _get(client, HOME)
-    pane = _today_pane(html)
+    pane = _first_pane(html)
     block = _parts_block(pane)
 
     assert block.count("data-pp-card ") == 5  # 확정 도면 한 장 = 카드 한 장(3 + 2)
@@ -163,7 +164,7 @@ def test_other_part_has_no_basic_and_no_other_part_buttons(client, cohort):
     _seed_day(me, park)
     _login(client, asm)
     html = _get(client, HOME)
-    block = _parts_block(_today_pane(html))
+    block = _parts_block(_first_pane(html))
     assert block.count("data-pp-card ") == 5
     assert 'data-pp-act="basic"' not in block and 'data-pp-act="bulk"' not in block  # '기본'은 재단에만(D49)
     assert block.count('data-pp-act="take"') == 5 and "내가 조립" in block
@@ -212,7 +213,7 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
     assert "data-foms-home-partslink" in date_html and "data-pp-card" not in date_html  # 날짜 탭 = 줄 목록 + [도면 카드로 보기](11-21)
 
     html = _get(client, HOME + "?tab=parts&part=cut")
-    pane = _today_pane(html)
+    pane = _first_pane(html)
     assert 'data-foms-home-tab="parts"' in html and 'class="fph-pane__now"' not in pane  # 고른 파트 한 판만
     picker = pane.split('class="pp-parts"')[1].split("</nav>")[0]
     assert [p for p in ("재단", "엣지", "조립", "검수") if f">{p}</a>" in picker] == ["재단", "엣지", "조립", "검수"]
@@ -223,7 +224,7 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
     assert html.count('id="foms-part-confirm-modal"') == 1 and "foms-production-parts.js?v=" in html
 
     html = _get(client, HOME + "?tab=parts&part=assemble")
-    pane = _today_pane(html)
+    pane = _first_pane(html)
     assert "내가 조립" in pane and 'data-pp-act="basic"' not in pane
     assert '"part": "assemble"' in html.replace("&#34;", '"')
 
@@ -233,7 +234,7 @@ def test_readonly_staff_sees_badges_only_no_modal_no_write_binding(client, cohor
     _seed_day(me, park)
     _login(client, _user("상담", team="CS"))
     html = _get(client, HOME + "?tab=parts&part=cut")
-    pane = _today_pane(html)
+    pane = _first_pane(html)
     assert pane.count("data-pp-card ") == 5
     assert 'data-pp-act="' not in html and '<button type="button" class="foms-prod-home__btn' not in pane.split("pp-grid")[1]
     assert "foms-part-confirm-modal" not in html and "data-pp-modal" not in html
@@ -476,7 +477,7 @@ def test_cards_point_images_at_thumb_route_lazily(client, cohort):
     ids = _seed_day(me, park)
     _order("서류", _files("oc", 1, ext="pdf"))
     _login(client, me)
-    block = _parts_block(_today_pane(_get(client, HOME)))
+    block = _parts_block(_first_pane(_get(client, HOME)))
     imgs = re.findall(r'<img class="pp-thumb" src="([^"]+)" loading="lazy"', block)
     assert len(imgs) == 5 and f"/erp/production/parts/thumb/{ids['a']}?key=oa/d0.png" in [i.replace("%2F", "/") for i in imgs]
     assert 'class="pp-img pp-file" href="/api/files/view/oc/d0.pdf"' in block and "<b>PDF</b>" in block
@@ -489,10 +490,10 @@ def test_replaced_drawing_line_and_cap_notice(client, cohort, monkeypatch):
     # 옛 판(교체돼 지금 확정 도면에 없는 key)에 같은 시트 신원으로 재단 끝 — 새 판 카드에 전 판 진행 한 줄
     _mark(order, "oa/old0.png", "cut", "DONE", picked=me, done=me, names=("김재단", "김재단"), sheet_id="oa-s0")
     _login(client, me)
-    block = _parts_block(_today_pane(_get(client, HOME)))
+    block = _parts_block(_first_pane(_get(client, HOME)))
     assert block.count('class="pp-replaced"') == 1 and "바뀐 도면 · 전 판 재단 끝(김재단)" in block
     assert 'data-pp-count="unseen">3<' in block  # 새 판은 안 봄부터
     monkeypatch.setattr("foms.services.production.part_board.PART_BOARD_CARD_CAP", 2)
-    block = _parts_block(_today_pane(_get(client, HOME)))
+    block = _parts_block(_first_pane(_get(client, HOME)))
     assert block.count("data-pp-card ") == 2 and "더 있는 1장은 안 보여요" in block
     assert 'data-pp-count="all">3<' in block  # 숫자는 캡과 무관하게 모두 센다

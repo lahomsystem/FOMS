@@ -69,7 +69,7 @@ def test_도면_카드_화면은_주소로_그대로_열리고_날짜_탭이_켜
     me, park = _user("김재단", part="cut"), _user("박재단", part="cut")
     _seed_day(me, park)
     _login(client, _user("관리자", team="CS", role="ADMIN"))
-    html = _get(client, HOME + f"?tab=parts&part=cut&day={_day(0)}")
+    html = _get(client, HOME + f"?tab=parts&part=cut&day={_day(1)}")
     assert 'data-foms-home-tab="parts"' in html and "data-pp-card " in html and 'data-pp-pane="' in html
     on = re.findall(r'<a class="foms-prod-home__navtab is-on"[^>]*>([^<]+)', _nav(html))
     assert on == ["날짜"] and _parts_links(html) == []  # 카드 화면에는 단추가 없다(판만)
@@ -84,7 +84,7 @@ def test_도면_카드로_보기는_관리자_읽기_전용_태블릿에_고른_
     for who in (_user("관리자", team="CS", role="ADMIN"), _user("상담", team="CS"), _user("생산사람")):
         _login(client, who)
         html = _get(client, HOME)
-        assert _parts_links(html) == [f"{HOME}?tab=parts&amp;part=cut&amp;day={_day(0)}"]
+        assert _parts_links(html) == [f"{HOME}?tab=parts&amp;part=cut&amp;day={_day(1)}"]
         # 단추는 그날 제목 줄 안(제목 · 작은 글 다음) — 띠에서 다른 날을 고르면 장을 바꿔 끼우며 단추의 날도 바뀐다
         h2 = re.search(r'<h2 class="fph-pane__h">.*?</h2>', html, re.S).group(0)
         assert h2.index("</small>") < h2.index("data-foms-home-partslink")

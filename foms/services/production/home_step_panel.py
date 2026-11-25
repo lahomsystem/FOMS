@@ -131,6 +131,7 @@ def production_home_step_panel(row: dict[str, Any], key: str, next_row: dict[str
         'day_label': row.get('day_label') or '',
         'day_sub': row.get('day_sub') or '',
         'day_is_today': bool(row.get('day_is_today')),
+        'ship_mark': row.get('ship_mark'),  # 상차 · 희망일 표(사장님 2026-11-25) — 시공일 표 옆
         'pic': _picture(sd),
         'color': _color_line(row),
         'prev': _prev_line(sd, key, row.get('run_started_at')),

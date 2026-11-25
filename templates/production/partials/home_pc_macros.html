@@ -5,10 +5,11 @@
    마우스 글 = data-tip(CSS 만, JS 없음) + tabindex · aria-label 같은 글. 인라인 style · script 없음. 금액 없음(D7). #}
 {% from 'production/partials/home_date_macros.html' import fph_why %}
 
-{# ① 시공일 칸 — 'M/D (요일)' 큰 글 + D-n · 오늘 · 내일 · n일 지남 · 외 n · 바뀐 날(← 옛 날). 마우스 글 = 일하는 날(색 기준, §8). #}
+{# ① 시공일 칸 — 'M/D (요일)' 큰 글 + D-n · 오늘 · 내일 · n일 지남 · 외 n · 바뀐 날(← 옛 날). 마우스 글 = 일하는 날(색 기준, §8).
+   상차 예정일 · 협력사 희망일로 놓인 주문(d.mark, 사장님 2026-11-25)은 D-n 과 같은 꼴로 '상차 12/1' · '희망일 12/3' 을 더한다. #}
 {% macro pc_due_cell(r) -%}
 {%- set d = r.pc_due -%}
-<span class="fpc-due is-{{ d.state }}" data-foms-pc-due{% if r.pc_late and r.pc_late.tip %} data-tip="{{ r.pc_late.tip }}" tabindex="0" aria-label="시공 {{ d.md }}{% if d.rel %} {{ d.rel }}{% endif %} · {{ r.pc_late.tip }}"{% endif %}><b>{{ d.md }}</b>{% if d.rel %}<span>{{ d.rel }}</span>{% endif %}{% if d.more %}<small>외 {{ d.more }}</small>{% endif %}{% if d.prev %}<em>← {{ d.prev }}</em>{% endif %}</span>
+<span class="fpc-due is-{{ d.state }}" data-foms-pc-due{% if r.pc_late and r.pc_late.tip %} data-tip="{{ r.pc_late.tip }}" tabindex="0" aria-label="시공 {{ d.md }}{% if d.rel %} {{ d.rel }}{% endif %}{% if d.mark %} · {{ d.mark.k }} {{ d.mark.md }}{% endif %} · {{ r.pc_late.tip }}"{% endif %}><b>{{ d.md }}</b>{% if d.rel %}<span>{{ d.rel }}</span>{% endif %}{% if d.mark %}<span>{{ d.mark.k }} {{ d.mark.md }}</span>{% endif %}{% if d.more %}<small>외 {{ d.more }}</small>{% endif %}{% if d.prev %}<em>← {{ d.prev }}</em>{% endif %}</span>
 {%- endmacro %}
 
 {# 찾기 탭 거르기 열쇠(foms-production-home.js 의 [data-foms-home-job]) — job=True 일 때만 #}

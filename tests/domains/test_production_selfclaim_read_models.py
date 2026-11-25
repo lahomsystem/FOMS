@@ -103,8 +103,13 @@ def _user(name: str, part: str | None = None, role: str = "STAFF", team: str = "
     return user
 
 
+def _first_day() -> str:
+    """처음 여는 장 = 내일(띠의 날 줄은 내일부터, 사장님 2026-11-25) — 시드 시공일도 그 날."""
+    return (get_today_kst() + datetime.timedelta(days=1)).isoformat()
+
+
 def _order(name: str, n: int, *, steps=None, hold=False, status=None, run=True) -> Order:
-    when = get_today_kst().isoformat()
+    when = _first_day()
     sd = {"workflow": {"stage": "PRODUCTION"}, "parties": {"customer": {"name": name, "phone": "010-0000-0000"}},
           "schedule": {"construction": {"date": when}}, "items": [{"product_name": "붙박이장"}],
           "drawing_current_files": [{"key": f"{name}/d{j}.png", "filename": f"d{j}.png"} for j in range(n)],
@@ -138,7 +143,7 @@ def _pane(user: User) -> dict:
     rows, _ = build_production_home(db_session, user)
     days = production_home_days(rows, get_today_kst(), None)
     board = build_part_board(db_session, user, days)
-    return board["panes"][get_today_kst().isoformat()]
+    return board["panes"][_first_day()]
 
 
 def _card(pane: dict, name: str, j: int) -> dict:
@@ -210,8 +215,9 @@ def test_아침_칩은_밤_넘긴_내_담당만_지금_장만(app) -> None:
     db_session.commit()
     rows, _ = build_production_home(db_session, me)
     chip = morning_chip(db_session, me, "cut", rows, get_today_kst())
-    assert chip["count"] == 1 and chip["days"][0]["key"] == get_today_kst().isoformat()
-    assert chip["days"][0]["label"].startswith(f"시공 {get_today_kst().month}/{get_today_kst().day} (")
+    tomorrow = get_today_kst() + datetime.timedelta(days=1)
+    assert chip["count"] == 1 and chip["days"][0]["key"] == _first_day()
+    assert chip["days"][0]["label"].startswith(f"시공 {tomorrow.month}/{tomorrow.day} (")
     assert morning_chip(db_session, _user("박재단", "cut"), "cut", rows, get_today_kst()) is None  # 대조군
 
 

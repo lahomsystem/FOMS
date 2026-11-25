@@ -308,8 +308,13 @@ def _tablet(client, who: Person) -> None:
 
 
 def _pane(html: str) -> str:
-    key = get_today_kst().isoformat()
+    key = _first_day()
     return html.split(f'data-foms-home-daypane="{key}"')[1].split("data-foms-home-daypane=")[0]
+
+
+def _first_day() -> str:
+    """처음 여는 장 열쇠 — 내일(띠의 날 줄은 내일부터, 사장님 2026-11-25)."""
+    return (get_today_kst() + datetime.timedelta(days=1)).isoformat()
 
 
 def _day_hrefs(html: str) -> list[str]:
@@ -324,7 +329,7 @@ def test_two_part_account_head_picks_parts_keeps_day_and_titles_both(client, coh
     nav = pane.split('<nav class="pp-picks" aria-label="파트 고르기">', 1)[1].split("</nav>", 1)[0]
     assert re.fullmatch(r'<a class="pp-pick is-on" href="[^"]*part=cut[^"]*" data-pp-pick="cut" aria-current="page">재단</a>'
                         r'<a class="pp-pick" href="[^"]*part=edge[^"]*" data-pp-pick="edge">엣지</a>', nav)
-    assert all(f"day={get_today_kst().isoformat()}" in href for href in re.findall(r'href="([^"]*)"', nav))  # 같은 날
+    assert all(f"day={_first_day()}" in href for href in re.findall(r'href="([^"]*)"', nav))  # 같은 날
     assert '<h1 class="foms-prod-home__title">재단 · 엣지 <span class="foms-prod-home__me">김두파</span></h1>' in html
     assert _day_hrefs(html) and all("part=cut" in href for href in _day_hrefs(html))  # 날을 바꿔도 고른 파트
     assert 'data-pp-act="take">내가 자름<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
@@ -381,9 +386,8 @@ def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client,
     html = _get(client, HOME)
     assert 'aria-controls="pp-mpop">어제부터 내 담당 3장 <span aria-hidden="true">›</span>' in html
     lines = re.findall(r'<p>(시공 [^<]*?) (\d)장 <a href="([^"]*)" aria-label="([^"]*)">보기</a></p>', html)
-    day = get_today_kst()
     assert [(t.rsplit(" ", 1)[1], n) for t, n, _h, _a in lines] == [("재단", "1"), ("엣지", "2")]
-    assert "part=cut" in lines[0][2] and "part=edge" in lines[1][2] and all(f"day={day.isoformat()}" in h for _t, _n, h, _a in lines)
+    assert "part=cut" in lines[0][2] and "part=edge" in lines[1][2] and all(f"day={_first_day()}" in h for _t, _n, h, _a in lines)
     assert lines[1][3].endswith(" 엣지 보기")
     other = _db_user("이엣재", parts=["cut", "edge"])
     _old_claim(order, "mm/d1.png", "cut", other)  # 엣지를 보는 중에도 재단에 밤 넘긴 담당이 있으면 칩이 뜨고 [보기]는 재단 판
