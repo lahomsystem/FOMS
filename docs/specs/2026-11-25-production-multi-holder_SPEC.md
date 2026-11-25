@@ -1,8 +1,8 @@
 # 한 도면 · 한 파트를 여러 명이 맡기 — 설계서 (2판)
 
-> 작성일 2026-11-25 | 상태 **2판 — 정할 것 모두 답함(§6) · '확인할 글'(§8-3) 답 기다림** | 등급: **코어 변경**(표시 줄 자료 모양 · 마이그레이션 1 · 쓰기 규칙 · API — 설계 → 승인 → 구현). **만들기는 도면 수정 일(D1 ~ D4)이 끝난 뒤**(사장님 답).
+> 작성일 2026-11-25 | 상태 **2판 — 정할 것(§6) · 확인할 글(§8-3) 모두 답함 · 승인 기다림** | 등급: **코어 변경**(표시 줄 자료 모양 · 마이그레이션 1 · 쓰기 규칙 · API — 설계 → 승인 → 구현). **만들기는 도면 수정 일(D1 ~ D4)이 끝난 뒤**(사장님 답).
 > 계기: 사장님 2026-11-25 "1개 도면 > 재단이 여러명이 관여 할 수 있어 > 각 파트 재단이 여러명일 수 있어. 나머지 파트도 마찬가지" + 답(§1).
-> 기준 코드: 가지 `work/multi-holder-spec` 를 `session/tablet-prod-ui` `146397f3a` 위로 올림(1판 `d293a86de` → 올린 뒤 `7b5d586d8`). 이 바탕에 도면 수정 D1 ~ D3 · 날짜 띠가 들어 있고, D4(공장 [도면 수정 요청])는 가지 `work/d4-factory-request`(`8d240f7bb`)에만 있다. 파일:줄은 이 바탕에서 다시 열어 확인했고, D4 파일은 그 가지에서 읽었다.
+> 기준 코드: 가지 `work/multi-holder-spec` 를 `session/tablet-prod-ui` `b94f167fb` 위로 올림(1판 `d293a86de` → `87fd75180`, 2판 첫 커밋 `caf61f9c0` → `fcd12fed5`). 이 바탕에 도면 수정 D1 ~ D4(공장 [도면 수정 요청] 포함) · 날짜 띠가 모두 들어 있다. 파일:줄은 이 바탕에서 다시 열어 확인했다.
 > 화면 시안(저장소 밖): 스크래치 `mh/mock/01_tablet_board` · `02_phone` · `03_pc_window` · `04_rows_sheet`(.html · .png), 같은 그림 `mh/review_page/img/{board,phone,pc,rows}.png`. 점선 보라 = 새로 생기거나 글이 바뀌는 자리.
 > 형식은 11-23 · 11-25 설계서를 따른다. 11-23 설계서 "승인 때 고친 것"(사장님 답에 없는 지금 글은 그대로 · 생산 화면은 '체크' 대신 '작업' · 화면에 '카드' 낱말 금지 · 빈 담당 "미정" · 상태 표시에 무채색 금지 · PC 80% 배율)은 여기서도 지킨다. 이름 · 번호는 모두 지어낸 값이다.
 
@@ -18,7 +18,9 @@
 | 6 | 반장 [{이름} 빼기] | **[{이름} 시작 취소]**(새 낱말 [시작 취소]와 같게 — 사장님 답 Q5 "반장 · 관리자가 풀기") | §5 · §8-1 |
 | 7 | Q9 서버 안전 상한 10 · `HOLDER_LIMIT` | **상한 없음**(답 "제한 없음") — 거절 code 뺌 | §7-4 |
 | 8 | — | 답에 없는 낱말('담당 바꾸기'의 '담당' · '미정' · PC [작업] · [작업 취소] · 지금 글 '끝' 등)은 그대로 두고 **"확인할 글"** 표로 | §8-3 |
-| 9 | 바탕 `c07729c39` | 바탕 `146397f3a`(D1 ~ D3 · 날짜 띠) — §3 줄 번호 · D3 '공장 진행' 칸 · D4 겹침 다시 맞춤 | §3 · §10 |
+| 9 | 바탕 `c07729c39` | 바탕 `b94f167fb`(D1 ~ D4 · 날짜 띠) — §3 줄 번호 · D3 '공장 진행' 칸 · D4 단추 자리 다시 맞춤 | §3 · §10 |
+| 10 | §8-3 확인할 글 여덟(답 기다림) | **답 · 판결 반영**: K1 [담당 바꾸기] 그대로 · K2 '미정' 그대로 · **K3 PC [완료 처리] · [완료 취소] · [모두 완료 처리] · [모두 완료 취소]** · **K4 '끝' → '완료' 모두**(단계 "검수 끝" → "검수 완료" 포함) · **K5 반장 칸도 "이시영 · 김재단 작업 중"** · **K6 PC 창 "작업 시작 이시영 · 11/25 08:10"** · K7 · K8 그대로 | §8-2 · §8-3 |
+| 11 | 풀이 넷(내 풀이) | **지휘 판결**: [같이 작업]인데 그사이 빈 도면 = 그대로 작업 시작(거절 없음, 글 없음) · PC [완료 처리]가 남이 시작한 줄을 만나면 = [대신 완료](감독은 같이 작업자로 안 들어감) · "본인 몫만 되돌리기" = 파트 계정끼리(반장 · 관리자 대신 되돌리기 남김) · [담당 바꾸기]는 완료 안 누른 사람만 | §5 · §7-3 |
 
 ## 1. 사장님 말 · 답 (원문)
 
@@ -32,6 +34,7 @@
 | 4 | 글 바꾸기 | **"'작업 중' · [시작 취소]로 바꾸기"** — '이시영 맡음' → '이시영 작업 중', '내 담당' → '내 작업', [맡기 취소] → [시작 취소] |
 | 5 | 반만 완료 글 | **"재단 1/2 완료"** |
 | 6 | 정할 것 Q1 ~ Q22 | §6 표 '답' 칸 |
+| 7 | 확인할 글 K1 ~ K8 | K1 "[담당 바꾸기] 그대로" · K3 "[완료 처리] · [완료 취소]로 바꾸기" · K4 "모두 '완료'로 맞추기" · K5 · K6 "둘 다 '작업 중' 말로 맞추기" · K2 · K7 · K8 안 여쭘 — 그대로(§8-3) |
 
 운영 사실(지휘 2026-11-25): 생산팀 켜진 계정 1명, 운영 표시 줄 `cut NEED` 2줄뿐. 사장님 11-25 답(D4): 반장은 [도면 수정 요청]도 자기 공장 도면만.
 
@@ -41,7 +44,7 @@
 
 ## 3. 지금 코드가 "맡은 사람은 한 명"에 기대는 자리 — 전수 (A)
 
-**전수 방법**: `git grep -n -E "picked_by_(name|user_id)|done_by_(name|user_id)|handed_from_name|handed_at" -- foms templates static migrations`(시험 밖) = **26 파일 138 줄**(바탕 `146397f3a` 에서도 같음 — D1 ~ D3 · 날짜 띠는 이 칸들을 새로 읽지 않았다), 그리고 같은 뜻을 다른 이름으로 쓰는 곳(`data-picked-*` · `seen_by` · `holder` · `MarkSnapshot` · `marks_by_part` · `ON CONFLICT`)과 D3 '공장 진행' 칸 · D4 가지를 따로 찾았다. 화면 낱말(맡음 · 내 담당 · 맡기 취소 · 내가 …)은 `git grep "맡"` · `"내 담당"` · `"내가 "` 로 따로 뽑아 §8-2 · §8-3 에 모았다. "안 바뀌는 곳"(§3-7)은 음성 대조군.
+**전수 방법**: `git grep -n -E "picked_by_(name|user_id)|done_by_(name|user_id)|handed_from_name|handed_at" -- foms templates static migrations`(시험 밖) = **26 파일 138 줄**(바탕 `b94f167fb` 에서도 같음 — D1 ~ D4 · 날짜 띠는 이 칸들을 새로 읽지 않았다), 그리고 같은 뜻을 다른 이름으로 쓰는 곳(`data-picked-*` · `seen_by` · `holder` · `MarkSnapshot` · `marks_by_part` · `ON CONFLICT`)과 D3 '공장 진행' 칸 · D4 단추 자리를 따로 찾았다. 화면 낱말(맡음 · 내 담당 · 맡기 취소 · 내가 …)은 `git grep "맡"` · `"내 담당"` · `"내가 "` 로 따로 뽑아 §8-2 · §8-3 에 모았다. "안 바뀌는 곳"(§3-7)은 음성 대조군.
 
 ### 3-1. 자료 · 전이 표 (`foms/services/production/part_mark_rules.py`)
 
@@ -51,7 +54,7 @@
 | `MARK_COLUMNS` `:68-74` | 쓰는 칸 목록 | `holders` 더함 — 쓰기(`flush_writes`) · 한 문장 넣기(`step_expand._upsert_marks`)가 이 목록을 쓴다 |
 | `MarkSnapshot` `:80-110` · `seen_key` | 담당 · 완료한 사람 한 명 | 목록 · 내 몫(작업 중 · 완료)을 같이 든다 |
 | 전이 표 `action_target` `:133-141` | take 는 `none` 에서만, done 은 `need` → DONE, undo 는 `done` → NEED | join(새) · remove(새), take 가 NEED 를 만나면 join 으로 넘김(Q16), done 은 "내 몫 완료"(모두 완료일 때만 DONE), undo 는 `need`(1/2 완료)에서도 |
-| 경합 글 `conflict_message` `:168-186` | "박재단이 먼저 맡았어요"(`:178`) · "먼저 끝냈어요"(`:180`) | NEED → "{이름}이 먼저 시작했어요."(답), 이름 여럿(Q10), '끝냈어요'는 §8-3 |
+| 경합 글 `conflict_message` `:168-186` | "박재단이 먼저 맡았어요"(`:178`) · "먼저 끝냈어요"(`:180`) | NEED → "{이름}이 먼저 시작했어요."(답), 이름 여럿(Q10), "먼저 끝냈어요" → "먼저 완료했어요"(K4 · §8-2 35) |
 | `new_action_conflict_message` `:189-198` · `holder_changed_message` `:201-206` | "그사이 김민준으로 담당이 바뀌었어요" | 바뀐 사람 이름(§8-3 K1) |
 | 멱등 `_same_result` `:209-223` | 담당 = 나 · 끝낸 사람 = 나 | 목록에 내가 있음 · 내 몫 완료가 켜짐 |
 | 주인 `_owner_id` `:226-232` | 완료 · 맡기 취소 = 담당 한 명, 되돌리기 = 끝낸 사람 한 명 | 내가 목록에 있는가 · 내 몫 완료가 켜졌는가 |
@@ -73,7 +76,7 @@
 | `:136-138` 첫 표시 동시(IntegrityError → 409 "그사이 다른 사람이 바꿨어요") | 첫 줄 넣기 경합(잠금 없는 레인) | PG 는 주문 행 잠금이 줄을 세워 늦은 사람이 join 으로 넘어감 — 이 길은 SQLite 레인만(§13) |
 | `step_expand.py:55-71` `_upsert_marks` — `ON CONFLICT (order_id, drawing_key, part)` | 장 · 파트에 줄 하나 | 그대로(안 ⓒ). **안 ⓑ 면 이 문장이 깨진다**(§4-1) |
 | `step_expand.py:103-105` 담당이 있는 NEED 줄을 반장 이름으로 덮어씀 | 담당 한 명 | 여러 명과 **안 만난다** — 풀어 쓰기는 카드 0장 파트만(`step_expand_plan` `:136` · `drawing_factory.hand_checked_parts` `:157-169`) |
-| `static/js/production/foms-production-pc-sheet-write.js:55-66` PC [작업] = take → done · `:67-73` [작업 취소] = undo → release | 담당 한 명(`r.seen_by`) | 남이 작업 중인 줄의 [작업] = 대신 완료(Q15), take 가 join 으로 넘어오면 done 으로 잇지 않고 멈춤(§5 풀이) |
+| `static/js/production/foms-production-pc-sheet-write.js:55-66` PC [작업](→ [완료 처리]) = take → done 두 요청 · `:67-73` [작업 취소](→ [완료 취소]) = undo → release | 담당 한 명(`r.seen_by`) | [완료 처리] = 새 action `check` 한 요청 — 빈 줄은 시작 + 완료, 남이 작업 중인 줄은 대신 완료(Q15 · 판결 2), 감독은 목록에 안 들어감 |
 
 ### 3-3. 막힘 · 검수 · 공장 문
 
@@ -87,24 +90,24 @@
 | `factory_scope.py:94-112` 남의 공장 글 "담당 최가은"(`:107`) · "엣지 완료 · 최가은" | 이름 하나 | "최가은 작업 중" · 이름 여럿 |
 | `drawing_factory.py:172-195` `sheet_work`(`:190` · `:193`) → `:208-231` 공장 옮김 막힘 "1공장 김민준이 엣지 담당이에요. 김민준에게 맡기 취소를 부탁한 뒤 다시 해 주세요."(`:231`) | 이름 하나 | §8-2 · Q20 |
 | 도면 고치는 중 · 보류 · 2공장 막힘(`part_mark_gates.order_gate` `:100-123` · `part_card_state.order_block` `:42-65` · `factory_gate`) | 장마다 | 그대로 — 막힌 장 · 남의 공장 장에는 [작업 시작] · [같이 작업] 없음, [시작 취소] 됨 |
-| D4 공장 [도면 수정 요청] 문(`work/d4-factory-request` `drawing_fix_requests.py`) | 표시 줄을 안 읽음 | 안 바뀜(반장 · 파트 계정 자기 공장 도면만 — 11-25 답) |
+| D4 공장 [도면 수정 요청] 문(`foms/services/orders/drawing_fix_requests.py`) | 표시 줄을 안 읽음 | 안 바뀜(반장 · 파트 계정 자기 공장 도면만 — 11-25 답) |
 
 ### 3-4. 읽기 · 화면 값을 만드는 서버
 
 | 자리 | 한 명 가정 | 여러 명이면 |
 |---|---|---|
-| `part_board.py:93-106` `mine_other` — "엣지 내 담당"(`:68` `MINE_WORD`) | 담당 = 나 | 목록에 내가 있음 · "엣지 내 작업" |
-| `:195-203` `_prev_word` "재단 중(박재단)" · `:206-236` `replaced_info` 전 판 이름 `:232` | 이름 하나 | 이름 여럿(Q17 · Q20) |
-| `:239-243` `_badge` — 파트 계정에게 남이 맡은 장 = `taken` | 담당 ≠ 나 | 목록에 내가 없음 |
-| `:260-284` `_card_state` — `picked_by_me` `:271` · `mine_row` `:283` | 담당 = 나 | 목록에 내가 있고 내 몫 완료가 꺼짐 |
-| `:287-330` `build_card` — `done_by_me` `:308` · 이름 `:320-321` · `taken_by_other` `:322` · `in_need` `:324` · `in_done` `:325` | 한 명 | 내 몫으로(Q12 — 내 몫 완료면 '완료' 칸) · 목록 · 완료 수 |
-| `:342-349` 칸 숫자 · `:352-354` 일괄 기본 수 | — | 칸 소속을 따라감 · 일괄은 그대로 |
+| `part_board.py:94-107` `mine_other` — "엣지 내 담당"(`:69` `MINE_WORD`) | 담당 = 나 | 목록에 내가 있음 · "엣지 내 작업" |
+| `:196-204` `_prev_word` "재단 중(박재단)" · `:207-237` `replaced_info` 전 판 이름 `:233` | 이름 하나 | 이름 여럿(Q17 · Q20) |
+| `:240-244` `_badge` — 파트 계정에게 남이 맡은 장 = `taken` | 담당 ≠ 나 | 목록에 내가 없음 |
+| `:261-285` `_card_state` — `picked_by_me` `:272` · `mine_row` `:284` | 담당 = 나 | 목록에 내가 있고 내 몫 완료가 꺼짐 |
+| `:288-331` `build_card` — `done_by_me` `:309` · 이름 `:321` · `taken_by_other` `:323` · `in_need` `:325` · `in_done` `:326` | 한 명 | 내 몫으로(Q12 — 내 몫 완료면 '완료' 칸) · 목록 · 완료 수 |
+| `:343-350` 칸 숫자 · `:353-355` 일괄 기본 수 | — | 칸 소속을 따라감 · 일괄은 그대로 |
 | `part_card_state.py:95-115` `claim_notes` — "어제부터" · "박엣지에서 바뀜" · 꼬리 aria "내 담당"(`:114`) | 한 명 | 내 시작한 때(Q21) · "내 작업" |
 | `part_holders.py:78-91` 날짜 줄 완료 칸 · `:94-109` 하는 중 칸 "담당 중 이른 사람 + 외 n"(숨은 글 "담당 {이름}" `:104`) · `:149` PC 마우스 글 | 도면마다 한 명씩 모아 셈 | 같이 작업하는 사람도 셈("이시영 외 2" — Q10), 숨은 글 · 마우스 글 "{이름} 작업 중" |
 | `pc_sheet.py:85-101` `_lines` — "담당 김재단 · 11/24 08:16"(`:91`) · "담당 미정"(`:89`) · "완료 …" · `:104-109` `undo_releases` · `:146` `seen_by` | 한 명 | 사람마다 줄(시안 03), "재단 1/2 완료" |
 | `sheet_parts.py:17-23` 작업 시트 "도면 5/5 완료 · 김재단 11/24 15:02" · `:36` 바뀜 수 | 한 명 | 그대로 — 주문 단위 자리(Q11) |
 | `part_steps_sync.py:77-83` 공정 칸 켤 때 `by_name` | 마지막 끝낸 사람 | 그대로(요약 칸 `done_by_name`) |
-| `pc_view.py:148-169` PC 공정 칸 마우스 글 "재단 끝 · 김재단 · …"(`:157`) · `home_step_panel.py:64` · `:107` '내 공정' 앞 공정 | 공정 칸 이름 하나 | 그대로(공정 칸은 주문에 하나 — '끝'은 §8-3 K4) |
+| `pc_view.py:148-169` PC 공정 칸 마우스 글 "재단 끝 · 김재단 · …"(`:157`) · `home_step_panel.py:64` · `:107` '내 공정' 앞 공정 | 공정 칸 이름 하나 | 이름은 그대로(공정 칸은 주문에 하나), "끝" → "완료"(K4 · §8-2 38 · 39) |
 | `drawing_fix_progress.py:49-72` `drawing_parts`(`:63` · `:67`) · `:94-104` 보내기 전 경고 "도면 3은 박엣지가 엣지 작업 중인 도면입니다." | 이름 하나 | 이름 여럿(Q20) |
 | `drawing_workbench_production.py:200-210` 작업실 '공장 진행' 칸 "{파트} 작업 중 · {이름}" · "{파트} 완료 · {이름}"(D3 — 이 바탕에 들어옴) | 이름 하나 | 이름 여럿(Q20, 위 `drawing_parts` 값을 그림) |
 | `part_marks_read.py:89-105` 30초 받아 오기 · `:108-123` `sync_mark_body` | 한 명 | 목록이 같은 줄에 실려 감(쿼리 그대로) |
@@ -119,21 +122,21 @@
 | 자리 | 한 명 가정 | 여러 명이면 |
 |---|---|---|
 | `templates/production/partials/home_parts.html:19` `verb` · `:33` · `:35` [내가 {verb}] · `:23-25` `pp_held` · `:37-46` 작업 필요 칸 — 내 것 `:39` [맡기 취소][재단 완료] · 남의 것 `:41` "{이름} 맡음" · 관리자 · 반장 `:43` "작업 필요 · {이름}" + [재단 완료] · 보기만 `:45` | 담당 한 명 | [작업 시작] · [같이 작업] · [시작 취소] · "{이름들} 작업 중" · "재단 1/2 완료"(시안 01) |
-| `:47-50` 완료 칸 "재단 끝 · {이름}" · `:27` `can_undo` = `done_by_me` | 끝낸 사람 한 명 | 이름 여럿 · 내 몫 |
+| `:47-50` 완료 칸 "재단 끝 · {이름}" · `:27` `can_undo` = `done_by_me` | 끝낸 사람 한 명 | "재단 완료 · 이름들"(K4) · 내 몫 |
 | `:54` 꼬리 "내 담당" · `:60-62` 아침 칩 "어제부터 내 담당 n장" | — | "내 작업" |
 | `:89-98` 카드 `data-picked-*` · `data-done-*` · `data-handed-*` | 값 하나씩 | `data-pp-crew`(목록 JSON — `safeJsonParse`) 더함 |
-| D4 `:108-113`(가지 `work/d4-factory-request`) [도면 수정 요청] 단추 — `.pp-by` 와 단추 칸 사이 | — | 단추 칸 높이와 함께 잼(시안 01) |
+| D4 `:108-112` [도면 수정 요청] 단추 — `.pp-by` 와 단추 칸 사이 | — | 단추 칸 높이와 함께 잼(시안 01) |
 | `static/js/production/foms-production-parts.js:112-142` `renderAct`(`:124` [내가 …] · `:128` "{이름} 맡음" · `:129` "작업 필요 · {이름}") · `:143-165` `applyMark` · `:198` `seen_by` | 한 명 | 템플릿과 같은 규칙 · `seen_me` · `notice` 말풍선 |
 | `foms-production-parts-claim.js:113-133` `special`(`:127` [맡기 취소]) · `:137-151` `renderTag`(`:147` · `:149` "내 담당") · `:155-160` `setMarkAttrs` | 한 명 | 같음 |
 | `foms-production-parts-modal.js:36-51` 확인 창(`:38-39` "내가 자를까요?" · [내가 자름], `:42-47` 완료 · 되돌리기 줄) · `:53-56` `heldSince` "맡은 도면이에요." · `:58-72` `newPlan`(`:62-63` 맡기 취소 · `:66-67` 담당 바꾸기 · `:70-71` 반장 고르기) · `:74-84` `ownerNote`(`:79`) · `:193-199` `nowLine`(`:195` · `:198`) | 한 명 | 누구를 고르기 · 이름 여럿 · 새 낱말 |
 | `foms-production-parts-sync.js:73-81` `sameMark` · `:94-99` 남의 공장 글(`:95`) | 한 명 | 목록 비교 · "작업 중" |
-| `foms-production-pc-sheet.js:72-75` PC 창 줄 · `:84` [작업] · [작업 취소] | 한 명 | 사람마다 줄 · 단추 글은 §8-3 K3 |
+| `foms-production-pc-sheet.js:72-75` PC 창 줄 · `:84` [작업] · [작업 취소] · `:96` [모두 작업] · `:100` [모두 작업 취소] | 한 명 | 사람마다 줄 · 단추 글 [완료 처리] · [완료 취소] · [모두 완료 처리] · [모두 완료 취소](K3) |
 | `foms-production-sheet-parts.js:22` 기록 낱말 `KIND`(take "맡음" · release "맡기 취소") · `:158-166` "(이시영 대신)" | — | "작업 시작" · "시작 취소" · join "같이 작업" |
 
 ### 3-6. 쿼리 수 가드 · 래칫
 
 - `tests/domains/test_production_selfclaim_query_count.py:41` `MEASURED = {date_plain 10, date_part 11, day_part 7, day_plain 7, pc_date 9, pc_all 9, parts_tab 9, sync 2}` · 상한 `test_production_home_query_count.py:29` `ABS_QUERY_CAP = 11` · `:150` `PART_SCREEN_EXTRA_QUERIES = 1` · `:187` `DAY_PANE_QUERY_CAP = 9` · 공장 판 `test_production_factory_query_count.py:29` · 쓰기 `test_production_part_marks_api.py:392` `ONE_WRITE_CAP = 7` · `:395-396` 일괄 `BULK_DELTA_CAP 2` · `BULK_ABS_CAP 8`. (날짜 띠 뒤에도 숫자 그대로인지는 이 바탕에서 시험을 돌려 보지 않았다 — §13.)
-- 파일 크기 래칫(`tests/harness/test_file_size_ratchet.py:214` py 500 · js 300): `part_mark_write.py` **492** · `part_board.py` 489 → **D4 뒤 492** · `foms-production-parts.js` 285 · `foms-production-pc-sheet.js` **289** · `-parts-modal.js` 226 · `-parts-claim.js` 221 — 새 몸통은 새 모듈로(§10).
+- 파일 크기 래칫(`tests/harness/test_file_size_ratchet.py:214` py 500 · js 300): `part_mark_write.py` **492** · `part_board.py` **492**(D4 뒤) · `foms-production-parts.js` 285 · `foms-production-pc-sheet.js` **289** · `-parts-modal.js` 226 · `-parts-claim.js` 221 — 새 몸통은 새 모듈로(§10).
 
 ### 3-7. 안 바뀌는 곳 (음성 대조군 — 상태 칸만 읽는다)
 
@@ -150,7 +153,7 @@
 | 동시 누름 | 주문 행 잠금 아래 + DB 가 같은 사람 두 줄을 막음 | 같은 사람 두 줄은 DB 가 막음. BASIC · NONE 줄(사람 없음)은 `user_id` NULL 이라 PG 에서 겹쳐도 통과(`NULLS NOT DISTINCT` 필요, SQLite 없음) | 주문 행 잠금 아래 읽고 → 고치고 → 씀(`part_mark_write.py:397` · 일괄 `:425-429`). 같은 사람 두 번은 앱 한 곳이 막음(멱등). Q16 넘김도 이 잠금 아래 |
 | 마이그레이션 (두 DB) | 표 1(FK 둘 · 유일 · 색인) + 옮겨 채우기 + PG 왕복 | **유일 제약 지우고 다시 만듦**(표 잠금) + NULL 처리 + 왕복 | 칸 1 더하기(NULL · 채우기 없음 · 색인 없음 — 메타만) + 왕복 |
 | 되돌리기 | 표 지움 — 둘째 이후 사람 사라짐 | 겹친 줄을 먼저 지워야 함(자료 잃음) | 칸 지움 — 요약 칸이 늘 맞아 옛 코드가 첫 사람을 봄(§4-3) |
-| 고칠 자리 | §3 전부 + 모델 · 관계 + 읽기 14 곳 로딩 + 일괄 쓰기 두 길 | §3 전부 + **도면 · 파트에 줄 하나를 가정한 모음 10 곳**이 조용히 틀림: `marks_by_part`(`part_progress.py:98-105` — 사전이라 마지막 줄만 남음 → 한 명 DONE 이면 도면 완료로 잘못 셈), `index_marks`(`part_board.py:157-171`), `after_views`(`part_mark_write.py:220-229`), `with_written_marks`(`step_expand.py:122-127`), `_upsert_marks` ON CONFLICT(`step_expand.py:52` · `:66`), `sheet_work`, `drawing_parts`, `replaced_info`, `inspect_left`, `cards_used` | §3 전부(이름 그리는 자리) + 아침 칩 · 계정 화면 셈 두 곳 |
+| 고칠 자리 | §3 전부 + 모델 · 관계 + 읽기 14 곳 로딩 + 일괄 쓰기 두 길 | §3 전부 + **도면 · 파트에 줄 하나를 가정한 모음 10 곳**이 조용히 틀림: `marks_by_part`(`part_progress.py:98-105` — 사전이라 마지막 줄만 남음 → 한 명 DONE 이면 도면 완료로 잘못 셈), `index_marks`(`part_board.py:158-172`), `after_views`(`part_mark_write.py:220-229`), `with_written_marks`(`step_expand.py:122-127`), `_upsert_marks` ON CONFLICT(`step_expand.py:52` · `:66`), `sheet_work`, `drawing_parts`, `replaced_info`, `inspect_left`, `cards_used` | §3 전부(이름 그리는 자리) + 아침 칩 · 계정 화면 셈 두 곳 |
 | DB 가 지켜 주는 것 | 사람 중복 · 사용자 FK | 사람 중복 | 없음 — 앱 한 함수(`mark_crew`)가 지킴 |
 
 ### 4-2. 추천 ⓒ — 까닭과 모양
@@ -190,20 +193,22 @@
 | take 인데 서버 줄이 DONE · BASIC · 막힘 | 지금 거절 그대로 | — | — | Q16 |
 | join [같이 작업] | NEED[남…] → NEED[남…, 나] — 일부 완료("1/2 완료")여도 됨 | 그 파트 쓸 수 있는 사람(반장 · 관리자 포함) · 아직 안 들어감 · 그 도면 공장 | `seen:need` · `seen_me:none` | Q1 · Q22 |
 | join 인데 모두 완료(DONE) | 409 `JOIN_DONE` | — | — | Q2 |
+| join 인데 그사이 모두 시작 취소돼 빔(NONE) | **take 로 넘김** → NEED[나](글 없음) | 위와 같음 | `seen:need` | 판결(Q16 과 짝) |
 | done [재단 완료] | 내 몫 완료 → 모두 완료면 DONE, 아니면 NEED("재단 1/2 완료") | 작업하는 본인 | `seen:need` · `seen_me:held` | R3 |
-| 대신 완료(반장 · 관리자 [재단 완료] · PC [작업]) | 남은 사람 몫을 한 번에 반장 이름으로 완료 → DONE | 반장 · 관리자 | `seen:need` | Q15 |
+| 대신 완료(반장 · 관리자 [재단 완료] · PC [완료 처리]) | 남은 사람 몫을 한 번에 반장 이름으로 완료 → DONE | 반장 · 관리자 | `seen:need` | Q15 |
+| PC [완료 처리]가 빈 도면에서 시작 → 완료를 잇다가 그사이 남이 시작한 줄을 만남 | 시작(take)은 보내지 않은 셈 — **대신 완료**(남은 사람 몫을 한 번에 완료, 감독은 목록에 안 들어감) | 반장 · 관리자 | 서버가 판정(§7-3 넘김 ③) | 판결 |
 | undo [되돌리기] | 내 몫 완료 끔(DONE → NEED "1/2 완료") · BASIC → NONE 그대로 | 완료를 누른 본인(+ 반장 · 관리자 대신 — 풀이) | `seen:done|need` · `seen_me:done` | Q3 · Q4 |
 | release [시작 취소] | 나 빼기 → 남은 사람 0 = NONE, 남은 사람 모두 완료 = **저절로 DONE**, 그 밖 NEED | 작업하는 본인 · 완료 누르기 전 | `seen:need` · `seen_me:held` | R2 · Q6 · Q7 |
 | remove [{이름} 시작 취소] | 고른 사람 빼기 → 위와 같은 결과 | 반장 · 관리자 | `seen:need` · `target_user_id` | Q5 |
 | takeover [담당 바꾸기] | 고른 한 사람 → 나(나머지 그대로) | 그 파트 쓸 수 있는 사람(작업하는 사람 아님) | `seen:need` · `target_user_id`(한 명이면 생략 가능) | Q8 |
 | basic [기본] | NONE → BASIC 그대로 | 지금 그대로 | `seen:none` | Q13 |
 
-**풀이(답에서 바로 따름 — 틀리면 고침)**
+**풀이 · 판결(2026-11-25 지휘 판결 넷 — 본문과 다르면 이것이 이긴다)**
 - Q16 넘김은 [작업 시작](take)에만 걸린다. 넘어온 join 은 take 와 같은 막힘(보류 · 도면 고치는 중 · 손 체크 칸 · 남의 공장 · 검수 순서)을 본다 — 막힌 줄은 지금 거절 그대로.
-- **[같이 작업]을 눌렀는데 그사이 모두 시작 취소돼 비었으면** 지금처럼 거절("그사이 시작이 취소됐어요. 지금은 담당 미정이에요.") — Q16 답은 [작업 시작]에 대한 것이라 [같이 작업]까지 넓히지 않았다(§13).
-- **PC [작업]**(반장 감독 — take → done 을 잇는 단추)이 Q16 넘김을 받으면 done 으로 잇지 않고 멈춰 그 줄에 "{이름}이 먼저 시작했어요."를 보인다 — 감독이 모르는 새 같이 작업하는 사람이 돼 내 몫만 완료되는 일을 막는다. 남이 작업 중인 줄에서 처음부터 누른 [작업]은 대신 완료(Q15).
-- **Q3 "본인 몫만 되돌리기"** = 파트 계정은 자기 몫 완료만 되돌린다. 반장 · 관리자의 대신 되돌리기는 지금처럼 남긴다(Q5 "반장 · 관리자가 풀기"와 같은 결).
-- **Q8 담당 바꾸기 고르기** = 아직 완료를 안 누른 사람만 고를 수 있다(완료한 사람 몫을 지우면 Q3 "본인 몫만 되돌리기"와 어긋남). 고를 사람이 한 명이면 고르기 없이 지금 창.
+- **판결 1 — [같이 작업]을 눌렀는데 그사이 모두 시작 취소돼 비었으면** 거절하지 않고 그대로 작업 시작(take)으로 처리한다(Q16 과 짝 — 누른 사람 뜻은 '이 도면을 작업한다'). 글 없음.
+- **판결 2 — PC [완료 처리]**(반장 · 관리자 감독 단추 — 빈 도면이면 시작 → 완료를 잇는다)가 그사이 남이 시작한 줄을 만나면 멈추지 않고 Q15 [대신 완료]로 간다(남은 사람 몫을 한 번에 완료). 감독은 같이 작업하는 사람으로 들어가지 않는다 — 서버가 한 요청 안에서 판정하도록 PC 는 시작 · 완료를 따로 보내지 않고 새 action `check`(시작 + 완료를 한 요청으로) 하나로 보낸다(§7-1 · §7-3 넘김 ③). 남이 작업 중인 줄에서 처음부터 누른 [완료 처리]도 대신 완료(Q15).
+- **판결 3 — Q3 "본인 몫만 되돌리기"** = 파트 계정끼리. 반장 · 관리자의 대신 되돌리기는 남긴다(Q5 "반장 · 관리자가 풀기").
+- **판결 4 — Q8 담당 바꾸기 고르기** = 아직 완료를 안 누른 사람만 고른다(완료한 사람 몫을 지우면 Q3 와 어긋남). 고를 사람이 한 명이면 고르기 없이 지금 창.
 - **Q6 저절로 완료**가 마지막 검수 장이면 "제작 완료할까요?"는 그 누름을 한 사람(빠진 사람 · 반장)에게 묻는다 — 지금 "줄이 DONE 이 되는 누름에 묻는다"를 그대로 따름.
 - 검수 순서 · [제작 완료] · 공정 칸 · 공장 완료는 줄 상태로만 본다 → "1/2 완료" = 미완료(Q14).
 - 첫 맡기 = 제작 시작(11-23 B6)은 join · 넘어온 take 에도.
@@ -244,7 +249,7 @@
 
 | API | 바뀜 |
 |---|---|
-| `POST /api/production/part-marks` | `action` 에 `join` · `remove`. 몸 `seen_me`(`none` · `held` · `done` — 화면이 본 내 몫, 안 보내면 옛 화면: 지금 판정 그대로) · `target_user_id`(takeover · remove). `seen_by` 는 한 명일 때만 뜻(옛 화면 호환). 응답 `mark` 에 `holders[{user_id, name, done, picked_at, picked_day, done_at, done_name}]` · `holder_n` · `done_n`(지금 칸은 요약으로 그대로), 넘김이면 `joined_late: true` · `notice`. `order_ready` 는 검수 줄이 DONE 이 될 때만 |
+| `POST /api/production/part-marks` | `action` 에 `join` · `remove` · `check`(PC [완료 처리] — 시작 + 완료를 한 요청으로, 반장 · 관리자만 — 판결 2). 몸 `seen_me`(`none` · `held` · `done` — 화면이 본 내 몫, 안 보내면 옛 화면: 지금 판정 그대로) · `target_user_id`(takeover · remove). `seen_by` 는 한 명일 때만 뜻(옛 화면 호환). 응답 `mark` 에 `holders[{user_id, name, done, picked_at, picked_day, done_at, done_name}]` · `holder_n` · `done_n`(지금 칸은 요약으로 그대로), 넘김이면 `joined_late: true` · `notice`. `order_ready` 는 검수 줄이 DONE 이 될 때만 |
 | `POST /api/production/part-marks/basic` | 판정 그대로(Q13), 건너뛴 장 글만 "{이름}이 먼저 시작했어요." |
 | `GET /api/production/part-marks`(30초) | 줄에 같은 `holders` · `holder_n` · `done_n`. 쿼리 그대로 |
 | `GET /api/production/part-history` | `kind` 에 `join` · `remove`, 줄에 `target_name` · `joined_late` |
@@ -261,15 +266,18 @@
 
 ### 7-3. 판정 차례 (한 tx, 주문 행 잠금 아래 — 지금 `_decide` 에 끼움)
 
-1. 잘못된 짝 → 400(`action_target` — take 는 `seen:none` 이면 늘 올바른 짝).
+1. 잘못된 짝 → 400(`action_target` — take 는 `seen:none` 이면 늘 올바른 짝). `check` 는 반장 · 관리자만(아니면 403 `PART_FORBIDDEN` — 지금 대신 처리 문 `can_override_marks`).
 2. 멱등 → 200 `changed:false`(같은 사람 · 같은 결과: 이미 목록에 있는 사람의 [작업 시작] · [같이 작업], 같은 완료 두 번).
-3. **take → join 넘김(Q16)**: action `take` · `seen:none` 인데 서버 줄이 NEED 이고 내가 목록에 없음 → action 을 `join`, 본 상태를 `need` 로 바꿔 아래로 간다. `notice` = "{목록 사람들(둘까지 + 외 n)}{이/가} 먼저 시작했어요." 서버 줄이 DONE · BASIC 이면 넘기지 않는다 → 6 의 지금 경합 글.
+3. **넘김 셋** — 화면이 본 상태와 서버 줄이 다를 때 누른 사람의 뜻대로 바꿔 아래로 간다.
+   - ① **take → join(Q16)**: action `take` · `seen:none` 인데 서버 줄이 NEED 이고 내가 목록에 없음 → action 을 `join`, 본 상태를 `need` 로 바꿔 아래로 간다. `notice` = "{목록 사람들(둘까지 + 외 n)}{이/가} 먼저 시작했어요." 서버 줄이 DONE · BASIC 이면 넘기지 않는다 → 6 의 지금 경합 글.
+   - ② **join → take(판결 1)**: action `join` 인데 서버 줄이 NONE(그사이 모두 시작 취소) → action 을 `take`, 본 상태 `none` 으로. 글 없음.
+   - ③ **check(판결 2)**: 서버 줄 NONE → 시작(나) + 내 몫 완료 = DONE · NEED[남…] → **대신 완료**(남은 사람 몫을 한 번에, 감독은 목록에 안 들어감) · DONE · BASIC → 멱등 200(이미 완료). 대신 완료로 간 경우 응답 `proxied: true`(PC 줄에 다시 그림).
 4. 남의 공장 → 403 `OTHER_FACTORY`(넘어온 join 도 — 내 공장 장이 아니면 시작도 못 함).
 5. 보류 · 도면 고치는 중 · 손 체크 칸 → 409(take · join · 넘어온 join. release · undo · remove 는 지나감).
-6. 경합 → 409: 상태 · 내 몫(`seen_me`) · 대상(`target_user_id`)이 화면과 다름. 이 중 **join 인데 서버 줄이 DONE = `JOIN_DONE`**, join 인데 NONE = `MARK_CONFLICT`(지금 글 바뀐 꼴 §8-2), takeover · remove 대상이 빠짐 = `TARGET_GONE`.
+6. 경합 → 409: 상태 · 내 몫(`seen_me`) · 대상(`target_user_id`)이 화면과 다름. 이 중 **join 인데 서버 줄이 DONE = `JOIN_DONE`**(NONE 은 3-② 로 넘어가 거절 없음), takeover · remove 대상이 빠짐 = `TARGET_GONE`.
 7. 권한 → 403: 파트 계정의 remove(`REMOVE_FORBIDDEN`) · 남의 몫 undo(`UNDO_NOT_MINE`) · 지금 `RELEASE_NOT_HOLDER`.
 8. 새 거절 → 409 `RELEASE_AFTER_DONE` · `TARGET_DONE` · 400 `TARGET_REQUIRED`.
-9. 검수 순서 → 409 `INSPECT_NOT_READY`(take · join · done · takeover) · `INSPECT_DONE_FIRST`.
+9. 검수 순서 → 409 `INSPECT_NOT_READY`(take · join · done · takeover · check) · `INSPECT_DONE_FIRST`.
 10. 쓰기 · 공정 칸 동기화(DONE 이 됐을 때만 켬) · 첫 맡기 제작 시작 · 감사 · 마지막 검수면 `order_ready`.
 
 ### 7-4. 거절 code · 글 (새 글 — 지금 글 바뀜은 §8-2)
@@ -277,6 +285,7 @@
 | code | 상태 | 언제 | 글 |
 |---|---|---|---|
 | (거절 아님) | 200 | take 가 NEED 를 만나 join 으로 넘어감(Q16) | `notice`: {이름}{이/가} 먼저 시작했어요. |
+| (거절 아님) | 200 | join 이 NONE 을 만나 take 로 넘어감(판결 1) · check 가 NEED 를 만나 대신 완료(판결 2) | 글 없음 |
 | `JOIN_DONE` | 409 | 모두 완료된 도면에 [같이 작업](Q2) | 이미 완료된 도면이에요. 다시 해야 하면 완료한 사람이 [되돌리기]를 먼저 눌러 주세요. |
 | `RELEASE_AFTER_DONE` | 409 | 완료를 누른 사람이 [시작 취소](Q7) | [{파트} 완료]를 누른 도면은 시작을 취소할 수 없어요. 먼저 [되돌리기]를 눌러 주세요. |
 | `UNDO_NOT_MINE` | 403 | 파트 계정이 남의 완료를 되돌림(Q3) | 내가 완료한 것만 되돌릴 수 있어요. {이름}{이/가} 완료한 것은 {이름}에게 말해 주세요. |
@@ -302,7 +311,7 @@
 | 반장 · 관리자 칸 둘째 줄 · 창 | "{파트} {d}/{n} 완료" / 창 안내 "{파트} 1/2 완료 — {이름} 완료 · {이름} 작업 중" / 단추 [{이름} 시작 취소] |
 | 반장 남의 시작 취소 창 | 제목 "{이름} 작업 시작을 취소할까요?" · 줄 "{이름들} 작업 중 → {남은 이름들} 작업 중" · 안내(남은 사람 모두 완료) "남은 사람이 모두 완료라 도면이 완료돼요." |
 | [담당 바꾸기] 고르기(둘 이상) | 제목 "누구와 담당을 바꿀까요?" · 고르기 "{이름} · {HH:MM}부터 작업 중" · 안내 "완료를 누른 사람은 바꿀 수 없어요." |
-| PC 도면별 창 | 상태 칸 "{파트} {d}/{n} 완료" + 작은 글 "{이름} 작업 중", 줄 글 사람마다(지금 꼴 "담당 {이름} · M/D HH:MM" · "완료 {이름} · M/D HH:MM" — '담당'은 §8-3 K6) |
+| PC 도면별 창 | 상태 칸 "{파트} {d}/{n} 완료" + 작은 글 "{이름} 작업 중", 줄 글 사람마다 "작업 시작 {이름} · M/D HH:MM" · "완료 {이름} · M/D HH:MM"(K6 꼴) |
 | 바뀐 기록 | "{이름} 같이 작업" · "{이름} 시작 취소 ({반장})" |
 | 감사 줄 | "재단 같이 작업 (이시영 → 이시영 · 김재단)" · 넘김 "재단 같이 작업 (먼저 시작: 이시영)" · "재단 작업 필요 → 재단 1/2 완료" · "재단 시작 취소 (김재단, 박반장)" |
 | 이벤트 글(`order_event_display`) | "재단을 같이 작업하기 시작했습니다" · "재단 김재단의 작업 시작을 취소했습니다" |
@@ -320,10 +329,10 @@
 | 4 | `-parts-modal.js:62` 내 시작 취소 창 | 제목 "맡기를 취소할까요?" · 단추 [맡기 취소] | "시작을 취소할까요?" · [시작 취소](줄 "담당 {나} → 미정"은 §8-3 K2) |
 | 5 | `-parts-modal.js:63` 반장 · 관리자가 남의 것 취소 | "{이름} 담당을 취소할까요?" · [맡기 취소] | "{이름} 작업 시작을 취소할까요?" · [시작 취소] |
 | 6 | `home_parts.html:41` · `foms-production-parts.js:128` 남의 칸 | "{이름} 맡음" | **"{이름} 작업 중"** — 둘 "이시영 · 김재단 작업 중", 셋 이상 "이시영 · 김재단 외 1 작업 중". 칸 꼴도 바뀜(시안 01 B · D · I): [같이 작업]과 짝인 `.pp-two` 는 이름 칸 : 단추 = 1.4 : 1(지금 1 : 1.4), 이름 글 두 줄까지(낱말에서 꺾음, "작업 중" · "외 1"은 안 쪼갬) — 지금 꼴이면 1176 판에서 한 명("이시영 작업 중")도 칸 끝에 걸리고 둘부터 잘린다(`parts.css:149` · `:173`) |
-| 7 | `home_parts.html:43` · `:45` · `foms-production-parts.js:129` 관리자 · 반장 · 보기만 | "작업 필요 · {이름}" | 글 그대로, 이름만 늘어남 "작업 필요 · 이시영 · 김재단"(사장님 예 — 두 꼴은 §8-3 K5) |
-| 8 | `home_parts.html:48-50` · `foms-production-parts.js:133` 완료 칸 | "재단 끝 · {이름}" | 이름만 늘어남 "재단 끝 · 이시영 · 김재단"('끝'은 §8-3 K4) |
+| 7 | `home_parts.html:43` · `:45` · `foms-production-parts.js:129` 관리자 · 반장 · 보기만 | "작업 필요 · {이름}" | **"{이름} 작업 중"** — 둘 "이시영 · 김재단 작업 중"(K5, 파트 계정 칸과 같은 꼴) |
+| 8 | `home_parts.html:48-50` · `foms-production-parts.js:134` 완료 칸 | "재단 끝 · {이름}" | **"재단 완료 · {이름}"** — 둘 "재단 완료 · 이시영 · 김재단"(K4) |
 | 9 | `home_parts.html:54` · `-parts-claim.js:147` · `:149` · `part_card_state.py:114`(숨은 글) 꼬리 | "내 담당 · 어제부터 · 박엣지에서 바뀜" | **"내 작업 · …"** |
-| 10 | `part_board.py:68` `MINE_WORD` 다른 파트 줄(여러 파트 계정) | "엣지 내 담당" | "엣지 내 작업" |
+| 10 | `part_board.py:69` `MINE_WORD` 다른 파트 줄(여러 파트 계정) | "엣지 내 담당" | "엣지 내 작업" |
 | 11 | `home_parts.html:62` 아침 칩(+ `aria-label`) | "어제부터 내 담당 {n}장" | "어제부터 내 작업 {n}장" |
 | 12 | `-parts-modal.js:53-56` `heldSince` | "{이름}이 {시각}부터 맡은 도면이에요." | "{이름}이 {시각}부터 작업 중인 도면이에요." |
 | 13 | `-parts-modal.js:70` 반장 창 제목 · `:71` 고르기 | "{이름} 담당 도면이에요" · [맡기 취소] | "{이름들} 작업 중인 도면이에요" · [{이름} 시작 취소]([담당 바꾸기] · [대신 완료] 그대로) |
@@ -341,28 +350,48 @@
 | 25 | `part_mark_write.py:353` 감사 | "재단 맡기 취소 (이시영)" | "재단 시작 취소 (이시영)" |
 | 26 | `order_event_display.py:582` 이벤트 글 | "재단 맡기를 취소했습니다 (이시영 담당)" | "재단 작업 시작을 취소했습니다 (이시영)" |
 | 27 | `drawing_fix_progress.py:94-104` 보내기 전 경고 · `:63-67` · `drawing_workbench_production.py:200-210` 공장 진행 칸 | "도면 3은 박엣지가 엣지 작업 중인 도면입니다." · "엣지 작업 중 · 박엣지" | 낱말은 이미 '작업 중' — 이름만 Q20 "박엣지 · 최엣지가" · "박엣지 · 최엣지 외 1이" |
-| 28 | `part_board.py:195-203` 바뀐 도면 | "바뀐 도면 · 전 판 엣지 중(최엣지)" | 이름만 "(최엣지 · 박엣지)"(Q17 · Q20) |
+| 28 | `part_board.py:196-204` 바뀐 도면 | "바뀐 도면 · 전 판 엣지 중(최엣지)" | 이름만 "(최엣지 · 박엣지)"(Q17 · Q20) |
 | 29 | `part_holders.py:94-109` 날짜 줄 칸 아래 | "이시영 외 1" | 글 그대로, "외 n" 이 같이 작업하는 사람도 셈("이시영 외 2") |
+| 30 | `part_board.py:64-65` 다른 파트 줄 낱말(30초 받아 오기 `part_marks_read.py:121` 도 이 낱말) | 재단 "끝 · 기본 · 중 · 안 봄", 그 밖 "끝 · 중 · 아직" | "끝" → **"완료"**("엣지 완료") — K4 |
+| 31 | `part_board.py:201` 바뀐 도면 전 판 | "바뀐 도면 · 전 판 재단 끝(김재단)" | "… 전 판 재단 완료(김재단)" — K4 |
+| 32 | `-parts-modal.js:43` 완료 확인 창 | 제목 "재단 끝으로 바꿀까요?" · 줄 "작업 필요 → 재단 끝 · {나}" | "재단 완료로 바꿀까요?" · "작업 필요 → 재단 완료 · {나}" — K4 |
+| 33 | `-parts-modal.js:47` 되돌리기 확인 창 줄 | "재단 끝 → 작업 필요 · {나}" | "재단 완료 → 작업 필요 · {나}" — K4 |
+| 34 | `-parts-modal.js:81` 관리자 · 반장 한 줄 | "{이름}이 끝낸 도면이에요" | "{이름}이 완료한 도면이에요" — K4 |
+| 35 | `part_mark_rules.py:180` 경합 | "{이름}이 먼저 끝냈어요" | "{이름}이 먼저 완료했어요" — K4 |
+| 36 | `part_mark_write.py:154` 감사 상태 낱말 | "재단 작업 필요 → 재단 끝" | "… → 재단 완료" — K4 |
+| 37 | `pc_sheet.py:73` PC 도면별 창 상태 칸 | "재단 끝" | "재단 완료" — K4 |
+| 38 | `pc_view.py:157` PC 공정 칸 마우스 글 | "재단 끝 · 김재단 · 11/24 10:20" · "재단 끝 · 기록 없음" | "재단 완료 · …" — K4 |
+| 39 | `home_step_panel.py:64` '내 공정' 앞 공정 줄(PC '내 공정' `pc_view.py:180-186` 이 같은 글을 나눠 씀) | "재단 끝 · 김재단 · 11/20 14:05" | "재단 완료 · …" — K4 |
+| 40 | 단계 큰 글 — 만드는 곳 `production_home_read_model.py:127`, 글자 그대로 견주는 곳 `:347` · `production_home_days.py:36` · `late_rule.py:40` · `home_date_macros.html:37` · `home_pc_macros.html:39` | "검수 끝" | **"검수 완료"** — K4(견주는 다섯 곳을 상수 하나로 묶는다) |
+| 41 | `foms-production-pc-sheet.js:84` PC 도면별 창 줄 단추 | [작업] · [작업 취소] | **[완료 처리] · [완료 취소]** — K3 |
+| 42 | `foms-production-pc-sheet.js:96` 창 머리 | [모두 작업] | **[모두 완료 처리]** — K3 |
+| 43 | `foms-production-pc-sheet.js:100` 창 머리(손으로 통째 처리한 파트) | [모두 작업 취소] | **[모두 완료 취소]** — K3 |
+| 44 | 이 단추를 가리키는 설명 · 주석 — `templates/production/partials/home_pc_sheet.html:4-5` · `foms/api/production/part_sheet.py:11-13` · `pc_sheet.py:16` · `:105` · `:190` · 시험 주석 `tests/domains/test_drawing_fix_gate.py:206` · `test_production_revising_blocks_steps.py:6` · `:86` · `test_production_step_expand_screens.py:9` · `:179` | [작업] · [작업 취소] · [모두 작업] · [모두 작업 취소] | 새 단추 이름 — K3(화면 글은 아니고, 시험이 글자로 고정한 곳은 없다 — `git grep` 0건) |
+| 45 | `pc_sheet.py:91` PC 도면별 창 줄 | "담당 김재단 · 11/24 08:16" | **"작업 시작 김재단 · 11/24 08:16"** — K6("담당 미정" `:89` 은 K2 그대로) |
+
+**K3 이 가리키는데 그대로 둔 글**: [모두 완료 처리]가 여는 확인 창은 작업 시트 공정 칸 · '내 공정' [<공정> 끝]과 **한 창**이다(`sheet_step_confirm.html:12` [작업 완료] · `foms-production-sheet-parts.js:84` "재단을 작업 완료로 처리할까요?" · `:70-71` 본문). 바꾸면 그 두 곳 글도 같이 바뀌므로 그대로 둔다 — 지휘 판단 자리.
 
 이 표의 글을 고정한 지금 시험은 §11 '고쳐 쓸 시험'.
 
-### 8-3. 확인할 글 — 사장님 답에 없는 낱말(지금 글 그대로 두고 여쭌다)
+### 8-3. 확인할 글 — 답(2026-11-25)
 
-| # | 낱말 · 지금 글(자리) | 왜 여쭙나 | 지금 그대로일 때 | 바꾼다면(제안) |
-|---|---|---|---|---|
-| K1 | **'담당 바꾸기'의 '담당'** — 단추 [담당 바꾸기](`-parts-modal.js:67` · `:71`) · 창 "담당을 이시영에서 김재단으로 바꿀까요?" · 줄 "담당 이시영 → 담당 김재단"(`:66`) · 새 고르기 창 "누구와 담당을 바꿀까요?" · 경합 "그사이 김민준으로 담당이 바뀌었어요. 이 장은 이제 김민준이 해요."(`part_mark_rules.py:201-206`) · "그사이 담당이 바뀌었어요. 위 [다시 받기]를 눌러 주세요."(`:63`) · 감사 "재단 담당 바꿈 (박엣지 → 김민준)"(`part_mark_write.py:351`) · 계정 화면 "[담당 바꾸기]로 이어서 해요"(`routes.py:852`) · 칸 아래 "박엣지에서 바뀜" | 다른 자리의 '담당'이 '작업 중'으로 바뀌어 '담당'이 이 단추 둘레에만 남는다 | 그대로 | [작업 바꾸기] · "누구와 작업을 바꿀까요?" |
-| K2 | **'미정'** — 빈 칸 "미정"(도면 판 · 남의 공장 글 · 날짜 줄 칸 아래) · "담당 미정"(경합 `part_mark_rules.py:64` · 검수 막힘 `part_mark_gates.py:158` · 날짜 줄 숨은 글 `part_holders.py:137` · PC 마우스 글 `:149` · PC 창 `pc_sheet.py:89` · `nowLine` `-parts-modal.js:198`) · 시작 취소 창 줄 "담당 김재단 → 미정"(`:62-63`) | 11-25 ⑽ "그대로 두기" 답이 있다(11-23 설계서) — 이번 낱말 바꾸기 뒤에도 같은지 | 그대로 | "담당 미정" → "작업자 미정"? |
-| K3 | **PC [작업] · [작업 취소]**(`foms-production-pc-sheet.js:84`) · [모두 작업] · [모두 작업 취소] — [작업 취소] = **완료를 되돌림**(태블릿 [되돌리기]와 같은 일), 새 [시작 취소] = **시작을 무름** | 같은 판에 '취소'가 두 뜻으로 선다 — PC 감독이 [작업 취소]를 '시작 취소'로 읽을 수 있다. 태블릿 [작업 시작]과 PC [작업]도 이름이 닮았지만 하는 일은 PC [작업] = 완료 처리 | 그대로 | PC [작업] → [완료 처리] · [작업 취소] → [완료 취소] |
-| K4 | **지금 글의 '끝'** — 완료 칸 "재단 끝 · 김재단"(`home_parts.html:48-50`) · 완료 확인 창 "재단 끝으로 바꿀까요?" · "작업 필요 → 재단 끝 · 김재단" · "재단 끝 → 작업 필요"(`-parts-modal.js:43` · `:47`) · 다른 파트 줄 "끝"(`part_board.py:63-64`) · PC 상태 칸 "재단 끝"(`pc_sheet.py:73`) · PC 마우스 글 "재단 끝 · 김재단 · …"(`pc_view.py:157`) · 경합 "먼저 끝냈어요"(`part_mark_rules.py:180`) · 감사 "재단 끝"(`part_mark_write.py:154`) · 단계 글 "검수 끝" | 새 글은 "재단 1/2 완료" — 한 판에 "재단 1/2 완료"와 "재단 끝"이 나란히 선다(시안 01 E1 · F) | 그대로 | "재단 완료 · 이시영 · 김재단" 등 '완료'로 맞춤(단계 글 "검수 끝"은 비교하는 곳이 여럿 — 11-23 §2) |
-| K5 | **두 꼴** — 관리자 · 반장 칸 "작업 필요 · 이시영 · 김재단"(사장님 예) ↔ 파트 계정 칸 "이시영 · 김재단 작업 중"(답 '맡음' → '작업 중') | 같은 도면이 보는 사람마다 다른 꼴 | 그대로(둘 다 답에서 옴) | 반장 칸도 "이시영 · 김재단 작업 중" |
-| K6 | **PC 도면별 창 줄 '담당'** — "담당 김재단 · 11/24 08:16"(`pc_sheet.py:91`) | '담당'이 '시작한 사람 · 때' 뜻으로 남음 | 그대로 | "작업 시작 김재단 · 11/24 08:16" |
-| K7 | **제작 시작 기록** "제작 시작 (도면 카드 첫 맡기)"(`start_run.py:34` · `:134` — ERP 단계 이력 · 감사) | '맡기' · '카드' 가 남음(ERP 이력 화면) | 그대로 | "제작 시작 (도면 첫 작업 시작)" |
-| K8 | **D4 거절 글** "도면 수정 요청은 반장이나 그 도면 파트 담당만 할 수 있어요."(`work/d4-factory-request` `drawing_fix_requests.py:71`) | 여기 '담당'은 '파트 계정' 뜻 | 그대로(제안) | "…반장이나 그 도면 파트 직원만…" |
+| # | 낱말 | 답(원문) | 결과 |
+|---|---|---|---|
+| K1 | [담당 바꾸기]의 '담당' — 단추 · 창 "담당을 이시영에서 김재단으로 바꿀까요?" · 고르기 창 "누구와 담당을 바꿀까요?" · 경합 "그사이 김민준으로 담당이 바뀌었어요…"(`part_mark_rules.py:201-206`) · "그사이 담당이 바뀌었어요…"(`:63`) · 감사 "재단 담당 바꿈 (…)"(`part_mark_write.py:351`) · 계정 화면 "[담당 바꾸기]로 이어서 해요"(`routes.py:852`) | "[담당 바꾸기] 그대로" | 안 바꿈 |
+| K2 | '미정' · "담당 미정" | (안 여쭘 — 11-25 "그대로 두기") | 안 바꿈 |
+| K3 | PC [작업] · [작업 취소] · [모두 작업] · [모두 작업 취소] | "[완료 처리] · [완료 취소]로 바꾸기" | §8-2 41 ~ 44 |
+| K4 | 지금 글의 '끝'(생산 파트 표시가 만드는 글 + 단계 "검수 끝") | "모두 '완료'로 맞추기" | §8-2 8 · 30 ~ 40 |
+| K5 | 반장 · 관리자 · 보기만 칸 "작업 필요 · {이름}" | "둘 다 '작업 중' 말로 맞추기" | §8-2 7 |
+| K6 | PC 도면별 창 줄 "담당 {이름} · 시각" | 같은 답 | §8-2 45 |
+| K7 | 제작 시작 기록 "제작 시작 (도면 카드 첫 맡기)"(`start_run.py:34` · `:134`) | (안 여쭘) | 안 바꿈 |
+| K8 | D4 거절 글 "도면 수정 요청은 반장이나 그 도면 파트 담당만 할 수 있어요."(`drawing_fix_requests.py:71`) | (안 여쭘) | 안 바꿈 |
+
+**K4 범위 밖으로 둔 '끝'**(지휘 범위 "생산 파트 표시가 만드는 글만" — 상태 이름이 아니라 동작 · 문장의 '끝'): '내 공정' [<공정> 끝] 단추와 누른 뒤 상태 글 "{고객} 재단 끝"(`foms-production-home-steps.js:207`) · "끝냈어요. 다음 공정으로 옮겨요"(`foms-production-home.js:168`) · "끝내면 다음은"(`home_step_panel.html:38`) · "검수까지 끝나야 제작 완료할 수 있어요."(`steps.py:86`) · "공정 n칸을 모두 끝내야…"(`foms-production-sheet-page.js:135`) · "파트 일이 끝난 집"(`home_parts.html:139`) · 이벤트 이름 "검수 끝 전제"(`order_event_display.py:44`) · 시공 쪽 "시공 끝". '내 공정' [<공정> 끝] 단추는 단계 "검수 완료"(§8-2 40)와 한 화면에 서므로 맞출지 지휘 판단 자리.
 
 ### 8-4. 시안 (저장소 밖, 스크래치 `mh/mock/` · `mh/review_page/img/`)
 
-- `01_tablet_board`(1176, `board.png`): A 아무도 안 시작 · B 이시영 작업 중(김재단 화면 [같이 작업]) · C 둘이 작업(내 화면) · D 둘이 작업(남의 화면 — 이름 두 줄) · E0 거의 같이 [작업 시작]("이시영이 먼저 시작했어요.") · E1 · E2 한 명 완료 · F 모두 완료 · G 반장 화면 · H 검수 판 · I 셋이 작업("외 1") + 창 셋([같이 작업] · 반장 고르기 · [담당 바꾸기] 고르기). D4 [도면 수정 요청] 단추를 넣어 카드 높이를 같이 잼.
-- `02_phone`(390, `phone.png`): **폰에는 도면 판이 없다**(992px 아래 `.fph-parts { display: none }` `parts.css:46` · '도면 카드' 화면은 "도면 카드는 태블릿을 가로로 두면 보여요." `home_parts.html:139`) · 날짜 줄 칸 아래 이름도 폰에서 숨음(`home.css:759`). 폰에서 바뀌는 것은 작업 시트 [바뀐 기록 보기]의 낱말뿐.
+- `01_tablet_board`(1176, `board.png`): A 아무도 안 시작 · B 이시영 작업 중(김재단 화면 [같이 작업]) · C 둘이 작업(내 화면) · D 둘이 작업(남의 화면 — 이름 두 줄) · E0 거의 같이 [작업 시작]("이시영이 먼저 시작했어요.") · E1 · E2 한 명 완료 · F 모두 완료 · G 반장 화면 · H 검수 판 · I 셋이 작업("외 1") + 창 셋([같이 작업] · 반장 고르기 · [담당 바꾸기] 고르기). D4 [도면 수정 요청] 단추(`parts.css` `.pp-req`)를 넣어 카드 높이를 같이 잼. **시안 H(검수 막힘)에는 이 단추를 안 그렸지만 실제 화면은 '도면 고치는 중' 막힘에서만 숨기므로(`home_parts.html:109`) 검수 막힘 도면에도 보인다** — 이 설계는 D4 규칙을 안 바꾼다.
+- `02_phone`(390, `phone.png`): **폰에는 도면 판이 없다**(992px 아래 `.fph-parts { display: none }` `parts.css:46` · '도면 카드' 화면은 "도면 카드는 태블릿을 가로로 두면 보여요." `home_parts.html:144`) · 날짜 줄 칸 아래 이름도 폰에서 숨음(`home.css:759`). 폰에서 바뀌는 것은 작업 시트 [바뀐 기록 보기]의 낱말뿐.
 - `03_pc_window`(1440, `pc.png`) · `04_rows_sheet`(1176, `rows.png`).
 
 ## 9. 성능 · 쿼리 예산
@@ -383,37 +412,38 @@
 
 ### M1 자료 · 규칙 · API · 서버 글 (화면 새 칸 없음 — 먼저)
 - 새: `foms/services/production/mark_crew.py`(목록 순수 함수 — `crew_of` · `summarize` · 같이 작업 · 빼기 · 완료 · 되돌리기 · take → join 넘김 판정 · 이름 줄 "이시영 · 김재단 외 1" 하나) · `migrations/versions/prodpart_02_holders.py`(`down_revision = 'prodlead_02'`, 칸 더하기만 — Q18 ②) · `foms/services/production/part_mark_notes.py`(감사 · 이벤트 · 거절 글을 `part_mark_write.py` 에서 옮김 — 492줄 래칫).
-- 고침: `models.py` · `part_mark_rules.py` · `part_mark_write.py` · `foms/api/production/part_marks.py` · `part_mark_gates.py` · `part_progress.py`(`inspect_left` 이름) · `factory_scope.py`(문 `:57` · 남의 공장 글) · `step_expand.py`(`MARK_COLUMNS` 따라감 — 확인만) · `part_marks_read.py` · `part_marks_query.py`(아침 칩) · `foms/web/auth/routes.py` · `part_history.py` · `order_event_display.py` · `drawing_factory.py`(`sheet_work` · 막힘 글) · `drawing_fix_progress.py`(진행 · 경고 이름) · `drawing_workbench_production.py`(공장 진행 칸 이름) · `part_holders.py`(숨은 글 · "외 n").
+- 고침: `models.py` · `part_mark_rules.py` · `part_mark_write.py` · `foms/api/production/part_marks.py` · `part_mark_gates.py` · `part_progress.py`(`inspect_left` 이름) · `factory_scope.py`(문 `:57` · 남의 공장 글) · `step_expand.py`(`MARK_COLUMNS` 따라감 — 확인만) · `part_marks_read.py` · `part_marks_query.py`(아침 칩) · `foms/web/auth/routes.py` · `part_history.py` · `order_event_display.py` · `drawing_factory.py`(`sheet_work` · 막힘 글) · `drawing_fix_progress.py`(진행 · 경고 이름) · `drawing_workbench_production.py`(공장 진행 칸 이름) · `part_holders.py`(숨은 글 · "외 n"). §8-2 줄: 16(서버 쪽) · 17 ~ 23 · 25 ~ 27 · 29 · 35 · 36, 판결 1 · 2(`check`)의 서버 판정.
 - 완료 기준: §11 M1 초록 · 쿼리 가드 숫자 그대로 · PG 왕복 · `python -c "import app; print('APP_OK')"`.
 
 ### M2 도면 판 화면(태블릿)
 - 새: `static/js/production/foms-production-parts-crew.js`([같이 작업] · 넘김 말풍선 · 고르기 창 — `parts.js` 285 · `modal.js` 226 · `claim.js` 221 래칫) · `foms/services/production/part_card_crew.py`(카드 칸 — `part_board.py` D4 뒤 492 래칫).
-- 고침: `part_board.py`(부르기 · `MINE_WORD`) · `part_card_state.py` · `templates/production/partials/home_parts.html` · `home_parts_overlays.html`(고르기 자리) · `home_scripts.html`(새 JS 한 줄) · `static/css/contexts/production/parts.css`(남의 칸 + [같이 작업] 짝 1.4 : 1 · 두 줄, [담당 바꾸기] 사람 고르기 단추 새 꼴 — 시안 01 창 3, 지금 창에 사람 고르기 꼴이 없음) + `home_styles.html` CSS 핀 · `foms-production-parts.js` · `-parts-claim.js` · `-parts-modal.js` · `-parts-sync.js`(낱말 · 줄 몇 개).
+- 고침: `part_board.py`(부르기 · `MINE_WORD`) · `part_card_state.py` · `templates/production/partials/home_parts.html` · `home_parts_overlays.html`(고르기 자리) · `home_scripts.html`(새 JS 한 줄) · `static/css/contexts/production/parts.css`(남의 칸 + [같이 작업] 짝 1.4 : 1 · 두 줄, [담당 바꾸기] 사람 고르기 단추 새 꼴 — 시안 01 창 3, 지금 창에 사람 고르기 꼴이 없음) + `home_styles.html` CSS 핀 · `foms-production-parts.js` · `-parts-claim.js` · `-parts-modal.js` · `-parts-sync.js`(낱말 · 줄 몇 개). §8-2 줄: 1 ~ 15 · 16(JS 쪽) · 28 · 30 ~ 34.
 - 완료 기준: 화면 시험 · `node --check` · JS 300 래칫 · 인라인 스타일 래칫 · 실화면 1176 × 626 80%(시안 01 과 견줌 — D4 단추가 선 카드 높이).
 
 ### M3 다른 화면
-- 고침: `pc_sheet.py` · `static/js/production/foms-production-pc-sheet.js`(289 — 줄 글을 서버가 사람마다 만들어 넘기고 JS 는 그대로 그리게) · `foms-production-pc-sheet-write.js`(대신 완료 · 넘김에서 멈춤) · `sheet_parts.py` · `foms-production-sheet-parts.js`(`KIND`).
+- 고침: `pc_sheet.py` · `static/js/production/foms-production-pc-sheet.js`(289 — 줄 글을 서버가 사람마다 만들어 넘기고 JS 는 단추 이름만) · `foms-production-pc-sheet-write.js`([완료 처리] = `check` 한 요청 — 판결 2) · `templates/production/partials/home_pc_sheet.html` · `foms/api/production/part_sheet.py`(주석) · `sheet_parts.py` · `foms-production-sheet-parts.js`(`KIND`) · `pc_view.py`(마우스 글 · '내 공정' 앞 공정) · `home_step_panel.py` · 단계 "검수 완료" — `production_home_read_model.py` · `production_home_days.py` · `late_rule.py` · `home_date_macros.html` · `home_pc_macros.html`(견주는 다섯 곳을 상수 하나로). §8-2 줄: 24 · 37 ~ 45.
 - 완료 기준: PC 창 · 작업 시트 · 날짜 줄 시험 · 실화면 PC 1440 80% · 폰 390.
 
-### 파일 겹침 표 (D4 = `work/d4-factory-request` `8d240f7bb`)
+### 파일 겹침 표 (D1 ~ D4 는 모두 바탕 `b94f167fb` 에 들어 있음)
 
-| 파일 | D1 ~ D3(바탕에 있음) | D4(마무리 중) | M1 | M2 | M3 | 푸는 법 |
+| 파일 | D1 ~ D3 · 날짜 띠 | D4 | M1 | M2 | M3 | 푸는 법 |
 |---|---|---|---|---|---|---|
-| `part_board.py` | D1 · D2 · 날짜 띠 +1(489) | `board_request_options` · `req_opts` · `can_request`(+3 → **492**) | | 부르기 · `MINE_WORD` | | D4 뒤 M2, 새 몸통은 `part_card_crew.py` |
-| `home_parts.html` | 날짜 띠 `:59` 한 줄 | [도면 수정 요청] 단추 `:108-113`(+5) | | 고침 | | D4 뒤 M2 — 단추 칸(`data-pp-actbox`)만 고치고 D4 단추 줄은 안 건드림 |
-| `home_parts_overlays.html` | | 요청 창(+30) | | 고르기 자리 | | D4 뒤, 같은 겉틀에 칸만 더함 |
-| `parts.css` | | 요청 단추 · 창(+30) | | 두 줄 · 새 칸 | | D4 뒤, 다른 선택자 |
-| `home_scripts.html` · `home_styles.html` | 날짜 띠 | 새 JS 한 줄 · 핀 | | 새 JS 한 줄 · 핀 | | D4 뒤 — 핀 값만 다시 올림 |
-| `tests/domains/test_production_tablet_mockup_fit.py` · `test_production_selfclaim_css.py` | | 카드 자식 차례 · CSS 단언(+3 · +5) | | 단언 더함 | | D4 뒤 |
+| `part_board.py` | D1 · D2 · 날짜 띠 +1(489) | `board_request_options` · `req_opts` · `can_request`(+3 → **492**) | | 부르기 · `MINE_WORD` | | 이미 492 — M2 새 몸통은 `part_card_crew.py` |
+| `home_parts.html` | 날짜 띠 `:59` 한 줄 | [도면 수정 요청] 단추 `:108-112`(+5) | | 고침 | | M2 는 단추 칸(`data-pp-actbox`)만 고치고 D4 단추 줄은 안 건드림 |
+| `home_parts_overlays.html` | | 요청 창(+30) | | 고르기 자리 | | 같은 겉틀에 칸만 더함 |
+| `parts.css` | | 요청 단추 `.pp-req` · 창(+30) | | 두 줄 · 새 칸 | | 다른 선택자 |
+| `home_scripts.html` · `home_styles.html` | 날짜 띠 | 새 JS 한 줄 · 핀 | | 새 JS 한 줄 · 핀 | | 핀 값만 다시 올림 |
+| `tests/domains/test_production_tablet_mockup_fit.py` · `test_production_selfclaim_css.py` | | 카드 자식 차례 · CSS 단언(+3 · +5) | | 단언 더함 | | 차례대로 |
 | `production_change_alerts.py` · `drawing_fix_marks.py` | D2 · D3 | 반려 줄 · 요청 | | | | 겹침 없음(Q19 알림 없음 — 안 건드림) |
 | `part_mark_write.py` | D1 | | 고침(+ 글 옮김) | | | 겹침 없음 |
 | `part_mark_gates.py` · `part_card_state.py` | D1 | | 글 | 칸 | | M1 → M2 |
 | `drawing_fix_progress.py` · `drawing_workbench_production.py` | D2 · D3 | | 이름 | | | 겹침 없음 |
 | `drawing_factory.py` | D2 | | 글 | | | 겹침 없음 |
-| `pc_sheet.py` · PC JS | D1 | | | | 고침 | M3 마지막 |
+| `pc_sheet.py` · PC JS · `home_pc_sheet.html` | D1 | | | | 고침 | M3 마지막 |
+| `pc_view.py` · `home_step_panel.py` · `production_home_read_model.py` · `production_home_days.py` · `late_rule.py` · `home_date_macros.html` · `home_pc_macros.html` | 날짜 띠(`pc_view` · 날짜 글 · 늦음 규칙) | | | | "끝" → "완료" · "검수 완료" | M3 — 날짜 띠 고침 위에서 |
 | `step_expand.py` | D1 · D2 | | 확인만 | | | — |
 
-- **올리는 차례**: D4 → M1 → M2 → M3(M2 · M3 은 겹치는 파일이 없어 동시에 해도 됨). M1 만 올라가면 서버 글(경합 · 거절 · 감사 · 공장 옮김 막힘)이 새 낱말로 바뀌고 Q16 넘김이 먼저 켜진다 — 화면 단추는 아직 옛 글이라 **M1 과 M2 는 한 번에 스테이징에 낸다**(글이 반만 바뀐 화면을 사장님이 보지 않게).
+- **올리는 차례**: M1 → M2 → M3(D4 는 이미 바탕에 있음, M2 · M3 은 겹치는 파일이 없어 동시에 해도 됨). M1 만 올라가면 서버 글(경합 · 거절 · 감사 · 공장 옮김 막힘)이 새 낱말로 바뀌고 Q16 넘김이 먼저 켜진다 — 화면 단추는 아직 옛 글이라 **M1 · M2 · M3 은 한 번에 스테이징에 낸다**(글이 반만 바뀐 화면을 사장님이 보지 않게 — PC [완료 처리] · "검수 완료"도 같이).
 - **되돌리기**: 커밋 되돌림으로 끝. 칸 `holders` 는 남아도 옛 코드가 무시하고, 요약 칸이 늘 맞게 쓰여 있어 옛 화면은 첫 사람을 담당으로 본다(같이 작업하던 둘째 이후 사람은 화면에서 사라짐 — 되돌리기 전에 `holders` 둘 이상 줄 수를 세어 반장에게 알린다). 다시 올리면 §4-3 이 옛 코드가 쓴 줄을 요약 칸 기준으로 푼다. downgrade = 칸 지움(골라서).
 
 ## 11. 시험 계획
@@ -429,32 +459,35 @@
 - 쿼리: 위 가드 시드에 같이 작업 · 1/2 완료 · 셋이 작업 줄을 더해 `MEASURED` 그대로. 쓰기 상한 7 그대로(넘김 포함).
 - PG(`tests/postgres/`): `prodpart_02_holders` 왕복 · 모델 DDL 같음(`test_production_part_marks_model.py`) · 동시(`test_production_part_marks_race_pg.py` 에 더함): 두 사람이 같은 '미정' 도면에 같은 때 [작업 시작] = 둘 다 목록에(뒤 사람 `joined_late`), 같이 작업과 시작 취소가 같은 때 = 잠금 차례대로 한 결과.
 
-**고쳐 쓸 시험**(§8-2 의 지금 글을 고정한 것 — 구현 때 `git grep` 으로 다시 셈): `tests/domains/test_production_part_marks_api.py`(경합 "먼저 맡았어요" · 감사 "맡기 취소") · `test_production_part_claim_rules.py` · `test_production_part_handover.py` · `test_production_part_board.py`("내 담당" 낱말) · `test_production_parts_screen.py`("맡음" · [내가 자름] · [맡기 취소]) · `test_production_home_day_pick.py`([내가 엣지]) · `test_production_multi_parts.py` · `test_production_selfclaim_screens.py` · `test_production_selfclaim_read_models.py` · `test_production_selfclaim_css.py` · `test_production_pc_sheet_screen.py` · `test_production_factory_screens.py` · `test_production_factory_account.py`("담당인 장") · `test_drawing_sheet_factory_api.py` · `test_drawing_sheet_factory_rules.py`(공장 옮김 막힘 글) · `test_drawing_workbench_production_tab.py` · `test_drawing_fix_gate.py` · `test_tablet_touch_targets_zoom.py` · `tests/postgres/test_production_part_marks_race_pg.py`. **음성 대조군**: 한 명만 작업하는 도면에서 상태 · 완료 판정 · 공정 칸 · 쿼리 수를 단언하는 시험은 낱말 말고 한 줄도 안 바뀌어야 한다.
+**고쳐 쓸 시험**(§8-2 의 지금 글을 고정한 것 — 구현 때 `git grep` 으로 다시 셈): `tests/domains/test_production_part_marks_api.py`(경합 "먼저 맡았어요" · 감사 "맡기 취소") · `test_production_part_claim_rules.py` · `test_production_part_handover.py` · `test_production_part_board.py`("내 담당" 낱말) · `test_production_parts_screen.py`("맡음" · [내가 자름] · [맡기 취소]) · `test_production_home_day_pick.py`([내가 엣지]) · `test_production_multi_parts.py` · `test_production_selfclaim_screens.py` · `test_production_selfclaim_read_models.py` · `test_production_selfclaim_css.py` · `test_production_pc_sheet_screen.py` · `test_production_factory_screens.py` · `test_production_factory_account.py`("담당인 장") · `test_drawing_sheet_factory_api.py` · `test_drawing_sheet_factory_rules.py`(공장 옮김 막힘 글) · `test_drawing_workbench_production_tab.py` · `test_drawing_fix_gate.py` · `test_tablet_touch_targets_zoom.py` · `tests/postgres/test_production_part_marks_race_pg.py`. K4 '끝' · "검수 끝"(§8-2 8 · 30 ~ 40): `test_drawing_fix_transfer_writes.py` · `test_production_complete_requires_inspect.py` · `test_production_home.py` · `test_production_home_fixes.py` · `test_production_home_step_panel.py` · `test_production_home_tabs.py` · `test_production_late_rule.py` · `test_production_part_board.py` · `test_production_part_steps_sync.py` · `test_production_parts_screen.py` · `test_production_pc_sheet.py` · `test_production_pc_viewer.py` · `test_production_selfclaim_screens.py` · `test_production_sheet_page.py`(14 파일). K5 · K6(§8-2 7 · 45): `test_production_multi_parts.py` · `test_production_parts_screen.py` · `test_production_pc_sheet.py` · `test_production_selfclaim_screens.py`. K3(§8-2 41 ~ 44): 글자로 고정한 시험 없음(주석 다섯만). **음성 대조군**: 한 명만 작업하는 도면에서 상태 · 완료 판정 · 공정 칸 · 쿼리 수를 단언하는 시험은 낱말 말고 한 줄도 안 바뀌어야 한다.
 
 **M2 · M3**
 - 판 템플릿 · JS 같은 규칙(시안 01 의 A ~ I 글 · 창 셋) · 칸 소속(Q12 — 내 몫 완료면 '완료' 칸) · 30초 받아 오기가 목록을 바꿈 · Q16 말풍선 · 고르기 창 · `node --check` · 래칫 둘.
-- PC 창 줄(사람마다 · 1/2 완료 · [작업] = 대신 완료 · 넘김에서 멈춤) · 날짜 줄 "외 n" · 작업 시트 기록 낱말 · 경고 · 공장 진행 · 공장 옮김 막힘 글(둘 · 셋).
+- **판결 1 · 2**: [같이 작업]이 그사이 빈 도면을 만나면 200 · 시작(나) · `notice` 없음 / PC [완료 처리](`check`) — 빈 줄 = 반장이 시작 + 완료(DONE) · 남이 작업 중 = 대신 완료(반장은 목록에 없음, `proxied`) · 이미 완료 = 200 `changed:false` · 파트 계정 403 · 검수 전이면 409 `INSPECT_NOT_READY`. 옛 두 요청 길(take → done → 실패 시 release)이 PC JS 에서 없어졌는지(구조 시험).
+- PC 창 줄(사람마다 "작업 시작 …" · 1/2 완료 · [완료 처리] · [완료 취소] · [모두 완료 처리] · [모두 완료 취소]) · 날짜 줄 "외 n" · 작업 시트 기록 낱말 · 경고 · 공장 진행 · 공장 옮김 막힘 글(둘 · 셋).
 - 실화면: 로컬 준비물 서버(지어낸 이름) + Playwright 태블릿 1176 × 626 80% · 글자 100 / 120 / 150% · 폰 390 · PC 1440 → 스테이징 claude_master(`CLAUDE-TEST-` 주문만) → 사장님 확인.
 
 ## 12. 사장님 답 · 옛 결정과 지금 코드가 부딪히는 곳
 
 1. **Q16 "저절로 같이 맡기"** ↔ 지금 늦은 [내가 자름]은 409 `MARK_CONFLICT` "박재단이 먼저 맡았어요"(`part_mark_rules.py:178` · `decide_mark` `:259-261`), 일괄 기본도 같은 글로 건너뜀. 넘김은 잠금 아래 같은 줄 쓰기라 쿼리 · 동시성은 그대로지만, 옛 화면(캐시된 JS)은 성공 응답을 받아도 `picked_by_*`(첫 사람)만 읽어 "이시영 맡음"으로 그린다 — 새로고침 전까지 늦은 사람이 자기가 같이 작업 중인 줄 모른다(§13).
-2. **PC [작업]**(take → done 을 잇는 감독 단추, `pc-sheet-write.js:55-66`) ↔ Q16 넘김 — 그대로 이으면 감독이 같이 작업하는 사람이 돼 자기 몫만 완료된다. 넘김을 받으면 멈추게 했다(§5 풀이).
+2. **PC [완료 처리]**(옛 [작업] — 시작 → 완료를 두 요청으로 잇는 감독 단추, `pc-sheet-write.js:55-66`) ↔ Q16 넘김 · 판결 2 — 두 요청이면 첫 요청이 Q16 으로 감독을 같이 작업자로 넣어 버린다. 그래서 한 요청 `check` 로 바꿔 서버가 "빈 줄 = 시작 + 완료 · 남이 작업 중 = 대신 완료"를 한 번에 판정한다.
 3. **"빠지고 싶으면 자기만 [시작 취소]" · Q3 "본인 몫만 되돌리기"** ↔ 지금 반장 · 관리자 덮어쓰기(남의 장 맡기 취소 · 되돌리기 — `part_mark_rules.py:266-272`) — Q5 "반장 · 관리자가 풀기"로 반장 길은 남겼다(풀이).
 4. **낱말 바꾸기** ↔ 11-23 승인 1 "지금 글은 한 글자도 바꾸지 않는다" — 이번 답이 그 예외다(§8-2 스물아홉 줄). 답에 없는 낱말은 §8-3 에 모아 그대로 두었다.
-5. **"작업 필요 · 이시영 · 김재단"(사장님 예)** ↔ '맡음' → '작업 중' 답 — 파트 계정 칸은 "이시영 · 김재단 작업 중", 반장 칸은 "작업 필요 · 이시영 · 김재단"으로 두 꼴이 선다(K5).
-6. **"재단 1/2 완료"(사람 수)** ↔ 날짜 줄 · 작업 시트 "재단 3/5"(도면 수) — 답 Q11 "도면 한 장 자리에만"으로 갈랐다. 지금 글 "재단 끝"과도 한 판에 선다(K4).
+5. **"작업 필요 · 이시영 · 김재단"(사장님 첫 예)** ↔ K5 답 "둘 다 '작업 중' 말로" — 반장 칸도 "이시영 · 김재단 작업 중"으로 맞춰 첫 예 글은 쓰지 않는다.
+6. **"재단 1/2 완료"(사람 수)** ↔ 날짜 줄 · 작업 시트 "재단 3/5"(도면 수) — 답 Q11 "도면 한 장 자리에만"으로 갈랐다. K4 로 '끝'이 모두 '완료'가 되면서 **단계 "검수 끝"을 글자 그대로 견주는 다섯 곳**(`production_home_read_model.py:347` · `production_home_days.py:36` · `late_rule.py:40` · `home_date_macros.html:37` · `home_pc_macros.html:39`)이 같이 바뀌어야 한다 — 하나라도 빠지면 제작 완료 색 · 늦음 판정이 조용히 틀린다(상수 하나로 묶음).
 7. **유일 제약 `(order_id, drawing_key, part)`** 위에 선 코드 — 안 ⓑ 와 정면으로 부딪혀 ⓑ 를 버렸다.
 8. **D4 [도면 수정 요청] 단추**가 판 카드 높이를 키운다 — 이름 두 줄 칸(§8-2 6)과 같이 선 카드가 1176 판에서 몇 장 보이는지는 M2 실화면에서 다시 잰다.
+9. **K3 [모두 완료 처리]** ↔ 그 단추가 여는 확인 창은 작업 시트 공정 칸 · '내 공정' [<공정> 끝]과 한 창("재단을 작업 완료로 처리할까요?" · [작업 완료]) — 단추 이름만 바뀌고 창 글은 그대로다(§8-2 아래 '그대로 둔 글').
+10. **K4 범위** — '내 공정' [<공정> 끝] 단추는 생산 파트 표시가 만드는 글이 아니라 범위 밖에 두었는데, 같은 화면의 단계 글은 "검수 완료"가 된다(§8-3 끝).
 
 ## 13. 확신이 낮은 곳
 
 - Q16 말풍선 "이시영이 먼저 시작했어요."(`.pp-why` — 단추 칸 위에 뜸)은 시안 01 E0 에서는 같은 줄 카드가 키가 커서 남는 자리에 떴다. 카드 키가 작으면 D4 [도면 수정 요청] 단추를 6초 동안 덮을 수 있다 — M2 실화면에서 잰다.
 - 옛 화면이 넘김 성공 응답을 받을 때의 모양(§12-1) — 30초 받아 오기 뒤에도 옛 JS 는 목록을 모른다. 새 JS · 템플릿 핀을 올리면 풀리지만 핀이 늦게 닿는 태블릿이 있으면 잠깐 틀린 화면이 남는다.
-- [같이 작업]을 눌렀는데 그사이 모두 시작 취소된 경우를 거절로 둔 것(§5 풀이) — Q16 의 넉넉한 뜻을 따르면 그냥 시작시키는 편이 맞을 수 있다.
 - PG 아닌 레인(SQLite 시험)에서 동시 첫 표시는 IntegrityError → 409 "그사이 다른 사람이 바꿨어요"로 남는다(`part_marks.py:136-138`) — 운영(PG)은 주문 행 잠금이 줄을 세워 넘김으로 간다고 봤지만 PG 동시 시험으로 확인해야 한다.
 - 아침 칩 · 계정 화면 셈을 앱에서 거르는 비용 — 운영 작업 필요 줄은 지휘 사실(`cut NEED` 2줄)만 보고 다시 안 셌다. 많아지면 PG 전용 `holders @> '[{"uid": n}]'` + GIN 색인.
 - 날짜 띠 뒤 바탕에서 쿼리 가드 시험을 돌려 보지 않았다 — §3-6 숫자는 시험 파일 글자에서 읽은 것.
-- 줄 번호는 바탕 `146397f3a` 기준이다. D4 가 합쳐지면 `part_board.py` · `home_parts.html` 줄이 3 ~ 5줄 밀린다.
-- `part_mark_write.py`(492) · `part_board.py`(D4 뒤 492) · `foms-production-pc-sheet.js`(289)는 래칫 문턱 바로 아래 — §10 의 새 모듈 계획이 D4 뒤 줄 수에서도 맞는지 그때 다시 잰다.
+- 줄 번호는 바탕 `b94f167fb`(D4 포함) 기준이다.
+- `part_mark_write.py`(492) · `part_board.py`(492) · `foms-production-pc-sheet.js`(289)는 래칫 문턱 바로 아래 — §10 의 새 모듈 계획대로 몸통을 빼야 한다.
+- PC [완료 처리]를 한 요청 `check` 로 바꾸는 것(판결 2)은 지금 두 요청 길(실패하면 맡기 취소로 되돌림, `pc-sheet-write.js:55-66`)을 없앤다 — 지금 그 길에 기대는 시험(`test_production_pc_sheet*.py`)을 구현 때 다시 센다.
 - PC 창의 "안 봄" 상태 칸(`pc.css:283` 바탕 없음 · 글 `--fpc-text3`)은 무채색에 가깝지만 지금 모양이라 이번에 안 바꾼다.
