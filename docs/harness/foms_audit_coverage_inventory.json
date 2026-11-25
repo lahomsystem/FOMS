@@ -2083,7 +2083,7 @@
     {
       "path": "foms/api/production/part_marks.py",
       "endpoint": "api_part_mark",
-      "lineno": 171,
+      "lineno": 184,
       "methods": [
         "POST"
       ],
@@ -2092,7 +2092,7 @@
     {
       "path": "foms/api/production/part_marks.py",
       "endpoint": "api_part_marks_basic",
-      "lineno": 208,
+      "lineno": 221,
       "methods": [
         "POST"
       ],
