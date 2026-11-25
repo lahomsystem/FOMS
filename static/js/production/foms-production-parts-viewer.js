@@ -120,7 +120,7 @@
     var head = paneOf(card).querySelector('.pp-head .fph-pane__h');
     var day = head && head.firstChild ? head.firstChild.textContent.trim() : '';
     viewer.querySelector('[data-pp-v-title]').textContent = cardText(card, '.fph-dr__nm b') + ' ' + cardText(card, '.fph-dr__nm small');
-    viewer.querySelector('[data-pp-v-sub]').textContent = cardText(card, '.pp-item') + (day ? ' · ' + day + ' 시공' : '');
+    viewer.querySelector('[data-pp-v-sub]').textContent = cardText(card, '.pp-item') + (day ? ' · ' + day + ' 출고' : '');
     viewer.querySelector('[data-pp-v-page]').textContent = card.getAttribute('data-no') + ' / ' + card.getAttribute('data-of');
     var by = viewer.querySelector('[data-pp-v-by]');
     var src = card.querySelector('.pp-by');

@@ -154,11 +154,11 @@ def production_home_days(
                               show_day=True))
     footer = [
         _home_bucket(
-            'past', '지난 출고일', f"{PRODUCTION_HOME_PAST_DAYS}일 넘음", f"지난 시공일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)",
+            'past', '지난 출고일', f"{PRODUCTION_HOME_PAST_DAYS}일 넘음", f"지난 출고일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)",
             by_key.get('past', []), today, show_day=True,
             note=f"더 오래된 {past_hidden}건은 안 보여요" if past_hidden else '', hidden=past_hidden,
         ),
-        _home_bucket('none', '출고일 없음', '', '시공일 없음', by_key.get('none', []), today, wait_head=dict(NO_DATE_WAIT_HEAD)),
+        _home_bucket('none', '출고일 없음', '', '출고일 없음', by_key.get('none', []), today, wait_head=dict(NO_DATE_WAIT_HEAD)),
     ]
     panes = strip + footer
     key = str(selected or '')

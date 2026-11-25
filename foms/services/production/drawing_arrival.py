@@ -270,8 +270,8 @@ def wait_head_for_day(day: datetime.date, today: datetime.date) -> dict[str, Any
     return {'text': deadline_head(deadline, today, state), 'state': state if state in (LATE, SOON) else ''}
 
 
-#: 시공일 없음 장 기다림 묶음 머리(§4-6).
-NO_DATE_WAIT_HEAD = {'text': '시공일이 없어 마감이 없어요', 'state': ''}
+#: 출고일 없음 장 기다림 묶음 머리(§4-6) · 작업 시트 도면 칸 — 사장님 2026-11-25 "모두 '출고'로".
+NO_DATE_WAIT_HEAD = {'text': '출고일이 없어 마감이 없어요', 'state': ''}
 
 
 def sheet_wait_view(sd: Any, construction_date: Any, manager_name: Any, today: datetime.date) -> dict[str, Any]:

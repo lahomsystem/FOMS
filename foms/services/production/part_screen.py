@@ -49,9 +49,10 @@ def read_screen_marks(db: Any, rows: list[dict[str, Any]], today: datetime.date)
 
 
 def _day_label(day: Optional[datetime.date]) -> str:
+    """아침 칩 줄 이름 — 그 주문이 선 장의 출고일(사장님 2026-11-25 "모두 '출고'로")."""
     if day is None:
-        return "시공일 없음"
-    return f"시공 {day.month}/{day.day} ({_WEEKDAY_KO[day.weekday()]})"
+        return "출고일 없음"
+    return f"출고 {day.month}/{day.day} ({_WEEKDAY_KO[day.weekday()]})"
 
 
 def morning_chip(db: Any, user: Any, parts: Any, rows: list[dict[str, Any]],

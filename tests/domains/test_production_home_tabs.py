@@ -122,7 +122,7 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
         assert other not in html, other
     pane = _pane(html, first_key)
     # 제목 작은 글 끝 = 도면 x/n 내려옴(띠와 같은 색 — 내일 시공 도면 주문은 마감이 지나 빨강, 설계서 2026-11-22 §5-2)
-    assert '시공 2건 · 만들 것 1 · <span class="fph-dwst is-late">도면 1/2 내려옴</span>' in pane
+    assert '출고 2건 · 만들 것 1 · <span class="fph-dwst is-late">도면 1/2 내려옴</span>' in pane
     assert "내일엣지" in pane and "엣지 중" in pane and "내일도면" in pane
     assert pane.count("fph-dr__st is-done") == 1 and pane.count("fph-dr__st is-now") == 1  # 재단 끝 · 엣지 지금
     # 순서 = 기다림(안 내려옴) → 만들 것(내려옴) → 제작 완료, 그날 주문만(미리 보기 · 밀린 것 없음)
@@ -285,7 +285,8 @@ def test_날짜_띠_규칙() -> None:
     assert by["2026-11-15"]["arrival"] is None and by["none"]["arrival"]["strip"] == "도면 0/1"  # 출고일 없음 = 여유(마감 없음)
     # 기다림 묶음 머리: 하루 장 = 그날 마감, 시공일 없음 장 = 마감 없음 글, 여러 날 장 · 기다림 없는 장 = 없음(칸마다 마감)
     assert thu["wait_head"] == {"text": "마감 11/10 (화) 지났어요", "state": "late"}
-    assert by["none"]["wait_head"] == {"text": "시공일이 없어 마감이 없어요", "state": ""}
+    assert by["none"]["wait_head"] == {"text": "출고일이 없어 마감이 없어요", "state": ""}
+    assert by["past"]["title"] == "지난 출고일 (7일 넘음)" and by["none"]["title"] == "출고일 없음"
     assert by["later"]["wait_head"] is None and by["2026-11-14"]["wait_head"] is None
     # 고른 날: 아는 열쇠만 — 오늘 열쇠는 이제 장이 아니다
     assert production_home_days(rows, today, "past")["selected"] == "past"

@@ -217,7 +217,7 @@ def test_아침_칩은_밤_넘긴_내_담당만_지금_장만(app) -> None:
     chip = morning_chip(db_session, me, "cut", rows, get_today_kst())
     tomorrow = get_today_kst() + datetime.timedelta(days=1)
     assert chip["count"] == 1 and chip["days"][0]["key"] == _first_day()
-    assert chip["days"][0]["label"].startswith(f"시공 {tomorrow.month}/{tomorrow.day} (")
+    assert chip["days"][0]["label"].startswith(f"출고 {tomorrow.month}/{tomorrow.day} (")
     assert morning_chip(db_session, _user("박재단", "cut"), "cut", rows, get_today_kst()) is None  # 대조군
 
 
