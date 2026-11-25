@@ -1802,7 +1802,7 @@ ${attributeFieldsHtml}
     const itemDateInput = (key, val) => `<input type="text" class="${tabularInputClass} erp-item-date-multiple" data-erp="${key}" placeholder="여러 날짜 가능" value="${val}" autocomplete="off" lang="ko">`;
     const itemScheduleFieldsHtml = isMobileForm
         ? `<div class="col-12">
-    <div class="field-grid-2 erp-mobile-keep-2col mb-0">
+    <div class="field-grid-2 erp-mobile-keep-2col mb-0 erp-item-date-pair">
         <div><label class="form-label mb-1 small text-primary">항목 실측일</label>${itemDateInput('measurement_date', itemMeasureDate)}</div>
         <div><label class="form-label mb-1 small text-primary">항목 시공일</label>${itemDateInput('construction_date', itemConstructionDate)}</div>
     </div>
@@ -1869,6 +1869,21 @@ ${itemScheduleFieldsHtml}
         ? `${itemHeadHtml}<div class="erp-item-collapse">${itemFieldsHtml}</div>`
         : `${itemHeadHtml}${itemFieldsHtml}`;
     erpBindAutosizeTextareas(row);
+    // 모바일: 날짜를 2개 이상 고르면 반 칸에서 뒤가 잘리므로 두 칸을 위아래(한 줄 전체 폭)로 쌓는다.
+    const itemDatePair = row.querySelector('.erp-item-date-pair');
+    if (itemDatePair) {
+        const syncItemDatePairLayout = () => {
+            const hasMany = Array.from(itemDatePair.querySelectorAll('.erp-item-date-multiple'))
+                .some((el) => String(el.value || '').includes(','));
+            itemDatePair.classList.toggle('field-grid-2', !hasMany);
+            itemDatePair.classList.toggle('erp-mobile-keep-2col', !hasMany);
+            itemDatePair.classList.toggle('d-grid', hasMany);
+            itemDatePair.classList.toggle('gap-2', hasMany);
+        };
+        itemDatePair.addEventListener('change', syncItemDatePairLayout);
+        itemDatePair.addEventListener('input', syncItemDatePairLayout);
+        syncItemDatePairLayout();
+    }
 
     // W(가로) 칸에 'W*D*H' 복합 규격을 붙여넣으면 곱(*,×) 기준으로 W/D/H에 자동 분해한다.
     function bindSpecWidthPasteSplit(scope) {
