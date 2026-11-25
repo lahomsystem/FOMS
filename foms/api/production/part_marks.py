@@ -27,6 +27,7 @@ from foms.services.orders.revision import RevisionError
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_SUB, part_account_parts, part_view_mode
 from foms.services.production.part_constants import BASIC_ALLOWED_PART, PRODUCTION_PART_KEYS
 from foms.services.production.mark_crew import SHARE_VALUES
+from foms.services.production.part_card_crew import attach_crew
 from foms.services.production.part_mark_rules import (
     ACTION_BASIC,
     ACTION_CHECK,
@@ -54,8 +55,20 @@ def _ok(data: dict[str, Any]):
 
 
 def _fail(refusal: MarkRefusal):
-    body = {"success": False, "data": {"code": refusal.code, **refusal.extra}, "error": refusal.message}
+    data = {"code": refusal.code, **refusal.extra}
+    attach_crew(data.get("mark"), getattr(g, "current_user", None))  # 진 경합 화면이 그 카드를 서버 모습으로(multi-holder M2)
+    body = {"success": False, "data": data, "error": refusal.message}
     return jsonify(body), refusal.status
+
+
+def _with_crew(data: dict[str, Any], user: Any) -> dict[str, Any]:
+    """응답 표시마다 누른 사람 몫 칸(``crew`` — 이름 줄 · 내 몫, :func:`~part_card_crew.crew_view`)을 붙인다(쿼리 0)."""
+    attach_crew(data.get("mark"), user)
+    for item in data.get("applied") or []:
+        attach_crew(item, user)
+    for item in data.get("skipped") or []:
+        attach_crew(item.get("mark"), user)
+    return data
 
 
 def _int_id(value: Any) -> int:
@@ -180,7 +193,7 @@ def api_part_mark():
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
         if req.action == ACTION_CHECK and not override:
             raise MarkRefusal(403, "PART_FORBIDDEN", CHECK_FORBIDDEN_MESSAGE)
-        return mark_one(db, user, override, req)
+        return _with_crew(mark_one(db, user, override, req), user)
 
     return _run(_handle)
 
@@ -214,6 +227,6 @@ def api_part_marks_basic():
         override = _gate_part(user, part)
         if part != BASIC_ALLOWED_PART:
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
-        return bulk_basic(db, user, override, pairs)
+        return _with_crew(bulk_basic(db, user, override, pairs), user)
 
     return _run(_handle)

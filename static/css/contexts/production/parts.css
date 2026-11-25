@@ -184,7 +184,7 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .pp-why { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 2; margin: 0; padding: 8px 10px; border: 1px solid var(--fph-old-300); border-radius: 9px; background: var(--fph-note-50); color: var(--fph-note-700); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; box-shadow: 0 6px 18px rgba(20, 23, 28, .18); word-break: keep-all; overflow-wrap: anywhere; }
 .pp-why[hidden] { display: none; }
 .foms-prod-home .pp-fin.fph-qr__done { min-height: 72px; background: var(--fph-done-700); border-color: var(--fph-done-700); }
-/* 내 담당 = 한 층 [맡기 취소][엣지 완료](.pp-two.is-mine, 둘 다 56px — 80% 에서 보이는 44.8). 끝 단추는 짝일 때 72 → 56 */
+/* 내 작업 = 한 층 [시작 취소][엣지 완료](.pp-two.is-mine, 둘 다 56px — 80% 에서 보이는 44.8). 끝 단추는 짝일 때 72 → 56 */
 .foms-prod-home .pp-fin.fph-qr__done.is-pair { min-height: 56px; font-size: calc(18px * var(--foms-fs, 1)); }
 .foms-prod-home .pp-fin.fph-qr__done:active { background: var(--fph-done-800); border-color: var(--fph-done-800); }
 .pp-undo-row { justify-content: space-between; gap: 6px; padding: 4px 4px 4px 12px; }
@@ -272,11 +272,24 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .foms-prod-home .pp-modal.is-lost .pp-merr { padding: 8px 12px; border: 1px solid var(--fph-revise-50); border-radius: 9px; background: var(--fph-danger-50); color: var(--fph-dw-late); font-weight: 800; }
 .foms-prod-home .pp-modal .pp-mgo--taken { background: var(--fph-taken-700); border-color: var(--fph-taken-700); }
 .foms-prod-home .pp-modal .pp-mgo--release { background: var(--fph-release-700); border-color: var(--fph-release-700); }
-/* 관리자가 남의 담당 칸을 누르면 [담당 바꾸기] [대신 완료] [맡기 취소] 셋을 한 줄에(맨 아래 줄은 [닫기]만) */
+/* 관리자가 남의 작업 칸을 누르면 [담당 바꾸기 ›] [대신 완료] [{이름} 시작 취소…]를 세 칸씩(맨 아래 줄은 [닫기]만) */
 .foms-prod-home .pp-modal .pp-mchoices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 8px 16px 0; }
 .foms-prod-home .pp-modal .pp-mchoices[hidden] { display: none; }
 /* 창이 열린 동안 뒤 페이지가 굴러가지 않게(P7) */
 body:has(.pp-modal:not([hidden])) { overflow: hidden; }
+
+/* ── 여러 명 같이 작업(설계서 2026-11-25 multi-holder §8-2 6 · 시안 01 B · D · I · 창 3) ──
+   남의 작업 칸 + [같이 작업] 짝: 이름 칸 : 단추 = 1.4 : 1(지금 짝 1 : 1.4 의 반대), 이름 글은 두 줄까지 낱말에서 꺾음("작업 중" · "외 1"은
+   서버가 붙인 칸 없는 띄어쓰기로 안 쪼개짐). 카드 상태 글(완료 · "재단 1/2 완료 · 김재단 작업 중")은 이름이 길면 다음 줄로(잘리지 않게).
+   [담당 바꾸기] 사람 고르기(둘 이상) = 두 칸, 고른 사람은 담당 바꾸기 색(분홍 짙게). 토큰은 새로 안 만든다(무채색 없음). */
+.pp-two.pp-two--join { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+.pp-two--join .pp-held__who b, .pp-held.pp-not-need .pp-held__who b { white-space: normal; word-break: keep-all; line-height: 1.15; }
+.pp-actbox > span.fph-wi.pp-act { white-space: normal; word-break: keep-all; text-align: center; line-height: 1.25; }
+.pp-actbox .pp-undo-row > span { white-space: normal; word-break: keep-all; line-height: 1.25; }
+.foms-prod-home .pp-modal .pp-mchoices.pp-mchoices--who { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.foms-prod-home .pp-modal .pp-mwho { border: 2px solid var(--fph-taken-300); background: var(--fph-surface); color: var(--fph-taken-700); font-size: calc(17px * var(--foms-fs, 1)); }
+.foms-prod-home .pp-modal .pp-mwho.is-on { border: 3px solid var(--fph-taken-700); background: var(--fph-taken-50); color: var(--fph-taken-700); }
+.foms-prod-home .pp-modal .pp-mwho:focus-visible { outline: 3px solid var(--fph-taken-700); outline-offset: 2px; }
 
 /* ── 아침 칩(설계서 2026-11-23 §4-9) — 판 머리 줄(.pp-head) 안 "어제부터 내 담당 2장 ›". 누르면 작은 창에 시공일마다 [보기].
    머리 줄 키를 안 키운다(띠 · 카드 첫 화면이 안 밀림, M3). 누름 칸 44px 는 아래 태블릿 덩이 ── */

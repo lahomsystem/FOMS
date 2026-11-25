@@ -160,9 +160,9 @@ def test_손_체크한_파트는_모든_장_완료_막힘_까닭은_서버_글(a
     assert c["hand"]["why"] == "박반장이 작업 시트에서 재단 칸을 작업 완료 처리했어요. 다시 해야 하면 박반장에게 말해 주세요."
     assert pane["counts"]["unseen"] == 1 and pane["counts"]["done"] == 0  # 미정 · 내가 완료에서 빠짐(§4-2 판 숫자)
     assert _card(_pane(admin), "손체크집", 1)["in_done"] is True  # 관리자 '완료' 에는 셈
-    # 엣지 판에서 재단 낱말 = 끝(손 체크 = 모든 장 완료)
+    # 엣지 판에서 재단 낱말 = 완료(손 체크 = 모든 장 완료, '끝' → '완료' multi-holder K4)
     edge_card = _card(_pane(_user("최엣지", "edge")), "손체크집", 0)
-    assert edge_card["others"][0]["word"] == "끝" and edge_card["hand_parts"] == ["cut"]
+    assert edge_card["others"][0]["word"] == "완료" and edge_card["hand_parts"] == ["cut"]
     assert hand.id
 
 
@@ -196,7 +196,7 @@ def test_내_담당_한_층_꼬리_남의_담당_둘째_줄_첫_카드(app) -> N
     _mark(order, 1, "edge", "NEED", park, handed="최가은")
     pane = _pane(me)
     mine, other = _card(pane, "한빛", 0), _card(pane, "한빛", 1)
-    assert mine["mine_row"] and mine["tag"] == {"old": "어제부터", "chg": "", "aria": "내 담당 · 어제부터"}
+    assert mine["mine_row"] and mine["tag"] == {"crew": "", "old": "어제부터", "chg": "", "aria": "내 작업 · 어제부터"}
     assert mine["picked_by_user_id"] == me.id and mine["picked_day"] and mine["picked_at"]
     assert not other["mine_row"] and other["tag"] is None and other["held_note"].startswith("최가은에서 바뀜 ")
     assert _card(pane, "새집", 0)["first_card"] is True and mine["first_card"] is False  # 회차 없는 집 = 첫 카드(§4-8)

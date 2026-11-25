@@ -1,7 +1,9 @@
 /* 생산 파트 도면 카드 — 확인 창 글 · 창 그리기(설계서 §15.6 '확인 창' 표 9줄 + 2026-11-23 §8-1 · §9 창 글). 쓰기 없음(fetch 0).
  * 쓰기(요청 · 응답 처리)는 foms-production-parts.js 의 send() 하나 — 이 파일은 글을 짓고 창(#foms-part-confirm-modal)을 그린다.
- * 지금 누름(맡기 · 기본 · 완료 · 되돌리기 · 모두 기본)의 창 글은 한 글자도 안 바꿨다(승인 때 고친 것 1). 새 창 글:
- *   맡기 취소 · 담당 바꾸기(맡은 때 한 줄) · 관리자 고르기 셋([담당 바꾸기][대신 완료][맡기 취소]) · 첫 카드 한 줄(제작 시작) ·
+ * 2026-11-25 multi-holder §8-2: [작업 시작] · [시작 취소] · '작업 중' · '완료'로 낱말을 바꿨다. 여러 명이 같이 작업하는 창 글([같이 작업] ·
+ *   [담당 바꾸기] 사람 고르기 · 반장 고르기 [{이름} 시작 취소] · 남은 사람이 있는 [완료])은 foms-production-parts-crew.js 가 먼저 짓는다(plan).
+ *   이름 줄("이시영 · 김재단 외 1")은 서버가 준 글(카드 data-pp-crew · 응답 mark.crew)만 쓴다. 그 밖 창 글:
+ *   시작 취소 · 담당 바꾸기(시작한 때 한 줄) · 관리자 고르기 · 첫 카드 한 줄(제작 시작) ·
  *   진 경합 · 거절(창 안 빨간 글 + 계획 줄을 서버 모습으로 + [닫기] 하나, .pp-modal.is-lost) · "제작 완료할까요?"(검수 마지막 장).
  * 창이 열린 동안: 판(창의 형제)은 inert, Tab 은 창 안에서만 돈다, 닫으면 연 단추로(다시 그려졌으면 같은 카드의 같은 단추로) 초점.
  * 이어 뜨는 창(제작 완료할까요?)은 내용이 바뀐 뒤 0.8초 동안 실행 단추가 aria-disabled(장갑 손 두 번 누름 막기, §4-4). */
@@ -18,7 +20,6 @@
 
   var cfg = board.cfg || {};
   var LABEL = cfg.label || '';
-  var VERB = cfg.verb || LABEL;
   var IS_CUT = cfg.part === 'cut';
   var NAME = cfg.me || '';
   var LOCK_MS = 800;
@@ -26,59 +27,63 @@
   function q(sel) { return modal.querySelector(sel); }
   function attr(card, name) { return card.getAttribute(name) || ''; }
   function josa(name) { return claim.josa ? claim.josa(name, '가', '이') : name; }
+  function who(card) { var c = window.FomsPartsCrew; return (c && c.of(card).who) || attr(card, 'data-picked-name'); }
   function toward(name) {
     var code = name.charCodeAt(name.length - 1) - 0xAC00;
     var fin = code >= 0 && code < 11172 ? code % 28 : -1;
     return name + (fin === 0 || fin === 8 ? '로' : '으로');
   }
 
-  // ── 지금 누름 문구(설계서 §15.6 확인 창 표 9줄 — 그대로) ──
+  // ── 누름 문구(설계서 §15.6 확인 창 표 9줄 + multi-holder §8-2 1 · 2 · 32 · 33) — 여러 명 창은 crew.plan 이 먼저 ──
   function plan(action, card) {
+    var crew = window.FomsPartsCrew;
+    var many = crew && card ? crew.plan(action, card) : null;
+    if (many) { return many; }
     if (action === 'take') {
-      return { title: IS_CUT ? '내가 자를까요?' : '내가 ' + VERB + '할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 필요 · ' + NAME,
-        run: '내가 ' + VERB, tone: 'need' };
+      return { title: LABEL + ' 작업을 시작할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 필요 · ' + NAME, run: '작업 시작', tone: 'need' };
     }
     if (action === 'basic') { return { title: '기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: '기본으로', tone: 'basic' }; }
     if (action === 'done') {
-      return { title: LABEL + ' 끝으로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' 끝 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
+      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
     if (card && attr(card, 'data-state') === 'basic') { return { title: '안 봄으로 되돌릴까요?', line: '기본 → 안 봄', run: '되돌리기', tone: 'unbasic' }; }
-    return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 끝 → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need' };
+    return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 완료 → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need' };
   }
   function bulkPlan(cards) {
     return { title: cards.length + '장을 기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: cards.length + '장 기본으로', tone: 'basic' };
   }
-  // ── 새 누름 문구(§9 — 미정 · 담당 · 맡기 취소 · 담당 바꾸기) ──
-  function heldSince(card) {
-    var holder = attr(card, 'data-picked-name');
-    var at = claim.sinceAt ? claim.sinceAt(attr(card, 'data-picked-at')) : '';
-    return holder ? josa(holder) + ' ' + (at ? at + '부터 ' : '') + '맡은 도면이에요.' : '';
+  // ── 새 누름 문구(§9 — 미정 · 작업 중 · 시작 취소 · 담당 바꾸기, multi-holder §8-2 4 · 5 · 12 · 13) ──
+  function heldSince(card, name, iso) {
+    var holder = name || who(card);
+    var at = claim.sinceAt ? claim.sinceAt(iso || (card ? attr(card, 'data-picked-at') : '')) : '';
+    return holder ? josa(holder) + ' ' + (at ? at + '부터 ' : '') + '작업 중인 도면이에요.' : '';
   }
   function newPlan(action, card) {
-    var holder = attr(card, 'data-picked-name') || '다른 사람';
+    var holder = who(card) || '다른 사람';
     var mine = attr(card, 'data-picked-me') === '1';
     if (action === 'release') {
-      return mine ? { title: '맡기를 취소할까요?', line: '담당 ' + NAME + ' → 미정', run: '맡기 취소', tone: 'release' }
-        : { title: holder + ' 담당을 취소할까요?', line: '담당 ' + holder + ' → 미정', run: '맡기 취소', tone: 'release', note: heldSince(card) };
+      return mine ? { title: '시작을 취소할까요?', line: '담당 ' + NAME + ' → 미정', run: '시작 취소', tone: 'release' }
+        : { title: holder + ' 작업 시작을 취소할까요?', line: '담당 ' + holder + ' → 미정', run: '시작 취소', tone: 'release', note: heldSince(card) };
     }
     if (action === 'takeover') {
       return { title: '담당을 ' + holder + '에서 ' + toward(NAME) + ' 바꿀까요?', line: '담당 ' + holder + ' → 담당 ' + NAME,
         run: '담당 바꾸기', tone: 'taken',
         note: heldSince(card) + (attr(card, 'data-picked-name') ? ' 바꾸기 전에 ' + holder + '에게 말해 주세요.' : '') };
     }
-    return { title: holder + ' 담당 도면이에요', line: '담당 ' + holder, run: '', tone: 'taken', note: heldSince(card),
-      choices: [['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done'], ['release', '맡기 취소', 'release']] };
+    return { title: holder + ' 작업 중인 도면이에요', line: holder + ' 작업 중', run: '', tone: 'taken', note: heldSince(card),
+      choices: [['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done'], ['release', '시작 취소', 'release']] };
   }
-  // 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12)이 남이 맡거나 끝낸 장을 누를 때 한 줄 더(D55 — 지금 글)
+  // 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12)이 남이 작업 중이거나 완료한 장을 누를 때 한 줄 더(D55, §8-2 14 · 34)
   function ownerNote(card) {
     if ((cfg.mode !== 'admin' && cfg.mode !== 'sub') || !card) { return ''; }
     var st = attr(card, 'data-state');
-    var picked = attr(card, 'data-picked-name');
-    var done = attr(card, 'data-done-name');
-    if (st === 'need' && picked && attr(card, 'data-picked-me') !== '1') { return josa(picked) + ' 맡은 도면이에요'; }
+    var picked = who(card);
+    var crew = window.FomsPartsCrew;
+    var done = (st === 'done' && crew && crew.of(card).done) || attr(card, 'data-done-name');
+    if (st === 'need' && picked && attr(card, 'data-picked-me') !== '1') { return josa(picked) + ' 작업 중인 도면이에요'; }
     if ((st === 'done' || st === 'basic') && done && attr(card, 'data-done-me') !== '1') {
-      return josa(done) + (st === 'basic' ? ' 기본으로 한 도면이에요' : ' 끝낸 도면이에요');
+      return josa(done) + (st === 'basic' ? ' 기본으로 한 도면이에요' : ' 완료한 도면이에요');
     }
     return '';
   }
@@ -90,20 +95,36 @@
   // ── 창 그리기 ──
   var opened = null; // {opener, key, act, siblings}
   function setText(sel, text) { var n = q(sel); n.textContent = text || ''; n.hidden = !text; }
-  function runBtn() { return q('[data-pp-modal-run]'); }
-  function renderChoices(choices) {
+  // 아래 단추 줄의 실행 단추 — 고르기 칸의 단추(관리자 고르기도 data-pp-modal-run)를 잘못 집지 않게 아래 줄에서만 찾는다
+  function runBtn() { return q('.foms-prod-change-modal__foot [data-pp-modal-run]'); }
+  // 고르기 — 관리자 고르기([action, 글, 색, 고른 사람 id, 다음 창]) 또는 [담당 바꾸기] 사람 고르기(people — 누르면 고름만, 실행은 아래 단추)
+  function renderChoices(choices, people) {
     var box = q('[data-pp-modal-choices]');
+    var list = people || choices || [];
     box.textContent = '';
-    (choices || []).forEach(function (c) {
+    box.className = 'pp-mchoices' + (people ? ' pp-mchoices--who' : '');
+    box.setAttribute('aria-label', people ? '누구와 바꿀지' : '고르기');
+    list.forEach(function (c) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'foms-prod-change-modal__btn pp-mbtn pp-mgo pp-mgo--' + c[2];
-      b.setAttribute('data-pp-modal-run', '');
-      b.setAttribute('data-pp-choice', c[0]);
-      b.textContent = c[1];
+      b.className = 'foms-prod-change-modal__btn pp-mbtn ' + (people ? 'pp-mwho' : 'pp-mgo pp-mgo--' + c[2]);
+      if (people) { b.setAttribute('data-pp-who', String(c.uid)); b.setAttribute('data-pp-line', c.line); b.setAttribute('aria-pressed', 'false'); }
+      else { b.setAttribute(c[4] ? 'data-pp-next' : 'data-pp-modal-run', ''); b.setAttribute('data-pp-choice', c[0]); }
+      if (!people && c[3] != null) { b.setAttribute('data-pp-target', String(c[3])); }
+      b.textContent = people ? c.text : c[1];
       box.appendChild(b);
     });
-    box.hidden = !(choices && choices.length);
+    box.hidden = !list.length;
+  }
+  // [담당 바꾸기] 사람 고르기 — 고른 칸만 켜고 계획 줄을 "담당 이시영 · 김재단 → 담당 이시영 · 박재단"으로, 실행 단추를 연다
+  function pick(btn) {
+    [].slice.call(modal.querySelectorAll('[data-pp-who]')).forEach(function (b) {
+      b.classList.toggle('is-on', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
+    var label = modal.querySelector('.foms-prod-change-modal__alert-label');
+    if (label) { label.textContent = btn.getAttribute('data-pp-line') || ''; }
+    runBtn().removeAttribute('aria-disabled');
   }
   function fill(p, items, body) {
     modal.classList.remove('is-lost');
@@ -120,9 +141,9 @@
     run.className = 'foms-prod-change-modal__btn pp-mbtn pp-mgo pp-mgo--' + p.tone;
     run.textContent = p.run || '';
     run.hidden = !p.run;
-    run.removeAttribute('aria-disabled');
+    if (p.locked) { run.setAttribute('aria-disabled', 'true'); } else { run.removeAttribute('aria-disabled'); }
     q('[data-pp-modal-close]').textContent = p.closeText || (p.run ? '취소' : '닫기');
-    renderChoices(p.choices);
+    renderChoices(p.choices, p.who);
     modal.classList.toggle('is-many', items.length > 1);
   }
   function setInert(on) {
@@ -171,7 +192,7 @@
     run.textContent = on ? '저장하는 중…' : runText;
   }
   function error(text) { var err = q('[data-pp-modal-err]'); err.textContent = text; err.hidden = false; }
-  // 진 경합 · 거절: 빨간 글(서버 글) + 계획 줄을 서버 모습으로("지금: 담당 박엣지") + [닫기] 하나
+  // 진 경합 · 거절: 빨간 글(서버 글) + 계획 줄을 서버 모습으로("지금: 박엣지 작업 중") + [닫기] 하나
   function lost(text, nowLine) {
     modal.classList.add('is-lost');
     error(text);
@@ -192,8 +213,10 @@
   }
   function nowLine(mark) {
     if (!mark) { return ''; }
-    if (mark.state === 'need') { return '지금: 담당 ' + (mark.picked_by_name || '다른 사람'); }
-    if (mark.state === 'done') { return '지금: ' + LABEL + ' 완료' + (mark.done_by_name ? ' · ' + mark.done_by_name : ''); }
+    var cr = mark.crew || {};
+    if (mark.state === 'need') { return '지금: ' + (cr.who || mark.picked_by_name || '다른 사람') + ' 작업 중'; }
+    var done = cr.done || mark.done_by_name;
+    if (mark.state === 'done') { return '지금: ' + LABEL + ' 완료' + (done ? ' · ' + done : ''); }
     if (mark.state === 'basic') { return '지금: 기본' + (mark.done_by_name ? ' · ' + mark.done_by_name : ''); }
     return '지금: 담당 미정';
   }
@@ -222,5 +245,5 @@
   });
 
   window.FomsPartsModal = { plan: plan, bulkPlan: bulkPlan, ownerNote: ownerNote, firstLine: firstLine, open: open, close: close,
-    busy: busy, error: error, lost: lost, nowLine: nowLine, complete: complete };
+    busy: busy, error: error, lost: lost, nowLine: nowLine, complete: complete, pick: pick, heldSince: heldSince, toward: toward };
 })();

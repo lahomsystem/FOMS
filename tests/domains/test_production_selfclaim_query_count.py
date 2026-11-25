@@ -129,7 +129,7 @@ def test_날짜_탭_파트_없는_생산팀은_칸_아래_이름_읽기_하나(c
 def test_날짜_탭_파트_계정은_아침_칩_하나만_더한다(client, cohort):
     me = _login(client, "김재단", part="cut")
     small, big, html = _measure(client, HOME_URL, me, (1200, 1300))
-    assert "data-pp-card " in html and "data-pp-mchip" in html and "어제부터 내 담당" in html  # 판 · 아침 칩이 섰다
+    assert "data-pp-card " in html and "data-pp-mchip" in html and "어제부터 내 작업" in html  # 판 · 아침 칩이 섰다
     assert big <= ABS_QUERY_CAP + PART_SCREEN_EXTRA_QUERIES and big == MEASURED["date_part"], (small, big)
 
 

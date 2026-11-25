@@ -160,7 +160,7 @@ def test_uploaded_file_inherits_factory_fix_and_replaced_pair(client, quiet, tea
     assert sd["drawing_fix"]["file_successor"] == {new: old} and sd["drawing_fix"]["fixing"] == {}
     _slots, by_sheet = index_marks(marks(oid).values())
     info = replaced_info(oid, entries[2], {e["key"] for e in entries}, by_sheet, "cut", fx.file_successor(sd).get(new, ""))
-    assert info is not None and info["label"] == "바뀐 도면 · 전 판 재단 끝(김재단)"
+    assert info is not None and info["label"] == "바뀐 도면 · 전 판 재단 완료(김재단)"
 
 
 def test_new_drawing_pick_stays_first_factory_without_successor(client, quiet, team):

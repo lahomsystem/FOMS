@@ -111,7 +111,7 @@ def test_only_rows_updated_after_since_come_back(client):
     done = marks[0]
     assert done["order_id"] == oid and done["state"] == "done" and done["done_by_name"] == "박재단"
     assert done["done_by_user_id"] == park.id and done["picked_by_name"] == "박재단"
-    assert (done["word"], done["tone"]) == ("끝", "done")  # 다른 파트 한 줄 낱말도 서버가 준다(SSOT)
+    assert (done["word"], done["tone"]) == ("완료", "done")  # 다른 파트 한 줄 낱말도 서버가 준다(SSOT)
     assert (marks[1]["word"], marks[1]["tone"]) == ("중", "need")
     # 대조군: since 를 앞당기면 옛 줄도 나온다(거르기가 since 때문임을 보인다)
     older = (base - datetime.timedelta(hours=1)).isoformat()
@@ -315,8 +315,10 @@ def test_parts_js_binds_writes_only_with_modal():
     assert "if (!root || !board || !modal)" not in src  # 창이 없어도 고치기는 내보낸다
     assert "var WRITABLE = !!(modal && cfg.writable);" in src
     render = src[src.index("function renderAct("):src.index("function applyMark(")]
-    assert "if (!WRITABLE) { return; }" in render and "if (WRITABLE) { box.appendChild(el('button'" in render
-    assert "var canUndo = WRITABLE &&" in render
+    # 안 봄 칸은 쓸 수 있는 사람만 단추, 작업 필요 · 완료 칸은 crew.render 가 같은 문(writable)으로 그린다(multi-holder M2)
+    assert "if (attr(card, 'data-state') !== 'none' || !WRITABLE) { return; }" in render and "writable: WRITABLE" in render
+    crew = (PARTS_JS.parent / "foms-production-parts-crew.js").read_text(encoding="utf-8")
+    assert "} else if (!o.writable) {" in crew and "var canUndo = o.writable &&" in crew
 
 
 def test_broken_image_becomes_text_on_card_and_viewer():

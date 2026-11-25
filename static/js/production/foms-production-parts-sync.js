@@ -7,7 +7,8 @@
  * (window.__FOMS_PROD_PARTS_BOUND.sync = 지금 화면), 30초 타이머는 문서에 한 번(.syncTimer) 달고 지금 화면의 받기(.syncTick)를 부른다.
  * 화면이 문서에서 빠지면(다른 탭으로 셸 이동) 받지 않는다. 날을 받아 끼운 장의 카드도 화면 안이라 같이 받는다.
  * 2026-11-23: 받은 줄의 맡은 때 · 바뀐 기록 칸도 카드에 싣는다(고치기가 그린다). 까닭 말풍선이 열린 카드도 건너뛴다(held).
- * 2공장(2026-11-23 §4-13): 남의 공장 카드([data-pp-elsewhere] — 누름 없음)도 같이 받아 글 한 줄 · 다른 파트 줄만 고친다. */
+ * 2공장(2026-11-23 §4-13): 남의 공장 카드([data-pp-elsewhere] — 누름 없음)도 같이 받아 글 한 줄 · 다른 파트 줄만 고친다.
+ * 2026-11-25 multi-holder: 받은 줄에 작업하는 사람 칸(mark.crew — 이름 줄 · 내 몫, 서버 글)이 실린다. 같은 표시인지는 사람 · 완료 표지(sig)까지 견준다. */
 (function () {
   'use strict';
 
@@ -69,15 +70,14 @@
     }
   }
 
-  // 화면 카드가 이미 그 표시면 건너뛴다(내가 쓴 줄 · 겹쳐 받은 줄)
+  // 화면 카드가 이미 그 표시면 건너뛴다(내가 쓴 줄 · 겹쳐 받은 줄) — 같이 작업하는 사람 · 사람마다 완료(sig)까지
   function sameMark(card, mark) {
-    var me = String(cfg.me_id);
-    var pickedMe = mark.picked_by_user_id != null && String(mark.picked_by_user_id) === me ? '1' : '0';
-    var doneMe = mark.done_by_user_id != null && String(mark.done_by_user_id) === me ? '1' : '0';
+    var cr = mark.crew || {};
+    var seen = safeJsonParse(card.getAttribute('data-pp-crew'), {}) || {};
     return card.getAttribute('data-state') === (mark.state || 'none') &&
       card.getAttribute('data-picked-name') === (mark.picked_by_name || '') &&
       card.getAttribute('data-done-name') === (mark.done_by_name || '') &&
-      card.getAttribute('data-picked-me') === pickedMe && card.getAttribute('data-done-me') === doneMe;
+      (seen.sig || '') === (cr.sig || '') && (seen.me || 'none') === (cr.me || 'none');
   }
   // 다른 파트 한 줄의 낱말 하나(낱말 · 색은 서버가 준 word · tone — 화면이 다시 짓지 않는다)
   function setOther(card, mark) {
@@ -90,12 +90,16 @@
     span.appendChild(document.createTextNode(' ' + (mark.word || '')));
     return true;
   }
-  // 남의 공장 카드의 글 한 줄 — 서버 factory_scope.elsewhere_line 과 같은 글("담당 최가은" · "엣지 완료 · 최가은" · "기본 · 김재단" · "미정")
+  // 남의 공장 카드의 글 한 줄 — 서버 factory_scope.elsewhere_line 과 같은 글("이시영 · 김재단 작업 중" · "엣지 완료 · 최가은" · "기본 · 김재단" ·
+  // "미정"). 이름 줄은 서버가 준 mark.crew(who · done)만 쓴다(multi-holder §8-2 16)
   function elsewhereLine(m) {
-    if (m.state === 'need') { return m.picked_by_name ? '담당 ' + m.picked_by_name : '담당 있음'; }
+    var cr = m.crew || {};
+    var who = cr.who || m.picked_by_name;
+    if (m.state === 'need') { return who ? who + ' 작업 중' : '작업 중'; }
     if (m.state !== 'done' && m.state !== 'basic') { return '미정'; }
     var head = m.state === 'done' ? (cfg.label || '') + ' 완료' : '기본';
-    return m.done_by_name ? head + ' · ' + m.done_by_name : head;
+    var done = (m.state === 'done' && cr.done) || m.done_by_name;
+    return done ? head + ' · ' + done : head;
   }
   function applyElsewhere(mark) {
     toArr(root.querySelectorAll('[data-pp-elsewhere][data-order-id="' + mark.order_id + '"]')).forEach(function (card) {

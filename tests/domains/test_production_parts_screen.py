@@ -136,8 +136,8 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
     assert 'data-pp-count="all">5<' in block and 'data-pp-count="need">1<' in block and 'data-pp-count="done">1<' in block
     assert 'data-pp-act="bulk"' in block and "<span>남은 <span data-pp-count=\"unseen\">1</span>장 모두 기본</span>" in block
     assert block.count('data-pp-act="basic"') == 1 and block.count('data-pp-act="take"') == 1  # 안 본 장 하나
-    assert "박재단 맡음" in block and "pp-st-taken" in block  # 남이 맡은 장 = 분홍 배지, 단추 없음
-    assert "기본 · 박재단" in block and "재단 끝 · 김재단" in block
+    assert "<b>박재단 작업\u00a0중</b>" in block and "pp-st-taken" in block and 'data-pp-act="join">같이 작업</button>' in block
+    assert "기본 · 박재단" in block and "재단 완료 · 김재단" in block
     # 지금 장은 그대로 그려 두고(세로 = 지금 화면) 감싼다
     assert 'class="fph-pane__now"' in pane and "fph-dr" in pane.split('class="fph-pane__now"')[1]
     assert 'class="fph-date has-parts"' in html
@@ -167,9 +167,9 @@ def test_other_part_has_no_basic_and_no_other_part_buttons(client, cohort):
     block = _parts_block(_first_pane(html))
     assert block.count("data-pp-card ") == 5
     assert 'data-pp-act="basic"' not in block and 'data-pp-act="bulk"' not in block  # '기본'은 재단에만(D49)
-    assert block.count('data-pp-act="take"') == 5 and "내가 조립" in block
+    assert block.count('data-pp-act="take"') == 5 and 'data-pp-act="take">작업 시작<' in block  # 네 파트 같은 글(§8-2 1)
     assert "출고 3건 · 도면 나온 2집" in block  # 그 밖 파트 장 머리(시공 = 그날 주문 전부, 도면 나온 집 = 카드가 선 집)
-    # 다른 파트 한 줄은 누를 수 없는 글 — 그 안에 단추 0, 재단 낱말(끝 · 기본 · 중 · 안 봄)이 선다
+    # 다른 파트 한 줄은 누를 수 없는 글 — 그 안에 단추 0, 재단 낱말(완료 · 기본 · 중 · 안 봄)이 선다
     for line in re.findall(r'<span class="fph-dr__by pp-by">(.*?)</span></span>\s*<div class="pp-actbox"', block, re.S):
         assert "<button" not in line and "<a " not in line
     assert "<i>재단</i> 중" in block and "<i>재단</i> 기본" in block and "<i>재단</i> 안 봄" in block
@@ -225,7 +225,7 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
 
     html = _get(client, HOME + "?tab=parts&part=assemble")
     pane = _first_pane(html)
-    assert "내가 조립" in pane and 'data-pp-act="basic"' not in pane
+    assert 'data-pp-act="take">작업 시작<' in pane and 'data-pp-act="basic"' not in pane
     assert '"part": "assemble"' in html.replace("&#34;", '"')
 
 
@@ -242,7 +242,7 @@ def test_readonly_staff_sees_badges_only_no_modal_no_write_binding(client, cohor
     # 확인 창이 없어 누름 · 쓰기는 묶이지 않는다(test_production_part_marks_sync.py 가 정적으로 본다).
     assert "foms-production-parts.js?v=" in html and "foms-production-parts-viewer.js?v=" in html
     assert "foms-production-parts-sync.js?v=" in html
-    assert "작업 필요 · 김재단" in pane and "작업 필요 · 박재단" in pane and "기본 · 박재단" in pane
+    assert ">김재단 작업\u00a0중</span>" in pane and ">박재단 작업\u00a0중</span>" in pane and "기본 · 박재단" in pane
 
 
 def test_parts_tab_needs_tablet_and_staff(client, cohort):
@@ -487,11 +487,11 @@ def test_replaced_drawing_line_and_cap_notice(client, cohort, monkeypatch):
     """바뀐 도면(D56) 한 줄 · 200장 캡은 조용히 자르지 않고 글로 알린다(§15.6 안전 캡)."""
     me = _user("김재단", part="cut")
     order = _order("한빛", _files("oa", 3))
-    # 옛 판(교체돼 지금 확정 도면에 없는 key)에 같은 시트 신원으로 재단 끝 — 새 판 카드에 전 판 진행 한 줄
+    # 옛 판(교체돼 지금 확정 도면에 없는 key)에 같은 시트 신원으로 재단 완료 — 새 판 카드에 전 판 진행 한 줄
     _mark(order, "oa/old0.png", "cut", "DONE", picked=me, done=me, names=("김재단", "김재단"), sheet_id="oa-s0")
     _login(client, me)
     block = _parts_block(_first_pane(_get(client, HOME)))
-    assert block.count('class="pp-replaced"') == 1 and "바뀐 도면 · 전 판 재단 끝(김재단)" in block
+    assert block.count('class="pp-replaced"') == 1 and "바뀐 도면 · 전 판 재단 완료(김재단)" in block
     assert 'data-pp-count="unseen">3<' in block  # 새 판은 안 봄부터
     monkeypatch.setattr("foms.services.production.part_board.PART_BOARD_CARD_CAP", 2)
     block = _parts_block(_first_pane(_get(client, HOME)))
