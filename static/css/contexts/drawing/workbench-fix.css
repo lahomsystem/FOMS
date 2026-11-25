@@ -422,3 +422,38 @@
     background: #dc3545;
     color: #fff;
 }
+
+/* 요청사항 칸 공장 요청 줄(설계서 2026-11-25 §2-2 · §10, D4) — "수정 요청 · 공장"은 '공장 진행' 칸 표(.dwp-req)와 같은 주황.
+   상태 표 "미완료"는 회색 대신 주황(무채색 금지), "반영 완료"는 지금 초록(bg-success) 그대로. 반려 기록 줄 = 진한 빨강 글.
+   [요청 반려] 창 = 위 dfx-dialog · 사유 칸(꼭 적기) · [요청 반려] 빨강(.dwp-btn--stop). */
+.dfr-src {
+    margin-right: 4px;
+}
+
+.dfr-open {
+    border: 1px solid #f59e0b;
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.dfr-reject {
+    color: #842029;
+    font-weight: 600;
+}
+
+.dfr-note-input {
+    display: block;
+    width: 100%;
+    min-height: 88px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid #c5ced8;
+    border-radius: 8px;
+    font: inherit;
+    font-size: calc(15px * var(--foms-fs, 1));
+    resize: vertical;
+}
+
+.dfr-dialog-error {
+    margin-top: 8px;
+}

@@ -23,6 +23,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.confirm_drawing_gate import normalize_stage_code
 from foms.services.orders.drawing_factory import DRAWING_FIX_KEY, NOT_CURRENT_MESSAGE
 from foms.services.orders.drawing_fix import FIX_LOG_CAP, fix_ident, number_topic
+from foms.services.orders.drawing_fix_requests import close_on_stage_exit, open_requests
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.orders.erp_policy_permissions import can_set_sheet_factory
 from foms.services.orders.state_axes import read_main_stage
@@ -182,7 +183,7 @@ def clear_fixing_on_stage_exit(sd: dict[str, Any], *, from_stage: Any, to_stage:
 
     생산 → 시공(제작 완료) · 고객컨펌 등 되돌림 · 강제 단계 변경 모두 "나감"이다. 생산 → 생산 · 그 밖 → 생산(수정 제작 · 완료 취소)은
     아무것도 안 한다(나갈 때 이미 지웠다). 지운 것이 있으면 ``log`` 에 ``stop`` 한 줄(``via: stage_exit``). 공장 요청(``requests``)은
-    건드리지 않는다(D4 몫). ``drawing_fix`` 칸은 새 dict 로 바꿔 끼운다 — 셸 복사(``dict(sd)``)로 넘기는 자리의 옛 값을 건드리지 않게.
+    여기서 건드리지 않는다(:func:`release_on_stage_exit` 가 ``drawing_fix_requests.close_on_stage_exit`` 로 따로 닫는다). ``drawing_fix`` 칸은 새 dict 로 바꿔 끼운다 — 셸 복사(``dict(sd)``)로 넘기는 자리의 옛 값을 건드리지 않게.
 
     Args:
         sd: 쓰는 쪽 ``structured_data`` 사본(부르는 쪽이 재대입 · ``flag_modified``).
@@ -219,17 +220,19 @@ def stage_exit_event(order_id: int, rows: list[dict[str, Any]], *, by_user_id: O
 def release_on_stage_exit(session: Any, order_id: int, sd: Any, *, from_stage: Any, to_stage: Any, user_id: Any,
                           at: Optional[str] = None, by_name: Optional[str] = None) -> list[dict[str, Any]]:
     """단계를 바꾸는 쓰기 자리마다 부르는 한 함수 — 생산 밖으로 나가면 [수정 시작] 표시를 같은 사본에서 지우고(제자리)
-    '바뀐 것' "도면 수정 취소" 이벤트를 같은 세션에 더한다. 부르는 쪽이 사본 재대입 · ``flag_modified`` · 커밋을 한다.
+    '바뀐 것' "도면 수정 취소" 이벤트를 같은 세션에 더한다. 열린 공장 요청도 같은 사본에서 닫는다(D4 — 사장님 답 "둘 다",
+    ``drawing_fix_requests.close_on_stage_exit``: ``done`` + ``via: stage_exit``, 알림 · '바뀐 것' 줄 없음). 부르는 쪽이 사본 재대입 ·
+    ``flag_modified`` · 커밋을 한다.
 
-    지울 것이 없으면(생산 → 생산 · 그 밖 → 생산 · 고치는 중 없음 · 사본이 dict 아님) 아무것도 안 하고 쿼리 0. 이름(``by_name``)을
-    안 주면 지울 것이 있을 때만 그 사람 행을 읽는다(보통 같은 세션에 이미 있어 쿼리 0). ``at`` 을 안 주면 지금(UTC).
+    지울 것이 없으면(생산 → 생산 · 그 밖 → 생산 · 고치는 중 · 열린 요청 없음 · 사본이 dict 아님) 아무것도 안 하고 쿼리 0.
+    이름(``by_name``)을 안 주면 지울 것이 있을 때만 그 사람 행을 읽는다(보통 같은 세션에 이미 있어 쿼리 0). ``at`` 을 안 주면 지금(UTC).
 
     Returns:
-        풀린 장 ``[{no, ident}]``(없으면 빈 목록).
+        풀린 [수정 시작] 장 ``[{no, ident}]``(없으면 빈 목록).
     """
     if normalize_stage_code(from_stage) != STAGE_PRODUCTION or normalize_stage_code(to_stage) == STAGE_PRODUCTION:
         return []
-    if not isinstance(sd, dict) or not fixing_rows(sd):
+    if not isinstance(sd, dict) or not (fixing_rows(sd) or open_requests(sd)):
         return []
     at = at or now_utc_naive().replace(microsecond=0).isoformat() + "Z"
     if by_name is None:
@@ -239,6 +242,7 @@ def release_on_stage_exit(session: Any, order_id: int, sd: Any, *, from_stage: A
     if rows:
         session.add(stage_exit_event(order_id, rows, by_user_id=int(user_id) if str(user_id or "").isdigit() else None,
                                      by_name=by_name, to_stage=to_stage))
+    close_on_stage_exit(sd, by_name=by_name, at=at, to_stage=normalize_stage_code(to_stage) or str(to_stage or ""))
     return rows
 
 

@@ -334,7 +334,7 @@ def test_detail_loads_the_fix_stylesheet_once(client, drawer):
     oid = make_order(cdate=day(5))
     login(client, drawer)
     html = client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True)
-    assert html.count("css/contexts/drawing/workbench-fix.css") == 1 and "workbench-fix.css?v=20261125d" in html
+    assert html.count("css/contexts/drawing/workbench-fix.css") == 1 and "workbench-fix.css?v=20261125e" in html
 
 
 def test_production_tab_is_fresh_even_with_the_list_cache_on(client, drawer, monkeypatch):

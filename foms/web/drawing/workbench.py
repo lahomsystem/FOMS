@@ -95,6 +95,7 @@ from foms.services.drawing_workbench_production import (
     production_sort_key,
 )
 from foms.services.datetime_kst import get_today_kst
+from foms.services.drawing_fix_requests_view import factory_requests_view
 from foms.services.production.home_access import can_view_production_home
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, record_phase
@@ -1615,6 +1616,8 @@ def erp_drawing_workbench_detail(order_id):
         sheet_factory=sheet_factory,
         sheet_factory_send=pending_split_text(drawing_pending, sheet_factory['by_sheet']) if sheet_factory else '',
         fix_progress=fix_progress,
+        # 요청사항 칸 공장 요청 줄 · [반영 완료] · [요청 반려](설계서 2026-11-25 §2-2, D4) — 조회 0, 공장 요청이 없으면 빈 목록.
+        factory_requests=factory_requests_view(order, s_data, current_user),
         production_sheet_url=production_sheet_url,
         # 완료 주문 AS 도면 카드·맨 위 단추(설계서 2026-11-11-as-drawing-after-completion §6.1) — 조회 0.
         as_drawing=as_drawing_detail,

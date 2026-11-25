@@ -207,6 +207,12 @@
       "reason": "도면팀 [수정 시작] · [수정 취소](설계서 2026-11-25 N1 · N2) — 서버 소유 칸 structured_data.drawing_fix 를 첫 조회부터 lock_order_row(FOR UPDATE)로 잠그고, deepcopy 사본 재대입 · flag_modified 는 execute_single_order_write 콜백 안에서만 한다(버전 +1 · 영수증). 바뀐 장이 없으면 쓰지 않고 되감는다."
     },
     {
+      "path": "foms/api/production/drawing_request.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01",
+      "reason": "공장 [도면 수정 요청](설계서 2026-11-25 N3) — 서버 소유 칸 structured_data.drawing_fix.requests 를 첫 조회부터 lock_order_row(FOR UPDATE)로 잠그고, deepcopy 사본 재대입 · flag_modified 는 REV-00 execute_order_mutation 콜백 안에서만 한다(버전 +1 · Idempotency-Key 멱등 영수증). 같은 열쇠로 다시 오면 쓰지 않고 같은 요청을 돌려준다."
+    },
+    {
       "path": "foms/services/production/part_mark_write.py",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01",

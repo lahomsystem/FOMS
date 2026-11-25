@@ -25,6 +25,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.orders.drawing_factory import sheet_factory
 from foms.services.orders.drawing_fix import blocked, file_successor
+from foms.services.orders.drawing_fix_requests import board_request_options, can_request_people
 from foms.services.production.part_access import (
     VIEW_ADMIN,
     VIEW_NONE,
@@ -474,6 +475,7 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in files.items()},
         "blocks": {int(row["id"]): order_block(row) for row in rows},  # 주문 통째(보류 · 도면 고치는 중)
         "fix": {int(row["id"]): blocked(row.get("structured_data") or {}) for row in rows},  # 도면별 막힘(2026-11-25 §3-3, 쿼리 0)
+        "req": board_request_options(user, rows),  # [도면 수정 요청] 창 고르기(2026-11-25 §2-4 · N3 — 생산 단계 주문, 쿼리 0)
         "hands": {int(row["id"]): {p: hand_cell(row.get("structured_data") or {}, order_marks.get(int(row["id"]), []), p)
                                    for p in PRODUCTION_PART_KEYS} for row in rows},
     }
@@ -483,7 +485,8 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         "parts": parts, "pick": pick, "url_part": board_part if (mode != VIEW_PART or pick) else None,
         "writable": writable, "mine": ctx["mine"], "cap": PART_BOARD_CARD_CAP,
         # 2공장(§4-13 · §19 열한째): 보는 공장 · 관리자 판 머리 공장 고르기(2공장 그림이 켜졌을 때만) · 주소에 실을 공장
-        "factory": factory, "scene": scene, "factory_pick": scene and mode == VIEW_ADMIN,
+        "factory": factory, "scene": scene, "factory_pick": scene and mode == VIEW_ADMIN, "req_opts": ctx["req"],
+        "can_request": can_request_people(user),  # [도면 수정 요청] 창을 둘 사람(관리자 · 반장 · 파트 계정 — 날 조각 판도 같은 창)
         "url_factory": factory if scene and mode == VIEW_ADMIN else None,
         "panes": {pane.get("key"): build_pane_board(pane, by_slot, ctx) for pane in panes},
     }

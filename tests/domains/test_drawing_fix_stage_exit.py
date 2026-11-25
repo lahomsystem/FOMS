@@ -3,8 +3,9 @@
 * 생산 단계에서 다른 단계로 가는 모든 길(제작 완료 — 관리자 뚫기 포함 · 강제 단계 변경 단건 · 일괄 · 일반 단계 변경 · 옛 상태 쓰기)이
   ``drawing_fix_marks.release_on_stage_exit`` 한 함수를 같은 쓰기 안에서 부른다 → ``drawing_fix.fixing`` 이 비고, 공장 '바뀐 것'에
   [수정 취소]와 같은 "도면 수정 취소" 한 줄(누가 = 그 쓰기를 한 사람, 폰 알림 없음).
-* 생산 → 시공(제작 완료)도 나감이다. 시공 → 생산(완료 취소 · 수정 제작)은 지울 것이 없다(나갈 때 지웠다). 공장 요청(``requests``)은
-  건드리지 않는다(D4 몫).
+* 생산 → 시공(제작 완료)도 나감이다. 시공 → 생산(완료 취소 · 수정 제작)은 지울 것이 없다(나갈 때 지웠다). 열린 공장 요청은 같은
+  함수가 닫는다(D4 — ``done`` + ``via: stage_exit``, 자세한 시험은 ``test_drawing_fix_reject_api.py``). ``clear_fixing_on_stage_exit``
+  자체는 요청을 건드리지 않는다.
 * 대조군: 생산 안에서의 쓰기(제작 취소 · 공정 칸)는 안 지운다. 다시 생산으로 와도 옛 막힘이 살아나지 않는다(D1 검토 지적).
 * 시공 대기 상세: 고치는 중인 도면에만 [수정 취소] — 누르면 풀리고 패킹 줄 409 도 풀린다. 고치는 중이 없으면 단추 없음(대조군).
 
@@ -66,7 +67,7 @@ def test_only_leaving_production_clears(from_stage, to_stage, cleared):
           "drawing_fix": {"fixing": dict(FIX), "requests": [request], "log": []}}
     rows = clear_fixing_on_stage_exit(sd, from_stage=from_stage, to_stage=to_stage, by_name="한관리", at="2026-11-25T06:00:00Z")
     assert bool(rows) is cleared and (sd["drawing_fix"]["fixing"] == {}) is cleared
-    assert sd["drawing_fix"]["requests"] == [request]                    # 공장 요청은 그대로(D4 몫)
+    assert sd["drawing_fix"]["requests"] == [request]                    # 이 함수는 공장 요청을 안 건드린다(D4 는 따로 닫는다)
 
 
 # --- 단계를 바꾸는 길마다 ------------------------------------------------------------
@@ -159,7 +160,8 @@ def test_writes_inside_production_keep_fixing_and_requests(client, who):
                       json={"admin_override": True, "override_reason": "시험 — 뚫고 시공으로"})
     assert res.status_code == 200, res.get_json()
     sd = sd_of(oid)
-    assert sd["drawing_fix"]["fixing"] == {} and len(sd["drawing_fix"]["requests"]) == 1   # 요청은 그대로(D4 몫)
+    assert sd["drawing_fix"]["fixing"] == {} and len(sd["drawing_fix"]["requests"]) == 1   # 요청 줄은 남고(기록)
+    assert sd["drawing_fix"]["requests"][0]["state"] == "done" and sd["drawing_fix"]["requests"][0]["via"] == "stage_exit"  # D4 — 닫힘
 
 
 def test_coming_back_from_construction_has_nothing_to_clear(client, who):

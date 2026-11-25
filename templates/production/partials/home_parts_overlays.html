@@ -24,6 +24,36 @@
   </div>
 </div>
 {% endif %}
+{% if part_board.can_request %}
+{#- [도면 수정 요청] 창(설계서 2026-11-25 §2-4 · §10 · N3) — 위 확인 창과 같은 겉틀. 관리자 · 반장 · 파트 계정에게만(읽기 전용은 창 0).
+    고르기 · 사진 칸 · 보내기는 foms-production-drawing-request.js 가 그린다(누른 카드의 data-pp-req-opts). 사진 칸은 앨범에서도 고르게
+    data-foms-no-capture(공용 photo-capture.js 가 카메라만 강제하는 함정). -#}
+<div id="foms-part-request-modal" class="foms-prod-change-modal pp-modal pp-rq" data-pp-rq role="dialog" aria-modal="true" aria-labelledby="foms-part-request-title" hidden>
+  <div class="foms-prod-change-modal__dialog">
+    <div class="foms-prod-change-modal__head">
+      <h2 class="foms-prod-change-modal__title" id="foms-part-request-title">도면 수정 요청</h2>
+      <span class="foms-prod-change-modal__count" data-pp-rq-who></span>
+    </div>
+    <div class="pp-rq__body">
+      <p class="pp-rq__label" id="pp-rq-pick-label">어느 도면인가요?</p>
+      <div class="pp-rq__picks" role="group" aria-labelledby="pp-rq-pick-label" data-pp-rq-picks></div>
+      <label class="pp-rq__label" for="pp-rq-note">사유 <span class="pp-rq__must">꼭 적어 주세요</span></label>
+      <textarea class="pp-rq__note" id="pp-rq-note" rows="3" data-pp-rq-note></textarea>
+      <div class="pp-rq__photo">
+        <span class="pp-rq__label" id="pp-rq-photo-label">사진 (있으면 올려 주세요 · 3장까지)</span>
+        <button type="button" class="foms-prod-home__btn pp-rq__add" data-pp-rq-add aria-describedby="pp-rq-photo-label">사진 올리기</button>
+        <input type="file" accept="image/*" multiple hidden data-foms-no-capture data-pp-rq-file>
+      </div>
+      <div class="pp-rq__thumbs" data-pp-rq-thumbs></div>
+    </div>
+    <p class="pp-merr" data-pp-rq-err role="alert" aria-live="assertive" hidden></p>
+    <div class="foms-prod-change-modal__foot">
+      <button type="button" class="foms-prod-change-modal__btn foms-prod-change-modal__btn--close pp-mbtn" data-pp-rq-close>취소</button>
+      <button type="button" class="foms-prod-change-modal__btn pp-mbtn pp-mgo pp-mgo--need" data-pp-rq-send>요청 보내기</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 <div class="pp-view" data-pp-viewer role="dialog" aria-modal="true" aria-labelledby="foms-part-view-title" hidden>
   <header class="foms-prod-home__bar pp-vtop">
     <h2 class="foms-prod-home__title" id="foms-part-view-title" data-pp-v-title>도면</h2>
