@@ -732,7 +732,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 994,
+      "lineno": 1003,
       "methods": [
         "POST"
       ],
@@ -741,7 +741,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 949,
+      "lineno": 958,
       "methods": [
         "POST"
       ],
@@ -750,7 +750,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 652,
+      "lineno": 661,
       "methods": [
         "POST"
       ],
@@ -759,7 +759,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 575,
+      "lineno": 583,
       "methods": [
         "POST"
       ],
@@ -849,7 +849,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_bom_rules",
-      "lineno": 2051,
+      "lineno": 2052,
       "methods": [
         "POST"
       ],
@@ -867,7 +867,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory",
-      "lineno": 2121,
+      "lineno": 2122,
       "methods": [
         "POST"
       ],
@@ -876,7 +876,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory_match",
-      "lineno": 2150,
+      "lineno": 2151,
       "methods": [
         "POST"
       ],
@@ -885,7 +885,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1973,
+      "lineno": 1974,
       "methods": [
         "POST"
       ],
@@ -912,7 +912,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1781,
+      "lineno": 1782,
       "methods": [
         "POST"
       ],
