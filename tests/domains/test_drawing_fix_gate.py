@@ -203,7 +203,7 @@ def test_board_pc_rows_queue_row_and_badge_mark_only_that_drawing():
     sheet = build_part_sheet(sd, [], "cut", hold_active=False)
     assert [r["block"]["text"] if r["block"] else None for r in sheet["rows"]] == [None, "도면 고치는 중", None]
     assert [r["act"] for r in sheet["rows"]] == ["check", None, "check"]
-    assert sheet["all"] is True  # 도면별이면 [모두 작업]이 보인다(같은 API 가 막힌 장을 빼고 처리)
+    assert sheet["all"] is True  # 도면별이면 [모두 완료 처리](옛 [모두 작업])가 보인다(같은 API 가 막힌 장을 빼고 처리)
     whole = _sd(3, status="RETURNED")
     assert build_part_sheet(whole, [], "cut", hold_active=False)["all"] is False  # 대조군: 통째면 지금처럼 숨김
     steps = [{"key": k, "label": k, "done": False, "now": k == "cut"} for k in ("cut", "edge", "assemble", "inspect")]

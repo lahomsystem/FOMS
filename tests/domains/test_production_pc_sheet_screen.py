@@ -84,11 +84,17 @@ def test_새_JS_는_300줄_아래_읽기는_try_catch_와_success_검사() -> No
     assert "e.key === 'Escape'" in view and "e.key !== 'Tab'" in view and "back.focus()" in view
     assert "'/api/production/part-marks'" in write and "/production/steps" in write and "sp.beforeToggle(page, btn, true, go)" in write
     assert "fetch(" not in write.replace("window.fomsMutationFetch", "") or "try {" in write
-    assert "'release'" in write  # 완료가 막히면 맡기만 남지 않게 되돌린다
-    # [체크 해제] 뒤 담당이 나면 맡기 취소까지 · 남의 장은 완료 취소만(둘째 판)
-    assert "m.picked_by_user_id !== d.me" in write and "return mark(d, r.key, 'release', 'need', d.me);" in write
-    assert "if (!r.undo_releases ||" in write  # 맡기 취소까지는 서버가 준 판정(2분)일 때만(셋째 판 4)
-    assert "return rel.ok ? fin : rel;" in write  # [체크] 완료가 막히면 맡기 취소 결과까지 기다리고, 그것도 막히면 뒤 글(셋째 판 5)
+    # [완료 처리] = action check 한 요청(2026-11-25 multi-holder 판결 2) — 옛 두 요청 길(맡기 → 완료 → 막히면 맡기 취소)은 없다
+    assert "function check(d, r) { return mark(d, r.key, 'check', r.seen); }" in write
+    for gone in ("'take'", "'done'", "rel.ok ? fin : rel", "picked_by_user_id"):
+        assert gone not in write, gone
+    # [완료 취소] 뒤 작업하는 사람이 나 하나면 시작 취소까지 · 같이 작업한 장 · 남의 장은 완료 취소만(둘째 판)
+    assert "!onlyMe(m, d.me)" in write and "return mark(d, r.key, 'release', 'need', d.me);" in write
+    assert "if (!r.undo_releases ||" in write  # 시작 취소까지는 서버가 준 판정(2분)일 때만(셋째 판 4)
+    # 단추 이름(K3) — 줄 글은 서버가 사람마다 만든 r.lines 그대로(JS 는 글을 안 만든다)
+    assert "r.act === 'check' ? '완료 처리' : '완료 취소'" in view and "actButton('모두 완료 처리', 'all'" in view
+    assert "actButton('모두 완료 취소', 'hand-off'" in view and "var meta = r.lines || [];" in view
+    assert "'작업'" not in view and "'작업 취소'" not in view and "'모두 작업" not in view and "r.holder" not in view
     # 쓰는 중에는 닫기 · Esc · 바깥 누름 모두 막고 10초 넘으면 푼다(셋째 판 2) · 첫 화면 제작 완료 뒤 닫으면 [다시 받기] 길(셋째 판 3)
     assert "if (box.hidden || S.busy) { return; }" in view and "var BUSY_MS = 10000;" in view and "'[data-foms-pc-sheet-act], .fpc-sheet__x'" in view
     assert "res.reload = true;" in write and "root.querySelector('[data-foms-home-reload]')" in write

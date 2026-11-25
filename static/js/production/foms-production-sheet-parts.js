@@ -3,12 +3,12 @@
  *  · beforeToggle: 반장 · 관리자가 카드를 안 쓴 파트의 공정 칸을 **켤 때**(끌 때는 아님), 확정 도면이 1장 이상이면 먼저 묻는다
  *    "재단을 작업 완료로 처리할까요?" · "이 주문의 도면 5장이 모두 재단 완료로 처리돼요." [취소] [작업 완료]. 카드를 쓴 파트는 묻지 않고 보낸다
  *    (서버가 남은 장을 세어 막는다 — 409 PART_USES_CARDS). 확정 도면 0장이면 지금처럼 바로.
- *    '내 공정' [<공정> 끝](foms-production-home-steps.js 판 · foms-production-home.js 줄, 사장님 2026-11-25 "도면이 있는 주문만 한 번
+ *    '내 공정' [<공정> 완료](옛 [<공정> 끝] · foms-production-home-steps.js 판 · foms-production-home.js 줄, 사장님 2026-11-25 "도면이 있는 주문만 한 번
  *    묻기")도 이 함수 하나 — 단추에 서버가 실은 자료(data-foms-sheet-parts, 열쇠 = data-step-key), [취소] · Esc · 바깥이면 no().
  *    창을 연 뒤 OPEN_GUARD_MS 안의 누름은 버린다(두 번 누름의 둘째가 [작업 완료] · 바깥에 떨어지지 않게).
  *    막힌 도면이 있는 주문(서버 자료 fix — 2026-11-25 설계서 §2-4)은 본문만 "이 주문의 도면 5장 중 4장이 재단 완료로 처리돼요. 도면 2는
  *    고치는 중이라 빼요."(뒤 문장 = 서버 글 fix.tail). 응답 expanded(막힌 장을 빼고 처리됨)는 그 칸 옆 글을 서버 글(expanded.note)로,
- *    '내 공정' [끝] 뒤 알림은 doneText(expanded) — "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."
+ *    '내 공정' [<공정> 완료] 뒤 알림은 doneText(expanded) — "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."
  *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "아직 미완료가 있어요 — 재단 1장 · 검수 3장".
  *    카드를 안 쓴 주문은 null(시트 JS 가 지금 글을 그대로 쓴다).
@@ -19,7 +19,9 @@
 
   var LABELS = { cut: '재단', edge: '엣지', assemble: '조립', inspect: '검수' };
   var ORDER = ['cut', 'edge', 'assemble', 'inspect'];
-  var KIND = { take: '맡음', basic: '기본', done: '완료', undo: '완료 취소', release: '맡기 취소', step_on: '작업 완료', step_off: '작업 취소' };
+  // 바뀐 기록 낱말(2026-11-25 multi-holder §8-1 · §8-2 24) — check = PC [완료 처리](시작 + 완료 한 요청), remove = 반장의 남의 시작 취소
+  var KIND = { take: '작업 시작', join: '같이 작업', basic: '기본', done: '완료', check: '완료', undo: '완료 취소', release: '시작 취소',
+    remove: '시작 취소', step_on: '작업 완료', step_off: '작업 취소' };
   function toArr(list) { return [].slice.call(list || []); }
   function safeJsonParse(value, fallback) {
     try { var text = String(value || '').trim(); return text ? JSON.parse(text) : fallback; } catch (e) { return fallback; }
@@ -70,7 +72,7 @@
     if (fix && fix.tail) { return '이 주문의 도면 ' + sheets + '장 중 ' + fix.done + '장이 ' + label + ' 완료로 처리돼요. ' + fix.tail; }
     return '이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.';
   }
-  function doneText(ex) { // 풀어 쓴 [끝] 뒤 알림(판결 B) — 뒤 문장(조사 포함)은 서버 글 ex.tail, 화면은 잇기만
+  function doneText(ex) { // 풀어 쓴 [<공정> 완료] 뒤 알림(판결 B) — 뒤 문장(조사 포함)은 서버 글 ex.tail, 화면은 잇기만
     return '도면 ' + ex.total_n + '장 중 ' + ex.done_n + '장을 ' + ex.part_label + ' 완료로 처리했어요. ' + ex.tail;
   }
   function ask(label, sheets, opener, go, no, fix) {
@@ -90,7 +92,7 @@
   }
   function beforeToggle(page, btn, done, go, no) {
     if (!done) { go(); return; }
-    var key = btn.getAttribute('data-foms-sheet-step') || btn.getAttribute('data-step-key'); // 공정 칸 · '내 공정' [<공정> 끝]
+    var key = btn.getAttribute('data-foms-sheet-step') || btn.getAttribute('data-step-key'); // 공정 칸 · '내 공정' [<공정> 완료]
     btn.disabled = true;
     load(page).then(function (info) {
       btn.disabled = false;
@@ -161,6 +163,9 @@
     if (item.kind === 'takeover') { return (who ? toward(who) + ' ' : '') + '바뀜' + t; }
     if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료 — 작업 완료 처리' + t; } // 카드 동기화(사람 이름 없음)
     if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료 — 작업 취소 처리' + t; }
+    if ((item.kind === 'remove' || item.kind === 'release') && item.target_name && item.target_name !== who) { // "김재단 시작 취소 (박반장)"
+      return item.target_name + ' ' + KIND[item.kind] + (who ? ' (' + who + ')' : '') + t;
+    }
     var holderName = item.holder_name && item.holder_name !== who ? '(' + item.holder_name + ' 대신)' : '';
     return [who, holderName, KIND[item.kind] || item.kind].filter(Boolean).join(' ') + t;
   }

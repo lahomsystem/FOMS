@@ -65,6 +65,7 @@ from foms.services.erp_permissions import (
     is_order_related_to_user,
 )
 from foms.services.production.nav_target import production_nav_href
+from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
 from foms.services.production.write_access import can_ack_production_change, can_write_production
 from foms.services.feature_flags import (
     is_mobile_v2_shell, resolve_shell_variant_cached, wants_coarse_pointer_surfaces,
@@ -100,6 +101,11 @@ def _production_work_user() -> bool:
     """지금 사용자가 생산 쓰기 팀(관리자 · 생산팀)인지(템플릿 전역) — 셸 스크립트 태그의 data-foms-production-work.
     erp-shell.js 가 생산 첫 화면 50초 하트비트를 일터인 사람에게만 돌릴 때 쓴다(:func:`can_write_production` 와 같은 판정, 11-22)."""
     return can_write_production(getattr(g, 'current_user', None))
+
+
+# 첫 화면 큰 글자 '검수 완료'(템플릿 전역 — 날짜 줄 · PC 줄 매크로가 글자 그대로 견준다, 정본 steps.py 한 곳 —
+# 설계서 2026-11-25-production-multi-holder §8-2 40). 파이썬 쪽 견주는 곳도 같은 상수를 쓴다.
+erp_production_page_bp.add_app_template_global(PRODUCTION_FINISHED_STAGE, 'PRODUCTION_FINISHED_STAGE')
 
 
 logger = logging.getLogger(__name__)

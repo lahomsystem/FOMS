@@ -22,6 +22,7 @@ from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import SOON as DEADLINE_SOON
 from foms.services.production.drawing_arrival import deadline_state, drawing_deadline, soon_word
 from foms.services.production.ship_dates import kind_word, row_due
+from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
 
 LATE = 'late'
 TIGHT = 'tight'
@@ -37,7 +38,7 @@ LATE_THRESHOLDS: dict[str, tuple[int, int]] = {
 _STEP_SPOT = {'cut': 'early', 'edge': 'early', 'assemble': 'final', 'inspect': 'final'}
 _WAIT_STAGES = ('도면 기다림', '컨펌 기다림')
 _DONE_STAGE = '제작 완료'
-_FINISHED_STAGE = '검수 끝'
+_FINISHED_STAGE = PRODUCTION_FINISHED_STAGE  # 첫 화면 큰 글자 '검수 완료'(steps.py 한 곳)
 
 
 def _first_undone(row: dict[str, Any]) -> dict[str, Any] | None:

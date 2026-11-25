@@ -72,13 +72,19 @@ def step_done_map(sd: Any) -> dict[str, bool]:
 
 # --- [제작 완료] 막기(사용자 결정 2026-11-21 "검수까지 끝나기 전엔 막는다 — 서버도 막기, 모든 화면 같은 규칙") ---
 # 공정 칸을 하나도 안 켠 주문은 이 규칙 밖이다(11-21 사용자 "공정 칸을 쓴 주문만 막기" — :func:`production_steps_missing`).
-# "검수까지 끝남" = 공정 4칸(재단 · 엣지 · 조립 · 검수)이 모두 켜짐 — 첫 화면 큰 글자 '검수 끝'
-# (``production_home_read_model.production_home_stage``)과 작업 시트 '4/4' 와 같은 뜻이다. 칸이 아예 없는 옛 주문은
+# "검수까지 끝남" = 공정 4칸(재단 · 엣지 · 조립 · 검수)이 모두 켜짐 — 첫 화면 큰 글자 '검수 완료'(:data:`PRODUCTION_FINISHED_STAGE`,
+# ``production_home_read_model.production_home_stage``)과 작업 시트 '4/4' 와 같은 뜻이다. 칸이 아예 없는 옛 주문은
 # 4칸 모두 꺼짐으로 읽는다(:func:`normalize_production_steps`). 옛 주문에 남은 도장(paint)은 보지 않는다(D15).
 # 제작 완료 API · 일반 단계 쓰기(생산 → 시공) · 작업 시트 단추 · 공정 체크 응답이 모두
 # :func:`foms.services.production.part_progress.complete_ready` 하나로 판정하고, 카드를 안 쓴 주문은 그 함수가 이 모듈의
 # 칸 규칙(:func:`production_steps_missing` · :func:`production_complete_block_body`)을 그대로 쓴다(복사 금지 —
 # ``tests/domains/test_production_complete_requires_inspect.py`` 가 위치를 고정, 2026-11-23 §4-3).
+
+#: 첫 화면 큰 글자 — 공정 4칸이 모두 켜진 제작 중 주문(사장님 2026-11-25 "모두 '완료'로 맞추기" — 옛 '검수 끝', 설계서
+#: 2026-11-25-production-multi-holder §8-2 40). 만드는 곳(``production_home_read_model.production_home_stage``)과 글자 그대로
+#: 견주는 곳(같은 파일 공정 줄 셈 · ``production_home_days`` 막대 색 · ``late_rule`` 늦음 자리 · 날짜 줄 · PC 줄 매크로 — 템플릿 전역
+#: ``PRODUCTION_FINISHED_STAGE``)이 모두 이 상수 하나를 쓴다(하나라도 빠지면 제작 완료 색 · 늦음 판정이 조용히 틀린다).
+PRODUCTION_FINISHED_STAGE = "검수 완료"
 
 #: 막힘 코드 — 관리자 강제 진행 게이트 코드(``admin_override.GATE_STEPS_INCOMPLETE``) · 화면 재시도 목록과 같은 글자.
 STEPS_INCOMPLETE_CODE = "STEPS_INCOMPLETE"

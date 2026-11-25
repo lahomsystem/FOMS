@@ -74,9 +74,9 @@ def test_앞_공정_다음_공정_글() -> None:
     assert cut["prev"] == "제작 시작 · 11/21 08:40" and cut["next_step"] == "엣지" and cut["label"] == "재단"
     assert production_home_step_panel(_row(1), "cut", None)["prev"] == "제작 시작"  # 시각이 없으면 글만
     edge = production_home_step_panel(_row(2, key_done=("cut",)), "edge", None)
-    assert edge["prev"] == "재단 끝 · 김재단 · 11/21 09:12" and edge["next_step"] == "조립"
-    blank = production_home_step_panel(_row(3), "assemble", None)  # 앞 공정 이름 · 시각이 비면 '엣지 끝' 만
-    assert blank["prev"] == "엣지 끝" and blank["next_step"] == "검수"
+    assert edge["prev"] == "재단 완료 · 김재단 · 11/21 09:12" and edge["next_step"] == "조립"  # 옛 '재단 끝'(K4)
+    blank = production_home_step_panel(_row(3), "assemble", None)  # 앞 공정 이름 · 시각이 비면 '엣지 완료' 만
+    assert blank["prev"] == "엣지 완료" and blank["next_step"] == "검수"
     inspect = production_home_step_panel(_row(4), "inspect", None)
     assert inspect["next_step"] == STEP_PANEL_LAST_NEXT == "제작 완료"
     # 회차 시작 시각은 UTC — 글자 시각(iso)도 같은 답
@@ -291,7 +291,7 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     # 도면 있는 주문이라 [끝]에 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기" — test_production_my_steps_confirm.py)
     confirm = '{"parts": {"cut": {"uses_cards": false}}, "sheets": 3}'.replace('"', "&#34;")
     assert (f'data-foms-step-finish data-order-id="{a.id}" data-step-key="cut" data-step-label="재단" data-next-order="{b.id}"'
-            f' data-foms-sheet-parts="{confirm}">' in pane) and ">재단 끝</button>" in pane
+            f' data-foms-sheet-parts="{confirm}">' in pane) and ">재단 완료</button>" in pane  # 옛 [재단 끝](지휘 판결)
     assert f'data-foms-prod-sheet-page data-order-id="{a.id}"' in pane
     assert [m for m in re.findall(r'data-foms-sheet-defect-reason="([^"]+)"', pane)] == list(_PRODUCTION_DEFECT_REASONS)
     assert "끝내면 다음은 <b>김하늘</b>" in pane
@@ -364,7 +364,7 @@ def test_확인_창은_없고_실을_것(client, cohort) -> None:
     assert f'data-foms-step-base="{HOME}?tab=steps"' in html and "data-foms-home-status" in html
     # 확인 창 꼴이 쓰던 parts.css 는 이제 도면 카드 판에만. 새 JS 는 머리(일찍), 시트 JS 는 문서당 한 번
     assert "css/contexts/production/parts.css" not in html
-    assert html.index(STEPS_JS + "?v=20261125b") < html.index("</head>")
+    assert html.index(STEPS_JS + "?v=20261125m3") < html.index("</head>")
     assert 'js/production/foms-production-sheet-page.js?v=20261124i" defer data-foms-run-once="prod-sheet-page"' in html
     assert "js/foms/tablet-domain-sheets.js?v=" in html and "js/foms/foms-reason-sheet.js?v=" in html
     assert html.count("data-foms-reason-sheet") == 1 and "css/components/foms-reason-sheet.css?v=" in html

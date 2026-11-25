@@ -6,7 +6,7 @@
 * '내 공정' 폰 줄 확인 창 본문 "이 주문의 도면 3장 중 2장이 재단 완료로 처리돼요. 도면 2는 고치는 중이라 빼요."
 * 풀어 쓴 [끝] 뒤: 폰 · PC 줄은 알림 "도면 3장 중 2장을 …" + 줄은 그 자리에서 "도면 2 고치는 중"(다시 받기 0), 가로 판은 [되돌리기] 없이
   알림 글만 — 둘 다 [되돌리기]와 같은 8초 시계로 지운다.
-* PC 공정 칸 창 [모두 작업] 확인 창이 서버 ``fix`` 로 새 본문(막힌 도면 없는 주문은 지금 글).
+* PC 공정 칸 창 [모두 완료 처리] 확인 창이 서버 ``fix`` 로 새 본문(막힌 도면 없는 주문은 지금 글).
 
 되돌리면 실패: 확인 창이 지금 글 · 알림이 "끝냈어요" · 되돌리기가 남음 · 알림이 안 지워짐 · PC 창이 fix 를 버림. 이름은 지어낸 값.
 """
@@ -147,7 +147,7 @@ def test_node_row_finish_after_expand_shows_the_done_words_keeps_the_row_and_no_
 
 
 def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(client, cohort, tmp_path):
-    """판결 B — 가로 판 [끝]: 8초 [되돌리기] 없음 · 상태 줄 "{이름} {공정} 끝" 대신 알림 글."""
+    """판결 B — 가로 판 [<공정> 완료]: 8초 [되돌리기] 없음 · 상태 줄 "{이름} {공정} 완료" 대신 알림 글."""
     ready = add_order("가짜고침집", 1, pngs=3).id
     nxt = add_order("가짜다음집", 2, pngs=0).id
     _fixing(ready, 1)
@@ -176,7 +176,7 @@ def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(clien
 
 
 def test_node_pc_window_all_button_asks_with_the_new_body(client, cohort, tmp_path):
-    """판결 C — PC 공정 칸 창 [모두 작업]: 서버 자료 fix 가 확인 창까지 간다(막힌 도면 없는 주문은 지금 글). PC 로 연 작업 시트에서."""
+    """판결 C — PC 공정 칸 창 [모두 완료 처리]: 서버 자료 fix 가 확인 창까지 간다(막힌 도면 없는 주문은 지금 글). PC 로 연 작업 시트에서."""
     ready, plain = add_order("가짜고침집", 1, pngs=3).id, add_order("가짜도면집", 2, pngs=3).id
     _fixing(ready, 1)
     login(client, make_user("가짜관리", team="CS", role="ADMIN"))

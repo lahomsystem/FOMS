@@ -400,7 +400,7 @@ def test_공정_칸_누가_언제는_PC_에만(client, cohort) -> None:
     pane = get_html(client, HOME + f"?view=day&day={key}")
     row = pane.split(f'data-foms-home-dayrow="{orders["edge"].id}"', 1)[1].split('<div class="fpc-r', 1)[0]
     # 시드: 재단 김재단 2026-11-21T00:12Z = KST 11/21 09:12, 회차 시작 2026-11-20 23:40Z = KST 11/21 08:40
-    assert 'data-tip="재단 끝 · 김재단 · 11/21 09:12" tabindex="0" aria-label="재단 끝 · 김재단 · 11/21 09:12"' in row
+    assert 'data-tip="재단 완료 · 김재단 · 11/21 09:12" tabindex="0" aria-label="재단 완료 · 김재단 · 11/21 09:12"' in row
     # 칸 둘째 줄(has-hd, 늘 보임) = 날짜 줄 칸 아래 값 · 완료 칸 날짜는 아주 넓은 화면만(예전 "김재단 11/21", pc.css .fpc-s__at)
     assert '<span class="fpc-steps has-hd" aria-label="공정">' in row
     assert '<span class="fpc-s__m"><b>김재단</b><small class="fpc-s__at">11/21</small></span>' in row

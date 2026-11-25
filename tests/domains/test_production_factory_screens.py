@@ -225,7 +225,7 @@ def test_pc_rows_are_combined_and_pc_sheet_marks_each_row(client, cohort):
             f'<span class="fph-fac">{F2} 1장</span></span>') in html
     data = client.get(f"/api/production/part-sheet?order_id={seed.id}&part=cut").get_json()["data"]
     assert [(r["factory_label"], r["act"]) for r in data["rows"]] == [("1공장", "check"), ("1공장", "check"), ("2공장", None)]
-    assert data["rows"][2]["other_factory"] is True and data["rows"][2]["holder"] == "담당 미정"  # 자세히 보임
+    assert data["rows"][2]["other_factory"] is True and data["rows"][2]["lines"] == ["담당 미정"]  # 자세히 보임(줄 글 — 2026-11-25 multi-holder K6)
     admin = factory_user("정관리", role="ADMIN", team="CS")
     login(client, admin)
     data = client.get(f"/api/production/part-sheet?order_id={seed.id}&part=cut").get_json()["data"]

@@ -164,7 +164,7 @@ def test_지금_단계_글자_규칙() -> None:
     all_done = production_home_steps(
         {"production": {"steps": [{"key": k, "done": True} for k, _ in PRODUCTION_HOME_STEP_DEFS]}}, mark_now=True
     )
-    assert production_home_stage("PRODUCTION", True, all_done, False) == ("검수 끝", "생산", "prod")
+    assert production_home_stage("PRODUCTION", True, all_done, False) == ("검수 완료", "생산", "prod")  # 옛 '검수 끝'(K4)
     assert production_home_stage("도면", False, steps, False) == ("도면 기다림", "도면팀", "wait")
     assert production_home_stage("CONSTRUCTION", False, steps, False) == ("제작 완료", "시공 대기", "done")
     # 공정 칸이 아직 없는 주문도 4칸 모두 미완으로 그린다. 옛 주문의 도장(paint) 항목은 걸러진다(D15)

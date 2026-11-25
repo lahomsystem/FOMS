@@ -1,15 +1,16 @@
 /* 생산 PC 도면 목록 창의 쓰기 — [고치기] 켬일 때만 실린다(home_scripts.html). 창 · 그리기 · 두 번 누름 막기 · 다시 받기는
- * foms-production-pc-sheet.js, 여기는 **있는 쓰기 길만** 부른다(새 쓰기 API 없음 — 사장님 2026-11-24 "PC 에서도 도면별로 체크").
- *  · [작업](미완료 장 → 완료): 담당이 있는 장(작업 필요) = POST /api/production/part-marks {action:'done', seen:'need', seen_by}
- *    (남의 장은 서버가 대신 처리로 적는다 — 감사 꼬리 "(관리자 덮어쓰기)" · "(대신 처리)", 이벤트 holder_name, 지금 규칙 그대로).
- *    안 본 · 안 고른 장 = 같은 길로 맡기(take) → 완료(done) 두 번. 완료가 막히면 방금 맡은 것을 맡기 취소(release)로 되돌리고 그 결과까지
- *    기다린다 — 맡기 취소도 막히면 그 글(뒤 것)을 돌려주고 줄은 서버 모습("작업 필요 · 담당 나") 그대로. 첫 표시로 시작된 제작은 그대로 둔다.
- *  · [작업 취소](완료 · 기본 장) = 같은 길 {action:'undo'} — 도면 판 [되돌리기]와 같다. 서버가 줄에 ``undo_releases``(내가 맡고 2분 안에
- *    완료한 장 = PC [작업]의 맡기 → 완료 흔적, 서버 UTC 로 판정)를 주고 되돌린 뒤 담당이 나일 때만 맡기 취소(release)까지 이어서
- *    "안 봄 · 담당 미정"으로. 그 밖(태블릿에서 진짜 맡았다가 한참 뒤 완료 · 남의 장을 대신 완료)은 완료 취소만. 둘째 요청이 막히면 창이
- *    서버 모습으로 다시 그리고 서버 글을 그 줄에(셋째 판).
- *  · [모두 작업](아무도 안 맡은 파트) = 작업 시트와 같은 반장 손 체크 확인 창(foms-production-sheet-parts.js beforeToggle — 글 · 단추 그대로)
- *    → POST /api/orders/<id>/production/steps {key, done:true}. 손으로 통째 체크한 파트의 [모두 작업 취소] = 같은 길 {done:false}.
+ * foms-production-pc-sheet.js, 여기는 **있는 쓰기 길만** 부른다(새 주소 없음 — 사장님 2026-11-24 "PC 에서도 도면별로 체크").
+ *  · [완료 처리](미완료 장 → 완료, 옛 [작업]) = POST /api/production/part-marks {action:'check', seen} **한 요청**(2026-11-25 multi-holder
+ *    판결 2). 서버가 한 tx 안에서 정한다 — 빈 장 = 누른 감독이 시작 + 완료, 남이 작업 중인 장(그사이 남이 시작한 장 포함) = 남은 사람 몫을
+ *    한 번에 대신 완료(감독은 같이 작업하는 사람으로 안 들어감 — 감사 꼬리 "(관리자 덮어쓰기)" · "(대신 처리)"), 이미 완료 = 바뀜 없음.
+ *    옛 두 요청 길(맡기 → 완료 → 막히면 맡기 취소)은 없다 — 첫 요청이 늦은 [작업 시작] 넘김(Q16)으로 감독을 같이 작업자로 넣어 버린다.
+ *  · [완료 취소](완료 · 기본 장, 옛 [작업 취소]) = 같은 길 {action:'undo'} — 도면 판 [되돌리기]와 같다. 서버가 줄에 ``undo_releases``(작업하는
+ *    사람이 나 하나이고 시작 → 완료가 2분 안 = PC [완료 처리]가 빈 장을 시작 + 완료한 흔적, 서버 UTC 로 판정)를 주고 되돌린 뒤에도 작업하는
+ *    사람이 나 하나일 때만 시작 취소(release)까지 이어서 "안 봄 · 담당 미정"으로. 그 밖(태블릿에서 진짜 시작했다가 한참 뒤 완료 · 같이 작업한
+ *    장 · 남의 장을 대신 완료)은 완료 취소만. 둘째 요청이 막히면 창이 서버 모습으로 다시 그리고 서버 글을 그 줄에(셋째 판).
+ *  · [모두 완료 처리](아무도 안 시작한 파트, 옛 [모두 작업]) = 작업 시트와 같은 반장 손 체크 확인 창(foms-production-sheet-parts.js
+ *    beforeToggle — 글 "재단을 작업 완료로 처리할까요?" · [작업 완료] 그대로) → POST /api/orders/<id>/production/steps {key, done:true}.
+ *    손으로 통째 체크한 파트의 [모두 완료 취소] = 같은 길 {done:false}.
  *  · 마지막 검수 장을 완료해 서버가 order_ready 를 주면 창 안에 "제작 완료할까요?"(태블릿 창과 같은 글 · [나중에][제작 완료] · 실행 단추
  *    0.8초 잠금 · 초점 [나중에]) → [제작 완료] = 지금 제작 완료 API(POST /api/orders/<id>/production/complete) 그대로, 거절은 서버 글.
  *  · PC 로 연 작업 시트에서 쓰고 창을 닫으면 그 시트를 다시 받아 공정 칸 · n/4 · [제작 완료] 단추 상태를 서버 값으로 바꾼다(단계가
@@ -47,35 +48,29 @@
 
   function mark(d, key, action, seen, seenBy) {
     var body = { order_id: Number(d.order_id), drawing_key: key, part: d.part, action: action, seen: seen };
-    if (seen === 'need') { body.seen_by = seenBy == null ? null : Number(seenBy); } // 본 담당까지 견준다(§4-5)
+    if (seenBy !== undefined) { body.seen_by = seenBy == null ? null : Number(seenBy); } // 본 담당까지 견준다(시작 취소만, §4-5)
     return post('/api/production/part-marks', body);
   }
-
-  // [작업] — 미완료 장을 완료로
-  function check(d, r) {
-    if (r.seen === 'need') { return mark(d, r.key, 'done', 'need', r.seen_by); }
-    return mark(d, r.key, 'take', 'none').then(function (took) {
-      if (!took.ok) { return took; }
-      var me = (took.data.mark || {}).picked_by_user_id;
-      return mark(d, r.key, 'done', 'need', me).then(function (fin) {
-        if (fin.ok) { return fin; }
-        return mark(d, r.key, 'release', 'need', me).then(function (rel) { return rel.ok ? fin : rel; }); // 맡기만 남지 않게 되돌린다
-      });
-    });
+  function onlyMe(m, me) { // 작업하는 사람이 나 하나이고 내 몫이 아직(되돌린 뒤)
+    var h = (m && m.holders) || [];
+    return h.length === 1 && h[0].user_id != null && h[0].user_id === me && !h[0].done;
   }
-  // [작업 취소] — 완료 · 기본 장의 완료 취소, 서버가 undo_releases 를 준 장이고 되돌린 뒤 담당이 나면 맡기 취소까지
+
+  // [완료 처리] — 미완료 장을 완료로: action check 한 요청(빈 장 = 시작 + 완료, 남이 작업 중 = 남은 사람 몫 대신 완료 — 서버가 정한다)
+  function check(d, r) { return mark(d, r.key, 'check', r.seen); }
+  // [완료 취소] — 완료 · 기본 장의 완료 취소, 서버가 undo_releases 를 준 장이고 되돌린 뒤 작업하는 사람이 나 하나면 시작 취소까지
   function uncheck(d, r) {
     return mark(d, r.key, 'undo', r.seen).then(function (undone) {
       var m = undone.ok ? (undone.data.mark || {}) : {};
-      if (!r.undo_releases || m.state !== 'need' || m.picked_by_user_id == null || m.picked_by_user_id !== d.me) { return undone; }
+      if (!r.undo_releases || m.state !== 'need' || !onlyMe(m, d.me)) { return undone; }
       return mark(d, r.key, 'release', 'need', d.me);
     });
   }
-  // 공정 칸 통째(손 체크) — 켜기([모두 작업]) · 끄기([모두 작업 취소])
+  // 공정 칸 통째(손 체크) — 켜기([모두 완료 처리]) · 끄기([모두 완료 취소])
   function stepSet(d, on) {
     return post('/api/orders/' + encodeURIComponent(d.order_id) + '/production/steps', { key: d.part, done: !!on });
   }
-  // [모두 작업] 확인 창 — 작업 시트와 같은 창 · 같은 글(없으면 바로)
+  // [모두 완료 처리] 확인 창 — 작업 시트와 같은 창 · 같은 글(없으면 바로)
   function askAll(page, btn, go) {
     var sp = window.FomsSheetParts;
     if (sp && typeof sp.beforeToggle === 'function') { sp.beforeToggle(page, btn, true, go); return; }

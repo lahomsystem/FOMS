@@ -54,14 +54,14 @@ def _run_start_text(value: Any) -> str:
 
 
 def _prev_line(sd: dict[str, Any], key: str, run_started_at: Any) -> str:
-    """앞 공정 한 줄 — '재단 끝 · 김재단 · 11/21 09:12'(재단 탭은 '제작 시작 · 11/21 08:40'). 빈 칸은 뺀다."""
+    """앞 공정 한 줄 — '재단 완료 · 김재단 · 11/21 09:12'(재단 탭은 '제작 시작 · 11/21 08:40'). 빈 칸은 뺀다."""
     idx = _KEYS.index(key)
     if idx == 0:
         parts = [STEP_PANEL_RUN_START, _run_start_text(run_started_at)]
     else:
         prev_key = _KEYS[idx - 1]
         src = _raw_steps(sd).get(prev_key) or {}
-        parts = [f"{_LABELS[prev_key]} 끝", str(src.get('by_name') or '').strip(), _format_at_kst(src.get('at'))]
+        parts = [f"{_LABELS[prev_key]} 완료", str(src.get('by_name') or '').strip(), _format_at_kst(src.get('at'))]
     return ' · '.join(p for p in parts if p)
 
 
