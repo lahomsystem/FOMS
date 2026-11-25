@@ -81,7 +81,15 @@
     q('[data-pp-rq-send]').disabled = busy || state.uploading > 0;
   }
 
-  // ── 열기 · 닫기 ──
+  // ── 열기 · 닫기(확인 창과 같은 꼴 — 열린 동안 판은 inert) ──
+  function setInert(on) {
+    if (on) {
+      state.inert = toArr(modal.parentNode.children).filter(function (n) { return n !== modal && !n.inert; });
+      state.inert.forEach(function (n) { n.inert = true; });
+    } else if (state && state.inert) {
+      state.inert.forEach(function (n) { n.inert = false; });
+    }
+  }
   function open(btn) {
     var card = btn.closest('[data-pp-card]');
     if (!card) { return; }
@@ -97,14 +105,18 @@
     renderPicks();
     renderThumbs();
     setBusy(false);
+    setInert(true);
     modal.hidden = false;
+    modal.classList.add('is-open');
     var first = q('[data-pp-rq-picks] button');
     if (first) { first.focus(); }
   }
   function close() {
     if (!state || state.busy) { return; }
     var opener = state.opener;
+    setInert(false);
     state = null;
+    modal.classList.remove('is-open');
     modal.hidden = true;
     if (opener && document.contains(opener) && !opener.hidden) { opener.focus(); }
   }
