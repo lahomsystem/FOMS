@@ -9,8 +9,8 @@
 이 모듈은 순수 함수(쿼리 0)다 — 라우트(``foms/api/production/drawing_request.py`` · ``foms/api/drawing/erp_orders_drawing_fix.py``)가
 잠근 주문의 사본(deepcopy)에 부르고 재대입 · ``flag_modified`` 한다.
 
-* 누가(§4-1 ``can_request_drawing_fix``): 관리자 · 반장은 모든 도면, 파트 계정은 자기 공장 도면만(``factory_gate`` 와 같은 판정 —
-  ``part_access.can_write_sheet``), 단계가 생산일 때만. [반영 완료] · [요청 반려]는 ``can_fix_production_drawing``(부르는 쪽).
+* 누가(§4-1 ``can_request_drawing_fix``): 관리자는 모든 도면, 반장 · 파트 계정은 자기 공장 도면만(사장님 2026-11-25 답 — ``factory_gate``
+  와 같은 판정 ``part_access.can_write_sheet``), 단계가 생산일 때만. [반영 완료] · [요청 반려]는 ``can_fix_production_drawing``(부르는 쪽).
 * 막힘: 열린 요청의 남은 대상(``drawing_fix.request_left``)이 그 도면을 막는다 — 보낸 순간부터(사장님 "요청하면 바로 막기").
   [반영 완료]는 ``checked`` 만 참(막힘 그대로 — 수정본이 가야 ``done``), [요청 반려]는 ``rejected``(막힘 풀림).
 * 단계가 생산 밖으로 나가면(:func:`close_on_stage_exit`) 열린 요청을 ``done`` + ``via: stage_exit`` 로 닫는다 — 수정본도 반려도 아니라서
@@ -37,6 +37,7 @@ from foms.services.orders.drawing_fix import (
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_SUB, can_write_sheet, part_view_mode
+from foms.services.production.factory_scope import other_factory_message
 from foms.services.production.part_card_state import BLOCK_REVISE, order_block
 
 #: 이벤트(``OrderEvent.event_type``) — 반려는 생산 '바뀐 것' 한 줄(``production_change_alerts``)이 읽는다.
@@ -98,11 +99,22 @@ def can_request_people(user: Any) -> bool:
 
 
 def can_request_entry(user: Any, sd: Any, entry: dict[str, Any]) -> bool:
-    """그 도면에 요청할 수 있는지 — 관리자 · 반장은 모든 도면, 파트 계정은 자기 공장 도면만(``factory_gate`` 와 같은 판정)."""
+    """그 도면에 요청할 수 있는지 — 관리자는 모든 도면, 반장 · 파트 계정은 자기 공장 도면만(사장님 2026-11-25 답 "자기 공장 도면만" —
+    카드 쓰기 ``factory_gate`` 와 같은 ``can_write_sheet``). 창 고르기 · 판 단추 · 사진 길 주문 문 · 서버 판정이 모두 이 함수다."""
     mode = part_view_mode(user)
-    if mode in (VIEW_ADMIN, VIEW_SUB):
+    if mode == VIEW_ADMIN:
         return True
-    return mode == VIEW_PART and can_write_sheet(user, sheet_factory(sd, entry))
+    return mode in (VIEW_SUB, VIEW_PART) and can_write_sheet(user, sheet_factory(sd, entry))
+
+
+def forbidden_message(user: Any, sd: Any, entries: Iterable[dict[str, Any]]) -> str:
+    """403 글 — 고른 도면 중 남의 공장 도면이 있으면 카드 쓰기가 남의 공장에서 쓰는 지금 글("2공장에서 작업하는 도면이에요. 위
+    [다시 받기]를 눌러 주세요."), 없으면 ``REQUEST_FORBIDDEN`` 지금 글."""
+    if can_request_people(user):
+        for entry in entries:
+            if not can_request_entry(user, sd, entry):
+                return other_factory_message(sheet_factory(sd, entry))
+    return MESSAGES[REQUEST_FORBIDDEN]
 
 
 def can_request_drawing_fix(user: Any, order: Any, entries: Iterable[dict[str, Any]]) -> bool:
@@ -338,6 +350,6 @@ __all__ = [
     "REJECT_EVENT", "REJECT_NOTE_REQUIRED", "REQUEST_CLOSED", "REQUEST_EVENT", "REQUEST_FORBIDDEN",
     "REQUEST_BLOCKED", "REQUEST_NOTE_REQUIRED", "REQUEST_NOT_FOUND", "REQUEST_PHOTOS", "REQUEST_PICK", "RequestRefusal",
     "STATE_DONE", "STATE_REJECTED", "VIA_STAGE_EXIT", "add_request", "board_request_options", "can_request_drawing_fix", "can_request_entry",
-    "can_request_people", "check_request", "clean_note", "close_on_stage_exit", "entry_block", "find_request", "has_requestable_drawing", "left_numbers", "numbers_label", "open_requests", "order_label", "photo_rows", "reject_body", "reject_detail", "reject_message",
+    "can_request_people", "check_request", "clean_note", "close_on_stage_exit", "entry_block", "find_request", "forbidden_message", "has_requestable_drawing", "left_numbers", "numbers_label", "open_requests", "order_label", "photo_rows", "reject_body", "reject_detail", "reject_message",
     "reject_request", "request_id", "request_message", "requestable_entries",
 ]

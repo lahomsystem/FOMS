@@ -3,6 +3,7 @@
     본문 매크로 dw_target_chips · render_gateway_file_gallery 그대로) — 영업 요청 줄 · 글은 손대지 않는다.
     한 줄 = "수정 요청 · 공장" · 시각 · 요청한 사람 · 대상 도면 칩 · "사유: …" · 사진 · [반영 완료](↔ [완료 해제]) · [요청 반려].
     상태 표: 반영 완료(초록 — 지금 글) · 미완료(주황 — 지금 글, 회색 아님). 반려된 요청은 기록 줄 "반려 · 이름 · M/D HH:MM · 사유: …".
+    단계가 생산 밖으로 나가 닫힌 요청(반영 완료 안 누름)은 기록 줄 "주문 단계 변경으로 수정불가 · M/D HH:MM"(보통 글 색 — 표 · 단추 없음).
     단추는 서버 술어(can_fix_production_drawing — 도면팀 누구나 + 관리자, 생산 · 시공 단계)가 참이고 요청이 열려 있을 때만.
     누르면 workbench-factory-request.js([요청 반려]는 사유 창 — 본문 data-confirm 은 서버가 만든 글). -#}
 {%- if not drawing_hotfix_stage %}
@@ -28,6 +29,9 @@
     {%- endif %}
     {%- if r.reject_line %}
     <div class="small mt-1 dfr-reject">{{ r.reject_line }}</div>
+    {%- endif %}
+    {%- if r.closed_line %}
+    <div class="small mt-1 dfr-closed">{{ r.closed_line }}</div>
     {%- endif %}
     {%- if r.can_act %}
     <div class="mt-2 d-flex flex-wrap gap-2">

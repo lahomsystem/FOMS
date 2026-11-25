@@ -39,6 +39,8 @@ from tests.support.production_steps_seed import mark_order_inspected
 URL = "/api/orders/{oid}/production/drawing-request"
 PHOTO = "/api/orders/{oid}/production/drawing-request/photo"
 FORBIDDEN = "도면 수정 요청은 반장이나 그 도면 파트 담당만 할 수 있어요."
+OTHER1 = "1공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
+OTHER2 = "2공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
 
 
 class FakeStorage:
@@ -110,10 +112,15 @@ def test_lead_admin_and_own_factory_part_can_request(client, sent, who, name, js
     assert [r["id"] for r in _requests(seed.id)] == [req["id"]]
 
 
-def test_lead_reaches_the_other_factory_drawing_as_the_spec_table_says(client, sent, who):
-    """설계서 §4-1 표: 반장 = 됨(공장 조건 없음), 파트 계정만 자기 공장 도면. 판의 단추는 그 공장 카드에만 그려진다."""
+@pytest.mark.parametrize("name", ["lead", "part"])
+def test_lead_and_part_cannot_request_another_factory_drawing(client, sent, who, name):
+    """사장님 2026-11-25 답 "자기 공장 도면만" — 반장도 파트 계정처럼 자기 공장 도면만(카드 쓰기 공장 문과 같은 판정 · 같은 글)."""
     seed = mixed_order(4, f2=(2, 3))
-    login(client, who.lead)
+    login(client, getattr(who, name))
+    res = _post(client, seed.id, [3], seed=seed)                          # 도면 4 = 2공장(두 사람 모두 1공장)
+    assert res.status_code == 403 and code(res) == "REQUEST_FORBIDDEN"
+    assert res.get_json()["error"] == OTHER2 and _requests(seed.id) == []
+    login(client, who.admin)                                               # 대조군: 관리자는 모든 도면
     assert _post(client, seed.id, [3], seed=seed).status_code == 200
 
 
@@ -123,7 +130,8 @@ def test_other_factory_part_sales_drawing_readonly_and_viewer_are_refused(client
     before = fresh(seed.id).mutation_version
     login(client, getattr(who, name))
     res = _post(client, seed.id, [0], seed=seed)          # 도면 1 = 1공장(2공장 파트 계정에겐 남의 공장)
-    assert res.status_code == 403 and code(res) == "REQUEST_FORBIDDEN" and res.get_json()["error"] == FORBIDDEN
+    want = OTHER1 if name == "part2" else FORBIDDEN       # 남의 공장 도면 = 카드 쓰기 공장 문의 지금 글
+    assert res.status_code == 403 and code(res) == "REQUEST_FORBIDDEN" and res.get_json()["error"] == want
     assert _requests(seed.id) == [] and fresh(seed.id).mutation_version == before and not sent.push
 
 
@@ -388,6 +396,16 @@ def test_board_button_only_on_own_factory_unblocked_cards_and_dialog_only_for_re
     assert _card_opts(readonly, seed.id) == {1: None, 2: None} and 'id="foms-part-request-modal"' not in readonly
 
 
+def test_lead_dialog_lists_own_factory_only_and_admin_lists_all(client, sent, who, cohort):
+    """창 고르기 = 판 단추와 같은 함수 — 반장은 자기 공장 장만(사장님 답), 관리자는 두 공장 모두."""
+    seed = mixed_order(4, f2=(2, 3))
+    sids = [f["sheet_id"] for f in fresh(seed.id).structured_data["drawing_current_files"]]
+    lead = _card_opts(_board(client, who.lead, "/erp/production/home?tab=parts&day=none"), seed.id)
+    assert lead == {1: [{"no": 1, "sheet_id": sids[0]}, {"no": 2, "sheet_id": sids[1]}]} | {2: lead[1]}
+    admin = _card_opts(_board(client, who.admin, "/erp/production/home?tab=parts&day=none"), seed.id)
+    assert admin[1] == [{"no": n + 1, "sheet_id": sids[n]} for n in range(4)]
+
+
 def test_order_whose_drawings_are_all_blocked_shows_no_button(client, sent, who, cohort):
     """대조군: 고를 도면이 0장인 주문(도면 모두 막힘)은 어느 카드에도 단추가 없다."""
     seed = mixed_order(2, f2=())
@@ -420,6 +438,14 @@ def test_photo_route_refuses_an_order_with_no_drawing_of_mine_but_not_for_blocks
     assert _post(client, mine.id, [0, 1], seed=mine).status_code == 200      # 내 공장 도면이 모두 막혀도
     login(client, who.part)
     assert _upload(client, mine.id).status_code == 200                      # 사진 길은 막힘을 보지 않는다(사람 · 공장만)
+
+
+def test_lead_photo_on_an_order_of_another_factory_only_is_refused(client, sent, who):
+    other = mixed_order(2, f2=(0, 1))                                      # 모두 2공장 — 1공장 반장 몫 0장
+    login(client, who.lead)
+    assert code(_upload(client, other.id)) == "REQUEST_FORBIDDEN" and not sent.storage.saved
+    login(client, who.admin)                                               # 대조군: 관리자는 된다
+    assert _upload(client, other.id).status_code == 200
 
 
 def test_photo_route_takes_only_image_files(client, sent, who):
