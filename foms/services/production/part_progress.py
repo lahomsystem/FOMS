@@ -189,7 +189,7 @@ def complete_block_body(sd: Any, marks: Iterable[Any]) -> Optional[dict[str, Any
 
     카드를 안 쓴 주문은 지금 글 · 꼴 그대로(:func:`~foms.services.production.steps.production_complete_block_body` 를
     부른다 — "검수까지 끝나야 … (남은 공정: …)"). 카드를 쓴 주문은 같은 꼴 ``{success, code, message, missing_steps}`` 에
-    ``left`` 를 더하고 글은 "아직 미완료가 있어요 — 재단 1장 · 검수 3장", 확정 도면이 0장이면 "도면이 없어요 — …".
+    ``left`` 를 더하고 글은 "미완료가 있어요 — 재단 1장 · 검수 3장", 확정 도면이 0장이면 "도면이 없어요 — …".
 
     Args:
         sd: 주문 ``structured_data``(읽기만).

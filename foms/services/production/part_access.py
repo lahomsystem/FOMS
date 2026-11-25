@@ -175,7 +175,7 @@ def steps_lock(user: Any) -> Optional[StepsLock]:
         user: 사용자 객체(None 허용).
 
     Returns:
-        관리자 · 반장 = None(잠그지 않음). 파트 계정 = ``PART_ACCOUNT_USE_CARDS``("공정은 도면 카드에서 작업해요"). 파트도 반장도 아닌
+        관리자 · 반장 = None(잠그지 않음). 파트 계정 = ``PART_ACCOUNT_USE_CARDS``("공정은 도면에서 작업해요"). 파트도 반장도 아닌
         생산 쓰기 사람 = ``LEAD_REQUIRED``. 생산 쓰기 사람이 아니면 None — 그 사람은 생산 쓰기 문(``can_write_production``)이 막는다
         (지금 그대로).
     """
