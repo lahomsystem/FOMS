@@ -1117,3 +1117,25 @@
 - 설계서와 다르게 한 것(일꾼 말): ① [반영 완료] = `state: done` 으로 합침 → **[반영 완료] 뒤 보내기 전까지 그 도면이 안 막히는 틈** ② 마법사 저장 창은 실제로 `transfer-drawing`(+`pending_sheet_ids`)을 씀, `transfer-pending` 은 작업실 일괄 · 태블릿 갤러리 — 둘 다 `perform_drawing_transfer` 하나 ③ 술어를 `drawing_fix_transfer.py` 에(순환 import) ④ 모든 장을 고치면 손 칸을 직접 끔 · 생산 단계에서만 ⑤ R1 이 보낼 것(`sheet` · `pick` · `mode` …)을 받아 `plan` 을 돌려줌 ⑥ '바뀐 것' 읽기 함수 틀은 D3 로 ⑦ 전달 창 빨간 안내가 5초 뒤 저절로 닫히던 것 고침(`data-foms-no-autodismiss`).
 - 남은 틈(일꾼 말): ERP 대시보드 전달 창(`erp-dashboard-drawing.js`)과 태블릿 갤러리(`transfer-pending`, 메모 빈 글)는 생산 · 시공 단계에서 400/409 서버 글만 보이고 고르기 · 확인 화면 없음 / 작업실 목록 줄 `workbench.py:853` 은 옛 술어(D3) / 공장 제작 완료면 네 파트 모두 완료로 봄 / `changed` 번호(고침 · 새 도면 = 새 번호, 빠짐 = 옛 번호) / 풀어 쓴 줄 `done_by_user_id` 빔.
 - 시안과 다른 곳: 태블릿 '바뀐 것'은 지금 줄 꼴 한 줄 · §10 에 없는 글 셋 뺌 · 시안 ②의 도면 3 은 규칙(완료 문장 하나만)대로.
+
+### 2026-11-25 · D2 지휘 확인 · 검토 발견 17 · 판결
+
+- 지휘 확인: D2 시험 + 바뀐 지금 시험 `175 passed`, 그림 01 · 02 · 04 · 05 직접 봄(전달 창 · 보내기 전 확인 창 · 마법사 저장 창 · 태블릿 '바뀐 것').
+- 검토(`d1-review`) 발견 전부:
+  1. **막아야 함** `workbench_detail_body.html:2422-2433` · `workbench-transfer-fix.js:155-160` — 올린 파일을 미리 보기 [x]로 빼면 고른 값이 한 칸씩 밀려 다른 도면을 갈아 끼움('새 도면'이 도면 3 을 덮음). 확인함(코드).
+  2. 고치면 좋음 `workbench-transfer-fix.js:13-16 · 89` — 고른 값이 모듈 전역이라 창을 다시 열거나 다른 주문으로 가도 남음. 확인함(코드).
+  3. 고치면 좋음(되던 길 막힘) `tablet-drawing-gallery.js:99-118` · `tablet_sheet.py:181` — 태블릿 갤러리 '시트 전달'은 생산 · 시공 단계에서 늘 400 `NOTE_REQUIRED` alert, 메모 칸 · 확인 창 없음, 단추 술어는 옛 것. 확인함.
+  4. 고치면 좋음 `erp-dashboard-drawing.js:49-176` — ERP 대시보드 [도면 전달]은 생산 · 시공 단계에서 늘 400 `PICK_TARGET`(파일은 이미 첨부로 올라감). 확인함(코드).
+  5. 고치면 좋음 `drawing_transfer_plan.py:82-90 · 102-122` — 파일만 보내는 교체 모드에서 고른 교체 대상이 버려지는데 확인 글은 "3번 도면을 … 교체". 확인함.
+  6. 고치면 좋음 `drawing_transfer_plan.py:115-118` — 두 파일이 같은 도면을 고르거나 시트 새 판이 바꾼 도면을 파일이 고르면 까닭과 다른 400 글. 확인함.
+  7. 고치면 좋음 `drawing_transfer_plan.py:193-207` · `drawing_fix_progress.py:110-118` — `changed` 의 고침 · 새 도면 = 새 번호, 빠짐 = 옛 번호 → "도면 2 (고침) · 도면 2 (빠짐)", 경고 글(옛 번호)과도 어긋남. 확인함.
+  8. 고치면 좋음 `drawing_fix_transfer.py:185-188` — 손 칸 `by_name` 이 비면 안 바뀐 장의 DONE 줄이 보낸 도면팀원 · 지금 시각으로 적힘. 확인함.
+  9. 참고 — [반영 완료] = `state: done` 이 박힌 자리: `drawing_fix.py:102-110 · 299-304 · 6` · `drawing_fix_transfer.py:95-99 · 117-118` · `drawing_fix_progress.py:134-137` · `test_drawing_fix_transfer.py:168-176 · 190`.
+  10. 참고 `erp_orders_drawing.py:491` — 보통 전달 감사 줄에 `changed: None` 칸이 새로 붙음.
+  11. 참고 `drawing_fix_transfer.py:149` — 생산 단계 바뀌는 전달은 표시 줄 두 번 읽음, 전달 쿼리 수 시험 없음.
+  12. 참고 `save-send.js:211-218` — 저장 전 예측으로 물은 ack 를 실어 보내 저장 뒤 늘어난 작업된 도면은 안 묻고 지나감(추측) · 전달 메모 칸이 보낸 뒤 안 지워짐(확인).
+  13. 참고 `drawing-fix-send.js:109-117 · 135-145` — R1 을 못 받으면 확인 두 번 · 409 뒤 [취소]하면 올린 파일이 첨부로 남음.
+  14 ~ 16. 참고 — 새 JS 를 실제로 돌리는 시험 없음(`FomsFixSend` 통째 가짜) · hotfix 시험이 늘 `ack_worked: True` · 놓친 경우 다섯.
+  17. 사실 — `perform_drawing_transfer` 호출부는 `transfer-drawing` · `transfer-pending` 둘뿐, `transfer-pending` 화면은 태블릿 갤러리 하나, AS 도면 · 협력사 · 자동화는 안 걸림.
+  - 못 찾은 것: 권한 구멍 · ack 로 검사 건너뛰기 · 원자성 · 풀림 범위 · 패킹 풀기 · 조사 · lazy/순환 import · N+1.
+- 판결: 1 · 2 → 고름은 파일마다 묶고 창 열 때마다 비움. 5 → 파일마다 고르는 전달에서는 모드의 교체 대상 글을 쓰지 않고 '바뀐 도면' 계산으로만 말함. 6 → 화면이 이미 골라진 도면을 못 고르게 + 서버는 400 `PICK_TARGET` 지금 글. 7 → 고침 · 빠짐 = 옛 번호(경고 글과 같은 번호), 새 도면 = 새 번호. 8 → 이름이 없으면 이름 빈 채 · 칸 시각(도면팀원을 완료한 사람으로 적지 않음). 9 → `checked` 를 따로 둠: 막힘 = `state open`(반영 완료를 눌러도 막힘 그대로), `FACTORY_REQUEST_OPEN` = 열려 있고 `checked` 아님, 전달이 건드린 열쇠의 열린 요청을 `done`(설계서 §3-2 · §3-4 그대로). 10 → None 이면 칸을 안 붙임. 12 → ack 는 물어본 도면 열쇠 목록으로 싣고 서버가 견줌 · 메모 칸은 보낸 뒤 비움. 13 → R1 을 못 받으면 옛 확인을 건너뛰고 서버 409 한 번만. 14 ~ 16 → 시험 더함. 11 → 둠. 3 · 4 → 사장님께 여쭘.
