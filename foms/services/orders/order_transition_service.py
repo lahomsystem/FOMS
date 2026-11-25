@@ -33,6 +33,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.confirm_drawing_gate import DRAWING_GATED_COMMANDS, confirm_exit_block
 from foms.services.orders.draft_guard import ensure_order_promoted
+from foms.services.orders.drawing_fix_marks import release_on_stage_exit
 from foms.services.orders.items_construction_gate import ItemsConstructionOpen, items_gate_message
 from foms.services.orders.revision import MutationResult, execute_order_mutation
 from foms.services.orders.state_axes import (
@@ -413,6 +414,7 @@ def transition_order(
         # 2) axis canonical write(copy.deepcopy + flag_modified) + legacy projection 재계산.
         sd = copy.deepcopy(order.structured_data or {})
         writer(sd, order, target_value, actor_user_id=actor_user_id, now=now, reason=reason)
+        release_on_stage_exit(sess, order.id, sd, from_stage=actual_from, to_stage=target_value, user_id=actor_user_id)  # 생산 밖이면 [수정 시작] 표시도 같은 사본에서 지움(2026-11-25 "둘 다")
         order.structured_data = sd
         flag_modified(order, "structured_data")
         axes_after = read_state_axes(order)
