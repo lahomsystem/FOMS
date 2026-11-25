@@ -123,7 +123,7 @@ def test_gallery_wires_workshop_js_deferred_with_cachebuster() -> None:
     assert m is not None, "tablet-drawing-gallery.js not wired in gallery partial"
     tag = m.group(0)
     assert "defer" in tag, "gallery script must be defer (perf G1)"
-    assert "?v=20261125a" in tag, "modified file must carry bumped ?v=20261125a"  # D2 · M 생산 단계 시트 전달
+    assert "?v=20261125b" in tag, "modified file must carry bumped ?v=20261125b"  # D2 · M 생산 단계 시트 전달
 
 
 # --- 관리 시트 fragment ------------------------------------------------------

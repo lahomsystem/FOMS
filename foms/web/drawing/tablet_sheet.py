@@ -84,8 +84,8 @@ def _sheet_transfer_block_reason(sd: dict) -> str:
 def _hotfix_sheet_view(order: Order, sd: dict) -> dict:
     """생산 · 시공 단계 '시트 전달'(transfer-pending — 대기 시트 전부, 방식 없음)을 서버 전달과 같은 함수로 미리 본다(D2 · M).
 
-    막는 까닭 = 반영 안 한 영업 요청(지금 글) · [반영 완료] · [요청 반려] 안 된 공장 요청(§4-2 ``FACTORY_REQUEST_OPEN`` 글) · 자리
-    계산 거절(지금 글). '바뀐 도면' 줄 = ``plan_transfer_files`` → ``changed_numbers`` → ``changed_line``(작업실 · 마법사와 같은 계산).
+    막는 까닭(서버 전달과 같은 차례) = [반영 완료] · [요청 반려] 안 된 공장 요청(§4-2 ``FACTORY_REQUEST_OPEN`` 글) → 반영 안 한 영업
+    요청(지금 글) → 자리 계산 거절(지금 글). '바뀐 도면' 줄 = ``plan_transfer_files`` → ``changed_numbers`` → ``changed_line``(작업실 · 마법사와 같은 계산).
 
     Returns:
         ``{reason, changed_line, sheet_ids}`` — ``sheet_ids`` 는 화면이 R1 미리 보기(보내기 전 확인)에 싣는 대기 시트.
@@ -97,10 +97,10 @@ def _hotfix_sheet_view(order: Order, sd: dict) -> dict:
     status = effective_drawing_status(sd, default='PENDING')
     plan = plan_transfer_files(old_files, new_files, sd, drawing_status=status, hotfix=True, mode='', replace_target_keys=[],
                                is_retransfer=False, picks={})
-    if status == 'RETURNED' and has_pending_unchecked_drawing_revision_requests(sd):
-        reason = SHEET_TRANSFER_BLOCKED_TEXT
-    elif unhandled_requests(sd):
+    if unhandled_requests(sd):
         reason = MESSAGES[FACTORY_REQUEST_OPEN]
+    elif status == 'RETURNED' and has_pending_unchecked_drawing_revision_requests(sd):
+        reason = SHEET_TRANSFER_BLOCKED_TEXT
     else:
         reason = SHEET_TRANSFER_BLOCKED_TEXT if new_files and plan.error else ''
     changed = '' if plan.error else changed_line(changed_numbers(old_files, plan.updated_files, plan.pairs))

@@ -54,7 +54,7 @@ function fire(name, target) { (docListeners[name] || []).forEach((l) => l.fn({ t
 const previews = [];
 global.FomsFixSend = {
   NOTE_MSG: '공장에 남길 메모를 적어 주세요.', PICK_MSG: '바꿀 도면을 골라 주세요.', HOTFIX_TEXT: 'H',
-  preview: (id, plan) => { previews.push(plan); return Promise.resolve({ changed_line: 'L' }); },
+  preview: (id, plan) => { previews.push(plan); return Promise.resolve({ changed_line: 'L', sheet_taken: scenario === 'dropped' ? ['k/d3.png'] : [] }); },
   setChanged: () => {},
   gate: (id, plan, text) => Promise.resolve({ ok: true, ack: { idents: [], orderMade: false }, plan, text: text({ changed_line: 'L' }) }),
   post: () => Promise.resolve({ success: true }),
@@ -102,6 +102,11 @@ const W = window.FomsWorkbenchFix;
     out.steps.push({ at: 'one_picked', view: view() });
     chip(1, '도면 1');   // 꺼진 단추 — 눌러도 안 바뀐다(가짜 DOM 도 disabled 면 click 을 안 낸다)
     out.steps.push({ at: 'second_tried', check: W.check('메모') });
+  } else if (scenario === 'dropped') {
+    chip(0, '도면 3');   // 미리 보기 전 — 아직 고를 수 있다
+    out.steps.push({ at: 'before_preview', view: view() });
+    await tick();       // 미리 보기가 '도면 3 = 이번 시트가 뺌'을 알린다
+    out.steps.push({ at: 'after_preview', view: view(), check: W.check('메모') });
   } else if (scenario === 'reopen') {
     chip(0, '도면 1');
     chip(1, '도면 2');

@@ -1,11 +1,12 @@
 """생산 넘어간 주문의 도면 수정 D2 — 검토 고침(2026-11-25 지휘 판결 C · D · E · F · G · H · I).
 
-* C 파일마다 고르는 전달은 전달 모드의 '교체 대상'을 쓰지 않는다 — 서버 계획 · 미리 보기 줄이 같은 계산(대조: 파일 없는 교체 모드).
+* C 파일은 고른 자리로만 가고 확인 글 = '바뀐 도면' 계산 하나 · 셋째 판 2: 시트는 파일이 같이 가든 말든 지금 자리 규칙 그대로.
 * D 두 파일이 같은 도면 · 이번 시트 새 판이 바꾸는 도면을 고르면 400 ``PICK_TARGET`` "바꿀 도면을 골라 주세요."(대조: 다른 도면).
 * E 고침 · 빠짐 = 옛 번호(전체 교체에서 "도면 2 (고침) · 도면 2 (빠짐)" 이 안 나옴).
 * F 손 처리 칸에 이름이 없으면 완료한 사람을 비워 둔다(보낸 도면팀원 아님) · 시각 = 칸 시각, 없으면 지금(대조: 이름 있는 칸).
 * G [반영 완료](``checked``)는 막힘을 안 푼다 — 보낼 수는 있고, 건드린 도면의 요청만 ``done``(대조: 체크 안 한 요청 400).
 * N 대상이 여러 장인 요청은 보낸 열쇠만 풀린다(``resolved``) — 막는 열쇠 = ``targets`` − ``resolved``, 모두 풀려야 ``done``.
+* 셋째 판 3 · 4 · 5: 이름 빈 옛 이벤트 기록은 전과 같음 · R1 ``sheet_taken``(지운 시트 옛 판 포함) · 관리 시트 막는 까닭 차례.
 * H 그 밖 단계 감사 줄에 ``changed`` 칸이 안 붙는다(대조: 생산 단계는 붙음).
 * I ``ack_worked`` = 물어본 도면 열쇠 목록 — 빠진 도면이 있으면 그 도면 글로 다시 409, 참 · 거짓은 받지 않는다.
 이름은 모두 지어낸 값이다.
@@ -59,17 +60,34 @@ def _wizard(*ids: int) -> dict:
     return {"drawing_wizard": {"sheets": [{"id": f"s{j}"} for j in ids]}}
 
 
-def test_pick_transfer_ignores_replace_targets_and_says_only_the_changed_line():
+def _plan(old, new, sd, picks, **kw):
+    opts = {"drawing_status": "CONFIRMED", "hotfix": True, "mode": "", "replace_target_keys": [], "is_retransfer": False, **kw}
+    return plan_transfer_files(old, new, sd, picks=picks, **opts)
+
+
+def test_uploads_go_to_their_pick_and_the_changed_line_is_the_one_calculation():
     old = _files(3)
-    plan = plan_transfer_files(old, [{"key": "o/up.pdf"}], _wizard(0, 1, 2), drawing_status="CONFIRMED", hotfix=True,
-                               mode="REPLACE", replace_target_keys=["o/s2.png"], is_retransfer=True,
-                               picks={"o/up.pdf": "o/s1.png"})
-    assert [f["key"] for f in plan.updated_files] == ["o/s0.png", "o/up.pdf", "o/s2.png"] and plan.replace_target_keys == []
+    plan = _plan(old, [{"key": "o/up.pdf"}], _wizard(0, 1, 2), {"o/up.pdf": "o/s1.png"}, mode="REPLACE",
+                 replace_target_keys=["o/s2.png"], is_retransfer=True)
+    assert [f["key"] for f in plan.updated_files] == ["o/s0.png", "o/up.pdf", "o/s2.png"]   # 시트가 없으니 교체 대상은 안 쓰임
     assert changed_line(changed_numbers(old, plan.updated_files, plan.pairs)) == "바뀐 도면: 도면 2 (고침)"
-    new_sheet = plan_transfer_files(old, [{"key": "o/s9.png", "sheet_id": "s9"}, {"key": "o/up.pdf"}], _wizard(0, 1, 2, 9),
-                                    drawing_status="CONFIRMED", hotfix=True, mode="REPLACE", replace_target_keys=["o/s2.png"],
-                                    is_retransfer=True, picks={"o/up.pdf": "NEW"})
-    assert [f["key"] for f in new_sheet.updated_files] == ["o/s0.png", "o/s1.png", "o/s2.png", "o/s9.png", "o/up.pdf"]
+
+
+@pytest.mark.parametrize("old,wizard,kw", [
+    ([{"key": "o/only.pdf"}], (9,), {}),                                         # 한 장뿐인 확정 도면(시트 모름) — 한 장이면 교체
+    ([{"key": "o/only.pdf"}], (9,), {"drawing_status": "RETURNED", "is_retransfer": True}),
+    (_files(3), (0, 1, 2, 9), {"mode": "REPLACE", "replace_target_keys": ["o/s2.png"], "is_retransfer": True}),   # 교체 대상
+    (_files(3), (0, 1, 2, 9), {"mode": "APPEND"}),
+])
+def test_sheets_keep_their_place_whether_or_not_a_file_goes_along(old, wizard, kw):
+    """셋째 판 2: 파일을 같이 보내도 시트 자리 규칙은 그대로 — 옛 도면 + 새 도면이 둘 다 최종이 되는 사고 꼴이 다시 안 생긴다."""
+    sheet = {"key": "o/s9.png", "sheet_id": "s9"}
+    alone = _plan(old, [sheet], _wizard(*wizard), {}, **kw)
+    along = _plan(old, [sheet, {"key": "o/up.pdf"}], _wizard(*wizard), {"o/up.pdf": "NEW"}, **kw)
+    assert alone.error is None and along.error is None
+    assert [f["key"] for f in along.updated_files] == [f["key"] for f in alone.updated_files] + ["o/up.pdf"]
+    if len(old) == 1:
+        assert "o/only.pdf" not in [f["key"] for f in along.updated_files]
 
 
 def test_control_replace_mode_without_uploads_still_uses_targets():
@@ -93,7 +111,7 @@ def test_replace_all_numbers_never_repeat_replaced_and_removed():
 # --- C · D (API) -------------------------------------------------------------------
 
 
-def test_pick_transfer_through_the_api_keeps_targets_out_of_the_history(client, quiet, team):
+def test_upload_only_transfer_through_the_api_places_by_the_pick(client, quiet, team):
     oid = make_order(assignees=(team.drawer.id,))
     login(client, team.drawer)
     res = send(client, "drawing", oid, manual=[_upload(oid, "up", key(oid, "s1"))], mode="REPLACE", is_retransfer=True,
@@ -101,8 +119,7 @@ def test_pick_transfer_through_the_api_keeps_targets_out_of_the_history(client, 
     assert res.status_code == 200, res.get_json()
     sd = sd_of(oid)
     assert names(sd) == ["s0.png", "up.pdf", "s2.png"]
-    transfer = last_transfer(sd)
-    assert transfer["replace_target_keys"] is None and transfer["changed"] == {"replaced": [2], "added": [], "removed": []}
+    assert last_transfer(sd)["changed"] == {"replaced": [2], "added": [], "removed": []}
 
 
 @pytest.mark.parametrize("case", ["same_drawing_twice", "sheet_already_replaces_it"])
@@ -144,6 +161,44 @@ def test_hand_step_without_a_name_leaves_the_finisher_empty(client, quiet, team,
     assert [i["by_name"] for i in items] == [step_by or None]
     page = client.get(f"/erp/production/sheet/{oid}")
     assert page.status_code == 200 and "None" not in page.get_data(as_text=True).split("<body", 1)[-1]
+
+
+def test_history_of_an_old_step_event_by_a_nameless_account_is_as_before(client, quiet, team):
+    """셋째 판 3 대조: 이름이 빈 계정이 공정 칸을 누른 옛 이벤트는 지금처럼 사용자 표 이름(로그인 아이디)으로 보인다."""
+    from tests.support.production_part_claim_seed import check_step, make_order as prod_order, make_user as prod_user
+    seed = prod_order(2)
+    lead = prod_user("", lead=True)
+    login(client, lead)
+    assert check_step(client, seed.id, "cut", True).status_code == 200
+    login(client, team.admin)
+    items = client.get(f"/api/production/part-history?order_id={seed.id}&part=cut").get_json()["data"]["items"]
+    assert [(i["kind"], i["by_name"]) for i in items] == [("step_on", lead.username)]
+
+
+def test_preview_lists_drawings_this_transfers_sheets_take(client, quiet, team):
+    """셋째 판 4: R1 ``sheet_taken`` = 이번 시트가 바꾸는 도면 + 마법사에서 지운 시트의 옛 판 — 파일 고르기 단추가 끈다."""
+    oid = make_order(assignees=(team.drawer.id,))
+    wizard = dict(sd_of(oid)["drawing_wizard"])
+    wizard["sheets"] = [s for s in wizard["sheets"] if s["id"] != "s2"]
+    patch(oid, drawing_wizard=wizard)
+    login(client, team.drawer)
+    plan = client.get(f"/api/orders/{oid}/drawing/fix/progress?sheet=s1&mode=APPEND").get_json()["data"]["plan"]
+    assert sorted(plan["sheet_taken"]) == sorted([key(oid, "s1"), key(oid, "s2")])
+    res = send(client, "drawing", oid, "s1", manual=[_upload(oid, "a", key(oid, "s2"))])
+    assert res.status_code == 400 and _code(res) == "PICK_TARGET"          # 그래도 고르면 서버가 막는다
+
+
+def test_tablet_sheet_reason_order_is_the_servers(client, quiet, team):
+    """셋째 판 5: 공장 요청과 반영 안 한 영업 요청이 둘 다 있으면 서버처럼 공장 요청 까닭이 먼저."""
+    from tests.support.drawing_fix_transfer_seed import seed_pending
+    history = [{"action": "TRANSFER", "files": []}, {"action": "REQUEST_REVISION", "note": "손잡이", "files": []}]
+    oid = make_order(assignees=(team.drawer.id,), extra={"drawing_status": "RETURNED", "drawing_transfer_history": history,
+                                                         "drawing_fix": {"requests": [_request("fr_1", "sheet:s2")]}})
+    seed_pending(oid, "s1")
+    login(client, team.drawer)
+    page = client.get(f"/erp/drawing-workbench/tablet-sheet/{oid}").get_data(as_text=True)
+    assert "공장 수정 요청을 [반영 완료]나 [요청 반려]로 처리한 뒤에 보낼 수 있어요." in page
+    assert _code(send(client, "drawing", oid, "s1")) == "FACTORY_REQUEST_OPEN"
 
 
 # --- G ----------------------------------------------------------------------------

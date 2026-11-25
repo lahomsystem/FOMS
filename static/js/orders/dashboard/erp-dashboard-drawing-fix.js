@@ -107,11 +107,12 @@
     return picks.missing() ? window.FomsFixSend.PICK_MSG : '';
   }
 
-  function confirmSend() {
+  /** 확인 한 번 — 미리 보기를 못 받으면 지금 확인 글(oldText)로 묻는다(셋째 판 1). */
+  function confirmSend(oldText) {
     var hotfix = window.FomsFixSend.HOTFIX_TEXT;
     return window.FomsFixSend.gate(state.orderId, sendPlan(), function (plan) {
       return [plan.changed_line, hotfix].filter(Boolean).join('\n\n');
-    }, modal());
+    }, modal(), oldText);
   }
 
   if (!window.__FOMS_DFX_DASH_BOUND) {

@@ -75,8 +75,8 @@ def test_dashboard_body_goes_through_the_production_rules(client, quiet, team):
     res = _dash(client, oid, note="손잡이", pick=key(oid, "s1"), ack_worked=["sheet:s1"])
     assert res.status_code == 200, res.get_json()
     sd = sd_of(oid)
-    assert names(sd) == ["s0.png", "dash.pdf", "s2.png"]                # 교체 대상(도면 3)은 안 씀
-    assert last_transfer(sd)["replace_target_keys"] is None
+    assert names(sd) == ["s0.png", "dash.pdf", "s2.png"]                # 시트가 없으니 교체 대상(도면 3)은 안 쓰임
+    assert last_transfer(sd)["changed"] == {"replaced": [2], "added": [], "removed": []}
 
 
 def test_control_dashboard_body_in_the_drawing_stage_is_unchanged(client, quiet, team):
