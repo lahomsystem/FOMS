@@ -296,7 +296,6 @@ def test_도면_마감_색_넷은_짝마다_정상_10_색약_6_이상이고_글_
 
     home = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     sheet = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
-    parts = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
     assert {k: _css_token(home, k) for k in DEADLINE_TOKENS} == DEADLINE_TOKENS
     assert {k: _css_token(sheet, k) for k in DARK_TOKENS} == DARK_TOKENS
     colors = {k: hex_rgb(v) for k, v in DEADLINE_TOKENS.items()}
@@ -306,7 +305,7 @@ def test_도면_마감_색_넷은_짝마다_정상_10_색약_6_이상이고_글_
     # 글이 놓이는 바탕: 띠 흰 · 고른 띠 줄 · 장 · 찾기 바탕(넷 다). 칩(여러 날 장의 '마감 M/D' — 기다림 칸 · 파트 기다림 칩)은
     # 주문 하나의 상태(늦음 · 빠듯 · 여유)만 놓인다 — '다 옴' 은 줄 · 묶음 글에만 있다.
     wide = [_css_token(home, k) for k in ("--fph-surface", "--fph-brand-50", "--fph-bg")]
-    chips = [_css_token(home, "--fph-raised"), _css_token(parts, "--fph-wait-50")]
+    chips = [_css_token(home, "--fph-raised"), _css_token(home, "--fph-wait-50")]  # 기다림 토큰은 home.css(생산 비평 C16 — 날짜 장 기다림 칸도 연두)
     for name, rgb in colors.items():
         for back in wide + (chips if name != "--fph-dw-ok" else []):
             assert contrast_ratio(rgb, hex_rgb(back)) >= 4.5, (name, back)
