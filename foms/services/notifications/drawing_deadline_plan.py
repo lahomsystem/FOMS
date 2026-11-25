@@ -32,7 +32,7 @@ from foms.services.notifications.recipients import broad_recipient_ids, team_con
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
 from foms.services.orders.manager_names import order_manager_label
 from foms.services.production.drawing_arrival import day_md, drawing_blocker, drawing_deadline, drawing_people
-from foms.services.production.ship_dates import due_day, ship_dates, window_condition
+from foms.services.production.ship_dates import due_day, kind_word, ship_dates, window_condition
 from foms.services.production_dashboard_display import _production_first_item, _production_product_label
 from models import Order, User
 
@@ -66,6 +66,8 @@ class DueAlert:
     partner: bool = False
     #: 고른 날(KST) — 보내기 직전 다시 보기가 같은 날로 기준 출고일을 다시 센다.
     today: Optional[datetime.date] = None
+    #: 글의 날 이름 — 놓인 날의 종류(``ship_dates.kind_word`` — PC 늦음 줄과 같은 함수): '시공' · '상차' · '희망일'.
+    word: str = '시공'
 
 
 def to_kst(now: datetime.datetime) -> datetime.datetime:
@@ -99,8 +101,8 @@ def alert_key(order_id: int, kind: str, deadline: datetime.date, today: datetime
     return f"{int(order_id)}:{day.isoformat()}:{kind}"
 
 
-def ship_due(row: Any, today: datetime.date) -> Optional[datetime.date]:
-    """주문 행(칸만 읽은 행)의 기준 출고일 — 첫 화면 행과 같은 :func:`~foms.services.production.ship_dates.due_day`.
+def ship_due_word(row: Any, today: datetime.date) -> Tuple[Optional[datetime.date], str]:
+    """주문 행(칸만 읽은 행)의 (기준 출고일, 날 이름) — 첫 화면 행과 같은 ``ship_dates.due_day`` · ``kind_word``.
 
     Args:
         row: ``structured_data`` · ``is_regional`` · ``shipping_scheduled_date`` · ``partner_org_id`` · ``erp_stage_code`` 를 가진 행.
@@ -109,11 +111,16 @@ def ship_due(row: Any, today: datetime.date) -> Optional[datetime.date]:
     sd = row.structured_data if isinstance(row.structured_data, dict) else {}
     ship = ship_dates(sd, regional=bool(row.is_regional), loading_date=row.shipping_scheduled_date,
                       partner_org_id=row.partner_org_id, stage_code=row.erp_stage_code)
-    return due_day((day for day, _kind in ship), today)
+    return due_day((day for day, _kind in ship), today), kind_word(ship[0][1] if ship else None)
+
+
+def ship_due(row: Any, today: datetime.date) -> Optional[datetime.date]:
+    """주문 행의 기준 출고일(:func:`ship_due_word` 의 날)."""
+    return ship_due_word(row, today)[0]
 
 
 def _due_from_row(row: Any, today: datetime.date, slot: str) -> Optional[DueAlert]:
-    day = ship_due(row, today)
+    day, word = ship_due_word(row, today)
     if day is None or not today <= day <= today + datetime.timedelta(days=LOOKAHEAD_DAYS):
         return None
     hit = _kind_for(day, today, slot)
@@ -126,7 +133,7 @@ def _due_from_row(row: Any, today: datetime.date, slot: str) -> Optional[DueAler
                     deadline=deadline, sd=sd, customer=customer,
                     product=_production_product_label(_production_first_item(sd)[1]),
                     sales_label=order_manager_label(sd), partner=is_partner_sd(sd) or row.partner_org_id is not None,
-                    today=today)
+                    today=today, word=word)
 
 
 def due_alerts(db: Any, today: datetime.date, slot: str) -> Tuple[int, List[DueAlert]]:
@@ -199,21 +206,30 @@ def alert_text(due: DueAlert, today: datetime.date) -> Tuple[str, str]:
 
     Returns:
         아침 ``#12 김가짜 · 붙박이장 — 11/25 (수) 시공이라 오늘(11/23 월)까지 …``, 저녁 ``저녁 6시인데 #12 김가짜 …``,
-        늦음 ``#12 김가짜 도면이 마감(11/23 월)을 1일 넘겼어요. …`` — 늦은 날 수는 영업일로 센다.
+        늦음 ``#12 김가짜 도면이 마감(11/23 월)을 1일 넘겼어요. …`` — 늦은 날 수는 영업일로 센다. '시공' 은 놓인 날의 이름
+        (``due.word`` — 상차 예정일로 놓인 주문 '상차라' · '상차예요', 희망일 주문 '희망일이라' · '희망일이에요', 사장님 2026-11-25).
     """
     who = f"#{due.order_id} {due.customer}".strip()
     now = status_text(due)
+    is_a, is_yo = _copula(due.word)
     if due.kind == KIND_MORNING:
         head = f"{who} · {due.product}" if due.product else who
-        body = (f"{head} — {day_md(due.day)} 시공이라 오늘({_md_inline(today)})까지 도면이 생산으로 내려와야 해요. "
+        body = (f"{head} — {day_md(due.day)} {due.word}{is_a} 오늘({_md_inline(today)})까지 도면이 생산으로 내려와야 해요. "
                 f"지금: {now}")
     elif due.kind == KIND_EVENING:
         body = f"저녁 6시인데 {who} 도면이 아직 생산으로 안 내려왔어요. 지금: {now}. 오늘 안에 넘겨 주세요."
     else:
         over = max(1, business_days_between(due.deadline, today))
-        body = (f"{who} 도면이 마감({_md_inline(due.deadline)})을 {over}일 넘겼어요. {day_md(due.day)} 시공이에요. "
+        body = (f"{who} 도면이 마감({_md_inline(due.deadline)})을 {over}일 넘겼어요. {day_md(due.day)} {due.word}{is_yo}. "
                 f"지금: {now}")
     return _TITLES[due.kind], body
+
+
+def _copula(word: str) -> Tuple[str, str]:
+    """날 이름 뒤 '이라' · '이에요'(받침 있음 — 시공 · 희망일) 또는 '라' · '예요'(받침 없음 — 상차)."""
+    last = word[-1:] or '공'
+    batchim = '가' <= last <= '힣' and (ord(last) - ord('가')) % 28 != 0
+    return ('이라', '이에요') if batchim else ('라', '예요')
 
 
 class PeopleCache:

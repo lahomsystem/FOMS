@@ -15,9 +15,19 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from db import db_session
+from models import Order
 from foms.services.datetime_kst import get_today_kst
 from foms.services.production.late_rule import production_late_view
-from foms.services.production.ship_dates import SHIP_BUILD, SHIP_LOAD, ship_fields
+from sqlalchemy.dialects import postgresql, sqlite
+
+from foms.services.production.ship_dates import (
+    SHIP_BUILD,
+    SHIP_LOAD,
+    live_condition,
+    loading_day,
+    order_ship_dates,
+    ship_fields,
+)
 from foms.services.production_home_read_model import build_production_home, production_home_groups
 from tests.domains.test_production_home_ship_dates import (
     HOME,
@@ -138,6 +148,47 @@ def test_1_찾기_묶음_이름과_PC_내_공정_머리는_출고(client) -> Non
     found = client.get(HOME + "?tab=all").get_data(as_text=True)
     heads = re.findall(r'data-foms-home-tog[^>]*>\s*<b>([^<]+)</b>', found)
     assert heads[-2:] == ["출고일 없음", "지난 출고일 (7일 넘음)"]
-    template = (Path(__file__).resolve().parents[2] / "templates/production/partials/home_pc_steps.html").read_text(
+    for k, v in PC.items():
+        client.set_cookie(k, v, domain="localhost")
+    steps = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    cut = steps.split('data-foms-home-stepq="cut"', 1)[1].split("</h3>", 1)[0]
+    assert cut.endswith("에 와 있는 것 0건 <small>출고일 빠른 순</small>")  # 그린 화면의 그 칸
+
+
+# --------------------------------------------------------------------------- #
+# 경계 SQL — 날짜 꼴이 아닌 상차 예정일은 파이썬과 같이 버린다(SQLite · PostgreSQL 같은 식)
+# --------------------------------------------------------------------------- #
+def test_날짜_꼴이_아닌_상차_예정일은_SQL_도_버린다(client) -> None:
+    _login(client)
+    today = get_today_kst()
+    cutoff = (today - datetime.timedelta(days=7)).isoformat()
+    cases = {
+        "월일꼴_시공없음": _order("월일가짜", None, regional=True, loading=_md(1)),         # '11/26' — 파이썬: 출고일 없음
+        "미정_시공없음": _order("미정가짜", None, regional=True, loading="미정"),
+        "없는달_시공없음": _order("없는달가짜", None, regional=True, loading="2026-13-01"),
+        "월일꼴_시공지남": _order("월일지남가짜", _iso(-20), regional=True, loading=_md(1)),  # 시공 -20 → 지난 출고일
+        "시각붙음_지남": _order("시각지남가짜", _iso(3), regional=True, loading=_iso(-10) + " 09:00"),  # 앞 10자 = 상차 -10
+        "시각붙음_같은날": _order("시각같은가짜", _iso(3), regional=True, loading=_iso(3) + " 09:00"),
+        "앞뒤빈칸": _order("빈칸가짜", _iso(-20), regional=True, loading=f"  {_iso(2)} "),     # 상차 +2
+    }
+    live = {oid for (oid,) in db_session.query(Order.id).filter(live_condition(cutoff)).all()}
+    for name, order in cases.items():
+        db_session.refresh(order)
+        days = [day for day, _kind in order_ship_dates(order)]
+        python_live = not days or max(days) >= D.fromisoformat(cutoff)
+        assert (order.id in live) == python_live, name
+    assert [k for _d, k in order_ship_dates(cases["시각붙음_같은날"])] == [SHIP_LOAD]  # 앞 10자 = 시공일 → 상차
+    assert loading_day(" 2026-11-28 09:00") == D(2026, 11, 28) and loading_day("2026-11-31") is None
+    for bad in ("미정", "11/26", "2026-13-01", "２０２６-11-28", ""):
+        assert loading_day(bad) is None, bad
+    # 운영 PostgreSQL 에서도 같은 식(정규식 · GLOB · 글자 크기 견주기 없이 substr · trim · IN)
+    for dialect in (postgresql.dialect(), sqlite.dialect()):
+        sql = str(live_condition(cutoff).compile(dialect=dialect)).lower()
+        assert "substr(" in sql and "trim(" in sql and " glob " not in sql and " ~ " not in sql and "regexp" not in sql
+
+
+def test_도면_크게_보기_아래_글은_하루_장만_출고() -> None:
+    js = (Path(__file__).resolve().parents[2] / "static/js/production/foms-production-parts-viewer.js").read_text(
         encoding="utf-8")
-    assert "<small>출고일 빠른 순</small>" in template and "시공일 빠른 순" not in template
+    assert "var dated = /^\\d{4}-\\d{2}-\\d{2}$/.test(pane.getAttribute('data-pp-pane') || '');" in js
+    assert "(day ? ' · ' + day + (dated ? ' 출고' : '') : '')" in js

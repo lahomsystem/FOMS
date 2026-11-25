@@ -28,6 +28,8 @@ def people(app):
 def _order(people, construction, *, regional=False, loading=None, partner=None, wish=None) -> int:
     oid = make_order("김가짜", construction, assignees=((people["draw"], "장가짜"),))
     order = db_session.get(Order, oid)
+    # 납작 열 = 처음 적힌 날 앞 10자(String(10) — 실제 저장의 sync_erp_flat_columns 와 같은 꼴)
+    order.erp_construction_date = (construction or "").split(",")[0].strip()[:10] or None
     order.is_regional, order.shipping_scheduled_date, order.partner_org_id = regional, loading, partner
     if wish:
         sd = dict(order.structured_data)
@@ -40,6 +42,32 @@ def _order(people, construction, *, regional=False, loading=None, partner=None, 
 def _dues(today: str, slot: str = "am") -> dict[int, tuple[str, D, D]]:
     _checked, dues = plan.due_alerts(db_session, D.fromisoformat(today), slot)
     return {d.order_id: (d.kind, d.deadline, d.day) for d in dues}
+
+
+def _texts(today: str, slot: str = "am") -> dict[int, str]:
+    _checked, dues = plan.due_alerts(db_session, D.fromisoformat(today), slot)
+    return {d.order_id: plan.alert_text(d, D.fromisoformat(today))[1] for d in dues}
+
+
+def test_알림_글의_날_이름은_놓인_날_보통_주문은_글자까지_그대로(people):
+    org = PartnerOrg(name="가짜협력사글")
+    db_session.add(org)
+    db_session.commit()
+    load = _order(people, "2026-11-30", regional=True, loading="2026-11-26")    # 상차 11/26 → 마감 11/24
+    wrong = _order(people, "2026-11-26", regional=True, loading="2026-11-30")   # 상차가 뒤 → 시공 11/26
+    wish = _order(people, None, partner=org.id, wish="2026-11-26")              # 희망 11/26 → 마감 11/24
+    plain = _order(people, "2026-11-26")                                         # 대조군
+    am = _texts("2026-11-24")
+    assert f" — 11/26 (목) 상차라 오늘(11/24 화)까지 도면이 생산으로 내려와야 해요. 지금: " in am[load]
+    assert f" — 11/26 (목) 희망일이라 오늘(11/24 화)까지 도면이 생산으로 내려와야 해요. 지금: " in am[wish]
+    for oid in (wrong, plain):
+        assert am[oid].startswith(f"#{oid} 김가짜 · 붙박이장 — 11/26 (목) 시공이라 오늘(11/24 화)까지 도면이 생산으로 내려와야 해요. "
+                                  "지금: "), oid
+    late = _texts("2026-11-25")  # 마감 11/24 지남 → 늦음 아침
+    assert "을 1일 넘겼어요. 11/26 (목) 상차예요. 지금: " in late[load]
+    assert "을 1일 넘겼어요. 11/26 (목) 희망일이에요. 지금: " in late[wish]
+    assert late[plain].startswith(f"#{plain} 김가짜 도면이 마감(11/24 화)을 1일 넘겼어요. 11/26 (목) 시공이에요. 지금: ")
+    assert _texts("2026-11-24", "pm")[load].startswith("저녁 6시인데 ")  # 저녁 글은 날 이름이 없다 — 그대로
 
 
 def test_지방_주문은_상차_예정일로_마감을_센다(people):
