@@ -1554,3 +1554,21 @@
   - `crit-confuse` — 헷갈림(닐슨 열 원칙 · 정보 수 · 숫자 꼴 · 색 뜻 · 예측 못 할 동작). 포트 5624.
 - 공통 지시: 코드 안 고침 · 실화면(로컬 준비물 서버, 가짜 이름) · 곧 바뀌는 여러 명 같이 작업 낱말은 발견에서 뺌 · 사장님 결정은 "결정 다시 볼 것"으로 따로 · 고치는 제안은 빼기 · 합치기 · 맞추기만.
 - 내 몫: 보고가 오면 원장에 옮기고, 큰 발견은 그림 · 코드로 직접 확인한 뒤 하나로 묶어 사장님께.
+
+## 여러 명 같이 작업 M3 보고(mh-m3) — 내 확인 전 주장 (11-25)
+
+- 커밋 05d634ee4(가지 `work/mh-m3`, 바탕 9540eda96). 인벤토리 다섯 0.
+- 고친 것: `pc_sheet.py`(줄 글을 사람마다 `lines` 로) · `steps.py`(상수 `PRODUCTION_FINISHED_STAGE = "검수 완료"`) · `production_home_read_model.py` · `production_home_days.py` · `late_rule.py` · `pc_view.py` · `home_step_panel.py` · `foms/web/production/dashboard.py`(템플릿 전역) · JS `foms-production-pc-sheet.js`(290) · `-pc-sheet-write.js`(`check` 한 요청) · `-sheet-parts.js`(KIND) · `-home-steps.js` · 템플릿 여섯 + 핀만 넷 · 새 시험 둘 · 고친 시험 14.
+- `home_scripts.html` 15 · 16 · 17 · 19줄 핀 → `20261125m3`(sheet-parts · pc-sheet · pc-sheet-write · sheet-parts). `home_styles.html` 안 건드림.
+- 시험 주장: 닿는 16파일 247 passed / tests/domains 17838 passed EXIT=0 / contracts+harness+security 2012 passed EXIT=0 / node --check 여섯 OK / APP_OK.
+- 그림 `scratchpad/mh/shots_m3/` 01 ~ 15(PC 1440 100% · 80% · 태블릿 1176 · 폰 390). 넘침 0(PC 창 31요소 · 칸 아래 이름 24 · 날짜 줄 15 · 기록 줄 6 + 6 · 단추 6). 콘솔 오류 0.
+- 시안과 다른 곳: 도면별 창 줄 글 차례가 사람마다(이시영 시작 · 완료 → 김재단 시작 · 완료) / 첫 화면 칸 마우스 글은 M1 글 "이시영 작업 중 · 함께 하는 사람 김재단".
+- 설계서와 다른 것: `sheet_parts.py` 는 고칠 것 없음 / "1/2 완료" 낱말은 `part_mark_notes.state_words` 그대로.
+- 옛 칸: PC 창 자료의 `holder` · `done` · `seen_by` 지움, take → done → release 길 없앰. 남김 = 쓰기 응답 `mark` 의 `picked_by_*` · `done_by_*`(M2 몫) · [완료 취소]의 undo → release 이어 쓰기(나 혼자일 때만) · 시작 취소 요청의 `seen_by`.
+- 물은 것: (1) 반장 [완료 처리] 기록이 "박반장 (이시영 · 김재단 대신) 완료" — 이미 완료한 이시영까지 들어감(M1 이벤트 `holder_name`) (2) 둘 다 완료한 도면 PC [완료 취소] = 둘 다 되돌림 (3) 태블릿 1176 · 100% 에서 날짜 줄 칸 아래 이름은 지금 CSS 로 숨음.
+- 확신 낮음: PC 창 상태 칸 아래 이름 셋 이상이면 줄 꺾임(둘까지만 잼) / "검수 완료" 템플릿 전역은 블루프린트 등록 때만 생김.
+
+## M3 내 판결
+
+- (1) 고침 — 기록의 "대신"에는 이번에 대신 완료된 사람만(M1 몫, `mh-m1` 에게).
+- (2) 사장님 답 "두 사람 완료를 모두 되돌리기" 그대로. (3) 지금 동작 그대로.
