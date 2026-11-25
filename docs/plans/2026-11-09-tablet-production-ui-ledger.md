@@ -1713,3 +1713,9 @@
 - 일꾼이 물은 것: 반장이 아직 자기 몫을 완료 안 한 같이 작업자면 카드에 [시작 취소][재단 완료]만 — 고르기 창 [대신 완료]에 못 닿음(자기 몫 완료 뒤 열림) / 반장 자기 몫 되돌리기 창 안내 글에 본인 이름 / [대신 완료] 사이 줄이 비면 반장이 시작 + 완료.
 - 내 확인: 워크트리에서 닿는 시험 95 passed, 그림 `fix1_10b_board_after_proxy_z80.png`("재단 완료 · 박반장") 봄. 세션 가지에 두 커밋 cherry-pick(충돌 0). 일꾼 물음 셋은 지금 동작 그대로 둠(남은 것 목록).
 - 다음: `safe_push`(smoke_push91) → 스테이징. 그 뒤 비평 고침 두 일꾼.
+
+## 여러 명 같이 작업 M1 ~ M3 스테이징 올림 (11-26)
+
+- `safe_push`(smoke_push91): smoke 21869 passed · 830 skipped / 174 passed, push b94f167fb..701227420, CI 넷(FOMS CI · Harness CI · PostgreSQL Lane · perf-gate) 초록, staging 70122742 배포 SUCCESS, production 363d7082 그대로. 마이그레이션 `prodpart_02_holders`(칸 더하기만)가 스테이징에 돎.
+- 도는 일꾼: `crit-fix-a`(c:/tmp/foms-w-crit-a — C02 · C03 · C06 · C09 · C10 동작) · `crit-fix-b`(c:/tmp/foms-w-crit-b — C12 ~ C36 + C04 · C05 · C08 색 · 크기 · 글). 바탕 701227420. 끝나면 내 확인 → 검토 → cherry-pick → `safe_push`(smoke_push92).
+- 남은 것: 비평 페이지 뒤 511줄 읽고 게시 / 사장님께 여쭐 글(새 문장 "남은 사람이 모두 완료라 도면이 완료돼요." · 검수 막힘 글 · 비평 갈래 다 17 · 라 20 · 마 12 · 일꾼이 모아 올 글) / 다음 운영 올리기(여러 명 맡기 — 마이그레이션 포함)는 말씀 때.
