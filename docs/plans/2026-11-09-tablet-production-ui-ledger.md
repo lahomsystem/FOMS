@@ -1504,3 +1504,19 @@
 - 새 파일 다섯(`foms-production-drawing-request.js` · `erp-date-multi.js` · `erp-date-multi.css` · `workbench-factory-request.js` · `workbench-drawing-fix.js`) 모두 200.
 - 막힌 쓰기 요청 0 · RUM 6(조용히 막음) · 5xx 0 · 4xx 0 · JS 오류 0.
 - **못 본 것**: 도면 판의 [도면 수정 요청] 단추 — 내 스크립트가 도면 판 주소를 잘못 열어 카드 0 · 단추 0 으로 나옴(운영 결함 판정 아님, 내 확인 실패). 단추 JS 파일이 200 인 것만 확인. 모바일 여러 날짜 칸도 파일 200 만 확인(주문 수정 화면은 안 엶).
+
+## 여러 명 같이 작업 M1 보고(mh-m1) — 내 확인 전 주장 (11-25)
+
+- 가지 `work/mh-m1`(c:/tmp/foms-w-m1) 커밋 8772f9976(기능 — 표시 줄 `holders` 목록 칸 · 규칙 · API join · remove · check · 서버 글) · 9540eda96(인벤토리 셋 줄 번호).
+- 새 파일: `mark_crew.py` · `part_mark_decide.py`(설계서에 없음 — `part_mark_rules.py` 가 639줄이 돼 판정 차례를 뗌) · `part_mark_notes.py` · `migrations/versions/prodpart_02_holders.py` · 시험 둘. 낱말 바뀌어 고친 지금 시험 13개. 쿼리 가드 숫자 그대로(넘어온 같이 작업 쓰기 7).
+- 시험 주장: 닿는 24파일 481 passed / tests/domains 1 failed(`test_graft_cells` — 따로 17 passed) 17832 passed / contracts+harness+security 2012 passed / APP_OK / alembic head `prodpart_02_holders` / 인벤토리 다섯 0 / SQLite 왕복 성공 / 로컬 PG17: 마이그레이션 사슬 + 경합 8 passed, 전체 레인 3 failed 974 passed(실패 셋 = locale C 한글 정렬 · gevent 없음 — 환경 탓이라고 함).
+- 설계서와 다른 것: (1) `part_mark_decide.py` (2) 파트 계정이 `check` 보내면 403 `PART_FORBIDDEN` + **새 글** "[완료 처리]는 반장이나 관리자만 할 수 있어요." (3) `seen_me` 어긋남 = 지금 글 409 (4) 담당 바꾸기는 `seen_by` 나 `target_user_id` 필수 (5) "그사이 {이름}의 시작이 취소됐어요" 이름은 거절 때 쿼리 +1 (6) `handed_*` 는 시작 취소 때 지움 (7) 계정 화면 "작업 중인 장" = 내 몫이 완료 아닌 장 (8) 날짜 줄 완료 칸 "외 n"에 같이 완료한 사람도 셈 (9) `part_board.py` 안 건드림 — 남의 공장 글은 M2 까지 한 명 이름.
+- 호환으로 남긴 옛 칸(M2 · M3 가 정리): `picked_by_*`(첫 사람) · `done_by_*`(가장 늦게 완료한 사람) · `seen_by` · 옛 `release` = `remove` · PC take → done 두 요청 · 카드 · `pc_sheet` 한 명짜리 칸 · `foms-production-parts-sync.js:95` "담당 {이름}"(M2 전까지 30초 받아 오기 뒤 글 엇갈림).
+- 일꾼이 물은 것: (1) 반장 · 관리자가 대상 없이 [되돌리기] — 지금 남의 완료 몫 모두 되돌림 (2) [{이름} 시작 취소] 대상이 이미 완료 누른 사람 — 지금 409 (3) 403 새 글 (4) 검수 1/2 완료 사이 앞 파트 되돌리기 — 지금은 검수 줄이 모두 완료일 때만 막아, 재단 미완료인데 검수가 저절로 완료될 수 있음.
+- 확신 낮다고 한 곳: 사용자 지움 때 요약 칸과 목록 어긋남 / 시작 취소 재전송 판정 / 옛 화면에서 저절로 같이 들어간 사람은 단추가 없음(M1 ~ M3 한 번에 내면 문제 없음) / 계정 화면 셈 비용.
+
+## M1 내 판결 (11-25)
+
+- (2) 완료 누른 사람의 시작 취소 = 409 그대로(Q7 과 같은 규칙 — 먼저 되돌리기).
+- (3) 새 글 "[완료 처리]는 반장이나 관리자만 할 수 있어요." 는 화면이 내놓지 않는 요청의 서버 거절 글 — 둠(사장님께 알림).
+- (1) · (4) 는 사장님께 여쭘.
