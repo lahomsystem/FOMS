@@ -215,7 +215,9 @@
       done.text += asks ? '' : started(data);
       setBusy(false);
       var fac = data.factory_ready;
-      if ((data.order_ready && p.action === 'done') || (fac && p.action === 'done')) { // 검수 마지막 장 → 같은 창에서 "제작 완료할까요?"(섞인 주문은 공장마다)
+      // 검수 마지막 장 → 같은 창에서 "제작 완료할까요?"(섞인 주문은 공장마다). 시작 취소로 남은 사람이 모두 완료돼 저절로 완료된
+      // 누름도 그 누른 사람에게 묻는다(multi-holder §5 풀이 Q6 — 서버가 줄이 DONE 이 된 누름에만 준다)
+      if ((data.order_ready || fac) && p.action !== 'bulk') {
         p.action = fac ? 'factory' : 'complete';
         p.factory = fac ? fac.factory : null;
         p.run = fac ? fac.label + ' 제작 완료' : '제작 완료';

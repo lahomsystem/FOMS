@@ -173,22 +173,36 @@
     openWhy.textContent = '';
     openWhy = null;
   }
-  // 카드 말풍선에 글 하나(막힌 칸 까닭 · 거의 같이 [작업 시작] 넘김 글 "이시영이 먼저 시작했어요." — 서버 글 그대로)
-  function say(card, text) {
-    var bubble = card && card.querySelector('.pp-why');
-    if (!bubble) { return; }
+  function show(bubble, text) {
     hideWhy();
     bubble.textContent = text || '';
     bubble.hidden = !bubble.textContent;
     openWhy = bubble.hidden ? null : bubble;
     if (openWhy) { whyTimer = window.setTimeout(hideWhy, WHY_MS); }
   }
+  // 막힌 칸 까닭 — 단추 칸 위 말풍선(.pp-why)
+  function say(card, text) { var bubble = card && card.querySelector('.pp-why'); if (bubble) { show(bubble, text); } }
+  // 거의 같이 [작업 시작] 넘김 글("이시영이 먼저 시작했어요." — 서버 글 그대로) — 그림 칸 아래쪽 안(어느 단추도 안 덮음, 카드 폭 안).
+  // 누르면 바로 닫힌다(그림 열기 · 파일 열기로 안 넘어가게 여기서 멈춤), 6초 뒤 저절로 닫힘은 같다.
+  function notice(card, text) {
+    var img = card && card.querySelector('.pp-img');
+    if (!img || !text) { return; }
+    var bubble = img.querySelector('[data-pp-notice]');
+    if (!bubble) {
+      bubble = el('span', 'pp-notice');
+      bubble.setAttribute('data-pp-notice', '');
+      bubble.setAttribute('role', 'status');
+      bubble.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); hideWhy(); });
+      img.appendChild(bubble);
+    }
+    show(bubble, text);
+  }
   function showWhy(btn) {
     var card = btn.closest('[data-pp-card], [data-pp-elsewhere]'); // 남의 공장 카드(2공장)도 같은 말풍선
     var bubble = card && card.querySelector('.pp-why');
     if (!bubble) { return; }
     if (openWhy === bubble) { hideWhy(); return; }
-    say(card, btn.getAttribute('data-pp-why') || '');
+    show(bubble, btn.getAttribute('data-pp-why') || '');
   }
   // 받아 오기는 말풍선이 열린 카드를 건너뛴다(누른 칸이 사라지지 않게)
   function busy(card) { return !!openWhy && card.contains(openWhy); }
@@ -225,5 +239,6 @@
   }
 
   window.FomsPartsClaim = { special: special, held: held, renderTag: renderTag, setMarkAttrs: setMarkAttrs, busy: busy,
-    recheck: recheck, heldNote: heldNote, sinceAt: sinceAt, sinceText: sinceText, hideWhy: hideWhy, josa: josa, say: say };
+    recheck: recheck, heldNote: heldNote, sinceAt: sinceAt, sinceText: sinceText, hideWhy: hideWhy, josa: josa, say: say,
+    notice: notice };
 })();

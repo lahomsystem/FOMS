@@ -5,9 +5,10 @@
   "이시영 · 김재단 외 1 작업 중"(이름 줄 = 서버 한 함수 — "외 n" · "작업 중"은 칸 없는 띄어쓰기) · 내 작업 꼬리 "내 작업 · 이시영과 같이" ·
   "내 작업 · 이시영 완료" · 내 몫만 완료 = '완료' 칸 "재단 1/2 완료 · 김재단 작업 중" + 되돌리기 줄 "재단 1/2 완료"(Q12) · 모두 완료
   "재단 완료 · 이시영 · 김재단" · 반장 칸 이름 + 둘째 줄 "재단 1/2 완료" · 보기만 "이시영 · 김재단 작업 중" · 검수 판 "재단 미완료".
-* JS: 서버 칸 ↔ JS 가 다시 그린 칸이 같다(카드 전부) · [같이 작업] 창 · 거의 같이 [작업 시작] 말풍선(서버 글 그대로) · [담당 바꾸기] 사람
-  고르기(완료한 사람 빠짐, 고르기 전 실행 잠금) · 반장 고르기([담당 바꾸기 ›] · [대신 완료] · [{이름} 시작 취소]) · 남은 사람이 있는 [완료] ·
-  [시작 취소] 창 · 30초 받아 오기가 이름 줄을 바꿈. 서버 답은 진짜 API 응답 JSON 이다.
+* JS: 서버 칸 ↔ JS 가 다시 그린 칸이 같다(카드 전부) · [같이 작업] 창 · 거의 같이 [작업 시작] 말풍선(서버 글 그대로, 그림 칸 안 · 누르면
+  닫힘) · [담당 바꾸기] 사람 고르기(바꿀 사람이 둘 이상일 때만 — 하나면 지금 동작, 완료한 사람 빠짐, 고르기 전 실행 잠금) · 반장 고르기
+  ([담당 바꾸기(둘 이상이면 ›)] · [대신 완료] · [같이 작업](아직 작업자가 아닐 때, Q22) · [{이름} 시작 취소]) · 남은 사람이 있는 [완료] ·
+  [시작 취소] 창 · 30초 받아 오기가 이름 줄을 바꿈 · 토씨가 붙는 문장의 "외 n명"(Q20 — 토씨는 서버가). 서버 답은 진짜 API 응답 JSON 이다.
 되돌리면 실패: 이름 줄을 JS 가 짓기(서버 head · who 대신) · "1/2 완료"를 '작업 필요' 칸에 · [같이 작업] 대신 담당 바꾸기만 · 완료한 사람을 고르기에 ·
 고르기 전 실행 · 넘김 글을 버림. 이름은 모두 지어낸 값이다.
 """
@@ -23,7 +24,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from foms.services.production.part_card_crew import NBSP, crew_view, with_particle
+from foms.services.production.part_card_crew import NBSP, crew_view, sentence_line, with_particle
 from tests.support.production_factory_seed import HOME_NONE, TABLET, factory_user, mixed_order, set_cookies
 from tests.support.production_part_claim_seed import ONE, login, make_order, make_user, mark
 
@@ -133,6 +134,15 @@ def test_crew_view_lines_for_each_viewer() -> None:
     assert crew_view([], 2, "김재단")["who"] == "" and crew_view(None, 2, "")["n"] == 0
     assert [with_particle(n) for n in ("이시영", "김재단", "이시영 외 1", "이시영 외 2", "박서희")] == [
         "이시영과", "김재단과", "이시영 외 1과", "이시영 외 2와", "박서희와"]
+    # 문장 속 이름 줄 = "외 n명" + 토씨는 서버가(Q20) — 칸 글(who · head)은 "외 n" 그대로
+    four = rows + [{"user_id": 4, "name": "박재단", "done": False, "picked_at": None, "picked_day": None}]
+    assert (kim["who_subj"], kim["done_subj"], kim["others_left_subj"]) == ("이시영 · 김재단 외 1명이", "이시영이", "최재단이")
+    kim4 = crew_view(four, 2, "김재단")
+    assert (kim4["who"], kim4["who_subj"], kim4["others_left_subj"]) == ("이시영 · 김재단 외 2", "이시영 · 김재단 외 2명이",
+                                                                          "최재단 · 박재단이")
+    assert crew_view([dict(r, done=False) for r in four], 2, "김재단")["tag"] == "이시영 · 최재단 외 1명과 같이"
+    assert [p["subj"] for p in kim4["people"]] == ["이시영이", "김재단이", "최재단이", "박재단이"]
+    assert sentence_line(["이시영", "김재단"]) == "이시영 · 김재단" and sentence_line(["이시영", "김재단", "최재단"]) == "이시영 · 김재단 외 1명"
 
 
 # --------------------------------------------------------------------------- #
@@ -239,7 +249,7 @@ def test_js_join_window_and_late_start_notice(client, cohort, tmp_path) -> None:
     replies = [_post(client, p.kim, join), _post(client, p.kim, took)]
     res = _node(page, {"posts": replies, "steps": [
         {"do": "click", "key": k[1], "act": "join"}, {"do": "run"}, {"do": "card", "key": k[1]},
-        {"do": "click", "key": k[4], "act": "take"}, {"do": "run"}, {"do": "card", "key": k[4]},
+        {"do": "click", "key": k[4], "act": "take"}, {"do": "run"}, {"do": "card", "key": k[4]}, {"do": "notice", "key": k[4]},
         {"do": "click", "key": k[5], "act": "done"}, {"do": "close"},
         {"do": "click", "key": k[5], "act": "release"}, {"do": "close"}]})
     out, calls = res["out"], res["calls"]
@@ -250,8 +260,11 @@ def test_js_join_window_and_late_start_notice(client, cohort, tmp_path) -> None:
     c = out[2]["card"]
     assert (c["state"], c["in_need"], c["tag"]) == ("need", "1", "내 작업 · 이시영과 같이") and "is-mine" in c["cls"]
     assert out[3]["modal"]["title"] == "재단 작업을 시작할까요?" and out[3]["modal"]["run"]["text"] == "작업 시작"
-    e0 = out[5]["card"]  # E0 — 늦은 사람도 같이 작업 + 서버 글 그대로
-    assert e0["why"] == "이시영이 먼저 시작했어요." and e0["tag"] == "내 작업 · 이시영과 같이" and e0["picked_me"] == "1"
+    e0 = out[5]["card"]  # E0 — 늦은 사람도 같이 작업 + 서버 글 그대로, 단추 칸이 아니라 그림 칸 아래쪽 안
+    assert e0["notice"] == "이시영이 먼저 시작했어요." and e0["notice_in_img"] and e0["why"] is None
+    assert e0["tag"] == "내 작업 · 이시영과 같이" and e0["picked_me"] == "1"
+    assert out[6] == {"do": "notice", "hidden": True, "stopped": True, "viewer_open": False}  # 누르면 바로 닫힘 · 크게 보기 안 열림
+    out = out[1:]
     done = out[6]["modal"]  # 남은 사람이 있는 내 [재단 완료]
     assert done["line"] == "작업 필요 → 재단 1/3 완료 · 김재단"
     assert done["note"] == "이시영 · 최재단이 아직 작업 중이라 이시영 · 최재단이 완료해야 도면이 완료돼요."
@@ -289,18 +302,23 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     page.write_text(_page(client, p.lead, CUT_ADMIN), encoding="utf-8")  # 반장 — 도면 3 = 이시영 완료 · 김재단 작업 중
     remove = _body(p.order, 2, "remove", "need", seen_me="none", seen_by=p.lee.id, target_user_id=p.kim.id)
     res = _node(page, {"posts": [_post(client, p.lead, remove)], "steps": [
-        {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "담당 바꾸기 ›"}, {"do": "close"},
+        {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "같이 작업"}, {"do": "close"},
         {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "김재단 시작 취소"}, {"do": "card", "key": k[2]}]})
     out, calls = res["out"], res["calls"]
-    w2 = out[0]["modal"]  # 창 2
+    w2 = out[0]["modal"]  # 창 2 — 바꿀 사람이 하나(김재단)면 [담당 바꾸기]는 지금처럼 바로(› 없음) · 반장은 아직 작업자가 아니라 [같이 작업]
     assert (w2["title"], w2["note"], w2["line"], w2["close"]) == (
         "이시영 · 김재단 작업 중인 도면이에요", "재단 1/2 완료 — 이시영 완료 · 김재단 작업 중", "이시영 · 김재단 작업 중", "닫기")
     assert [(c["text"], c["choice"], c["target"], c["next"]) for c in w2["choices"]] == [
-        ("담당 바꾸기 ›", "takeover", None, True), ("대신 완료", "done", None, False), ("김재단 시작 취소", "remove", str(p.kim.id), False)]
-    assert out[1]["sent"] == 0 and out[1]["modal"]["title"] == "담당을 김재단에서 박반장으로 바꿀까요?"  # › = 다음 창(실행 아님)
+        ("담당 바꾸기", "takeover", str(p.kim.id), False), ("대신 완료", "done", None, False), ("같이 작업", "join", None, True),
+        ("김재단 시작 취소", "remove", str(p.kim.id), False)]
+    assert w2["choices_cls"] == "pp-mchoices pp-mchoices--two" and "pp-mgo--join" in w2["choices"][2]["cls"]  # 넷 = 2 × 2
+    w1 = out[1]["modal"]  # 반장 [같이 작업] = 파트 계정과 같은 확인 창(Q22)
+    assert out[1]["sent"] == 0 and (w1["title"], w1["line"], w1["run"]["text"]) == (
+        "같이 작업할까요?", "이시영 · 김재단 작업 중 → 이시영 · 김재단 외 1 작업 중", "같이 작업")
+    assert w1["note"].startswith("이시영 · 김재단이 ") and w1["note"].endswith("같이 작업하면 모두 [재단 완료]를 눌러야 완료돼요.")
     assert [c["body"] for c in calls] == [remove] and out[4]["sent"] == 1
-    after = out[5]["card"]  # 남은 사람(이시영)이 모두 완료 = 저절로 완료(Q6)
-    assert after["state"] == "done" and after["act"][0]["text"] == "재단 완료 · 이시영"
+    after = out[5]["card"]  # 남은 사람(이시영)이 모두 완료 = 저절로 완료(Q6) — 상태 줄은 한 명 완료 때와 같은 지금 글
+    assert after["state"] == "done" and after["act"][0]["text"] == "재단 완료 · 이시영" and out[4]["status"] == "저장했어요"
 
 
 def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_path) -> None:
@@ -311,7 +329,13 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
     _press(client, p.park, p.order, 1, "join", "need")  # 그사이 박재단이 도면 2 에 같이 작업
     login(client, p.kim)
     synced = client.get(f"/api/production/part-marks?order_ids={p.order.id}&since=2000-01-01T00:00:00").get_json()
-    res = _node(page, {"sync": True, "gets": [synced], "steps": [{"do": "sync"}, {"do": "card", "key": k[1]}]})
+    res = _node(page, {"sync": True, "gets": [synced], "steps": [{"do": "sync"}, {"do": "card", "key": k[1]},
+                                                              {"do": "click", "key": k[2], "act": "release"}, {"do": "close"},
+                                                              {"do": "click", "key": k[3], "act": "undo"}]})
+    assert res["out"][4]["modal"]["line"] == "재단 완료 → 작업 필요 · 김재단"  # 파트 계정 본인 몫 되돌리기 = 지금 꼴(H 대조군)
+    rel = res["out"][2]["modal"]  # 내 [시작 취소] — 남은 이시영이 완료 = 저절로 완료(Q6), 바뀐 뒤는 완료 칸 글
+    assert (rel["title"], rel["line"], rel["note"]) == ("시작을 취소할까요?", "이시영 · 김재단 작업 중 → 재단 완료 · 이시영",
+                                                        "남은 사람이 모두 완료라 도면이 완료돼요.")
     card = res["out"][1]["card"]
     assert card["act"][0]["cls"] == "pp-two pp-two--join" and card["act"][0]["kids"][0]["text"] == "이시영 · 박재단 작업 중›"
 
@@ -320,3 +344,62 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
     res = _node(page, {"steps": [{"do": "click", "key": k[2], "act": "undo"}]})
     undo = res["out"][0]["modal"]
     assert (undo["title"], undo["line"]) == ("작업 필요로 되돌릴까요?", "재단 1/2 완료 → 작업 필요 · 이시영")
+
+
+def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_path) -> None:
+    """반장 고르기 창(시안 창 2): [같이 작업]은 반장이 아직 작업자가 아니고 도면이 모두 완료가 아닐 때만(Q22) · [담당 바꾸기]는 바꿀 사람이
+    하나면 › 없이 바로 실행(지금 동작) · 둘 이상이면 › 고르기 창. 남의 공장 도면 · 모두 완료 도면에는 고르기 창 자체가 없다."""
+    p = _seed(client)
+    k = p.order.keys
+    _press(client, p.kim, p.order, 1, "join", "need")  # 도면 2 = 이시영 · 김재단(둘 다 아직)
+    _press(client, p.lead, p.order, 5, "join", "need")  # 도면 6 = 반장도 작업자
+    _press(client, p.lead, p.order, 5, "done", "need", seen_me="held")  # 반장 몫만 완료(남은 사람 셋)
+    page = tmp_path / "lead.html"
+    html = _page(client, p.lead, CUT_ADMIN)
+    page.write_text(html, encoding="utf-8")
+    assert 'data-pp-act="held"' not in _act(_card(html, k[3]))  # 모두 완료 = 고르기 창 없음(되돌리기 줄)
+    swap = _body(p.order, 2, "takeover", "need", seen_me="none", seen_by=p.lee.id, target_user_id=p.kim.id)
+    res = _node(page, {"posts": [_post(client, p.lead, swap)], "steps": [
+        {"do": "click", "key": k[1], "act": "held"}, {"do": "choice", "text": "담당 바꾸기 ›"}, {"do": "close"},
+        {"do": "click", "key": k[5], "act": "held"}, {"do": "close"},
+        {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "담당 바꾸기"},
+        {"do": "click", "key": k[3], "act": "undo"}]})
+    out, calls = res["out"], res["calls"]
+    undo = out[7]["modal"]  # H — 반장 되돌리기 = 완료한 사람 모두 되돌림, 작업하던 사람은 그대로(누른 반장 이름이 아니다)
+    assert (undo["title"], undo["line"]) == ("작업 필요로 되돌릴까요?", "재단 완료 → 이시영 · 김재단 작업 중") and "박반장" not in undo["line"]
+    two = out[0]["modal"]["choices"]
+    assert [(c["text"], c["next"]) for c in two][:3] == [("담당 바꾸기 ›", True), ("대신 완료", False), ("같이 작업", True)]
+    assert out[1]["sent"] == 0 and out[1]["modal"]["title"] == "누구와 담당을 바꿀까요?"  # 둘 = 고르기 창
+    mine = [c["text"] for c in out[3]["modal"]["choices"]]  # 반장이 이미 작업자(완료) — [같이 작업] 없음
+    assert "같이 작업" not in mine and mine[:2] == ["담당 바꾸기 ›", "대신 완료"]
+    assert out[6]["sent"] == 1 and [c["body"] for c in calls] == [swap]  # 하나 = 고르기 없이 바로(지금 동작)
+
+    seed = mixed_order(3, f2=(2,))  # 남의 공장(2공장) 도면 = 누름 칸 · 고르기 창 없음(서버 문 그대로)
+    two_lee = factory_user("이시영", factory=2, part="cut")
+    _press(client, two_lee, seed, 2, "take", "none")
+    html = _page(client, p.lead, CUT_ADMIN)
+    other = html[html.index(f'data-pp-elsewhere data-order-id="{seed.id}"'):]
+    other = other[:other.index("</article>")]
+    assert "data-pp-act" not in other and "같이 작업" not in other and "이시영 작업 중" in other
+
+
+def test_sentences_say_n_people_and_js_adds_no_particles(client, cohort, tmp_path) -> None:
+    """이름 줄이 "외 n"으로 끝나는 문장은 "외 n명"(Q20) — [같이 작업] 창 안내 · 내 [재단 완료] 창 안내 · 내 작업 꼬리. 토씨는 서버가 붙인
+    완성 조각만 쓴다(JS 가 이름 줄에 토씨를 붙이지 않는다)."""
+    p = _seed(client)
+    k = p.order.keys
+    _press(client, p.park, p.order, 5, "join", "need")  # 도면 6 = 이시영 · 김재단 · 최재단 · 박재단
+    oh = make_user("오재단", part="cut")
+    page = tmp_path / "oh.html"
+    page.write_text(_page(client, oh), encoding="utf-8")
+    note = _node(page, {"steps": [{"do": "click", "key": k[5], "act": "join"}]})["out"][0]["modal"]["note"]
+    assert re.fullmatch(r"이시영 · 김재단 외 2명이 \d\d:\d\d부터 작업 중인 도면이에요\. 같이 작업하면 모두 \[재단 완료\]를 눌러야 완료돼요\.", note)
+    html = _page(client, p.kim)
+    assert "내 작업 · 이시영 · 최재단 외 1명과 같이" in _card(html, k[5])
+    page.write_text(html, encoding="utf-8")
+    res = _node(page, {"steps": [{"do": "click", "key": k[5], "act": "done"}, {"do": "card", "key": k[5]}]})["out"]
+    assert res[0]["modal"]["note"] == "이시영 · 최재단 외 1명이 아직 작업 중이라 이시영 · 최재단 외 1명이 완료해야 도면이 완료돼요."
+    assert res[1]["card"]["tag"] == "내 작업 · 이시영 · 최재단 외 1명과 같이"
+    for name in ("crew", "modal"):
+        src = (ROOT / f"static/js/production/foms-production-parts-{name}.js").read_text(encoding="utf-8")
+        assert not re.search(r"josa\((cr|crew|who|holder|picked)\b", src), name  # 이름 줄에 JS 토씨 없음

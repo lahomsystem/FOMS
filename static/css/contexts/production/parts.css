@@ -290,6 +290,16 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .foms-prod-home .pp-modal .pp-mwho { border: 2px solid var(--fph-taken-300); background: var(--fph-surface); color: var(--fph-taken-700); font-size: calc(17px * var(--foms-fs, 1)); }
 .foms-prod-home .pp-modal .pp-mwho.is-on { border: 3px solid var(--fph-taken-700); background: var(--fph-taken-50); color: var(--fph-taken-700); }
 .foms-prod-home .pp-modal .pp-mwho:focus-visible { outline: 3px solid var(--fph-taken-700); outline-offset: 2px; }
+/* 고침 한 판(지휘 2026-11-25): ① 카드의 내 작업 꼬리는 공정 줄 끝이 아니라 제 줄 — 말줄임 없이 낱말에서 꺾어 두 줄까지("내 …"로 줄지 않게).
+   크게 보기 아래 줄(.pp-vbot)은 그대로. ② 거의 같이 [작업 시작] 말풍선 = 그림 칸 아래쪽 안(카드 폭 안 · 어느 단추도 안 덮음), 누르면 닫힘.
+   ③ 반장 고르기 [같이 작업] = 파트 계정 [같이 작업]과 같은 토큰(--fph-brand), 단추 넷이면 2 × 2 */
+.pp-card .pp-by.has-tag { display: flex; width: 100%; }
+.pp-card .pp-by .pp-tag { flex: 1 0 100%; margin-left: 0; overflow: visible; text-overflow: clip; white-space: normal; word-break: keep-all; text-align: left; }
+.pp-card .pp-img { position: relative; }
+.pp-notice { position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 2; margin: 0; padding: 8px 10px; border: 1px solid var(--fph-old-300); border-radius: 9px; background: var(--fph-note-50); color: var(--fph-note-700); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; text-align: left; box-shadow: 0 6px 18px rgba(20, 23, 28, .18); word-break: keep-all; overflow-wrap: anywhere; cursor: pointer; }
+.pp-notice[hidden] { display: none; }
+.foms-prod-home .pp-modal .pp-mgo--join { background: var(--fph-brand); border-color: var(--fph-brand); }
+.foms-prod-home .pp-modal .pp-mchoices.pp-mchoices--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* ── 아침 칩(설계서 2026-11-23 §4-9) — 판 머리 줄(.pp-head) 안 "어제부터 내 담당 2장 ›". 누르면 작은 창에 시공일마다 [보기].
    머리 줄 키를 안 키운다(띠 · 카드 첫 화면이 안 밀림, M3). 누름 칸 44px 는 아래 태블릿 덩이 ── */
