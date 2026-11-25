@@ -56,7 +56,7 @@
   var kind = 'one';
   var busy = false;
   var sendNote = '';
-  var sendAck = false;
+  var sendAck = { idents: [], orderMade: false };   // 보내기 전 확인 창에서 물어본 도면 열쇠 · 시공 대기 표지
 
   var canTransfer = CFG.can_transfer === true;
   var isPartner = CFG.is_partner === true;   // 협력사는 채널톡에 없다 — 도면방 PUSH 칸 없음(사용자 11-05)
@@ -105,6 +105,8 @@
       });
     }
   }
+
+  function sendAck0() { return { idents: [], orderMade: false }; }
 
   /** 보낼 시트 미리 보기(저장 전) — 한 장 저장은 planIds 와 같은 계산(지금 시트는 늘 넣는다), 일괄은 모든 시트. */
   function predicted() {
@@ -186,12 +188,13 @@
 
   /** 방금 저장한 시트(들)를 영업에게 전달한다. 성공이면 true. */
   function transfer(sheetIds) {
-    var body = { note: sendNote, files: [], pending_sheet_ids: sheetIds, mode: kind === 'one' ? 'APPEND' : '', ack_worked: sendAck };
+    var body = { note: sendNote, files: [], pending_sheet_ids: sheetIds, mode: kind === 'one' ? 'APPEND' : '',
+      ack_worked: sendAck.idents, ack_order_made: sendAck.orderMade };
     var url = '/api/orders/' + ORDER_ID + '/transfer-drawing';
     return (CFG.hotfix_stage === true && window.FomsFixSend ? window.FomsFixSend.post(url, body) : postJson(url, body)).then(function (data) {
       var c = core();
       if (c && c.refreshPending) { c.refreshPending(); }   // 전달한 시트는 대기함에서 빠진다
-      if (data.success === true) { return true; }
+      if (data.success === true) { if (noteEl) { noteEl.value = ''; } return true; }   // 전달 메모는 보낸 뒤 비운다
       if (data.cancelled) { return false; }
       var why = String(data.message || data.error || '전달 실패');
       if (why.indexOf('교체할 도면') >= 0) { why += ' — 작업실 [전달하기] 에서 골라 주세요'; }
@@ -216,7 +219,7 @@
     writeChoice();
     close();
     var F = hot ? window.FomsFixSend : null;
-    (F ? F.gate(ORDER_ID, predicted(), HOTFIX_MSG) : Promise.resolve({ ok: !hot || window.confirm(HOTFIX_MSG), ack: false }))
+    (F ? F.gate(ORDER_ID, predicted(), HOTFIX_MSG) : Promise.resolve({ ok: !hot || window.confirm(HOTFIX_MSG), ack: sendAck0() }))
       .then(function (asked) { if (asked.ok) { sendAck = asked.ack; go(c, send, push); } });
   }
 

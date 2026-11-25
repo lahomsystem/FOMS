@@ -3,9 +3,10 @@
  * §2-3 · R1, D2). 작업실 전달 창(workbench-transfer-fix.js)과 마법사 [저장] 창(save-send.js)이 같이 쓴다.
  *
  * - '바뀐 도면' 줄 · 경고 글은 서버 R1(GET /api/orders/<id>/drawing/fix/progress)이 전달 API 와 같은 함수로 계산한다 — 여기는 그리기만.
- * - 확인은 한 번: 경고가 있으면 이 창 하나(아래 글 = 지금 생산 확인 글), 없으면 지금 확인 글 그대로(window.confirm).
- *   이 창에서 [그래도 보내기]를 누르면 ack_worked 로 보낸다. 그사이 바뀌어 서버가 409(WORKED_DRAWING · ORDER_MADE)를 주면 그 글로
- *   한 번 더 묻는다(안전띠).
+ * - 확인은 한 번: 경고가 있으면 이 창 하나(아래 글 = 지금 생산 확인 글), 없으면 부른 쪽 확인 글(window.confirm).
+ *   [그래도 보내기]를 누르면 물어본 도면 열쇠 목록(ack_worked) · 시공 대기 표지(ack_order_made)를 싣는다 — 서버는 목록에 없는
+ *   작업된 도면이 있으면 그 도면 글로 다시 409 를 주고, 그때만 그 글로 한 번 더 묻는다(D2 검토 I).
+ * - R1 을 못 받으면 옛 확인 글로 묻지 않는다 — 서버 409 창 한 번만(D2 검토 J).
  * - 창은 <dialog>(맨 위 층). 부트스트랩 창 위에서도 초점이 갇히지 않게 그 창 안에 붙인다(host).
  */
 (function () {
@@ -105,14 +106,28 @@
     });
   }
 
-  /** 보내기 전 한 번 묻기 — 경고가 있으면 확인 창(→ ack), 없으면 지금 확인 글(fallbackText). opts 는 값 또는 Promise. */
-  function gate(orderId, opts, fallbackText, host) {
+  function noAck() { return { idents: [], orderMade: false }; }
+
+  /** 물어본 경고 → 실어 보낼 ack({idents: 도면 열쇠, orderMade: 시공 대기 표지}). */
+  function ackOf(warnings) {
+    var out = noAck();
+    (warnings || []).forEach(function (w) {
+      if (w && w.ident && out.idents.indexOf(w.ident) < 0) { out.idents.push(w.ident); }
+      if (w && w.order_made) { out.orderMade = true; }
+    });
+    return out;
+  }
+
+  /** 보내기 전 한 번 묻기 — {ok, ack}. 경고가 있으면 확인 창, 없으면 fallback 글(글 또는 plan → 글). opts 는 값 또는 Promise.
+      미리 보기를 못 받았거나(R1 실패 · 보낼 것 모름) 미리 보기가 거절될 계획이면 묻지 않는다 — 서버가 409 · 400 으로 한 번 답한다. */
+  function gate(orderId, opts, fallback, host) {
     return Promise.resolve(opts).then(function (o) { return o ? preview(orderId, o) : null; }).then(function (plan) {
-      var warnings = (plan && plan.warnings) || [];
+      if (!plan || plan.error) { return { ok: true, ack: noAck() }; }
+      var warnings = plan.warnings || [];
       if (warnings.length) {
-        return ask(warnings, HOTFIX_TEXT, host).then(function (ok) { return { ok: ok, ack: ok }; });
+        return ask(warnings, HOTFIX_TEXT, host).then(function (ok) { return { ok: ok, ack: ok ? ackOf(warnings) : noAck() }; });
       }
-      return { ok: window.confirm(fallbackText), ack: false };
+      return { ok: window.confirm(typeof fallback === 'function' ? fallback(plan) : fallback), ack: noAck() };
     });
   }
 
@@ -130,16 +145,19 @@
     });
   }
 
-  /** 보내기 — 서버가 409(작업이 닿은 도면 · 시공 대기)로 물으면 그 글로 창을 띄우고 [그래도 보내기]면 ack_worked 로 다시 보낸다.
-      취소하면 {success:false, cancelled:true}. */
-  function post(url, body, host) {
+  /** 보내기 — 서버가 409(물어보지 않은 작업된 도면 · 시공 대기)로 물으면 그 글로 창을 띄우고, [그래도 보내기]면 그 도면 열쇠를
+      앞 목록에 더해 다시 보낸다(그사이 또 바뀌면 또 묻는다 — 세 번까지). 취소하면 {success:false, cancelled:true}. */
+  function post(url, body, host, round) {
     return postJson(url, body).then(function (data) {
       var code = data && data.data && data.data.code;
-      if (data.success === true || !ASK_CODES[code] || body.ack_worked) { return data; }
+      if (data.success === true || !ASK_CODES[code] || (round || 0) >= 3) { return data; }
       var warnings = (data.data && data.data.warnings) || [{ text: data.error || data.message }];
       return ask(warnings, HOTFIX_TEXT, host).then(function (ok) {
         if (!ok) { return { success: false, cancelled: true, message: '' }; }
-        return postJson(url, Object.assign({}, body, { ack_worked: true }));
+        var more = ackOf(warnings);
+        var idents = (body.ack_worked || []).concat(more.idents.filter(function (i) { return (body.ack_worked || []).indexOf(i) < 0; }));
+        return post(url, Object.assign({}, body, { ack_worked: idents, ack_order_made: !!body.ack_order_made || more.orderMade }),
+          host, (round || 0) + 1);
       });
     });
   }
@@ -151,6 +169,8 @@
     preview: preview,
     setChanged: setChanged,
     ask: ask,
+    ackOf: ackOf,
+    noAck: noAck,
     gate: gate,
     post: post
   };

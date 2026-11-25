@@ -1841,8 +1841,8 @@
         {% if drawing_hotfix_stage %}
         {#- 생산·시공 단계 수정본(설계서 2026-11-25 §2-3, D2) — '바뀐 도면' 줄 · 파일 도면 고르기 · 메모 꼭 적기 · 보내기 전 확인 창 -#}
         <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125a">
-        <script src="{{ url_for('static', filename='js/drawing/drawing-fix-send.js') }}?v=20261125a" defer></script>
-        <script src="{{ url_for('static', filename='js/drawing/workbench-transfer-fix.js') }}?v=20261125a" defer></script>
+        <script src="{{ url_for('static', filename='js/drawing/drawing-fix-send.js') }}?v=20261125b" defer></script>
+        <script src="{{ url_for('static', filename='js/drawing/workbench-transfer-fix.js') }}?v=20261125b" defer></script>
         <div class="dfx-changed" data-dfx-changed role="status" hidden></div>
         {% endif %}
         <div class="mb-3 small text-muted">
@@ -2903,7 +2903,7 @@
       }
       // 생산·시공 단계 수정본(설계서 2026-11-25 §2-3) — 메모 꼭 적기 · 파일마다 바꿀 도면(workbench-transfer-fix.js).
       const fix = window.FomsWorkbenchFix && window.FomsWorkbenchFix.active() ? window.FomsWorkbenchFix : null;
-      const fixWhy = fix ? fix.check(note, files.length) : '';
+      const fixWhy = fix ? fix.check(note) : '';
       if (fixWhy) {
         showWorkbenchToast(fixWhy, 'error');
         return;
@@ -2924,8 +2924,8 @@
         const checkedBoxes = document.querySelectorAll('#dw-transfer-target-cards .drawing-target-checkbox:checked');
         replaceTargetKeys = Array.from(checkedBoxes).map(cb => cb.value);
 
-        // 파일만 보내는 생산·시공 단계 수정본은 파일마다 고른 도면이 교체 대상이다.
-        if (drawingFiles.length > 0 && replaceTargetKeys.length === 0 && !(fix && files.length && !pendingSheetIds.length)) {
+        // 생산·시공 단계에서 파일을 올리면 파일마다 고른 도면이 자리다 — 교체 대상 고름은 쓰지 않는다(서버도 안 씀).
+        if (drawingFiles.length > 0 && replaceTargetKeys.length === 0 && !(fix && files.length)) {
           showWorkbenchToast('교체 모드에서는 대상 도면을 선택해야 합니다.', 'error');
           return;
         }
@@ -2950,12 +2950,13 @@
         confirmMsg += '\n\n생산·시공 단계라 영업 확인 없이 바로 최종 도면이 되고 생산팀에 알림이 갑니다. 전달 취소로 되돌릴 수 없습니다.';
       }
 
-      // 확인은 한 번 — 작업이 닿은 도면 · 시공 대기면 보내기 전 확인 창(그때만 ack_worked), 아니면 지금 확인 글.
-      let ackWorked = false;
+      // 확인은 한 번 — 작업이 닿은 도면 · 시공 대기면 보내기 전 확인 창(물어본 도면 열쇠만 ack), 아니면 '바뀐 도면' 줄 + 생산
+      // 확인 글(서버 계획과 같은 계산 — 방식 글은 안 냄). 그 밖 단계는 지금 확인 글 그대로.
+      let ack = { idents: [], orderMade: false };
       if (fix) {
-        const asked = await fix.confirmSend(confirmMsg);
+        const asked = await fix.confirmSend();
         if (!asked.ok) return;
-        ackWorked = asked.ack;
+        ack = asked.ack;
       } else if (!confirm(confirmMsg)) return;
 
       try {
@@ -2976,7 +2977,8 @@
           replace_target_keys: replaceTargetKeys.length > 0 ? replaceTargetKeys : null,
           pending_sheet_ids: pendingSheetIds.length > 0 ? pendingSheetIds : null,
           partner_options: optionReview.data,
-          ack_worked: ackWorked,
+          ack_worked: ack.idents,
+          ack_order_made: ack.orderMade,
         };
         const data = fix
           ? await fix.send(`/api/orders/${orderId}/transfer-drawing`, payload)

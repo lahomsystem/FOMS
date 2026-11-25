@@ -17,6 +17,7 @@ from werkzeug.security import generate_password_hash
 import foms.api.drawing.erp_orders_drawing as drawing_routes
 from db import db_session
 from foms.services.datetime_kst import get_today_kst
+from foms.services.orders.drawing_fix import fix_ident
 from models import Order, ProductionPartMark, User
 
 _seq = count(1)
@@ -170,6 +171,12 @@ def team():
 def last_transfer(sd: dict) -> dict:
     """전달 이력의 마지막 ``TRANSFER`` 줄."""
     return next(h for h in reversed(sd["drawing_transfer_history"]) if h.get("action") == "TRANSFER")
+
+
+def acked_idents(oid: int) -> list[str]:
+    """그 주문 지금 확정 도면 열쇠 전부 — 보내기 전 확인 창에서 모두 물어본 것처럼 싣는 ``ack_worked``(시험 도우미)."""
+    db_session.expire_all()
+    return [fix_ident(f) for f in db_session.get(Order, oid).structured_data.get("drawing_current_files") or []]
 
 
 def names(sd: dict) -> list[str]:

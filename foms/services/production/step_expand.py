@@ -84,7 +84,8 @@ def expand_hand_step(db: Any, order: Any, sd: Any, marks: Iterable[Any], part: s
         part: 파트 key.
         exclude_keys: 빼는 장 key(①: 막힌 장 · ②: 이번에 바뀐 장).
         user: 쓴 사람(①: 누른 반장 · ②: 보낸 도면팀원) — ``updated_by_user_id`` · 이벤트 사람.
-        done_by_name · done_by_user_id · done_at: 완료한 사람 스냅샷(②: 칸을 켠 사람 이름 · 칸 시각). 이름을 안 주면 ``user`` · 지금.
+        done_by_name · done_by_user_id · done_at: 완료한 사람 스냅샷(②: 칸을 켠 사람 이름 · 칸 시각). 이름을 안 주면(None) ``user`` ·
+            지금, 빈 글이면 이름 없음(None — 기록 이벤트 ``by_name`` 도 None).
 
     Returns:
         쓴 표시(:class:`~foms.services.production.part_mark_write.MarkWrite` — 값 · 이벤트, 쓴 것이 없으면 빈 목록).
@@ -100,10 +101,11 @@ def expand_hand_step(db: Any, order: Any, sd: Any, marks: Iterable[Any], part: s
         write = plan_write(order, entry, row, part=part, target=MARK_STATE_DONE, user=user, action=ACTION_DONE,
                            override=holder is not None and holder != getattr(user, "id", None))
         if done_by_name is not None:
-            write.values.update(done_by_user_id=done_by_user_id, done_by_name=done_by_name,
+            # 빈 이름("")은 "모름" — 이름 칸은 빈 채(None), 누른 사람으로 채우지 않는다(D2 검토 F)
+            write.values.update(done_by_user_id=done_by_user_id, done_by_name=done_by_name or None,
                                 done_at=done_at or write.values["done_at"])
             # 장별 기록(part-history 는 payload ``by_name`` 을 먼저 읽는다)이 표시 줄과 같은 사람(칸을 켠 사람)을 말하게(D2 검토)
-            write.event["payload"]["by_name"] = done_by_name
+            write.event["payload"]["by_name"] = done_by_name or None
         write.event["payload"]["via"] = VIA_STEP_EXPAND
         writes.append(write)
     if writes:

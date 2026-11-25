@@ -3,13 +3,15 @@
 두 길(작업실 ``transfer-drawing`` · 마법사 · 작업실 일괄 ``transfer-pending``)이 모두 ``perform_drawing_transfer`` 하나를 거치고, 그
 함수가 이 모듈을 같은 차례로 부른다:
 
-1. 권한(``can_fix_production_drawing`` — 부르는 쪽) → :func:`precheck`(메모 400 → 파일 바꿀 도면 400 → 열린 공장 요청 400)
-2. 지금 검사들(반영 안 한 영업 요청 400 · 자리 계산 400) → :func:`worked_refusal`(시공 단계 409 ``ORDER_MADE`` · 작업이 닿은 도면
-   409 ``WORKED_DRAWING`` — ``ack_worked`` 면 지나감)
-3. 쓰기(같은 JSON 사본) → :func:`apply_fix_writes` — 고치는 중 풀림 · 파일 이어받기 · 손 처리 풀기(생산 단계) · 패킹 줄 체크 풀기.
+1. 권한(``can_fix_production_drawing`` — 부르는 쪽) → :func:`precheck`(메모 400 → 파일 바꿀 도면 400 → [반영 완료] · [요청 반려]
+   안 된 공장 요청 400)
+2. 지금 검사들(반영 안 한 영업 요청 400 · 자리 계산 400) → :func:`worked_refusal`(시공 단계 409 ``ORDER_MADE`` — ``ack_order_made``
+   면 지나감 · 작업이 닿은 도면 409 ``WORKED_DRAWING`` — 그 도면 열쇠가 모두 ``ack_worked`` 목록에 있을 때만 지나감)
+3. 쓰기(같은 JSON 사본) → :func:`apply_fix_writes` — 고치는 중 풀림 · 건드린 도면의 열린 공장 요청 닫기 · 파일 이어받기 · 손 처리
+   풀기(생산 단계) · 패킹 줄 체크 풀기.
 
-공장 요청은 전달이 바꾸지 않는다(사장님 "공장 요청은 [반영 완료]를 먼저" — 열린 요청이 있으면 1 에서 멈춘다). 그 밖 단계는 이
-모듈을 부르지 않는다(지금 그대로).
+[반영 완료](``checked``)는 막힘을 풀지 않는다 — 수정본이 가서 그 도면을 건드려야 요청이 ``done`` 이 된다(설계서 §3-2 · §3-4). 그 밖
+단계는 이 모듈을 부르지 않는다(지금 그대로).
 """
 
 from __future__ import annotations
@@ -19,10 +21,15 @@ from typing import Any, Iterable, Optional
 
 from sqlalchemy import insert
 
-from foms.services.datetime_kst import parse_datetime_utc
+from foms.services.datetime_kst import now_utc_naive, parse_datetime_utc
 from foms.services.drawing_fix_progress import order_made_warning, worked_warnings
-from foms.services.orders.drawing_factory import DRAWING_FIX_KEY, hand_checked_parts
-from foms.services.orders.drawing_fix import inherit_file_successors, release_fixing_on_transfer, REQUEST_OPEN
+from foms.services.orders.drawing_factory import hand_checked_parts
+from foms.services.orders.drawing_fix import (
+    close_requests_on_transfer,
+    inherit_file_successors,
+    release_fixing_on_transfer,
+    unhandled_requests,
+)
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
 from foms.services.orders.drawing_transfer_plan import (
     NEW_TARGET,
@@ -92,11 +99,9 @@ def collect_picks(raw_files: Iterable[Any]) -> dict[str, str]:
     return out
 
 
-def open_factory_requests(sd: Any) -> list[dict[str, Any]]:
-    """열린 공장 요청(``drawing_fix.requests`` 중 ``state == 'open'``). [반영 완료] · [요청 반려]된 요청은 열림이 아니다."""
-    table = sd.get(DRAWING_FIX_KEY) if isinstance(sd, dict) else None
-    requests = table.get("requests") if isinstance(table, dict) else None
-    return [r for r in requests or [] if isinstance(r, dict) and r.get("state") == REQUEST_OPEN]
+def ack_idents(raw: Any) -> set[str]:
+    """``ack_worked`` = 보내기 전 확인 창에서 물어본 도면 열쇠 목록(``sheet:…`` · ``file:…``). 목록이 아니면 빈 것(참 · 거짓은 받지 않음)."""
+    return {x.strip() for x in raw if isinstance(x, str) and x.strip()} if isinstance(raw, list) else set()
 
 
 def precheck(sd: Any, *, note: str, new_files: list[dict[str, Any]], picks: dict[str, str],
@@ -114,7 +119,7 @@ def precheck(sd: Any, *, note: str, new_files: list[dict[str, Any]], picks: dict
     for entry in new_files:
         if is_manual_file(entry) and picks.get(entry["key"]) not in old_keys | {NEW_TARGET}:
             return refusal(400, PICK_TARGET, MESSAGES[PICK_TARGET])
-    if open_factory_requests(sd):
+    if unhandled_requests(sd):
         return refusal(400, FACTORY_REQUEST_OPEN, MESSAGES[FACTORY_REQUEST_OPEN])
     return None
 
@@ -129,12 +134,13 @@ def load_marks(db: Any, order_id: int) -> list[Any]:
     return db.query(ProductionPartMark).filter(ProductionPartMark.order_id == int(order_id)).all()
 
 
-def worked_refusal(db: Any, order: Any, sd: Any, plan: FilePlan, old_files: list[Any], *,
-                   ack: bool) -> tuple[Optional[tuple[dict[str, Any], int]], Optional[list[Any]]]:
+def worked_refusal(db: Any, order: Any, sd: Any, plan: FilePlan, old_files: list[Any], *, acked: set[str],
+                   ack_order_made: bool) -> tuple[Optional[tuple[dict[str, Any], int]], Optional[list[Any]]]:
     """보내기 전 확인(§2-3) — 시공 단계면 409 ``ORDER_MADE``, 생산 단계에서 바뀌는 도면에 작업이 닿았으면 409 ``WORKED_DRAWING``.
 
-    ``ack`` (``ack_worked``)면 묻지 않고 지나간다. 생산 단계에서 표시 줄을 읽었으면 그 줄을 돌려준다(손 처리 풀기가 다시 쓴다 —
-    한 번만 읽음).
+    시공 단계는 ``ack_order_made`` 면 지나간다. 생산 단계는 작업이 닿은 도면 열쇠가 **모두** ``acked``(물어본 도면 목록)에 있을
+    때만 지나가고, 하나라도 빠지면 빠진 도면 글로 다시 409 — 저장 전 예측으로 물은 뒤 보낼 시트가 늘어도 안 물은 도면은 못 지나간다
+    (D2 검토 I). 생산 단계에서 표시 줄을 읽었으면 그 줄을 돌려준다(손 처리 풀기가 다시 쓴다 — 한 번만 읽음).
 
     Returns:
         (거절 또는 None, 읽은 표시 줄 또는 None).
@@ -142,17 +148,15 @@ def worked_refusal(db: Any, order: Any, sd: Any, plan: FilePlan, old_files: list
     stage = read_main_stage(order)
     if stage == STAGE_CONSTRUCTION:
         warnings = order_made_warning()
-        return (None if ack else refusal(409, ORDER_MADE, warnings[0]["text"], warnings=warnings)), None
+        return (None if ack_order_made else refusal(409, ORDER_MADE, warnings[0]["text"], warnings=warnings)), None
     changed = changed_old_entries(old_files, plan.updated_files)
     if stage != STAGE_PRODUCTION or not changed:
         return None, None
     marks = load_marks(db, order.id)
-    if ack:
+    missing = [w for w in worked_warnings(sd, marks, changed) if w["ident"] not in acked]
+    if not missing:
         return None, marks
-    warnings = worked_warnings(sd, marks, changed)
-    if not warnings:
-        return None, marks
-    return refusal(409, WORKED_DRAWING, " ".join(w["text"] for w in warnings), warnings=warnings), marks
+    return refusal(409, WORKED_DRAWING, " ".join(w["text"] for w in missing), warnings=missing), marks
 
 
 def _step_rows(sd: Any) -> dict[str, dict[str, Any]]:
@@ -171,7 +175,8 @@ def expand_hand_parts(db: Any, order: Any, sd: dict[str, Any], marks: list[Any],
     """손 처리 파트를 도면별 표시로 풀어 적는다(§3-6 ② — 사장님 답 Q13 "고친 도면만 다시 할 일로").
 
     카드를 한 장도 안 쓴 채 칸이 켜진 파트마다, 이번에 **안 바뀐** 지금 도면을 ``DONE`` 으로 쓴다 — 완료한 사람 = 칸을 켠 사람(칸
-    ``by_name``) · 시각 = 칸 시각(장별 기록 이벤트의 ``by_name`` 도 같은 사람 — ``expand_hand_step``). 그 뒤 동기화가 새 판(줄 없음)을
+    ``by_name``) · 시각 = 칸 시각(장별 기록 이벤트의 ``by_name`` 도 같은 사람 — ``expand_hand_step``). 칸에 이름이 없으면 이름은 빈 채
+    (보낸 도면팀원을 완료한 사람으로 적지 않는다 — D2 검토 F), 칸 시각도 없으면 지금. 그 뒤 동기화가 새 판(줄 없음)을
     보고 칸을 끈다. 안 바뀐 도면이 하나도 없으면(모든 장을 고침) 쓸 줄이 없어 동기화가 그 파트를 못 보므로 칸을 여기서 끈다(같은
     칸 바꾸기 함수 · 같은 이벤트). 검수 준비 문(``INSPECT_NOT_READY``)은 걸지 않는다 — 이미 손으로 끝낸 일을 장마다 옮겨 적을 뿐이고
     전달이 중간에 막히면 안 된다.
@@ -183,9 +188,9 @@ def expand_hand_parts(db: Any, order: Any, sd: dict[str, Any], marks: list[Any],
     done, off = [], []
     for part in hand_checked_parts(sd, marks):
         step = steps.get(part) or {}
-        name = str(step.get("by_name") or "").strip() or None
-        writes = expand_hand_step(db, order, sd, marks, part, exclude_keys=new_keys, user=user, done_by_name=name,
-                                  done_at=_naive_utc(step.get("at")) if name else None)
+        writes = expand_hand_step(db, order, sd, marks, part, exclude_keys=new_keys, user=user,
+                                  done_by_name=str(step.get("by_name") or "").strip(),
+                                  done_at=_naive_utc(step.get("at")) or now_utc_naive())
         done.append(part)
         if not writes:
             off.append(StepChange(part, False))
@@ -205,16 +210,18 @@ def apply_fix_writes(db: Any, order: Any, sd: dict[str, Any], *, plan: FilePlan,
                      at_iso: str) -> dict[str, Any]:
     """생산 · 시공 단계 전달 쓰기(같은 JSON 사본 ``sd`` — 부르는 쪽이 재대입 · ``flag_modified``)(§3-4 ~ §3-7).
 
-    * 건드린 열쇠(:func:`~foms.services.orders.drawing_transfer_plan.touched_idents`)의 고치는 중 표시를 지운다 — 안 건드린 도면은 그대로.
+    * 건드린 열쇠(:func:`~foms.services.orders.drawing_transfer_plan.touched_idents`)의 고치는 중 표시를 지우고, 그 열쇠를 가리키는
+      열린 공장 요청을 ``done`` 으로 닫는다 — 안 건드린 도면 · 요청은 그대로(막힘 그대로).
     * 파일로 올린 도면이 고른 도면의 공장 · '바뀐 도면' 짝을 이어받는다(``file_successor``).
     * 생산 단계: 손 처리 파트 풀어 쓰기(:func:`expand_hand_parts`).
     * 건드린 열쇠의 공장 꼴 패킹 줄 체크를 푼다(출발 보고 뒤는 그대로 — ``release_packing_checks``).
 
     Returns:
-        ``{released_numbers, packing_released, expanded_parts}``(이벤트 · 감사에 싣는다).
+        ``{released_numbers, closed_requests, packing_released, expanded_parts}``(이벤트 · 감사에 싣는다).
     """
     touched = touched_idents(old_files, plan.updated_files)
     released = release_fixing_on_transfer(sd, touched, by_name=by_name, at=at_iso)
+    closed = close_requests_on_transfer(sd, touched, by_name=by_name, at=at_iso)
     inherit_file_successors(sd, {new: old for new, old in plan.pairs.items() if picks.get(new) == old}, old_files)
     expanded: list[str] = []
     old_keys = {str((f or {}).get("key") or "") for f in old_files if isinstance(f, dict)}
@@ -223,11 +230,11 @@ def apply_fix_writes(db: Any, order: Any, sd: dict[str, Any], *, plan: FilePlan,
         expanded = expand_hand_parts(db, order, sd, marks if marks is not None else load_marks(db, order.id),
                                      new_keys=new_keys, user=user)
     packing = release_packing_checks(sd, touched)
-    return {"released_numbers": released, "packing_released": packing, "expanded_parts": expanded}
+    return {"released_numbers": released, "closed_requests": closed, "packing_released": packing, "expanded_parts": expanded}
 
 
 __all__ = [
     "FACTORY_REQUEST_OPEN", "MESSAGES", "can_fix_production_drawing", "NOTE_REQUIRED", "ORDER_MADE", "PICK_TARGET", "WORKED_DRAWING", "apply_fix_writes",
-    "collect_picks", "expand_hand_parts", "load_marks", "manual_picks", "open_factory_requests", "precheck", "refusal",
+    "ack_idents", "collect_picks", "expand_hand_parts", "load_marks", "manual_picks", "precheck", "refusal",
     "worked_refusal",
 ]

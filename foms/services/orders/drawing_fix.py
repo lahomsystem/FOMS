@@ -299,8 +299,8 @@ def _writable_fix(sd: dict[str, Any]) -> dict[str, Any]:
 def release_fixing_on_transfer(sd: dict[str, Any], idents: Iterable[str], *, by_name: str, at: str) -> list[int]:
     """수정본 전달이 건드린 열쇠의 [수정 시작] 표시를 지운다(제자리 — §3-4). 안 건드린 도면은 그대로 막힘.
 
-    공장 요청은 건드리지 않는다 — 열린 공장 요청이 있으면 전달이 먼저 400 ``FACTORY_REQUEST_OPEN`` 으로 멈춘다(사장님 "공장 요청은
-    [반영 완료]를 먼저"). 지운 것이 있으면 ``log`` 에 ``done`` 한 줄(최근 :data:`FIX_LOG_CAP` 줄).
+    공장 요청은 :func:`close_requests_on_transfer` 가 따로 닫는다. 지운 것이 있으면 ``log`` 에 ``done`` 한 줄(최근
+    :data:`FIX_LOG_CAP` 줄).
 
     Args:
         sd: 고칠 ``structured_data`` 사본(부르는 쪽이 재대입 · ``flag_modified``).
@@ -322,6 +322,48 @@ def release_fixing_on_transfer(sd: dict[str, Any], idents: Iterable[str], *, by_
     log.append({"act": LOG_DONE, "idents": hit, "numbers": numbers, "by_name": by_name, "at": at})
     table["log"] = log[-FIX_LOG_CAP:]
     return numbers
+
+
+def request_checked(request: Any) -> bool:
+    """공장 요청이 [반영 완료] 표시됐는지(``checked`` — 설계서 §3-2 · N5, ``checked_by_name`` · ``checked_at`` 와 같이 적힌다).
+
+    [반영 완료]는 상태(``state``)를 바꾸지 않는다 — 수정본이 갈 때까지 그 도면은 막힌 채다(사장님 "요청하면 바로 막기").
+    """
+    return isinstance(request, dict) and request.get("checked") is True
+
+
+def unhandled_requests(sd: Any) -> list[dict[str, Any]]:
+    """[반영 완료]도 [요청 반려]도 안 된 공장 요청(열림 + 체크 안 됨) — 하나라도 있으면 수정본을 못 보낸다(§4-2 ``FACTORY_REQUEST_OPEN``)."""
+    requests = _fix_table(sd).get("requests")
+    return [r for r in requests or [] if isinstance(r, dict) and r.get("state") == REQUEST_OPEN and not request_checked(r)]
+
+
+def close_requests_on_transfer(sd: dict[str, Any], idents: Iterable[str], *, by_name: str, at: str) -> list[str]:
+    """수정본 전달이 건드린 열쇠를 가리키는 열린 공장 요청을 ``done``(+ ``done_at``)으로 닫는다(제자리 — 설계서 §3-4).
+
+    안 건드린 도면만 가리키는 요청은 열린 채(그 도면은 그대로 막힘). 닫은 것이 있으면 ``log`` 에 ``done`` 한 줄.
+
+    Args:
+        sd: 고칠 사본. idents: 건드린 열쇠. by_name: 보낸 사람 이름. at: 보낸 때(UTC iso).
+
+    Returns:
+        닫은 요청 id(없으면 빈 목록).
+    """
+    wanted = set(_clean_idents(idents))
+    requests = _fix_table(sd).get("requests")
+    hit = [r for r in requests or [] if isinstance(r, dict) and r.get("state") == REQUEST_OPEN
+           and isinstance(r.get("targets"), list) and wanted & set(_clean_idents(r["targets"]))]
+    if not hit:
+        return []
+    for request in hit:
+        request.update(state="done", done_at=at)
+    table = _writable_fix(sd)
+    log = [row for row in table.get("log") or [] if isinstance(row, dict)]
+    log.append({"act": LOG_DONE, "idents": sorted({i for r in hit for i in _clean_idents(r["targets"])}),
+                "numbers": sorted({n for r in hit for n in r.get("numbers") or [] if isinstance(n, int)}),
+                "requests": [str(r.get("id") or "") for r in hit], "by_name": by_name, "at": at})
+    table["log"] = log[-FIX_LOG_CAP:]
+    return [str(r.get("id") or "") for r in hit]
 
 
 def inherit_file_successors(sd: dict[str, Any], pairs: dict[str, str], old_files: Iterable[Any]) -> None:
@@ -351,7 +393,8 @@ def inherit_file_successors(sd: dict[str, Any], pairs: dict[str, str], old_files
 
 __all__ = [
     "Block", "DRAWING_FIX_KEY", "FILE_PREFIX", "REQUEST_OPEN", "SHEET_PREFIX", "WHY_FACTORY", "WHY_FIXING", "WHY_SALES",
-    "file_successor", "inherit_file_successors", "release_fixing_on_transfer",
+    "close_requests_on_transfer", "file_successor", "inherit_file_successors", "release_fixing_on_transfer", "request_checked",
+    "unhandled_requests",
     "blocked", "blocked_entries", "blocked_left_numbers", "complete_blocked", "confirm_extras", "drawing_blocked", "entry_blocked",
     "expand_confirm", "expand_confirm_body", "expand_done_text", "expand_plan", "expanded_words", "factory_complete_blocked", "factory_has_blocked", "fix_ident", "fixing_idents", "fixing_label", "idents_for_keys",
     "number_topic", "numbers_text", "open_request_idents", "per_drawing_numbers", "sales_request_idents", "skip_tail",

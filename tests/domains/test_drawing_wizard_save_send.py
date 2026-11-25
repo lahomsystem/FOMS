@@ -57,7 +57,7 @@ def test_popover_markup_sits_with_save_buttons_and_has_no_inline_style():
 
 
 def test_save_send_script_loads_after_wizard_core():
-    assert TPL.index("js/drawing/wizard.js') }}?v=20261111a") < TPL.index("js/drawing/save-send.js') }}?v=20261125a")
+    assert TPL.index("js/drawing/wizard.js') }}?v=20261111a") < TPL.index("js/drawing/save-send.js') }}?v=20261125b")
     # 생산·시공 단계 보내기 전 확인 창(drawing-fix-send.js)은 저장 창보다 먼저 읽힌다(defer 차례).
     assert TPL.index("js/drawing/drawing-fix-send.js") < TPL.index("js/drawing/save-send.js")
 
@@ -320,14 +320,16 @@ def test_hotfix_send_without_memo_keeps_the_window_open_and_sends_nothing():
 
 def test_hotfix_send_asks_once_before_saving_and_carries_memo_and_ack():
     out = _run({"kind": "one", "sheets": ["s-1", "s-2"], "current": "s-1", "pending": ["s-1"], "send": True, "push": False,
-                "hotfix": True, "note": "상판 깊이 600 → 580", "warnings": [{"text": "도면 1은 재단이 완료된 도면입니다."}]})
+                "hotfix": True, "note": "상판 깊이 600 → 580",
+                "warnings": [{"ident": "sheet:s-1", "text": "도면 1은 재단이 완료된 도면입니다."}]})
     urls = [c["url"] for c in out["calls"]]
     assert urls.count("gate") == 1 and urls.index("gate") < urls.index("/api/orders/77/transfer-drawing")
     body = _transfer_body(out)
-    assert body["note"] == "상판 깊이 600 → 580" and body["ack_worked"] is True   # 확인 창에서 고른 것 = ack
+    assert body["note"] == "상판 깊이 600 → 580" and body["ack_worked"] == ["sheet:s-1"]   # 확인 창에서 물어본 도면 열쇠만
+    assert body["ack_order_made"] is False
 
 
 def test_hotfix_send_without_warnings_sends_without_ack():
     out = _run({"kind": "one", "sheets": ["s-1"], "current": "s-1", "pending": ["s-1"], "send": True, "push": False,
                 "hotfix": True, "note": "메모"})
-    assert _transfer_body(out)["ack_worked"] is False   # 서버가 그사이 바뀐 것을 409 로 다시 물을 수 있게
+    assert _transfer_body(out)["ack_worked"] == []   # 서버가 그사이 바뀐 것을 409 로 다시 물을 수 있게

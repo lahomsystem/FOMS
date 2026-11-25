@@ -22,6 +22,7 @@ from db import db_session, engine
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.production.part_steps_sync import part_steps_after, plan_part_step_changes
 from models import Order, OrderEvent, ProductionPartMark, ProductionRun, User
+from tests.support.drawing_fix_transfer_seed import acked_idents
 
 ONE = "/api/production/part-marks"
 BULK = "/api/production/part-marks/basic"
@@ -257,7 +258,7 @@ def test_hotfix_transfer_new_key_turns_part_step_off(client):
     # 2026-11-25 D2: 생산 단계 수정본은 메모 · 고른 도면 · 보내기 전 확인(재단 끝난 도면 — ack)을 싣는다.
     resp = client.post(f"/api/orders/{oid}/transfer-drawing", json={
         "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png",
-                   "replace_of": _keys(oid)[0]}], "note": "치수 고침", "ack_worked": True})
+                   "replace_of": _keys(oid)[0]}], "note": "치수 고침", "ack_worked": acked_idents(oid)})
     assert resp.status_code == 200, resp.get_json()
     assert _keys(oid) == [f"orders/{oid}/drawing_wizard/exports/fix.png"]  # 한 장 교체(바로 반영)
     cut = _step(oid, "cut")
@@ -281,7 +282,7 @@ def test_hotfix_transfer_replacing_every_drawing_turns_hand_step_off(client):
     _login(client, drawer)
     assert client.post(f"/api/orders/{oid}/transfer-drawing", json={
         "files": [{"key": f"orders/{oid}/drawing_wizard/exports/fix.png", "filename": "fix.png", "replace_of": _keys(oid)[0]}],
-        "note": "치수 고침", "ack_worked": True}).status_code == 200
+        "note": "치수 고침", "ack_worked": acked_idents(oid)}).status_code == 200
     assert _step(oid, "cut")["done"] is False
     last = _step_events(oid)[-1]
     assert last.payload["trigger"] == "drawing_transfer" and last.payload["done"] is False

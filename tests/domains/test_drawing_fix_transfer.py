@@ -6,7 +6,7 @@
 * 생산 · 시공 단계는 도면팀 누구나 보낸다(담당 없음이어도) — 그 밖 단계는 지금 권한 그대로(음성 대조군).
 * 차례: 메모(400 ``NOTE_REQUIRED``) → 파일 바꿀 도면(400 ``PICK_TARGET``) → 열린 공장 요청(400 ``FACTORY_REQUEST_OPEN`` —
   [반영 완료] · [요청 반려]된 요청은 열림이 아님) → 지금 검사들 → 작업이 닿은 도면(409 ``WORKED_DRAWING``) · 시공 대기(409
-  ``ORDER_MADE``) → ``ack_worked`` 면 지나감. 거절이면 아무것도 안 쓴다.
+  ``ORDER_MADE``) → 물어본 도면 열쇠 목록(``ack_worked``) · 시공 대기 표지(``ack_order_made``)면 지나감. 거절이면 아무것도 안 쓴다.
 * 막힌 도면이 없는 보통 전달은 전과 똑같다(``changed`` 만 더 적힘). 쓰기 쪽(풀림 · 손 처리 · 패킹 · 이어받기 · R1)은
   ``test_drawing_fix_transfer_writes.py``.
 
@@ -61,10 +61,11 @@ def test_construction_waiting_also_open_to_drawing_team_after_warning(client, qu
     login(client, team.other)
     res = send(client, path, oid, "s1")
     assert res.status_code == 409 and _code(res) == "ORDER_MADE"
-    assert res.get_json()["data"]["warnings"] == [{"no": None, "text": "이미 제작 완료된 주문입니다. 보내면 공장에 도면 바뀜 알림이 갑니다.",
-                                                   "line": "주문은 시공 대기 그대로예요."}]
+    assert res.get_json()["data"]["warnings"] == [{"no": None, "ident": None, "order_made": True, "line": "주문은 시공 대기 그대로예요.",
+                                                   "text": "이미 제작 완료된 주문입니다. 보내면 공장에 도면 바뀜 알림이 갑니다."}]
     assert _names(sd_of(oid)) == ["s0.png", "s1.png", "s2.png"]      # 묻는 동안 아무것도 안 씀
-    res = send(client, path, oid, "s1", ack_worked=True)
+    assert send(client, path, oid, "s1", ack_worked=["sheet:s1"]).status_code == 409   # 도면 목록은 시공 대기 확인이 아니다
+    res = send(client, path, oid, "s1", ack_order_made=True)
     assert res.status_code == 200, res.get_json()
     sd = sd_of(oid)
     assert sd["workflow"]["stage"] == "CONSTRUCTION" and sd["drawing_status"] == "CONFIRMED"   # 단계 그대로(답 7)
@@ -128,7 +129,7 @@ def test_uploaded_file_replaces_the_picked_drawing_in_place(client, quiet, team)
     oid = make_order(assignees=(team.drawer.id,))
     login(client, team.drawer)
     upload = {"key": manual_key(oid, "new"), "filename": "new.pdf", "replace_of": key(oid, "s1")}
-    res = send(client, "drawing", oid, manual=[upload], ack_worked=True)
+    res = send(client, "drawing", oid, manual=[upload])
     assert res.status_code == 200, res.get_json()
     sd = sd_of(oid)
     assert _names(sd) == ["s0.png", "new.pdf", "s2.png"]
@@ -150,9 +151,9 @@ def test_mixed_upload_goes_to_the_picked_drawing_and_other_sheets_keep_their_rul
     assert _names(sd_of(oid)) == ["hand.pdf", "s1-v2.png"]
 
 
-def _requests(state: str) -> dict:
+def _requests(state: str, **extra) -> dict:
     return {"requests": [{"id": "fr_1", "from": "factory", "targets": ["sheet:s2"], "numbers": [3], "note": "측판 길이",
-                          "factory": 1, "by_name": "박반장", "state": state}]}
+                          "factory": 1, "by_name": "박반장", "state": state, **extra}]}
 
 
 @pytest.mark.parametrize("path", PATHS)
@@ -187,15 +188,16 @@ def test_refusals_come_in_the_spec_order(client, quiet, team):
     assert _code(send(client, "drawing", oid, "s1", manual=[upload])) == "FACTORY_REQUEST_OPEN"
     sd = sd_of(oid)
     history = sd["drawing_transfer_history"] + [{"action": "REQUEST_REVISION", "note": "손잡이", "files": []}]
-    patch(oid, drawing_fix=_requests("done"), drawing_status="RETURNED", drawing_transfer_history=history)
+    patch(oid, drawing_fix=_requests("open", checked=True), drawing_status="RETURNED", drawing_transfer_history=history)
     res = send(client, "drawing", oid, "s1", manual=[upload])
     assert res.status_code == 400 and "반영 완료" in res.get_json()["message"]
     history[-1]["review_check"] = {"checked": True}
     patch(oid, drawing_transfer_history=history)
     assert _code(send(client, "drawing", oid, "s1", manual=[upload])) == "WORKED_DRAWING"
-    res = send(client, "drawing", oid, "s1", manual=[upload], ack_worked=True)
+    res = send(client, "drawing", oid, "s1", manual=[upload], ack_worked=["sheet:s1"])
     assert res.status_code == 200, res.get_json()
-    assert sd_of(oid)["drawing_status"] == "CONFIRMED"
+    sd = sd_of(oid)
+    assert sd["drawing_status"] == "CONFIRMED" and sd["drawing_fix"]["requests"][0]["state"] == "open"   # 안 건드린 도면 3 요청
 
 
 # --- 보내기 전 확인(409) --------------------------------------------------------
@@ -212,12 +214,12 @@ def test_worked_drawings_are_asked_once_with_progress_then_ack_sends(client, qui
     res = send(client, path, oid, "s1", "s2", "s3")
     assert res.status_code == 409 and _code(res) == "WORKED_DRAWING"
     assert res.get_json()["data"]["warnings"] == [
-        {"no": 2, "text": f"도면 2는 재단이 완료된 도면입니다. {AGAIN}", "line": "도면 2 · 재단 완료 · 엣지 작업 중"},
-        {"no": 3, "text": f"도면 3은 박엣지가 엣지 작업 중인 도면입니다. {AGAIN}", "line": "도면 3 · 엣지 작업 중"},
-        {"no": 4, "text": f"도면 4는 재단이 완료된 도면입니다. {AGAIN}", "line": "도면 4 · 재단 기본"},
+        {"no": 2, "ident": "sheet:s1", "text": f"도면 2는 재단이 완료된 도면입니다. {AGAIN}", "line": "도면 2 · 재단 완료 · 엣지 작업 중"},
+        {"no": 3, "ident": "sheet:s2", "text": f"도면 3은 박엣지가 엣지 작업 중인 도면입니다. {AGAIN}", "line": "도면 3 · 엣지 작업 중"},
+        {"no": 4, "ident": "sheet:s3", "text": f"도면 4는 재단이 완료된 도면입니다. {AGAIN}", "line": "도면 4 · 재단 기본"},
     ]
     assert _names(sd_of(oid)) == ["s0.png", "s1.png", "s2.png", "s3.png"]
-    res = send(client, path, oid, "s1", "s2", "s3", ack_worked=True)
+    res = send(client, path, oid, "s1", "s2", "s3", ack_worked=["sheet:s1", "sheet:s2", "sheet:s3"])
     assert res.status_code == 200, res.get_json()
     assert _names(sd_of(oid)) == ["s0.png", "s1-v2.png", "s2-v2.png", "s3-v2.png"]
 

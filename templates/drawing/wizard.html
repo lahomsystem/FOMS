@@ -773,8 +773,8 @@
   {#- 장의 공장 — 탭 앞 2공장 표시 · 도구 줄 공장 지정(설계서 2026-11-23 §8-5). 고르면 API 로 바로 저장한다. -#}
   {% if wizard_config.factory %}{% if wizard_config.factory.can_set %}<script src="{{ url_for('static', filename='js/drawing/sheet-factory.js') }}?v=20261124a" defer></script>
   {% endif %}<script src="{{ url_for('static', filename='js/drawing/wizard-factory.js') }}?v=20261125a" defer></script>{% endif %}
-  {% if wizard_config.save_send.hotfix_stage %}<script src="{{ url_for('static', filename='js/drawing/drawing-fix-send.js') }}?v=20261125a" defer></script>{% endif %}
-  <script src="{{ url_for('static', filename='js/drawing/save-send.js') }}?v=20261125a" defer></script>
+  {% if wizard_config.save_send.hotfix_stage %}<script src="{{ url_for('static', filename='js/drawing/drawing-fix-send.js') }}?v=20261125b" defer></script>{% endif %}
+  <script src="{{ url_for('static', filename='js/drawing/save-send.js') }}?v=20261125b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/image-crop.js') }}?v=20261103a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>
   {% if wizard_ui == 'v2' %}
