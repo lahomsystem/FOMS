@@ -46,12 +46,12 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     # 자식 핀과 entry 부모 핀을 20260929l 로 올렸다. core·attachments 는 R4(20260929h),
     # gateway 는 2b(20260929e) 에서 새로 붙었다.
     assert "erp-dashboard-detail-dom.js?v=20261121a" in entry
-    assert "erp-dashboard-drawing.js?v=20261004a" in entry
+    assert "erp-dashboard-drawing.js?v=20261125a" in entry
     # core 는 뒤 작업이 정당하게 올린다(2026-11-25 MY_ROLE 빈 값 덮기 고침, 20261125a) — "이 작업 핀보다 오래되지 않았다".
     assert entry.split("erp-dashboard-core.js?v=", 1)[1].split("'", 1)[0] >= "20261120m"
     assert "erp-dashboard-attachments.js?v=20261120m" in entry  # 2026-11-20 교체 대상 카드 640(이전 20261004a 도면 최종본 순서)
     assert "erp-dashboard-gateway.js?v=20261120m" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261125a" in layout
+    assert "erp-dashboard-entry.js') }}?v=20261125b" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

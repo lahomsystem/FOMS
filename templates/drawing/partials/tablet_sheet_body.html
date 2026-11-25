@@ -88,12 +88,23 @@
   {# ── m-foot: 시트 전달 + 마법사 열기 ↗ ── #}
   {# 시트 전달은 교체 대상 없이 보낸다 — 서버가 400 으로 거절할 상태(반영 체크 남음 · RETURNED 이고
      현재본 2장 이상)면 끄고 이유를 보인다(tablet_sheet._sheet_transfer_block_reason, 원장 M14-d). #}
+  {% if fix %}
+  {#- 생산·시공 단계 수정본(설계서 2026-11-25 §2-3, D2) — 메모 꼭 적기 · '바뀐 도면' 줄 · 보내기 전 확인(tablet-drawing-gallery.js) -#}
+  <div class="dfx-tablet" data-foms-drawing-fix-box>
+    {% if fix.changed_line %}<div class="dfx-changed" role="status">{{ fix.changed_line }}</div>{% endif %}
+    <label class="dfx-tablet-memo" for="dw-sheet-fix-note">전달 메모<span class="dfx-must">꼭 적기</span></label>
+    <textarea class="dfx-tablet-note" id="dw-sheet-fix-note" data-foms-drawing-fix-note rows="3"></textarea>
+    <div class="dfx-error" data-foms-drawing-fix-error role="alert" hidden>공장에 남길 메모를 적어 주세요.</div>
+    <div class="dfx-hint">생산으로 넘어간 주문은 메모를 적어야 보낼 수 있어요.</div>
+    <div class="dfx-error" data-foms-drawing-fix-msg role="alert" hidden></div>
+  </div>
+  {% endif %}
   <div class="foms-drawing-sheet__foot">
     {% if can_transfer %}
     <button type="button"
             class="foms-drawing-sheet__btn foms-drawing-sheet__btn--ghost foms-drawing-sheet__transfer"
             data-foms-drawing-transfer
-            data-order-id="{{ order_id }}"
+            data-order-id="{{ order_id }}"{% if fix %} data-foms-drawing-fix data-foms-fix-sheets="{{ fix.sheet_ids | join(',') }}"{% endif %}
             {% if transfer_block_reason %}disabled aria-describedby="dw-sheet-transfer-reason"{% elif not has_pending %}disabled title="전달할 저장 시트가 없습니다"{% endif %}>
       <i class="fas fa-paper-plane" aria-hidden="true"></i> 시트 전달
     </button>

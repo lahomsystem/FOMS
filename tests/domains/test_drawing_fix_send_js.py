@@ -17,6 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SEND_JS = ROOT / "static/js/drawing/drawing-fix-send.js"
 WB_JS = ROOT / "static/js/drawing/workbench-transfer-fix.js"
+PICKS_JS = ROOT / "static/js/drawing/drawing-fix-picks.js"
 HOTFIX = "생산·시공 단계라 영업 확인 없이 바로 최종 도면이 되고 생산팀에 알림이 갑니다. 전달 취소로 되돌릴 수 없습니다."
 
 
@@ -33,7 +34,7 @@ def _send(scenario: dict) -> dict:
 
 
 def _wb(scenario: str) -> dict:
-    return _node(str(ROOT / "tests/domains/workbench_transfer_fix_runner.js"), str(WB_JS), scenario)
+    return _node(str(ROOT / "tests/domains/workbench_transfer_fix_runner.js"), str(WB_JS), scenario, str(PICKS_JS))
 
 
 # --- drawing-fix-send.js ----------------------------------------------------------

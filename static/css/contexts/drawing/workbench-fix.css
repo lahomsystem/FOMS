@@ -86,6 +86,13 @@
     color: #0b4fbf;
 }
 
+/* 다른 파일이 고른 도면 · 고른 대기 시트가 바꾸는 도면 — 못 고른다(D2 검토 D) */
+.dfx-chip:disabled {
+    border-style: dashed;
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 /* 보내기 전 확인 창(<dialog> — 맨 위 층에 뜬다) */
 .dfx-dialog {
     width: min(480px, calc(100vw - 32px));
@@ -146,7 +153,7 @@
 }
 
 .dfx-btn {
-    min-height: 40px;
+    min-height: calc(44px / var(--foms-ui-zoom, 1));   /* 누르는 칸 44px — 앱 배율(80% 등)에서도 줄지 않게 */
     padding: 6px 16px;
     border: 1px solid transparent;
     border-radius: 6px;
@@ -162,6 +169,29 @@
 .dfx-btn--go {
     background: #0d6efd;
     color: #fff;
+}
+
+/* 태블릿 도면 관리 시트 — 생산 · 시공 단계 '시트 전달' 메모 칸(누르는 칸 44px 이상) */
+.dfx-tablet {
+    margin: 12px 0 8px;
+}
+
+.dfx-tablet-memo {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: calc(15px * var(--foms-fs, 1));
+}
+
+.dfx-tablet-note {
+    width: 100%;
+    min-height: 88px;
+    padding: 10px 12px;
+    border: 1px solid #c5ced8;
+    border-radius: 8px;
+    font: inherit;
+    font-size: calc(16px * var(--foms-fs, 1));
+    resize: vertical;
 }
 
 /* 마법사 [저장] 창 — 생산 · 시공 단계 '도면 발송'을 켜면 보이는 칸 */

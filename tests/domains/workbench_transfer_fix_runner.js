@@ -4,6 +4,7 @@
 const fs = require('fs');
 const src = fs.readFileSync(process.argv[2], 'utf8');
 const scenario = process.argv[3];
+const picksSrc = fs.readFileSync(process.argv[4], 'utf8');   // 공용 고르기 조각(drawing-fix-picks.js)
 
 function el(tag, extra) {
   const node = Object.assign({
@@ -59,7 +60,8 @@ global.FomsFixSend = {
   post: () => Promise.resolve({ success: true }),
 };
 
-eval(src);   // eslint-disable-line no-eval — 시험 전용: 실제 파일을 그대로 돌린다
+eval(picksSrc);   // eslint-disable-line no-eval — 시험 전용: 실제 파일을 그대로 돌린다
+eval(src);   // eslint-disable-line no-eval
 
 function file(name) { return { name, size: name.length * 10, lastModified: 1 }; }
 function view() {

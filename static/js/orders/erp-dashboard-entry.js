@@ -8,7 +8,11 @@
     '/static/js/orders/dashboard/erp-dashboard-core.js?v=20261125a',
     '/static/js/orders/dashboard/erp-dashboard-gateway.js?v=20261120m',
     '/static/js/orders/dashboard/erp-dashboard-attachments.js?v=20261120m',
-    '/static/js/orders/dashboard/erp-dashboard-drawing.js?v=20261004a',
+    // 생산·시공 단계 수정본(설계서 2026-11-25 D2) — 보내기 전 확인 · 파일마다 바꿀 도면(작업실 창과 같은 조각)
+    '/static/js/drawing/drawing-fix-send.js?v=20261125b',
+    '/static/js/drawing/drawing-fix-picks.js?v=20261125a',
+    '/static/js/orders/dashboard/erp-dashboard-drawing-fix.js?v=20261125a',
+    '/static/js/orders/dashboard/erp-dashboard-drawing.js?v=20261125a',
     '/static/js/orders/dashboard/erp-dashboard-quest.js?v=20260930a',
     '/static/js/orders/dashboard/erp-dashboard-detail-dom.js?v=20261121a',
     '/static/js/orders/dashboard-notifications.js',
