@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 
 import pytest
 
@@ -160,7 +161,9 @@ def test_hand_step_without_a_name_leaves_the_finisher_empty(client, quiet, team,
     items = client.get(f"/api/production/part-history?order_id={oid}&key={key(oid, 's0')}").get_json()["data"]["items"]
     assert [i["by_name"] for i in items] == [step_by or None]
     page = client.get(f"/erp/production/sheet/{oid}")
-    assert page.status_code == 200 and "None" not in page.get_data(as_text=True).split("<body", 1)[-1]
+    body = page.get_data(as_text=True).split("<body", 1)[-1]
+    # 낱말로 선 None 만 본다 — 같은 워커의 다른 시험이 만든 계정 이름("ADMIN-None-4")이 머리 메뉴에 섞여 나올 수 있다
+    assert page.status_code == 200 and not re.search(r"(?<![\w-])None(?![\w-])", body)
 
 
 def test_history_of_an_old_step_event_by_a_nameless_account_is_as_before(client, quiet, team):
