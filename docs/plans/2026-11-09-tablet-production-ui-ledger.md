@@ -1214,3 +1214,9 @@
   - 다르게 한 것: `log_access` 대신 `SecurityLog` 직접(레이어 래칫 — 대리 로그인 표시 빠짐) · §10 밖 글 안 넣음(최근 이벤트 칩 · 미확인 세기 · "도면 5장" → 숫자만 · 설명 문장 · "막혀 있음" 꼬리) · '바뀐 것' 줄은 지금 꼴 "도면팀 김도면 · 방금 · 도면 1" · [수정 취소]는 단계 조건 없음 · 고른 도면 없는 요청도 409 `FIX_NOT_CURRENT` · 상세 '공장 진행' 칸은 시공 단계 전부(목록보다 넓음) · '생산 중' 칸에 있을 때만 상태 고르기에 "생산 중" 항목 · 새 CSS 링크 핀 따로(`?v=20261125d3`, 상세에서 같은 파일 두 번 읽음 — 합칠 때 한 줄로).
   - 확신 낮음: 후보 SQL 이 `->> IS NOT NULL`(한 번이라도 `drawing_fix` 가 생긴 주문은 늘 후보) · 목록은 `erp_stage_code`, 상세 · 막힘은 `workflow.stage` · '생산 중' 숫자 5분 캐시.
   - "단계를 나갔다 오면"(사실): `fixing` 은 단계가 바뀌어도 안 지워지고 생산 · 시공 단계에서만 읽힘 → 고객컨펌으로 갔다 생산으로 돌아오면 옛 막힘이 되살아남. 고객컨펌에 있는 동안은 화면에서 [수정 취소]할 길 없음. 관리자 뚫기로 [제작 완료]한 시공 대기 주문도 막힘이 살아 있는데 상세에 단추가 없음. 고칠 자리 후보: `stage_override.py:414` · `api/orders/status.py:296` · 관리자 뚫기 길 / 시공 대기 상세에 [수정 취소] / 공장 요청(D4)도 같은 성질.
+
+### 2026-11-25 · 새 요청 — 항목 실측일 · 시공일 여러 날짜 칸 모바일
+
+- 사장님(원문, 주문 항목의 `erp-item-date-multiple` 칸 둘 — `data-erp="construction_date"` · `"measurement_date"` HTML 을 붙이며): "모바일에서도 가능하게 > UI 최적화 해".
+- 자리: `static/js/orders/erp-order-shared.js:1824-1831`(칸 그리기) · `:6120-6131`(`erpInitFlatpickrForItemRow`, flatpickr `mode: 'multiple'` · `allowInput: true`) · `:6020-6042`(확인 단추) · 주 실측일/시공일 `:6084-6113`. flatpickr 4.6.13 은 `layout_head.html:396` · `layout_scripts.html:1630-1631`.
+- 일꾼 `mdate-mobile`(opus · xhigh), 워크트리 `c:/tmp/foms-w-mdate`, 가지 `work/mobile-multidate` — 먼저 폰에서 무엇이 안 되는지 실화면으로 찾고 고침.
