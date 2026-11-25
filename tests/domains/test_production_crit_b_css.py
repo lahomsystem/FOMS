@@ -122,6 +122,42 @@ def test_보류는_화면마다_도면_칸_보류_색() -> None:
     assert contrast_ratio(hex_rgb(tok["--fpp-hold-700"]), hex_rgb(tok["--fpp-hold-50"])) >= 4.5
 
 
+def test_끝_자리_막힘_둘은_보류_색을_안_쓴다() -> None:
+    """'내 공정' [끝] 자리 막힘(비평 갈래 가 C02 · C03) — 도면 칸을 쓴 주문(is-cards)은 도면 판 '엣지 · 조립 미완료' 노랑,
+    장이 모두 남의 공장(is-elsewhere)은 도면 판 남의 공장 칸(흰 바탕 · 회색 테두리) · 줄은 공장 색 점선. 보류 색은 보류 · 도면 고치는 중에만."""
+    home, pc = _css("home.css"), _css("pc.css")
+    tok = _tokens("home.css", "pc.css")
+    for k, v in (("--fph-pre-50", "#fef08a"), ("--fph-pre-300", "#eab308"), ("--fph-pre-700", "#713f12")):
+        assert f"{k}: {v};" in home and f"{k}:" not in _code(_css("parts.css")), k  # 판 없는 '내 공정' 도 싣는 첫 화면 파일로
+        assert tok[k.replace("fph", "fpc")] == v, k  # PC 는 자기 접두사 같은 값
+    blocks = {sel: _rule(home, sel) for sel in (".fph-qr__hold.is-cards", ".fph-qr__holdtag.is-cards", ".fph-qr__hold.is-elsewhere",
+                                                ".fph-qr__holdtag.is-elsewhere", ".fph-sp__hold.is-cards", ".fph-sp__hold.is-elsewhere")}
+    blocks.update({sel: _rule(pc, sel) for sel in (".fpc-hold.is-cards", ".fpc-hold.is-elsewhere")})
+    for sel, body in blocks.items():
+        assert "hold" not in body, sel  # --fph-hold-* · --fpc-hold* 를 덮어 쓴다(보류 색이 남지 않음)
+        assert "background" in body or sel.startswith(".fpc-hold.is-elsewhere"), sel  # PC 남의 공장은 원래 흰 바탕 그대로
+    for sel in (".fph-qr__hold.is-cards", ".fph-sp__hold.is-cards", ".fpc-hold.is-cards"):
+        assert "pre-50)" in blocks[sel] and "pre-700)" in blocks[sel] and "text-decoration: none" in blocks[sel], sel  # 링크 밑줄 없음
+        assert "outline: 3px solid" in _rule(home if sel.startswith(".fph") else pc, sel + ":focus-visible"), sel
+    assert "min-height: 44px" in blocks[".fph-qr__hold.is-cards"]  # 세로 · 폰 줄 끝 누름 칸(전 40px)
+    for sel in (".fph-qr__hold.is-elsewhere", ".fph-sp__hold.is-elsewhere"):
+        assert "var(--fph-surface)" in blocks[sel] and "var(--fph-line2)" in blocks[sel], sel
+    assert "border: 2px dashed" in _rule(home, ".fph-qr.is-elsewhere")
+    assert "var(--foms-fac2-line)" in _rule(home, ".fph-qr.is-elsewhere:has(.foms-fac--2)")
+    assert "var(--fph-danger)" in _rule(home, ".fph-qr.is-elsewhere.is-chg")
+    # 글 대비 — 노랑 칸 · 흰 칸 위 글 4.5 이상
+    assert contrast_ratio(hex_rgb(tok["--fph-pre-700"]), hex_rgb(tok["--fph-pre-50"])) >= 4.5
+    assert contrast_ratio(hex_rgb(tok["--fph-text"]), hex_rgb(tok["--fph-surface"])) >= 4.5
+    # 템플릿은 class 이름만 — 꼴 이름은 step_block.kind 그대로(도면 칸 = cards)
+    steps = _read("templates/production/partials/home_steps.html")
+    panel = _read("templates/production/partials/home_step_panel.html")
+    macros = _read("templates/production/partials/home_pc_macros.html")
+    assert '<a class="fph-qr__hold is-cards"' in steps and '<span class="fph-qr__hold is-{{ r.step_block.kind }}"' in steps
+    assert '<span class="fph-qr__holdtag is-{{ r.step_block.kind }}">' in steps
+    assert '<a class="fph-sp__hold is-cards"' in panel and '<div class="fph-sp__hold is-{{ p.step_block.kind }}">' in panel
+    assert '<a class="fpc-hold is-cards"' in macros and '<span class="fpc-hold is-{{ r.step_block.kind }}"' in macros
+
+
 def test_기다림은_연두_주말은_빨강_아님_받은함_파랑_하나() -> None:
     home = _css("home.css")
     wait = _rule(home, ".fph-wi.has-why")

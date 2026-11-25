@@ -21,7 +21,7 @@
   {% set _sel = step_panel and r.id == q.selected_id %}<div class="fph-qr{% if r.hold_active %} is-hold{% elif r.revise_block %} is-revise{% elif r.step_block and r.step_block.kind == 'elsewhere' %} is-elsewhere{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if _sel %} is-on{% endif %}" data-foms-home-qrow="{{ r.id }}"{% if _sel %} aria-current="true"{% endif %}>
     <span class="fph-qr__n">{{ loop.index }}</span>
     <a class="fph-qr__who" href="{% if step_panel %}{{ home_href('steps', order=r.id) }}" data-foms-erp-no-shell="1" data-foms-step-sheet="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% else %}{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% endif %}">
-      <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if step_panel and r.hold_active %}<span class="fph-qr__holdtag">보류</span>{% elif step_panel and r.revise_block %}<span class="fph-qr__holdtag">{{ r.revise_block.text }}</span>{% elif step_panel and r.step_block %}<span class="fph-qr__holdtag">{{ r.step_block.text | factory_chips }}</span>{% endif %}{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
+      <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if step_panel and r.hold_active %}<span class="fph-qr__holdtag">보류</span>{% elif step_panel and r.revise_block %}<span class="fph-qr__holdtag">{{ r.revise_block.text }}</span>{% elif step_panel and r.step_block %}<span class="fph-qr__holdtag is-{{ r.step_block.kind }}">{{ r.step_block.text | factory_chips }}</span>{% endif %}{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
       <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}{% if r.has_changes %} · <em>{{ r.change_line }}</em>{% endif %}</span>
     </a>
     {%- set _past = r.day_sub and r.day_sub.endswith('지남') %}
@@ -31,9 +31,9 @@
     {% elif r.revise_block %}{# 도면 고치는 중 — 보류와 같은 자리 · 같은 꼴(사장님 2026-11-25, 공정 API 도 켜기 409) #}
     <span class="fph-qr__hold">{{ r.revise_block.text }}</span>
     {% elif r.step_block and r.step_block.kind == 'cards' %}{# 도면 칸을 쓴 파트 — [끝] 대신 남은 장, 누르면 그 주문 도면 판(비평 C03) #}
-    <a class="fph-qr__hold" href="{{ home_href('parts', q.key, order=r.id) }}" data-foms-step-cards title="{{ r.step_block.why }}">{{ r.step_block.text }}</a>
+    <a class="fph-qr__hold is-cards" href="{{ home_href('parts', q.key, order=r.id) }}" data-foms-step-cards title="{{ r.step_block.why }}">{{ r.step_block.text }}</a>
     {% elif r.step_block %}{# 장이 모두 남의 공장 — 누름 없음(비평 C02, 공정 API 도 403) #}
-    <span class="fph-qr__hold" title="{{ r.step_block.why }}">{{ r.step_block.text | factory_chips }}</span>
+    <span class="fph-qr__hold is-{{ r.step_block.kind }}" title="{{ r.step_block.why }}">{{ r.step_block.text | factory_chips }}</span>
     {% elif can_check_steps %}{# 공정 [끝] — 파트도 반장도 아닌 생산팀은 단추 없이(읽기 전용 모습, 승인 때 고친 것 5) #}
     <button type="button" class="fph-qr__done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"{% if r.step_confirm %} data-foms-sheet-parts="{{ r.step_confirm | tojson | forceescape }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 완료</button>
     {% endif %}
