@@ -89,6 +89,8 @@ SERVER_LOCKED_KEYS = frozenset({
     "drawing_wizard",
     # 도면 장의 공장(설계서 2026-11-23 §6-3, 3단계) — 공장 지정 API(erp_orders_sheet_factory)만 쓴다.
     "drawing_factory",
+    # 생산 넘어간 주문의 도면 수정(고치는 중 · 공장 요청 · 기록, 설계서 2026-11-25 §3-8) — 도면 수정 API · 전달만 쓴다.
+    "drawing_fix",
     # 완료 주문 AS 도면 차수(설계서 2026-11-11-as-drawing-after-completion) — 전용 API 만 쓴다.
     "as_drawing",
     "as_drawing_status",

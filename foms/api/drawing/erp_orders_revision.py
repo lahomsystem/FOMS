@@ -32,6 +32,7 @@ from foms.services.orders.drawing_gate_followups import (
     invalidate_customer_confirmation,
     restore_customer_confirmation,
 )
+from foms.services.orders.drawing_fix import idents_for_keys
 from foms.services.orders.drawing_revision_files import MAX_REVISION_FILES, normalize_revision_files
 from foms.services.orders.drawing_revision_edit import apply_revision_edit, parse_revision_edit_body
 from foms.services.orders.drawing_revision_source import (
@@ -170,6 +171,8 @@ def api_order_request_revision(order_id):
             'target_drawing_numbers': target_drawing_numbers if target_drawing_numbers else None,
             'target_drawing_key': target_drawing_keys[0] if len(target_drawing_keys) == 1 else None,
             'target_drawing_number': target_drawing_numbers[0] if len(target_drawing_numbers) == 1 else None,
+            # 도면 열쇠(sheet:<시트 id> · file:<저장 key>) — 생산 · 시공 단계 요청은 이 도면만 막는다(설계서 2026-11-25 §3-2 · C3)
+            'target_idents': idents_for_keys(s_data, target_drawing_keys) or None,
             **source_fields,
         })
         invalidate_customer_confirmation(s_data, history[-1])  # M16(2a-2)

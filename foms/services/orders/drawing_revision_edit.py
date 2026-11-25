@@ -20,6 +20,7 @@ import copy
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
+from foms.services.orders.drawing_fix import idents_for_keys
 from foms.services.orders.drawing_revision_files import (
     MAX_REVISION_FILES,
     normalize_revision_files,
@@ -220,6 +221,8 @@ def apply_revision_edit(
         target["target_drawing_numbers"] = numbers or None
         target["target_drawing_key"] = keys[0] if len(keys) == 1 else None
         target["target_drawing_number"] = numbers[0] if len(numbers) == 1 else None
+        if "target_idents" in entry:  # 도면 열쇠도 같이(설계서 2026-11-25 §3-2 — 옛 줄은 읽을 때 key 로 푼다, 칸을 새로 만들지 않음)
+            target["target_idents"] = idents_for_keys(sd, keys) or None
 
     snapshot = {k: copy.deepcopy(entry.get(k)) for k in _EDITABLE_FIELDS}
     snapshot.update({k: entry[k] for k in _SOURCE_FIELDS if k in entry})

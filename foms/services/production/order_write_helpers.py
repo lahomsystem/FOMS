@@ -15,7 +15,7 @@ from flask import jsonify
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
-from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
+from foms.services.orders.drawing_fix import blocked, complete_blocked, per_drawing_numbers
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.orders.order_transition_service import StageConflictError
 from foms.services.production.part_mark_gates import DRAWING_REVISING, REVISING_MESSAGE
@@ -110,14 +110,20 @@ def _hold_block_response(sd: dict[str, Any], release_hold: bool):
 
 
 def _revising_block_response(sd: dict[str, Any]):
-    """도면 고치는 중(RETURNED · TRANSFERRED)이면 409 ``DRAWING_REVISING`` 튜플, 아니면 None(read-only).
+    """도면 고치는 중이면 409 ``DRAWING_REVISING`` 튜플, 아니면 None(read-only).
 
     사장님 2026-11-25 "제작 완료도 막기" — 보류(:func:`_hold_block_response`)와 같은 자리 · 같은 꼴. 글은 도면 한 장 누름 · 공정 칸과
     같은 ``REVISING_MESSAGE``(새 글 없음). 보류처럼 풀어 주는 길(``release_hold``)은 없다 — 새 도면이 와야 풀린다.
+    도면 고치는 중 = 주문 통째(RETURNED · TRANSFERRED, 지금 꼴 그대로) 또는 막힌 도면이 하나라도(2026-11-25 설계서 §4-3 — 사장님 답
+    "[제작 완료]는 그 도면이 끝날 때까지 막힘"). 도면별이면 본문에 ``numbers``(막힌 장 번호)를 더 싣는다. 관리자 뚫기는 같은 코드 그대로.
     """
-    if not drawing_revision_in_progress(sd):
+    block = blocked(sd)
+    if block.whole:
+        return jsonify({"success": False, "code": DRAWING_REVISING, "message": REVISING_MESSAGE}), 409
+    if not complete_blocked(sd, block=block):
         return None
-    return jsonify({"success": False, "code": DRAWING_REVISING, "message": REVISING_MESSAGE}), 409
+    return jsonify({"success": False, "code": DRAWING_REVISING, "message": REVISING_MESSAGE,
+                    "numbers": per_drawing_numbers(sd, block=block)}), 409
 
 
 def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *, require_quest: bool = False):
