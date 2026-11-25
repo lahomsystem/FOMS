@@ -129,3 +129,24 @@ def test_apply_is_idempotent_and_rolls_back_from_events(pg_engine, dsn):
     assert results == ["applied", "applied"]
     restored = _state(pg_engine)
     assert restored == before
+
+
+def test_reopens_completed_order_whose_construction_date_moved_to_future(pg_engine, dsn):
+    """완료 뒤 시공일이 미래로 옮겨진 주문만 이전 단계로 되돌린다(302 는 음성 대조군)."""
+    code, out = _run(dsn, apply=True, actor=ACTOR, max_rows=200)
+    assert code == 0 and out["applied"] == 2
+    future = (TODAY + timedelta(days=2)).isoformat()
+    with pg_engine.begin() as conn:
+        conn.execute(text("UPDATE orders SET erp_construction_date = :d WHERE id = 301"), {"d": future})
+        conn.execute(text("""
+            INSERT INTO order_events(order_id, event_type, payload, created_at)
+            VALUES (301, 'CONSTRUCTION_DATE_CHANGED', CAST(:p AS jsonb), now() + interval '1 second')
+        """), {"p": json.dumps({"from": PAST, "to": future})})
+    code, out = _run(dsn, apply=True, actor=ACTOR, max_rows=200)
+    assert code == 0 and out["reopened"] == [301]
+    state = _state(pg_engine)
+    assert state[301][:2] == ("DRAWING", "DRAWING")
+    assert state[301][3]["stage"] == "DRAWING" and "stage_override" not in state[301][3]
+    assert state[302][1] == "COMPLETED"
+    code, again = _run(dsn, apply=True, actor=ACTOR, max_rows=200)
+    assert again["reopen"] == 0
