@@ -319,7 +319,7 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .pp-card .pp-req:active { background: var(--fph-brand-50); }
 .pp-card .pp-req[hidden] { display: none; }
 .pp-grid.is-need .pp-card .pp-req { grid-row: 5; align-self: start; justify-self: start; }
-.foms-prod-home .pp-rq .pp-rq__body { display: flex; flex-direction: column; gap: 10px; padding: 12px 18px 6px; }
+.foms-prod-home .pp-rq .pp-rq__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px 18px 6px; } /* 낮은 화면(1176×626)에서도 아래 단추 줄이 보이게 — 몸만 굴러감 */
 .pp-rq__label { margin: 0; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text); }
 .pp-rq__must { margin-left: 6px; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-danger); }
 .pp-rq__picks { display: flex; flex-wrap: wrap; gap: 8px; }
