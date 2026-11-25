@@ -665,6 +665,16 @@
       "policy_id": "ITEM_CANCEL",
       "rule": "/api/orders/<int:order_id>/items/<uid>/cancel"
     },
+    "erp_orders_drawing_fix.api_drawing_fix_start": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/start"
+    },
+    "erp_orders_drawing_fix.api_drawing_fix_stop": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/stop"
+    },
     "erp_orders_sheet_factory.api_order_sheet_factory": {
       "mode": "guard",
       "policy_id": "DRAWING_TEAM",
