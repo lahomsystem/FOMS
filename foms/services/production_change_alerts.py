@@ -42,6 +42,8 @@ from foms.services.production_dashboard_display import (
 from foms.services.production_read_model import fetch_production_current_run_ids
 from foms.services.orders.drawing_transfer_plan import changed_detail
 from foms.services.production.factory_constants import factory_label
+from foms.services.orders.drawing_fix import numbers_text
+from foms.services.orders.drawing_fix_marks import FIX_STARTED_EVENT, FIX_STOPPED_EVENT
 
 __all__ = [
     "PROD_STAGES",
@@ -68,11 +70,14 @@ _STAGE_MOVE_EVENT_TYPES = ("STAGE_CHANGED", "STAGE_OVERRIDE", "CUSTOMER_CONFIRME
 #: 장의 공장 바뀜(설계서 2026-11-23 §11) — 도면팀이 생산에 내려간 도면을 다른 공장으로 옮김. ``drawing_factory.SHEET_FACTORY_EVENT``
 #: 와 같은 값(글자로 둔다 — 도면 규칙 모듈이 생산 모듈을 읽어 거꾸로 가져오면 돌고 돈다).
 SHEET_FACTORY_CHANGE_EVENT = "DRAWING_SHEET_FACTORY_CHANGED"
+#: 도면팀 [수정 시작] · [수정 취소](설계서 2026-11-25 §6 — '바뀐 것' 한 줄, 폰 알림 없음). ``drawing_fix_marks`` 의 이벤트와 같은 값.
+DRAWING_FIX_LINE_LABELS: dict[str, str] = {FIX_STARTED_EVENT: "도면 고치는 중", FIX_STOPPED_EVENT: "도면 수정 취소"}
 _RELEVANT_EVENT_TYPES = (
     "PRODUCTION_CHANGE_ACK",
     *_STAGE_MOVE_EVENT_TYPES,
     "CONSTRUCTION_DATE_CHANGED",
     SHEET_FACTORY_CHANGE_EVENT,
+    *DRAWING_FIX_LINE_LABELS,
 )
 #: 변경 감지가 읽는 이벤트 종류 — 렌더 전 304 키(production_fragment_version)가 같은 필터로 지문을 뜬다.
 PRODUCTION_CHANGE_EVENT_TYPES = _RELEVANT_EVENT_TYPES
@@ -244,6 +249,11 @@ def _build_change_lists(
         )
 
     for e in events:
+        fix_item = _drawing_fix_item(e) if e.created_at is not None else None
+        if fix_item is not None:
+            _classify(e.created_at, fix_item)
+
+    for e in events:
         if e.event_type != SHEET_FACTORY_CHANGE_EVENT or e.created_at is None:
             continue
         factory_item = _factory_change_item(e)
@@ -301,6 +311,26 @@ def _factory_change_item(event: OrderEvent) -> dict[str, Any] | None:
         "kind": "factory",
         "label": "공장 바뀜",
         "detail": detail,
+        "by_id": event.created_by_user_id,
+        "by_name": by_name.strip() if isinstance(by_name, str) else "",
+    }
+
+
+def _drawing_fix_item(event: OrderEvent) -> dict[str, Any] | None:
+    """도면팀 [수정 시작] · [수정 취소] 한 건 → '바뀐 것' 항목 "도면 고치는 중" · "도면 2"(설계서 2026-11-25 §6 · §10, 쿼리 0).
+
+    그 밖 이벤트 · 번호 없는 줄은 None. 누른 사람은 이벤트의 ``created_by_user_id``(팀 글은 화면이 붙인다) · payload ``by_name``.
+    """
+    label = DRAWING_FIX_LINE_LABELS.get(event.event_type)
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    numbers = [n for n in payload.get("numbers") or [] if isinstance(n, int) and not isinstance(n, bool)]
+    if label is None or not numbers:
+        return None
+    by_name = payload.get("by_name")
+    return {
+        "kind": "drawing",
+        "label": label,
+        "detail": f"도면 {numbers_text(numbers)}",
         "by_id": event.created_by_user_id,
         "by_name": by_name.strip() if isinstance(by_name, str) else "",
     }

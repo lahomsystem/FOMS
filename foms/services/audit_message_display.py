@@ -201,6 +201,9 @@ ACTION_LABELS: dict[str, str] = {
     # 도면 장의 공장 지정(설계서 2026-11-23 §6-3 · §11) — 막힌 옮김은 거절 한 줄
     "DRAWING_SHEET_FACTORY_CHANGED": "도면 공장 지정",
     "DRAWING_SHEET_FACTORY_REFUSED": "도면 공장 지정 거절",
+    # 도면팀 [수정 시작] · [수정 취소](설계서 2026-11-25 N1 · N2 — 공장 '바뀐 것' 줄과 같은 글)
+    "DRAWING_FIX_STARTED": "도면 고치는 중",
+    "DRAWING_FIX_STOPPED": "도면 수정 취소",
     "PRODUCTION_DEFECT_REPORTED": "생산 불량 보고",
     "PRODUCTION_HOLD_SET": "생산 보류",
     "PRODUCTION_HOLD_RELEASED": "생산 보류 해제",
