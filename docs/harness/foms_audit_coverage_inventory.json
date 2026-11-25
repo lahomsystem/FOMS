@@ -768,7 +768,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing_fix.py",
       "endpoint": "api_drawing_fix_start",
-      "lineno": 145,
+      "lineno": 147,
       "methods": [
         "POST"
       ],
@@ -777,7 +777,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing_fix.py",
       "endpoint": "api_drawing_fix_stop",
-      "lineno": 151,
+      "lineno": 153,
       "methods": [
         "POST"
       ],

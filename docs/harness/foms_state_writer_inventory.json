@@ -55,21 +55,14 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 805,
+      "lineno": 807,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 806,
-      "axis": "MAIN",
-      "kind": "subscript_stage",
-      "owner": "STATE-LEGACY"
-    },
-    {
-      "path": "foms/api/orders/status.py",
-      "lineno": 296,
+      "lineno": 808,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
@@ -83,7 +76,14 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 447,
+      "lineno": 298,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 451,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-LEGACY"
@@ -195,7 +195,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 805,
+      "lineno": 807,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -203,15 +203,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 806,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-LEGACY"
-    },
-    {
-      "path": "foms/api/orders/status.py",
-      "lineno": 296,
+      "lineno": 808,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -227,7 +219,15 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 447,
+      "lineno": 298,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 451,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -315,14 +315,6 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 119,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "CANONICAL",
-      "owner": "STATE-CORE"
-    },
-    {
-      "path": "foms/services/orders/order_transition_service.py",
       "lineno": 120,
       "kind": "subscript_stage",
       "axis": "MAIN",
@@ -332,7 +324,7 @@
     {
       "path": "foms/services/orders/order_transition_service.py",
       "lineno": 121,
-      "kind": "attr_stage_mirror",
+      "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",
       "owner": "STATE-CORE"
@@ -347,7 +339,15 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 134,
+      "lineno": 123,
+      "kind": "attr_stage_mirror",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 135,
       "kind": "subscript_logistics",
       "axis": "LOGISTICS",
       "classification": "CANONICAL",
@@ -355,7 +355,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 144,
+      "lineno": 145,
       "kind": "subscript_hold",
       "axis": "HOLD",
       "classification": "CANONICAL",
@@ -363,7 +363,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 151,
+      "lineno": 152,
       "kind": "subscript_hold",
       "axis": "HOLD",
       "classification": "CANONICAL",
@@ -371,7 +371,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 421,
+      "lineno": 423,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
