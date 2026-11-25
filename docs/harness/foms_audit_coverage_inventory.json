@@ -1966,7 +1966,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_defect",
-      "lineno": 1238,
+      "lineno": 1236,
       "methods": [
         "POST"
       ],
@@ -1975,7 +1975,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_hold",
-      "lineno": 1371,
+      "lineno": 1369,
       "methods": [
         "POST"
       ],
@@ -2002,7 +2002,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_steps",
-      "lineno": 1141,
+      "lineno": 1140,
       "methods": [
         "POST"
       ],
@@ -2020,7 +2020,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_set_logistics_status",
-      "lineno": 1444,
+      "lineno": 1442,
       "methods": [
         "POST"
       ],
