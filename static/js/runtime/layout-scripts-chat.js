@@ -244,8 +244,10 @@
 
                 // If orderId exists, navigate by notification type
                 if (orderId) {
-                    if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION') {
-                        const tab = deepTab || (notificationType === 'DRAWING_REVISION' ? 'requests' : 'timeline');
+                    if (notificationType === 'DRAWING_FACTORY_REQUEST_REJECTED') {
+                        window.location.href = '/erp/production/home?tab=changes'; // 공장 요청 반려 = 생산 '바뀐 것'(폰 알림과 같은 곳)
+                    } else if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION' || notificationType === 'DRAWING_FACTORY_REQUEST') {
+                        const tab = deepTab || (notificationType === 'DRAWING_TRANSFERRED' ? 'timeline' : 'requests');
                         let url = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tab)}`;
                         if (deepEventId) url += `&event_id=${encodeURIComponent(deepEventId)}`;
                         if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;

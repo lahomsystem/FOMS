@@ -50,6 +50,9 @@
 - **T5 DONE (취소 쪽지 등급)** — deploy `65c955ea7` → **운영 반영 PR #352 · production `36c6b4cfe`**.
   `DRAWING_REVISION_CANCELLED` payload 에 `notice: True`, 오른쪽 아래 쪽지(자동 닫힘 없음, 닫기가 read).
   공용 소켓 핸들러 두 사본은 `FOMSDrawingAlert.handle(data)` 로 일원화. 자산 핀 `?v=20260911b`.
+- **등급 더함(2026-11-25, 설계서 `docs/specs/2026-11-25-production-stage-drawing-revision_SPEC.md` D4)** — 공장 [도면 수정 요청] · 도면팀 [요청 반려].
+  - `DRAWING_FACTORY_REQUEST` — P1 · 확인창(`interrupt: True`, 높은 긴급도). 받는 사람 = 도면팀 전원 + 관리자(영업 수정 요청과 같음). 누르면 작업실 요청사항 칸.
+  - `DRAWING_FACTORY_REQUEST_REJECTED` — P1 · 요청자 한 명(종 + 폰, 확인창 없음 · 반려한 사람이 요청자 본인이거나 요청자 계정이 꺼졌으면 알림 없음). 누르면 생산 '바뀐 것'.
 
 ## 남은 판단거리(사용자 몫)
 

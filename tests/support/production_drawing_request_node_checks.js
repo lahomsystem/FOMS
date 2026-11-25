@@ -36,6 +36,7 @@ const ctx = {
     calls.push({ url, method: opts.method, headers: opts.headers || {}, body: isPhoto ? opts.body.parts : JSON.parse(opts.body) });
     const next = isPhoto ? uploads.shift() : posts.shift();
     if (next === 'offline') { return Promise.reject(new TypeError('Failed to fetch')); }
+    if (next === '413') { return Promise.resolve({ status: 413, json: () => Promise.reject(new SyntaxError('not json')) }); }
     return Promise.resolve({ status: 200, json: () => Promise.resolve(next || { success: true, data: {} }) });
   },
   FomsPartsCards: { render: (card) => rendered.push(card.getAttribute('data-key')) },
@@ -74,11 +75,15 @@ const out = {};
   click(first);
   window_onFiles([{ name: 'a.jpg' }, { name: 'b.jpg' }, { name: 'c.jpg' }, { name: 'd.jpg' }]);
   out.tooMany = err();
+  window_onFiles([{ name: 'huge.jpg' }]);   // 몸 상한 413(success 칸 없는 답)
+  await tick(); await tick(); await tick();
+  out.tooBig = err();
+  out.thumbsAfterBig = q('[data-pp-rq-thumbs]').children.length;
   window_onFiles([{ name: 'a.jpg' }, { name: 'b.jpg' }]);
   out.sendDisabledWhileUploading = q('[data-pp-rq-send]').disabled;
   await tick(); await tick(); await tick();
   out.thumbs = q('[data-pp-rq-thumbs]').children.length;
-  out.uploadCalls = calls.filter((c) => /\/photo$/.test(c.url)).map((c) => c.url);
+  out.uploadCalls = calls.filter((c) => /\/photo$/.test(c.url)).map((c) => c.url).slice(1);
   send();                                   // 첫 보냄 — 서버 403
   await tick(); await tick();
   out.refused = err();
@@ -98,6 +103,7 @@ const out = {};
   out.blockWhy = cards().map((c) => c.getAttribute('data-pp-block-why')).filter(Boolean);
   out.hiddenReq = cards().filter((c) => c.querySelector('[data-pp-req]') && c.querySelector('[data-pp-req]').hidden).map((c) => c.getAttribute('data-no'));
   out.rendered = rendered;
+  out.optsLeft = cards().map((c) => { const b = c.querySelector('[data-pp-req]'); return b ? [c.getAttribute('data-no'), JSON.parse(b.getAttribute('data-pp-req-opts')).map((o) => o.no)] : null; }).filter(Boolean);
   process.stdout.write(JSON.stringify(out));
 })().catch((e) => { console.error(e); process.exit(1); });
 

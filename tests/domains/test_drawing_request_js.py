@@ -55,15 +55,16 @@ def test_board_request_dialog_end_to_end(client, cohort, tmp_path):
     page.write_text(client.get("/erp/production/home?day=none").get_data(as_text=True), encoding="utf-8")
     sids = [f["sheet_id"] for f in db_session.get(Order, seed.id).structured_data["drawing_current_files"]]
     block = {"kind": "revise", "text": "도면 고치는 중", "why": REVISING}
-    ok = {"success": True, "data": {"keys": [seed.keys[0], seed.keys[1]], "block": block, "request": {"id": "fr_x"}}}
+    ok = {"success": True, "data": {"keys": [seed.keys[0], seed.keys[1]], "block": block, "request": {"id": "fr_x", "numbers": [1, 2]}}}
     refused = {"success": False, "data": {"code": "REQUEST_FORBIDDEN"}, "error": "도면 수정 요청은 반장이나 그 도면 파트 담당만 할 수 있어요."}
     photo = lambda n: {"success": True, "data": {"file": {"key": f"orders/{seed.id}/drawing_gateway/revisions/{n}", "filename": n}}}
     out = _node(BOARD_CHECK, page, {"oid": seed.id, "card_no": 2, "posts": [refused, "offline", ok],
-                                    "uploads": [photo("a.jpg"), photo("b.jpg")]})
+                                    "uploads": ["413", photo("a.jpg"), photo("b.jpg")]})
     assert out["opened"] is True and out["who"].endswith(f"#{seed.id}")
     assert out["picks"] == [["도면 1", "false"], ["도면 2", "true"], ["도면 3", "false"]]   # 누른 장 미리 · 자기 공장 장만
     assert out["noNote"] == "사유를 적어 주세요." and out["noPick"] == "수정할 도면을 골라 주세요." and out["callsBeforePick"] == 0
     assert out["tooMany"] == "사진은 3장까지 올릴 수 있어요." and out["sendDisabledWhileUploading"] is True
+    assert out["tooBig"] == "사진이 너무 큽니다. 크기를 줄여 올려 주세요." and out["thumbsAfterBig"] == 0   # 413 = 지금 글, 창은 안 죽음
     assert out["thumbs"] == 2 and len(out["uploadCalls"]) == 2
     assert out["refused"] == refused["error"] and out["stillOpen"] is True
     assert out["offline"] == "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요."
@@ -74,6 +75,7 @@ def test_board_request_dialog_end_to_end(client, cohort, tmp_path):
     assert out["closed"] is True and out["status"] == "도면팀에 수정 요청을 보냈어요."
     assert out["blocked"] == ["1", "2"] and set(out["blockWhy"]) == {REVISING} and out["rendered"] == [seed.keys[0], seed.keys[1]]
     assert out["hiddenReq"] == ["1", "2"]                                                  # 남은 장(도면 3)은 단추 그대로
+    assert out["optsLeft"] == [["1", [3]], ["2", [3]], ["3", [3]]]                         # 보낸 장은 다른 카드 창 고르기에서도 빠짐
 
 
 def test_workbench_check_and_reject_dialog(client, tmp_path):
@@ -95,6 +97,7 @@ def test_workbench_check_and_reject_dialog(client, tmp_path):
     assert out["dialogText"] == "요청 반려|반려 사유를 적어 주세요. 요청한 사람에게 알림이 가고, 도면 2 막힘이 풀려요."
     assert out["buttons"] == ["취소", "요청 반려"]
     assert out["emptyNote"] == "반려 사유를 적어 주세요." and out["callsAfterEmpty"] == 0
+    assert out["afterTyping"] == ""                                                        # 적기 시작하면 빨간 글 지워짐
     assert out["rejectError"] == fail["error"] and out["reenabled"] is True
     assert out["reloadsAfterReject"] == 1 and out["reloads"] == 2
     assert [(c["url"], c["body"]) for c in out["calls"]] == [

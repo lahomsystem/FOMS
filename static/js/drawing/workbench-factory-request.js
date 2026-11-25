@@ -80,6 +80,7 @@
     dialog.appendChild(foot);
     document.body.appendChild(dialog);
     function fail(message) { err.textContent = message; err.hidden = !message; }
+    note.addEventListener('input', function () { if (String(note.value || '').trim()) { fail(''); } }); // 적기 시작하면 빨간 글을 지운다
     cancel.addEventListener('click', function () { if (!go.disabled) { dialog.close(); } });
     go.addEventListener('click', function () {
       var text = String(note.value || '').trim();

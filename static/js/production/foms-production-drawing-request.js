@@ -23,6 +23,7 @@
     pick: '수정할 도면을 골라 주세요.',
     tooMany: '사진은 3장까지 올릴 수 있어요.',
     photoBad: '사진을 다시 올려 주세요.',
+    tooBig: '사진이 너무 큽니다. 크기를 줄여 올려 주세요.', // 지금 글(heic_convert ERR_PIXELS) — 413 받으면
     offline: '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.'
   };
   var state = null;
@@ -127,12 +128,13 @@
     form.append('file', file, file.name);
     var url = '/api/orders/' + encodeURIComponent(state.orderId) + '/production/drawing-request/photo';
     return fetch(url, { method: 'POST', credentials: 'same-origin', body: form }).then(function (res) {
-      return res.json();
-    }).then(function (data) {
-      return data && data.success === true && data.data && data.data.file ? data.data.file : null;
+      if (res.status === 413) { return { big: true }; } // 몸 상한(success 칸 없는 답일 수 있다)
+      return res.json().catch(function () { return null; }).then(function (data) {
+        return data && data.success === true && data.data && data.data.file ? { file: data.data.file } : {};
+      });
     }).catch(function (e) {
       console.warn('[drawing-request] photo', e);
-      return null;
+      return {};
     });
   }
   function onFiles(list) {
@@ -152,10 +154,11 @@
       upload(file).then(function (saved) {
         if (state !== mine) { return; }
         mine.uploading -= 1;
-        if (saved) { mine.photos[i].key = saved.key; mine.photos[i].filename = saved.filename; } else { mine.photos[i].bad = true; }
+        if (saved.file) { mine.photos[i].key = saved.file.key; mine.photos[i].filename = saved.file.filename; } else { mine.photos[i].bad = saved.big ? 'big' : 'bad'; }
         if (!mine.uploading && mine.photos.some(function (p) { return p.bad; })) {
+          var big = mine.photos.some(function (p) { return p.bad === 'big'; });
           mine.photos = mine.photos.filter(function (p) { return !p.bad; });
-          showError(TEXT.photoBad);
+          showError(big ? TEXT.tooBig : TEXT.photoBad);
         }
         renderThumbs();
         setBusy(false);
@@ -182,8 +185,6 @@
         card.setAttribute('data-pp-block-why', block.why);
         if (typeof cards.render === 'function') { cards.render(card); }
       }
-      var req = card.querySelector('[data-pp-req]');
-      if (req) { req.hidden = true; }
       var pane = card.closest('[data-pp-pane]');
       if (!bulk || !block || !pane) { return; }
       // [남은 N장 모두 기본] 숫자 — 막힌 안 본 장은 빼고 센다(parts.js bulkable 과 같은 기준)
@@ -193,6 +194,16 @@
         var btn = n.closest('[data-pp-act="bulk"]');
         if (btn && !left) { btn.hidden = true; }
       });
+    });
+  }
+  // 보낸 도면은 이제 막혔다 — 같은 주문 다른 카드 창 고르기에서도 빼고(서버 409 REQUEST_BLOCKED 와 같은 판정), 제 장이 빠진 카드 단추는 숨긴다
+  function pruneOpts(orderId, numbers) {
+    toArr(root.querySelectorAll('[data-pp-card]')).forEach(function (card) {
+      var req = card.getAttribute('data-order-id') === String(orderId) && card.querySelector('[data-pp-req]');
+      if (!req) { return; }
+      var left = (safeJsonParse(req.getAttribute('data-pp-req-opts'), []) || []).filter(function (o) { return (numbers || []).indexOf(o.no) < 0; });
+      req.setAttribute('data-pp-req-opts', JSON.stringify(left));
+      if (!left.some(function (o) { return String(o.no) === card.getAttribute('data-no'); })) { req.hidden = true; }
     });
   }
   function send() {
@@ -219,6 +230,7 @@
         var got = res.data || {};
         close();
         blockCards(mine.orderId, got.keys, got.block);
+        pruneOpts(mine.orderId, (got.request && got.request.numbers) || []);
         setStatus(TEXT.sent);
         return;
       }

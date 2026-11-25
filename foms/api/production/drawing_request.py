@@ -9,7 +9,10 @@
 * 누가(§4-1): 관리자 · 반장 = 모든 도면, 파트 계정 = 자기 공장 도면만(``drawing_fix_requests.can_request_drawing_fix``), 생산 단계만.
   그 밖 403 ``REQUEST_FORBIDDEN`` · 생산 단계 아님 409 ``INVALID_STAGE``(§4-2 에 글이 없어 공장 완료 API 의 지금 글).
 * 몸(§4-2): 사유 빈 글 400 ``REQUEST_NOTE_REQUIRED`` · 도면 0장 400 ``REQUEST_PICK`` · 사진 4장 이상 · 경로 이상 400 ``REQUEST_PHOTOS`` ·
-  지금 도면에 없는 장 409 ``FIX_NOT_CURRENT``(D3 지금 글).
+  지금 도면에 없는 장 409 ``FIX_NOT_CURRENT``(D3 지금 글) · 이미 막힌 도면(고치는 중 · 영업 요청 · 열린 공장 요청 — 도면 판 카드와 같은
+  판정)이 끼면 409 ``REQUEST_BLOCKED``(그 막힘의 지금 글). 같은 열쇠로 다시 왔는데 요청 줄이 없으면 409 ``REQUEST_CLOSED``.
+* 사진 길: 그 주문에 이 사람 몫 도면(사람 · 공장 — 막힘은 안 봄)이 없으면 403 · 그림 파일만(저장소 ``get_file_type``) · 몸 상한은 영업
+  창구 업로드와 같은 줄(``foms/platform/request_limits.py``).
 * 한 tx: 행 잠금 → 판정 → REV-00 엔진(``execute_order_mutation`` — 멱등 열쇠를 받는 길. ``execute_single_order_write`` 는 열쇠를 안 받는다)
   안에서 deepcopy 사본에 요청을 적고 재대입 · ``flag_modified`` · 버전 +1 → ``OrderEvent PRODUCTION_DRAWING_REQUESTED`` → 감사(``log_access``
   — D3 와 같은 길) → 알림 줄 + 받는 사람 state → 커밋. 같은 열쇠로 다시 온 요청은 쓰기 · 이벤트 · 감사 · 알림 0, 같은 요청을 돌려준다.
@@ -49,6 +52,8 @@ from foms.services.orders.drawing_fix_requests import (
     MESSAGES,
     PHOTOS_BAD,
     PHOTOS_TOO_MANY,
+    REQUEST_BLOCKED,
+    REQUEST_CLOSED,
     REQUEST_EVENT,
     REQUEST_FORBIDDEN,
     REQUEST_NOTE_REQUIRED,
@@ -60,7 +65,9 @@ from foms.services.orders.drawing_fix_requests import (
     can_request_drawing_fix,
     can_request_people,
     clean_note,
+    entry_block,
     find_request,
+    has_requestable_drawing,
     numbers_label,
     photo_rows,
     request_id,
@@ -165,6 +172,12 @@ def _write(db: Any, user: Any, order_id: int, body: Any, idem: Optional[str]) ->
     def _mutate(_sess: Any, locked: list[Order]) -> dict[int, list[str]]:
         target = locked[0]
         sd = copy.deepcopy(_ensure_dict(target.structured_data))
+        # 이미 막힌 도면이 끼면 거절 — 창 고르기와 같은 판정(도면 판 카드의 막힌 칸), 글은 그 막힘의 지금 글. 엔진 콜백 안이라 같은
+        # 열쇠로 다시 온 요청(제가 막은 도면)은 여기 오기 전에 영수증으로 돌아간다.
+        for _no, entry in picked:
+            block = entry_block(sd, entry)
+            if block is not None:
+                raise RequestRefusal(409, REQUEST_BLOCKED, block["why"])
         made["request"] = add_request(sd, picked, rid=rid, note=note, photos=photos, user_id=user.id,
                                       by_name=_actor_name(user), at=at)
         target.structured_data = sd
@@ -177,8 +190,10 @@ def _write(db: Any, user: Any, order_id: int, body: Any, idem: Optional[str]) ->
         scope_hash=hashlib.sha256(f"{REQUEST_POLICY_ID}:{order_id}".encode("utf-8")).hexdigest(),
         request_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(), idempotency_key=idem, mutation=_mutate)
     if result.replayed:
-        return {"order": order, "request": find_request(_ensure_dict(order.structured_data), rid), "picked": picked,
-                "notification": None}
+        replayed = find_request(_ensure_dict(order.structured_data), rid)
+        if replayed is None:  # 영수증은 있는데 요청 줄이 없다(손으로 지운 자료 등) — 빈 요청 대신 "다시 열어 주세요"
+            raise RequestRefusal(409, REQUEST_CLOSED)
+        return {"order": order, "request": replayed, "picked": picked, "notification": None}
     return {"order": order, "request": made["request"], "picked": picked,
             "notification": _record(db, order, user, made["request"])}
 
@@ -267,7 +282,12 @@ def api_production_drawing_request_photo(order_id: int):
         return _fail(404, "NOT_FOUND", _NOT_FOUND)
     if read_main_stage(order) != STAGE_PRODUCTION:
         return _fail(409, INVALID_STAGE, MESSAGES[INVALID_STAGE])
-    saved = get_storage().upload_file(upload, upload.filename, f"orders/{order_id}/drawing_gateway/revisions")
+    if not has_requestable_drawing(user, _ensure_dict(order.structured_data)):  # 그 주문에 이 사람 몫 도면이 없다(남의 공장 주문)
+        return _fail(403, REQUEST_FORBIDDEN, MESSAGES[REQUEST_FORBIDDEN])
+    storage = get_storage()
+    if storage.get_file_type(upload.filename) != "image":  # 그림 파일만(저장소 판정 — 첨부 · 창구가 쓰는 같은 확장자 표)
+        return _fail(400, REQUEST_PHOTOS, PHOTOS_BAD)
+    saved = storage.upload_file(upload, upload.filename, f"orders/{order_id}/drawing_gateway/revisions")
     rows, rejects = normalize_revision_files(order_id, [{"key": saved.get("key"), "filename": upload.filename}]) \
         if saved.get("success") else ([], ["upload"])
     if rejects:
