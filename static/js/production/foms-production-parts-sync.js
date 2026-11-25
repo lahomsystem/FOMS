@@ -8,7 +8,10 @@
  * 화면이 문서에서 빠지면(다른 탭으로 셸 이동) 받지 않는다. 날을 받아 끼운 장의 카드도 화면 안이라 같이 받는다.
  * 2026-11-23: 받은 줄의 맡은 때 · 바뀐 기록 칸도 카드에 싣는다(고치기가 그린다). 까닭 말풍선이 열린 카드도 건너뛴다(held).
  * 2공장(2026-11-23 §4-13): 남의 공장 카드([data-pp-elsewhere] — 누름 없음)도 같이 받아 글 한 줄 · 다른 파트 줄만 고친다.
- * 2026-11-25 multi-holder: 받은 줄에 작업하는 사람 칸(mark.crew — 이름 줄 · 내 몫, 서버 글)이 실린다. 같은 표시인지는 사람 · 완료 표지(sig)까지 견준다. */
+ * 2026-11-25 multi-holder: 받은 줄에 작업하는 사람 칸(mark.crew — 이름 줄 · 내 몫, 서버 글)이 실린다. 같은 표시인지는 사람 · 완료 표지(sig)까지 견준다.
+ * 2026-11-26(비평 C06): 응답의 주문마다 지금 막힘(data.blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 서버 sync_blocks)으로 그 주문 카드를
+ * 이미 있는 막힘 칸으로 다시 그린다(그 장만 막힘이 먼저 · 풀리면 단추가 돌아온다 — FomsPartsCards.block). 받을 때마다 'foms:prod-parts-synced'
+ * 를 쏴 머리 줄 받은 때 글 · 점(foms-production-home.js)을 새로 한다. 거절(409 보류 · 고치는 중 · 생산 단계 아님)이면 parts.js 가 바로 부른다. */
 (function () {
   'use strict';
 
@@ -54,7 +57,7 @@
     return out;
   }
 
-  // 한 묶음 받기 — 성공이면 data({marks, server_time}), 아니면 null(그 판은 버리고 since 를 그대로 둔다)
+  // 한 묶음 받기 — 성공이면 data({marks, blocks, server_time}), 아니면 null(그 판은 버리고 since 를 그대로 둔다)
   function fetchChunk(ids, from) {
     var url = SYNC_URL + '?order_ids=' + ids.join(',') + '&since=' + encodeURIComponent(from);
     try {
@@ -130,6 +133,16 @@
     return complete;
   }
 
+  // 주문마다 지금 막힘 → 그 주문 카드(그 장만 막힘 keys 가 먼저, 없으면 주문 통째 all, 둘 다 없으면 막힘을 걷는다)
+  function applyBlocks(blocks) {
+    var cards = window.FomsPartsCards;
+    if (!cards || !cards.block) { return; }
+    Object.keys(blocks).forEach(function (id) {
+      var b = blocks[id] || {};
+      cards.find(id).forEach(function (card) { cards.block(card, (b.keys || {})[card.getAttribute('data-key')] || b.all || null); });
+    });
+  }
+
   function tick() {
     if (running || !canSync()) { return; }
     var ids = orderIds();
@@ -139,12 +152,16 @@
     Promise.all(chunks(ids).map(function (part) { return fetchChunk(part, from); })).then(function (results) {
       if (results.some(function (r) { return !r; })) { return; } // 하나라도 못 받으면 다음 번에 같은 since 로
       var marks = [];
+      var blocks = {};
       var next = results[0].server_time;
       results.forEach(function (r) {
         marks = marks.concat(r.marks);
+        Object.keys(r.blocks || {}).forEach(function (id) { blocks[id] = r.blocks[id]; });
         if (r.server_time < next) { next = r.server_time; } // 나눠 받으면 가장 이른 서버 시각부터 다음에
       });
+      applyBlocks(blocks); // 막힘 먼저 — 받은 표시를 그릴 때 새 막힘을 읽는다
       if (applyMarks(marks)) { since = next; }
+      document.dispatchEvent(new CustomEvent('foms:prod-parts-synced'));
     }).then(function () { running = false; }, function () { running = false; });
   }
 

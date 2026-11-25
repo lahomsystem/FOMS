@@ -6,6 +6,8 @@
 
 * **공장 문**(§4-6 · C6): 쓰기 API 는 남의 공장 장을 403 ``OTHER_FACTORY`` 로 막는다(관리자는 두 공장). 내가 작업하는 장의
   시작 취소는 된다(§4-6 '되는 것' — 시작한 뒤 장이 옮겨진 옛 담당, 같이 작업하는 사람 중 하나여도 — multi-holder §7-2).
+  공정 칸(주문에 값 하나)은 지금 장이 **모두** 남의 공장인 주문만 같은 403 으로 막는다(:func:`order_factory_gate` — 비평 C02). 섞인 주문은
+  지금 규칙 그대로(반장 한 번에 두 공장 장 — 2026-11-25 D1 검토 판결 A), 장 0장 주문도 그대로.
 * **보는 공장**: 도면 판 = 관리자는 판 머리에서 고른 공장(주소 ``factory=``, 처음 = 계정 값 또는 1공장 — §19 열한째), 그 밖은
   계정 공장(비면 1공장). 날짜 줄의 묶음(남의 공장 줄 · 내 공장 완료)은 한 공장 계정(파트 계정 · 반장)에게만 — 관리자 · 보기만
   하는 직원 · PC 는 두 공장을 합쳐 본다(§19 열한째 · PC 는 감독용).
@@ -17,10 +19,10 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
-from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
+from foms.services.orders.drawing_factory import has_second_factory, present_factories, sheet_factory
 from foms.services.production import mark_crew as mc
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, FACTORY_2, factory_label, normalize_factory
-from foms.services.production.part_access import VIEW_ADMIN, can_write_sheet, part_view_mode, user_factory, writable_factories
+from foms.services.production.part_access import VIEW_ADMIN, VIEW_SUB, can_write_sheet, part_view_mode, user_factory, writable_factories
 from foms.services.production.part_constants import PRODUCTION_PART_LABELS
 from foms.services.production.part_mark_gates import Gate
 from foms.services.production.part_mark_rules import ACTION_RELEASE
@@ -58,6 +60,46 @@ def factory_gate(user: Any, sd: Any, entry: dict[str, Any], *, action: str, row:
     if action == ACTION_RELEASE and row is not None and mc.find(mc.crew_of(row), me) is not None:
         return None
     return Gate(403, OTHER_FACTORY, other_factory_message(factory), {"factory": factory})
+
+
+def order_factory_gate(user: Any, sd: Any) -> Optional[Gate]:
+    """공정 칸 쓰기(켜기 · 끄기 · 반장 손 체크 · 통째 작업 풀어 쓰기)의 공장 문(비평 C02) — 지금 장이 모두 남의 공장이면 403.
+
+    글 · 코드는 도면 칸의 남의 공장 거절(:func:`factory_gate`)과 같다. 섞인 주문(내 공장 장이 하나라도 있음) · 장 0장은 None(지금 규칙).
+
+    Returns:
+        막히면 403 :class:`Gate`(``factory`` = 첫 공장), 아니면 None.
+    """
+    present = present_factories(sd)
+    if not present or any(can_write_sheet(user, f) for f in present):
+        return None
+    return Gate(403, OTHER_FACTORY, other_factory_message(present[0]), {"factory": present[0]})
+
+
+def order_elsewhere(user: Any, sd: Any) -> Optional[dict[str, str]]:
+    """'내 공정' 줄 · 판의 [<공정> 완료] 자리 막힘(:func:`order_factory_gate` 와 같은 판정) — 칩 "2공장 작업" · 누르면 뜨는 글."""
+    gate = order_factory_gate(user, sd)
+    if gate is None:
+        return None
+    factory = gate.extra["factory"]
+    return {"kind": "elsewhere", "text": elsewhere_chip(factory), "why": other_factory_note(factory), "code": OTHER_FACTORY}
+
+
+def steps_factory_note(user: Any, sd: Any) -> Optional[str]:
+    """반장이 장이 모두 남의 공장인 주문의 공정 칸을 볼 때 읽기 전용 까닭(카드 글 "2공장에서 작업하는 도면이에요.") — 아니면 None.
+
+    공정 API 403(:func:`order_factory_gate`)과 같은 판정 — 작업 시트 공정 칸 · 공정 GET ``locked`` 가 본다(누른 뒤 거절 대신 누르기 전에).
+    관리자는 두 공장이라 늘 None, 파트 계정 · 파트도 반장도 아닌 생산팀은 공정 칸 잠금(``steps_lock``)이 먼저다.
+    """
+    if part_view_mode(user) != VIEW_SUB:
+        return None
+    gate = order_factory_gate(user, sd)
+    return other_factory_note(gate.extra["factory"]) if gate is not None else None
+
+
+def elsewhere_chip(factory: Any) -> str:
+    """남의 공장 칩 글 — "2공장 작업"(도면 카드 · '내 공정' 같은 글)."""
+    return f"{factory_label(factory)} 작업"
 
 
 def board_factory(user: Any, requested: Any = None) -> int:
@@ -129,5 +171,6 @@ def elsewhere_info(card: dict[str, Any], part: str, factory: int, row: Any = Non
             "why": other_factory_note(factory)}
 
 
-__all__ = ["OTHER_FACTORY", "board_factory", "elsewhere_head", "elsewhere_info", "elsewhere_line", "factory_gate",
-           "home_factory", "other_factories", "other_factory_message", "other_factory_note", "scene_on"]
+__all__ = ["OTHER_FACTORY", "board_factory", "elsewhere_chip", "elsewhere_head", "elsewhere_info", "elsewhere_line", "factory_gate",
+           "home_factory", "order_elsewhere", "order_factory_gate", "other_factories", "other_factory_message", "other_factory_note",
+           "scene_on", "steps_factory_note"]

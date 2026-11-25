@@ -1,6 +1,6 @@
 /* 생산 파트 도면 카드 — 맡기 고침의 카드 칸(설계서 2026-11-23 §4-5 · §4-6 · §4-9 · §4-11 · §8-1 · 2026-11-25 multi-holder §8-2).
  * 쓰기 없음(fetch 0) — 카드 단추 그리기(foms-production-parts.js 의 renderAct)가 새 칸을 여기서 받아 그린다:
- *   손 체크 칸(카드 안 쓴 파트 · "재단 완료 · 박반장" + "작업 시트") · 막힌 칸(보류 · 도면 고치는 중 · 검수 전) · 내 작업 한 층
+ *   손 체크 칸(카드 안 쓴 파트 · "재단 완료 · 박반장" + "작업 시트") · 막힌 칸(보류 · 도면 고치는 중 · 검수 전 · 생산 단계 아님) · 내 작업 한 층
  *   [시작 취소][<파트> 완료] · 남이 작업 중인 칸(누르면 [담당 바꾸기] 창, 둘째 줄 어제부터 · 바뀜) · 다른 파트 줄 끝 "내 작업" 꼬리
  *   (같이 작업하면 "내 작업 · 이시영과 같이" — 글은 서버 data-pp-crew 의 tag). 여러 명 칸은 foms-production-parts-crew.js.
  * 막힌 칸 = button aria-disabled — 누르면 카드 키를 안 바꾸는 말풍선(.pp-why)에 서버가 그린 까닭 글. 검수 판은 30초 받아 오기로
@@ -73,8 +73,9 @@
     });
   }
   function block(card) {
-    if (attr(card, 'data-pp-block')) {
-      return { kind: attr(card, 'data-pp-block'), text: attr(card, 'data-pp-block-text'), why: attr(card, 'data-pp-block-why') };
+    if (attr(card, 'data-pp-block')) { // all = 생산 단계 아님(제작 완료 뒤 등) — 시작 취소 · 되돌리기도 막혀 모든 칸이 막힘(C06 · C09)
+      return { kind: attr(card, 'data-pp-block'), text: attr(card, 'data-pp-block-text'), why: attr(card, 'data-pp-block-why'),
+        all: attr(card, 'data-pp-block-code') === 'NOT_IN_PRODUCTION' };
     }
     var left = preLeft(card);
     if (!left.length) { return null; }
@@ -120,8 +121,9 @@
       box.appendChild(hand);
       return true;
     }
-    if (!c.writable || (st !== 'none' && st !== 'need')) { return false; }
     var b = block(card);
+    if (c.writable && b && b.all) { box.appendChild(blockChip(card, b)); return true; }
+    if (!c.writable || (st !== 'none' && st !== 'need')) { return false; }
     if (st === 'none') { if (b) { box.appendChild(blockChip(card, b)); } return !!b; }
     if (attr(card, 'data-picked-me') === '1') {
       var two = el('div', 'pp-two is-mine');

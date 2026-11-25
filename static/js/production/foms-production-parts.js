@@ -157,6 +157,19 @@
       return attr(c, 'data-order-id') === String(orderId) && (key == null || attr(c, 'data-key') === key);
     });
   }
+  // 주문 막힘 칸(서버 sync_blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 글은 서버 글) → 카드 단추 칸 · 칸 숫자. 받아 오기 · 제작 완료 응답(C06 · C09)
+  var BLOCK_ATTR = { kind: 'data-pp-block', text: 'data-pp-block-text', why: 'data-pp-block-why', code: 'data-pp-block-code' };
+  var STOP_CODES = ['HOLD_ACTIVE', 'DRAWING_REVISING', 'NOT_IN_PRODUCTION']; // 이 거절이면 그 주문 카드를 바로 다시 받는다
+  function setBlock(card, b) {
+    var keys = Object.keys(BLOCK_ATTR);
+    if (keys.every(function (k) { return k === 'code' || attr(card, BLOCK_ATTR[k]) === ((b && b[k]) || ''); })) { return; }
+    var before = membership(card);
+    keys.forEach(function (k) { if (b && b[k]) { card.setAttribute(BLOCK_ATTR[k], b[k]); } else { card.removeAttribute(BLOCK_ATTR[k]); } });
+    var req = card.querySelector('[data-pp-req]'); // [도면 수정 요청] — 고치는 중 · 생산 단계 아님이면 숨김(판이 그릴 때와 같은 규칙)
+    if (req) { req.hidden = !!b && (b.kind === 'revise' || b.code === 'NOT_IN_PRODUCTION'); }
+    renderAct(card);
+    bumpCounts(board.paneOf(card), before, membership(card));
+  }
 
   // ── 쓰기 — 확인 창의 실행 단추에서만 부른다 ──
   function post(url, body) {
@@ -211,6 +224,7 @@
       var finished = p.action === 'complete' || (p.action === 'factory' && data.final);
       var done = p.action === 'bulk' ? bulkDone(data) : { text: finished ? '제작 완료했어요 — 시공 대기로 넘어갔어요'
         : p.action === 'factory' ? p.run + '했어요' : '저장했어요', bad: false };
+      if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
       done.text += asks ? '' : started(data);
       setBusy(false);
@@ -235,6 +249,7 @@
     var text = body.error || body.message || result.message || OFFLINE;
     if (result.status === 409 || result.status === 403) {
       if (data.mark && p.action !== 'bulk' && !asks) { applyMark(p.cards[0], data.mark); }
+      if (STOP_CODES.indexOf(data.code) >= 0 && bound.syncTick) { bound.syncTick(); } // 그 주문 카드를 모두 막힘 칸으로(C06)
       M.lost(text, M.nowLine(data.mark));
       return;
     }
@@ -248,10 +263,10 @@
     post(req.url, req.body).then(function (result) { handle(p, result || {}); });
   }
 
-  // 받아 오기가 쓴다: 고치기 · 카드 찾기 · 이 카드가 내 확인 창에 있거나 저장 중 · 말풍선이 열린 카드인지(그러면 건너뛴다) · 다시 그리기
+  // 받아 오기가 쓴다: 고치기 · 카드 찾기 · 이 카드가 내 확인 창에 있거나 저장 중 · 말풍선이 열린 카드인지(그러면 건너뛴다) · 다시 그리기 · 막힘 칸
   window.FomsPartsCards = { apply: applyMark, find: findCard, held: function (card) {
     return (!!pending && pending.cards.indexOf(card) >= 0) || !!(claim.busy && claim.busy(card));
-  }, render: renderAct };
+  }, render: renderAct, block: setBlock };
   if (!modal) { return; } // 읽기 전용 — 누름 · 쓰기를 묶지 않는다
   root.addEventListener('click', function (e) {
     var t = e.target;
