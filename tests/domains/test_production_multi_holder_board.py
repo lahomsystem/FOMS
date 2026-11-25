@@ -24,7 +24,7 @@ from types import SimpleNamespace
 import pytest
 
 from foms.services.production.part_card_crew import NBSP, crew_view, with_particle
-from tests.support.production_factory_seed import HOME_NONE, TABLET, set_cookies
+from tests.support.production_factory_seed import HOME_NONE, TABLET, factory_user, mixed_order, set_cookies
 from tests.support.production_part_claim_seed import ONE, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -185,6 +185,20 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     c = _card(_page(client, p.kim), k[1])
     assert 'class="pp-card is-mine"' in c and "내 작업 · 이시영과 같이" in c and 'data-pp-act="release">시작 취소</button>' in c
     assert f"<b>이시영 · 김재단 작업{NBSP}중</b>" in _act(_card(_page(client, p.park), k[1]))  # D
+
+
+def test_other_factory_card_names_everyone_from_the_mark_row(client, cohort) -> None:
+    """남의 공장 카드 글(factory_scope.elsewhere_info)에 판이 표시 줄을 넘긴다 — "이시영 · 김재단 작업 중" · "재단 완료 · 이시영 · 김재단"."""
+    seed = mixed_order(3, f2=(1, 2))
+    lee, kim = factory_user("이시영", factory=2, part="cut"), factory_user("김재단", factory=2, part="cut")
+    _press(client, lee, seed, 1, "take", "none")
+    _press(client, kim, seed, 1, "join", "need")
+    for who, action in ((lee, "take"), (kim, "join"), (lee, "done"), (kim, "done")):
+        _press(client, who, seed, 2, action, "none" if action == "take" else "need")
+    html = _page(client, factory_user("박재단", part="cut"))  # 1공장 재단 — 도면 2 · 3 은 남의 공장 카드
+    texts = re.findall(r'data-pp-elsewhere data-order-id="%d" data-key="[^"]+".*?<span data-pp-elsewhere-text>([^<]*)</span>' % seed.id,
+                       html, re.S)
+    assert texts == ["이시영 · 김재단 작업 중", "재단 완료 · 이시영 · 김재단"]
 
 
 def test_write_sync_and_refusal_carry_the_viewers_crew(client, cohort) -> None:
