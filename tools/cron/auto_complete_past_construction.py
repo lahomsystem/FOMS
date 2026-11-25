@@ -5,6 +5,7 @@
 
 * ``--apply`` 가 없으면 대상만 세어 한 줄 찍고 아무것도 안 바꾼다(다른 밤 단계와 같은 계약).
 * 대상이 ``--max-rows`` 를 넘으면 하나도 안 바꾸고 exit 3 — 시공일 일괄 오입력 같은 사고를 사람이 보게.
+* 먼저, 우리가 완료로 바꾼 뒤 시공일이 오늘 이후로 옮겨진 주문을 이전 단계로 되돌린다(배치 ``reopen-<오늘>``, 상한 50).
 * 행위자는 env ``FOMS_AUTO_COMPLETE_ACTOR_ID``. 없거나 숫자가 아니면 exit 3.
 * 스냅샷 파일이 남지 않는 컨테이너라 이전값은 이벤트 payload ``before`` 에 싣는다. 되돌리기:
   ``python tools/ops/bulk_complete_past_construction.py rollback --dsn … --from-events auto-YYYY-MM-DD --actor … --yes``.
@@ -34,6 +35,7 @@ from bulk_complete_past_construction_core import (  # noqa: E402
     cutoff_iso,
     dict_row,
     fetch_candidates,
+    rollback_one,
     today_kst,
 )
 
@@ -41,6 +43,36 @@ ACTOR_ENV = "FOMS_AUTO_COMPLETE_ACTOR_ID"
 DEFAULT_MAX_ROWS = 200
 REASON = "매일 자동 완료(시공일이 어제까지)"
 GUARD_EXIT = 3
+MAX_REOPEN = 50
+
+# 우리 일괄 완료(손 배치 · 매일 자동)가 마지막 단계 변경이고, 그 뒤 시공일이 오늘 이후로 옮겨진 완료 주문.
+_REOPEN_SQL = """
+SELECT o.id, o.structured_data->'workflow' AS workflow, e.payload
+  FROM orders o
+  JOIN LATERAL (SELECT ev.payload, ev.created_at FROM order_events ev
+                 WHERE ev.order_id = o.id AND ev.event_type = 'STAGE_OVERRIDE'
+                 ORDER BY ev.created_at DESC, ev.id DESC LIMIT 1) e ON true
+ WHERE o.erp_stage_code = 'COMPLETED'
+   AND o.erp_construction_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND o.erp_construction_date >= %(today)s
+   AND e.payload->>'mode' = 'skip' AND e.payload->>'to' = 'COMPLETED'
+   AND (e.payload->>'batch' LIKE '2026-09-22%%' OR e.payload->>'batch' LIKE 'auto-%%')
+   AND EXISTS (SELECT 1 FROM order_events c WHERE c.order_id = o.id
+                AND c.event_type = 'CONSTRUCTION_DATE_CHANGED' AND c.created_at > e.created_at)
+ ORDER BY o.id
+"""
+
+
+def reopen_row(row: dict[str, Any]) -> dict[str, Any]:
+    """되돌릴 행 — 이벤트 ``before`` 가 있으면 그대로, 없으면(옛 손 배치) ``from``/``from_status`` 로 만든다."""
+    p = row["payload"] or {}
+    before = p.get("before")
+    if isinstance(before, dict):
+        return {**before, "id": row["id"]}
+    wf = dict(row["workflow"]) if isinstance(row["workflow"], dict) else {}
+    wf.pop("stage_override", None)
+    wf["stage"] = p.get("from")
+    return {"id": row["id"], "status": p.get("from_status"), "erp_stage_code": p.get("from"),
+            "erp_stage_updated_at": None, "workflow": wf}
 
 
 def batch_name(today_iso: str) -> str:
@@ -82,6 +114,17 @@ def run(conn, *, apply: bool, actor: int | None, max_rows: int,
                            "planned": s["items"], "main": s["main"], "as_stage_only": s["as_stage_only"],
                            "skipped": s["skipped"], "applied": 0, "other": {}}
     conn.rollback()
+    reopen = [reopen_row(r) for r in _rows(conn, _REOPEN_SQL, {"today": today})]
+    conn.rollback()
+    out["reopen"] = len(reopen)
+    if apply and reopen and actor is not None and len(reopen) <= MAX_REOPEN:
+        now_r = now or datetime.now(timezone.utc).replace(tzinfo=None)
+        with conn.cursor(row_factory=dict_row) as cur:
+            for r in reopen:
+                r["erp_stage_updated_at"] = r.get("erp_stage_updated_at") or now_r.isoformat()
+                rollback_one(cur, r, actor_user_id=actor, now=now_r, batch=f"reopen-{today}")
+        conn.commit()
+        out["reopened"] = [r["id"] for r in reopen]
     if not apply or not plan["items"]:
         return 0, out
     if actor is None:

@@ -53,3 +53,10 @@ ERP 는 도면 → 영업 컨펌까지만 실사용하고 생산부터는 쓰지
 - 시공일을 잘못 넣으면(예: 과거 날짜) 다음 날 새벽에 그 주문이 완료로 바뀐다. 지금 손 도구와 같은 위험이고, 상한(200)과 이벤트 되돌리기가 안전망이다.
 - 실측 단계는 시공일이 없는 주문이 많아(11-11 212건) 계속 남는다 — 범위 밖.
 - 범위 밖: 판정 규칙 바꾸기, 시공일 없는 주문, 비ERP 옛 주문, 고객 알림.
+
+## 추가 (2026-11-25, 사용자 승인) — 시공일이 미래로 옮겨진 완료 주문 되돌리기
+
+- 계기: 운영 #6040·#6018 — 일괄 완료 뒤 직원이 시공일을 미래로 옮겼다(손으로 이전 단계로 되돌림).
+- 밤 단계가 먼저 찾는다: 지금 완료이고, 마지막 STAGE_OVERRIDE 가 우리 일괄 완료(배치 `2026-09-22*` · `auto-*`)이고, 그 뒤 `CONSTRUCTION_DATE_CHANGED` 가 있고, `erp_construction_date >= 오늘`.
+- 되돌리기는 `rollback_one`. 이전값은 이벤트 `before`(자동 배치) 또는 `from`·`from_status`(옛 손 배치, workflow 에서 표식만 뺌). 배치 이름 `reopen-<오늘>`, 하룻밤 상한 50.
+- 시험: `tests/postgres/test_auto_complete_past_construction_pg.py::test_reopens_completed_order_whose_construction_date_moved_to_future`.
