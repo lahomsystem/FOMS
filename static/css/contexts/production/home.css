@@ -44,6 +44,10 @@
   --fph-wait-50: #eeebb2;
   --fph-wait-300: #d6d38a;
   --fph-wait-700: #57571f;
+  /* 남은 장이 있어 지금 못 누름 = 도면 판 '엣지 · 조립 미완료' 칸(노랑) — '내 공정' [끝] 자리 도면 칸 막힘도 같은 색(parts.css 에서 옮겨 옴) */
+  --fph-pre-50: #fef08a;
+  --fph-pre-300: #eab308;
+  --fph-pre-700: #713f12;
   --fph-holder: var(--fph-text2);
   --fph-holder-done: var(--fph-brand-dark);
   --fph-holder-none: var(--fph-text3);
@@ -362,6 +366,19 @@
 .fph-qr__done:hover, .fph-qr__done:focus-visible { background: var(--fph-dw-ok); border-color: var(--fph-dw-ok); outline: none; }
 .fph-qr__done:disabled { opacity: .6; cursor: wait; }
 .fph-qr__hold { justify-self: end; padding: 8px 16px; border-radius: 999px; background: var(--fph-hold-50); color: var(--fph-hold-700); font-weight: 800; font-size: calc(16px * var(--foms-fs, 1)); } /* 보류 = 도면 칸 보류 색(C16) */
+/* [끝] 자리 막힘 둘(비평 갈래 가 C02 · C03, 2026-11-26) — 보류 색은 보류 · 도면 고치는 중에만(C16). 줄 끝 · 이름 옆 표 · 오른쪽 판 같은 규칙.
+   is-cards = 도면 칸을 쓴 주문(남은 장이 있어 지금 못 누름) — 도면 판 '엣지 · 조립 미완료' 칸과 같은 노랑 · 테두리, 누르면 그 주문 도면 판
+   (링크 밑줄 없음 · 누름 칸 44px · 키보드 초점 테두리). is-elsewhere = 장이 모두 남의 공장 — 도면 판 남의 공장 칸(흰 바탕 · 회색 테두리 ·
+   공장 칩), 줄은 날짜 탭 남의 공장 줄(공장 색 점선, '바뀜' 빨강이 이긴다). 새 칩 · 새 상자 없이 색 · 테두리만. */
+.fph-qr__hold.is-cards, .fph-qr__holdtag.is-cards { border: 1px solid var(--fph-pre-300); background: var(--fph-pre-50); color: var(--fph-pre-700); }
+.fph-qr__hold.is-cards { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.fph-qr__hold.is-cards:hover, .fph-qr__hold.is-cards:focus { color: var(--fph-pre-700); text-decoration: none; }
+.fph-qr__hold.is-cards:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.fph-qr__hold.is-elsewhere, .fph-qr__holdtag.is-elsewhere { border: 1px solid var(--fph-line2); background: var(--fph-surface); color: var(--fph-text); font-weight: 700; }
+.fph-qr.is-elsewhere { border: 2px dashed var(--fph-text3); }
+.fph-qr.is-elsewhere:has(.foms-fac--1) { border-color: var(--foms-fac1-line); }
+.fph-qr.is-elsewhere:has(.foms-fac--2) { border-color: var(--foms-fac2-line); }
+.fph-qr.is-elsewhere.is-chg { border-style: solid; border-color: var(--fph-danger); }
 
 /* ── 제목 줄: 탭 숫자 · 글자 손잡이 ── */
 .foms-prod-home__navtab small { margin-left: 6px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); }
@@ -831,6 +848,11 @@
 .fph-sp__hold { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 2px solid var(--fph-hold-300); border-radius: 14px; background: var(--fph-hold-50); color: var(--fph-hold-700); text-align: center; }
 .fph-sp__hold b { display: inline-flex; align-items: center; gap: 8px; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; }
 .fph-sp__hold span { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; }
+/* 판 [끝] 자리 막힘 둘 — 위 줄 끝 규칙과 같은 색(보류 색 아님). 도면 칸 막힘은 누르면 그 주문 도면 판(밑줄 없음 · 초점 테두리) */
+.fph-sp__hold.is-cards { border-color: var(--fph-pre-300); background: var(--fph-pre-50); color: var(--fph-pre-700); text-decoration: none; }
+.fph-sp__hold.is-cards:hover, .fph-sp__hold.is-cards:focus { color: var(--fph-pre-700); text-decoration: none; }
+.fph-sp__hold.is-cards:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.fph-sp__hold.is-elsewhere { border-color: var(--fph-line2); background: var(--fph-surface); color: var(--fph-text); }
 .fph-sp__acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .fph-sp__act { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); color: var(--fph-text); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
 .fph-sp__act svg { font-size: calc(20px * var(--foms-fs, 1)); }

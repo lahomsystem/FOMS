@@ -128,7 +128,7 @@ def test_my_steps_screen_draws_no_finish_for_other_factory_orders_and_puts_them_
     cut = page.split('data-foms-home-stepq="cut"', 1)[1].split('data-foms-home-stepq="edge"', 1)[0]
     assert cut.index(f'data-foms-home-qrow="{mine.id}"') < cut.index(f'data-foms-home-qrow="{only2.id}"')  # 남의 공장 줄은 끝으로
     row = _row(page, only2.id)
-    assert "data-foms-home-step-done" not in row and f'<span class="fph-qr__hold" title="{ELSEWHERE_WHY}">{F2_CHIP}</span>' in row
+    assert "data-foms-home-step-done" not in row and f'<span class="fph-qr__hold is-elsewhere" title="{ELSEWHERE_WHY}">{F2_CHIP}</span>' in row
     assert f'<div class="fph-qr is-elsewhere" data-foms-home-qrow="{only2.id}"' in page  # 날짜 탭 남의 공장 줄과 같은 이름(꾸밈은 CSS 몫)
     assert f'data-foms-home-step-done data-order-id="{mine.id}"' in _row(page, mine.id)  # 대조군 — 내 공장 주문
     pane = _pane(_page(client, STEPS + f"&order={only2.id}"), only2.id)
@@ -136,7 +136,7 @@ def test_my_steps_screen_draws_no_finish_for_other_factory_orders_and_puts_them_
     set_cookies(client, PC)
     client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")  # [고치기] 켬
     pc = client.get(STEPS).get_data(as_text=True)
-    assert f'data-foms-home-step-done data-order-id="{only2.id}"' not in pc and f'<span class="fpc-hold" title="{ELSEWHERE_WHY}">' in pc
+    assert f'data-foms-home-step-done data-order-id="{only2.id}"' not in pc and f'<span class="fpc-hold is-elsewhere" title="{ELSEWHERE_WHY}">' in pc
     login(client, make_user("오관리", role="ADMIN", team="CS"))  # 관리자 = 두 공장 — [끝] 그대로
     assert f'data-foms-home-step-done data-order-id="{only2.id}"' in _row(_page(client, STEPS), only2.id)
 
@@ -157,10 +157,10 @@ def test_part_that_uses_cards_shows_left_sheets_and_links_to_the_board(client, c
     href = f"/erp/production/home?tab=parts&amp;part=cut&amp;order={order.id}"
     row = _row(page, order.id)
     assert "data-foms-home-step-done" not in row and "data-foms-sheet-parts" not in row
-    assert f'<a class="fph-qr__hold" href="{href}" data-foms-step-cards title="{why}">재단 1/3 · 2장 미완료</a>' in row
+    assert f'<a class="fph-qr__hold is-cards" href="{href}" data-foms-step-cards title="{why}">재단 1/3 · 2장 미완료</a>' in row
     assert f'data-foms-home-step-done data-order-id="{bare.id}"' in _row(page, bare.id)
     pane = _pane(_page(client, STEPS + f"&order={order.id}"), order.id)
-    assert f'<a class="fph-sp__hold" href="{href}" data-foms-step-cards><b>재단 1/3 · 2장 미완료</b><span>{why}</span></a>' in pane
+    assert f'<a class="fph-sp__hold is-cards" href="{href}" data-foms-step-cards><b>재단 1/3 · 2장 미완료</b><span>{why}</span></a>' in pane
     board = _page(client, href.replace("&amp;", "&"))  # 누른 곳 = 그 주문 도면 판(카드가 선 날 장)
     assert board.count(f'data-pp-card data-order-id="{order.id}"') == 3
     phone = _page(client, STEPS, {"foms_ptr": "coarse", "foms_vw": "narrow"})
