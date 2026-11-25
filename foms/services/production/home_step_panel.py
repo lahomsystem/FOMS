@@ -230,7 +230,9 @@ def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]], *, 
     있는 주문은 ``fix``(확인 창 본문 재료, 2026-11-25 설계서 §2-4)를 더 싣는다.
 
     그 공정 파트에 남은 장이 도면별로 막힌 장뿐이면(풀어 쓴 뒤 · 지금 도면이 모두 막힘) [끝] 대신 ``revise_block`` "도면 2 고치는 중"을
-    단다 — 누르면 처리할 장이 없어 거절되는 길을 없앤다(2026-11-25 D1 검토 판결 D). 그 줄은 보류처럼 '곧 올 것' · 처음 고른 줄에서 빠진다.
+    단다 — 누르면 처리할 장이 없어 거절되는 길을 없앤다(2026-11-25 D1 검토 판결 D). 그 줄은 보류처럼 흐리고 처음 고른 줄 · '끝내면 다음은'
+    에서 빠지지만, 다음 공정의 '곧 올 것'에는 남는다 — 끝난 장은 다음 공정으로 간다(사장님 답 "나머지는 계속 작업", 둘째 판 1). '곧 올 것'
+    에서 빠지는 것은 :func:`~foms.services.production_home_read_model.production_home_step_queues` 가 이미 뺀 통째 막힘 · 보류 줄뿐이다.
 
     Args:
         queues: :func:`production_home_step_queues` 결과(행을 그 자리에서 고친다).
@@ -252,5 +254,3 @@ def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]], *, 
                 row['step_confirm'] = {'sheets': extras['sheets'],
                                        'parts': {q['key']: {'uses_cards': extras['parts'][q['key']]['uses_cards']}},
                                        **confirm_extras(sd)}
-    for q in (queues.get('queues') or [])[1:]:  # '곧 올 것' = 앞 공정 줄에서 막히지 않은 주문(위에서 막힘이 생긴 줄은 뺀다)
-        q['incoming'] = [r for r in q.get('incoming') or [] if not r.get('revise_block')]

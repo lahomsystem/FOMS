@@ -254,3 +254,50 @@ def test_production_home_pc_query_count_same_cap(client, monkeypatch, tab):
     assert resp_big.status_code == 200
     assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
     assert q_big <= ABS_QUERY_CAP, f"PC 첫 화면 쿼리 상한 넘음({tab or 'date'}): big={q_big} > {ABS_QUERY_CAP}"
+
+
+def _count_queries_and_marks(fn):
+    """(결과, 전체 SQL 수, 표시 줄 표 ``production_part_marks`` 를 읽은 SQL 수)."""
+    counter = {"n": 0, "marks": 0}
+
+    def _before(conn, cursor, statement, params, context, executemany):
+        counter["n"] += 1
+        counter["marks"] += "production_part_marks" in statement
+
+    event.listen(engine, "before_cursor_execute", _before)
+    try:
+        result = fn()
+    finally:
+        event.remove(engine, "before_cursor_execute", _before)
+    return result, counter["n"], counter["marks"]
+
+
+def _fix_drawing(order_id: int) -> None:
+    """생산 넘어간 주문 도면 수정 — 도면 2 를 고치는 중으로(자료를 직접 심는다, 2026-11-25 설계서 §3-2)."""
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    sd["drawing_fix"] = {"fixing": {f"file:{sd['drawing_current_files'][1]['key']}": {"no": 2, "by_name": "김도면"}}}
+    order.structured_data = sd
+    db_session.commit()
+
+
+def test_production_home_steps_viewer_reads_marks_once_only_with_per_drawing_blocked_rows(client, monkeypatch):
+    """보기만 사람(파트 · 반장 아님)의 '내 공정' 탭 — 도면별로 막힌 줄이 있을 때만 표시 줄 읽기 +1(남은 장이 고치는 도면뿐인 줄을
+    [끝] 자리에 보이려고, 2026-11-25 D1 검토 판결 D). 막힌 줄 1개 · 4개는 같은 수(N+1 없음), 0개는 표시 줄 읽기 0(지금 그대로)."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    _login(client)
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
+    client.set_cookie("foms_vw", "narrow", domain="localhost")
+    ids = [_seed_order(i) for i in (0, 2, 4, 6)]  # 짝수 = 제작 회차 있음 → '내 공정' 재단 줄
+    url = HOME_URL + "?tab=steps"
+    assert client.get(url).status_code == 200
+    resp0, q0, m0 = _count_queries_and_marks(lambda: client.get(url))
+    assert resp0.status_code == 200 and "첫화면0" in resp0.get_data(as_text=True) and m0 == 0
+    _fix_drawing(ids[0])
+    resp1, q1, m1 = _count_queries_and_marks(lambda: client.get(url))
+    assert resp1.status_code == 200 and (q1, m1) == (q0 + 1, 1)
+    for order_id in ids[1:]:
+        _fix_drawing(order_id)
+    resp4, q4, m4 = _count_queries_and_marks(lambda: client.get(url))
+    assert resp4.status_code == 200 and (q4, m4) == (q1, 1), f"막힌 줄 4개: {q4} (1개: {q1})"
