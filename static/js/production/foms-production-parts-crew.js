@@ -25,6 +25,7 @@
   var LABEL = cfg.label || '';
   var NAME = cfg.me || '';
   var ME = String(cfg.me_id);
+  var MINE = cfg.mode === 'part';
   var claim = window.FomsPartsClaim || {};
   function attr(card, name) { return card.getAttribute(name) || ''; }
   function safeJsonParse(value, fallback) {
@@ -84,9 +85,11 @@
         box.appendChild(two);
       } else if (!o.writable) {
         box.appendChild(el('span', 'fph-wi pp-act pp-st-need', head));
-      } else { // 반장 · 관리자(G) — 이름 칸(둘째 줄 "재단 1/2 완료") + [재단 완료](= 남은 사람 몫 대신 완료)
-        box.appendChild(claim.held(card, head, 'pp-st-need pp-not-need', half(cr) || null));
-        box.appendChild(el('button', 'fph-qr__done pp-act pp-fin pp-only-need', LABEL + ' 완료', 'done'));
+      } else { // 반장 · 관리자(G) — 이름 칸(둘째 줄 "재단 1/2 완료") + [재단 완료](= 대신 완료 check — 남은 사람 몫 모두)
+        var own = attr(card, 'data-done-me') === '1'; // 같이 작업해 자기 몫 완료 — '완료' 칸에 자기 몫 되돌리기 줄(파트 계정과 같은 자리)
+        box.appendChild(claim.held(card, head, 'pp-st-need pp-not-need' + (own ? ' pp-not-done' : ''), half(cr) || null));
+        box.appendChild(el('button', 'fph-qr__done pp-act pp-fin pp-only-need', LABEL + ' 완료', 'check'));
+        if (own) { box.appendChild(undoRow('done', half(cr))); }
       }
       return true;
     }
@@ -130,7 +133,7 @@
       var M = window.FomsPartsModal || {};
       var swap = left.length === 1 ? [['takeover', '담당 바꾸기', 'taken', left[0].uid]] : left.length ? [['takeover', '담당 바꾸기 ›', 'taken', null, true]] : [];
       var join = cr.me === 'none' ? [['join', '같이 작업', 'join', null, true]] : []; // Q22 — 아직 작업자가 아니면 [같이 작업] 창으로
-      var choices = swap.concat([['done', '대신 완료', 'done']], join, left.map(function (p) {
+      var choices = swap.concat([['check', '대신 완료', 'done']], join, left.map(function (p) { // [대신 완료] = check(자기 몫 포함 남은 사람 모두)
         return ['remove', p.name + ' 시작 취소', 'release', p.uid];
       }));
       return { title: cr.who + ' 작업 중인 도면이에요', line: cr.who + ' 작업 중', run: '', tone: 'taken', choices: choices,
@@ -148,10 +151,10 @@
         line: cr.who + ' 작업 중 → ' + (rest ? LABEL + ' 완료 · ' + cr.done : (mine.drop || '') + ' 작업 중'),
         note: rest ? '남은 사람이 모두 완료라 도면이 완료돼요.' : '' };
     }
-    if (action === 'undo' && st === 'need' && cr.me === 'done') { // 내 몫 되돌리기(재단 1/2 완료 → 작업 필요)
-      return { title: '작업 필요로 되돌릴까요?', line: half(cr) + ' → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need' };
+    if (action === 'undo' && st === 'need' && cr.me === 'done') { // 내 몫 되돌리기(재단 1/2 완료 → 작업 필요) — 대상 = 본인(반장도 자기 몫만)
+      return { title: '작업 필요로 되돌릴까요?', line: half(cr) + ' → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need', target: Number(ME) };
     }
-    if (action === 'undo' && st === 'done' && cr.me !== 'done') { // 반장 · 관리자 대신 되돌리기 — 완료만 모두 끄고 작업하던 사람은 그대로
+    if (action === 'undo' && st === 'done' && (cr.me !== 'done' || !MINE)) { // 반장 · 관리자 대신 되돌리기 — 완료만 모두 끄고(자기 몫 포함, Q23) 작업하던 사람은 그대로
       return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 완료 → ' + cr.who + ' 작업 중', run: '되돌리기', tone: 'need' };
     }
     return null;

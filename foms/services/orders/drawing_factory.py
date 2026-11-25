@@ -179,14 +179,15 @@ def sheet_work(key: str, marks: Iterable[Any], *, hand_parts: Iterable[str] = ()
         hand_parts: :func:`hand_checked_parts` — 반장이 공정 칸을 통째 손 체크한 파트(모든 장이 그 공정 완료).
 
     Returns:
-        완료(재단 기본 포함)한 파트가 있으면 ``{kind: 'done', part, name}``(공정 순 첫 파트, 이름 = 완료한 사람), 작업하는 사람만
-        있으면 ``{kind: 'held', part, name}``(이름 = 작업하는 사람 이름 줄 "김민준 · 박엣지 외 1" — multi-holder Q20), 표시 줄은 없는데
+        완료(재단 기본 포함)를 누른 사람이 있는 파트가 있으면 ``{kind: 'done', part, name}``(공정 순 첫 파트, 이름 = 완료를 누른 사람 —
+        "재단 1/2 완료" 줄도 여기: 남은 사람이 시작 취소하면 저절로 완료(Q6)라 시작 취소 부탁으로는 못 옮긴다), 작업하는 사람만 있으면
+        ``{kind: 'held', part, name}``(이름 = 아직 완료 안 누른 사람 이름 줄 "김민준 · 박엣지 외 1" — multi-holder Q20), 표시 줄은 없는데
         손 체크한 공정이 있으면 ``{kind: 'hand', part, parts, name: ''}``.
         NONE 줄만 있거나 줄이 없고 손 체크도 없으면 None(일이 시작 안 된 장 — 옮길 수 있다).
     """
     rows = sorted((m for m in marks if getattr(m, "drawing_key", None) == key and getattr(m, "state", "NONE") != "NONE"),
                   key=_part_order)
-    done = [m for m in rows if m.state in _FINISHED]
+    done = [m for m in rows if m.state in _FINISHED or any(mc.is_done(p) for p in mc.crew_of(m))]
     if done:
         return {"kind": "done", "part": done[0].part, "name": mc.name_line(_row_people(done[0], "done"))}
     if rows:
@@ -204,11 +205,12 @@ def _one(name: Any) -> list[str]:
 
 
 def _row_people(row: Any, kind: str) -> list[str]:
-    """표시 줄의 이름 목록 — 완료(``done``)는 완료한 사람(없으면 작업하는 사람), 작업 중(``held``)은 작업하는 사람."""
+    """표시 줄의 이름 목록 — 완료(``done``)는 완료한 사람(없으면 작업하는 사람), 작업 중(``held``)은 아직 완료 안 누른 사람(시작 취소를
+    부탁할 사람)."""
     crew = mc.crew_of(row)
     if kind == "done":
         return mc.done_names(crew) or _one(row.done_by_name) or mc.names(crew) or _one(row.picked_by_name)
-    return mc.names(crew) or _one(row.picked_by_name)
+    return mc.names(m for m in crew if not mc.is_done(m)) or _one(row.picked_by_name)
 
 
 def work_people(key: str, marks: Iterable[Any], work: dict[str, Any]) -> list[str]:

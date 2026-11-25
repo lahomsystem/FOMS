@@ -24,7 +24,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from foms.services.production.part_card_crew import NBSP, crew_view, sentence_line, with_particle
+from foms.services.production import mark_crew as mc, part_card_crew
+from foms.services.production.part_card_crew import NBSP, crew_view, with_particle
 from tests.support.production_factory_seed import HOME_NONE, TABLET, factory_user, mixed_order, set_cookies
 from tests.support.production_part_claim_seed import ONE, login, make_order, make_user, mark
 
@@ -142,7 +143,9 @@ def test_crew_view_lines_for_each_viewer() -> None:
                                                                           "최재단 · 박재단이")
     assert crew_view([dict(r, done=False) for r in four], 2, "김재단")["tag"] == "이시영 · 최재단 외 1명과 같이"
     assert [p["subj"] for p in kim4["people"]] == ["이시영이", "김재단이", "최재단이", "박재단이"]
-    assert sentence_line(["이시영", "김재단"]) == "이시영 · 김재단" and sentence_line(["이시영", "김재단", "최재단"]) == "이시영 · 김재단 외 1명"
+    # "외 n명" 규칙은 한 벌(mark_crew.name_sentence) — 카드 칸 문장도 같은 함수가 지은 글(11-25 검토 5)
+    assert kim4["who_subj"] == mc.name_sentence(["이시영", "김재단", "최재단", "박재단"]) + "이" == "이시영 · 김재단 외 2명이"
+    assert not hasattr(part_card_crew, "sentence_line")
 
 
 # --------------------------------------------------------------------------- #
@@ -184,7 +187,7 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     lead = _act(_card(_page(client, p.lead, CUT_ADMIN), k[2]))  # G — 반장: 이름 칸 둘째 줄 "재단 1/2 완료" + [재단 완료]
     assert 'class="fph-wi pp-act pp-st-need pp-not-need pp-held" data-pp-act="held"' in lead
     assert f"<b>이시영 · 김재단 작업{NBSP}중</b><small>재단 1/2 완료</small>" in lead
-    assert 'data-pp-act="done">재단 완료</button>' in lead and 'data-pp-act="join"' not in lead
+    assert 'data-pp-act="check">재단 완료</button>' in lead and 'data-pp-act="join"' not in lead  # 반장 칸 [재단 완료] = 대신 완료
     ro = _act(_card(_page(client, p.cs, CUT_ADMIN), k[2]))  # 보기만 — 같은 이름 줄(K5)
     assert ro.strip().startswith(f'<span class="fph-wi pp-act pp-st-need">이시영 · 김재단 작업{NBSP}중</span>') and "<button" not in ro
 
@@ -309,7 +312,7 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     assert (w2["title"], w2["note"], w2["line"], w2["close"]) == (
         "이시영 · 김재단 작업 중인 도면이에요", "재단 1/2 완료 — 이시영 완료 · 김재단 작업 중", "이시영 · 김재단 작업 중", "닫기")
     assert [(c["text"], c["choice"], c["target"], c["next"]) for c in w2["choices"]] == [
-        ("담당 바꾸기", "takeover", str(p.kim.id), False), ("대신 완료", "done", None, False), ("같이 작업", "join", None, True),
+        ("담당 바꾸기", "takeover", str(p.kim.id), False), ("대신 완료", "check", None, False), ("같이 작업", "join", None, True),
         ("김재단 시작 취소", "remove", str(p.kim.id), False)]
     assert w2["choices_cls"] == "pp-mchoices pp-mchoices--two" and "pp-mgo--join" in w2["choices"][2]["cls"]  # 넷 = 2 × 2
     w1 = out[1]["modal"]  # 반장 [같이 작업] = 파트 계정과 같은 확인 창(Q22)

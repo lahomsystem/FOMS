@@ -76,17 +76,49 @@ class _Press:
     label: str
 
 
-def _same_result(snap: MarkSnapshot, action: str, target: str, me: int, target_uid: Optional[int] = None,
-                 seen_me: Optional[str] = None) -> bool:
-    """이미 그 결과이고 그 결과를 만든 사람이 나인지(멱등 — 연결이 얼어 두 번 누름).
+def _undone_already(crew: tuple[dict[str, Any], ...], me: int, target_uid: Optional[int], seen_me: Optional[str],
+                    admin: bool, last_me: bool) -> bool:
+    """[되돌리기]가 바라는 결과가 이미 있는지(작업 필요 줄 — 멱등 판정의 되돌리기 몫).
 
-    [작업 시작] · [같이 작업] · 담당 바꾸기 = 내가 이미 목록에 있음, 완료 = 내 몫이 이미 완료(대신 완료 · 사람 없는 완료는 끝낸 사람이
-    나), 되돌리기 = 내 몫이 이미 작업 중(화면이 내 몫을 완료로 봤거나 안 보냄 — 내 몫이 작업 중으로 보인 화면의 되돌리기는 남의
-    몫이다, 대신 되돌리기는 마지막으로 바꾼 사람이 나), 시작 취소 = 빠질 사람이 이미 없고 마지막으로 바꾼 사람이 나, PC [완료 처리] =
-    이미 완료 · 기본.
+    사람 없는 줄 = 마지막으로 바꾼 사람이 나 · 반장 · 관리자의 대상 없는 되돌리기(완료한 사람 모두 — Q23) = 완료한 사람이 아무도 없고
+    마지막으로 바꾼 사람이 나 · 본인 몫(대상 없음 · 대상 = 나) = 내 몫이 이미 작업 중(화면이 내 몫을 완료로 봤거나 안 보냄) · 고른 사람 =
+    그 사람 몫이 이미 작업 중이고 마지막으로 바꾼 사람이 나. 목록 밖 반장이 마지막으로 쓴 줄이어도 아직 완료한 사람이 있으면 멱등이 아니다.
+    """
+    if not crew:
+        return last_me
+    if admin and target_uid is None:
+        return last_me and not any(mc.is_done(m) for m in crew)
+    if target_uid in (None, me):
+        return mc.share_of(crew, me) == mc.SHARE_HELD and seen_me in (None, mc.SHARE_DONE)
+    item = mc.find(crew, target_uid)
+    return last_me and item is not None and not mc.is_done(item)
+
+
+def _left_already(crew: tuple[dict[str, Any], ...], me: int, target_uid: Optional[int], seen_me: Optional[str],
+                  admin: bool) -> bool:
+    """[시작 취소] · [{이름} 시작 취소]가 뺄 사람이 이미 없는지(멱등 판정의 시작 취소 몫 — 마지막으로 바꾼 사람이 나인지는 부르는 쪽).
+
+    고른 사람이 있으면 그 사람이 목록에 없음. 대상 없음은 내가 목록에 없음 — 다만 옛 화면의 반장 · 관리자 남의 장 [시작 취소](내가
+    목록에 없고 본 내 몫이 '작업 중'이 아님)는 아직 완료 안 한 사람이 남았으면 멱등이 아니다(실제로 그 사람을 뺀다).
+    """
+    if target_uid is not None:
+        return mc.find(crew, target_uid) is None
+    if mc.find(crew, me) is not None:
+        return False
+    return not (admin and seen_me != mc.SHARE_HELD and any(not mc.is_done(m) for m in crew))
+
+
+def _same_result(snap: MarkSnapshot, action: str, target: str, me: int, target_uid: Optional[int] = None,
+                 seen_me: Optional[str] = None, admin: bool = False) -> bool:
+    """이미 그 결과이고 그 결과를 만든 사람이 나인지(멱등 — 연결이 얼어 두 번 누름. 같은 요청을 다시 보낸 것만 ``changed:false``).
+
+    [작업 시작] · [같이 작업] · 담당 바꾸기 = 내가 이미 목록에 있음, 완료 = 내 몫이 이미 완료(사람 없는 완료는 끝낸 사람이 나),
+    되돌리기 = :func:`_undone_already`, 시작 취소 = :func:`_left_already` + 마지막으로 바꾼 사람이 나, PC [완료 처리] · 반장 [대신 완료]
+    (``check``) = 이미 완료 · 기본.
     """
     crew, state = snap.crew, snap.state
     share = mc.share_of(crew, me)
+    last_me = snap.updated_by_user_id == me
     if action in (ACTION_TAKE, ACTION_JOIN, ACTION_TAKEOVER):
         return state == MARK_STATE_NEED and share != mc.SHARE_NONE
     if action == ACTION_CHECK:
@@ -96,12 +128,10 @@ def _same_result(snap: MarkSnapshot, action: str, target: str, me: int, target_u
     if action == ACTION_BASIC:
         return state == MARK_STATE_BASIC and snap.done_by_user_id == me
     if action == ACTION_UNDO and target == MARK_STATE_NEED:
-        held = share == mc.SHARE_HELD and seen_me in (None, mc.SHARE_DONE) and target_uid in (None, me)
-        return state == MARK_STATE_NEED and (held or (share == mc.SHARE_NONE and snap.updated_by_user_id == me))
+        return state == MARK_STATE_NEED and _undone_already(crew, me, target_uid, seen_me, admin, last_me)
     if action in (ACTION_RELEASE, ACTION_REMOVE):
-        gone = mc.find(crew, target_uid if target_uid is not None else me) is None
-        return gone and snap.updated_by_user_id == me and state != MARK_STATE_BASIC
-    return state == target and snap.updated_by_user_id == me
+        return state != MARK_STATE_BASIC and last_me and _left_already(crew, me, target_uid, seen_me, admin)
+    return state == target and last_me
 
 
 def _seen_by_ok(snap: MarkSnapshot, seen_by: Any) -> bool:
@@ -144,7 +174,8 @@ def _pick_target(crew: list[dict[str, Any]], target_uid: Optional[int]) -> tuple
 
 
 def _decide_done(snap: MarkSnapshot, p: _Press) -> MarkDecision:
-    """[재단 완료] — 내 몫 완료(모두 완료면 DONE) · 반장 · 관리자는 남은 사람 몫을 한 번에(Q15) · 목록 밖 파트 계정은 경합."""
+    """[재단 완료] — 내 몫 완료(모두 완료면 DONE — 반장 · 관리자도 자기 카드의 [재단 완료]는 자기 몫만) · 목록 밖 반장 · 관리자(옛 화면)는
+    남은 사람 몫을 한 번에(Q15) · 목록 밖 파트 계정은 경합. 새 화면의 [대신 완료]는 ``check``(:func:`_decide_check`)로 따로 온다."""
     crew = list(snap.crew)
     if mc.share_of(crew, p.actor_id) == mc.SHARE_HELD:
         return _applied(mc.finish(crew, p.actor_id, by_uid=p.actor_id, by_name=p.actor_name, now=p.now), ACTION_DONE)
@@ -156,15 +187,20 @@ def _decide_done(snap: MarkSnapshot, p: _Press) -> MarkDecision:
 
 
 def _decide_undo(snap: MarkSnapshot, p: _Press, seen: str) -> MarkDecision:
-    """[되돌리기] — 재단 기본은 지금 그대로, 그 밖은 본인 몫만(Q3 · Q4) · 반장 · 관리자는 남의 완료 몫(고른 사람 또는 모두)."""
+    """[되돌리기] — 재단 기본은 지금 그대로, 그 밖은 본인 몫만(Q3 · Q4) · 반장 · 관리자는 남의 완료 몫(고른 사람), 대상 없이 누르면
+    자기가 같이 작업자여도 완료한 사람 모두(Q23 — 반장 자기 몫만은 자기 카드 '완료' 칸 [되돌리기] = 대상 = 본인)."""
     crew = list(snap.crew)
     if seen == "basic":  # 재단 기본 되돌리기 — 지금 그대로
         owner = snap.done_by_user_id
         if owner is not None and owner != p.actor_id and not p.admin:
             return MarkDecision(DECISION_CONFLICT, message=conflict_message(snap))
         return _applied([], ACTION_UNDO, override=owner is not None and owner != p.actor_id)
-    own = p.target_uid is None or p.target_uid == p.actor_id
-    if own and mc.share_of(crew, p.actor_id) == mc.SHARE_DONE:  # 본인 몫만(Q3 · Q4)
+    if p.admin and p.target_uid is None:  # 대상 없는 대신 되돌리기 = 완료한 사람 모두(자기 몫 포함 — Q23)
+        finished = [m for m in crew if mc.is_done(m)]
+        if finished:
+            others = any(m.get("uid") != p.actor_id for m in finished)
+            return _applied(mc.unfinish(crew, [m.get("uid") for m in finished]), ACTION_UNDO, override=others)
+    elif p.target_uid in (None, p.actor_id) and mc.share_of(crew, p.actor_id) == mc.SHARE_DONE:  # 본인 몫만(Q3 · Q4)
         return _applied(mc.unfinish(crew, [p.actor_id]), ACTION_UNDO)
     others = [m for m in crew if mc.is_done(m) and m.get("uid") != p.actor_id
               and (p.target_uid is None or m.get("uid") == p.target_uid)]
@@ -240,7 +276,8 @@ def _decide_takeover(snap: MarkSnapshot, p: _Press) -> MarkDecision:
 
 
 def _decide_check(snap: MarkSnapshot, p: _Press) -> MarkDecision:
-    """PC [완료 처리](판결 2) — 빈 줄 = 시작 + 내 몫 완료, 남이 작업 중 = 대신 완료(감독은 목록에 안 들어감)."""
+    """PC [완료 처리](판결 2) · 반장 · 관리자 [대신 완료](도면 판 고르기 창 — 11-25 판결) — 빈 줄 = 시작 + 내 몫 완료, 작업 중 = 남은 사람
+    몫 모두를 한 번에(반장이 같이 작업자면 자기 몫 포함, 감독이 목록 밖이면 목록에 안 들어감)."""
     crew = list(snap.crew)
     if snap.state == MARK_STATE_NONE:
         mine = mc.join([], p.actor_id, p.actor_name, p.now)
@@ -297,14 +334,14 @@ def decide_mark(snapshot: MarkSnapshot, *, action: str, seen: str, actor_id: int
     target = action_target(action, seen)
     if target is None:
         return MarkDecision(DECISION_INVALID, message="이 상태에서는 그렇게 바꿀 수 없어요.", code="BAD_REQUEST", status=400)
-    if _same_result(snapshot, action, target, actor_id, target_uid, seen_me):
+    if _same_result(snapshot, action, target, actor_id, target_uid, seen_me, admin):
         return MarkDecision(DECISION_SAME, target=snapshot.state, action=action)
     crew = list(snapshot.crew)
     action, seen, late = mc.late_join(action, seen, snapshot.state, crew, actor_id)
     if action != ACTION_CHECK and snapshot.seen_key != seen:
         if action == ACTION_JOIN and snapshot.state == MARK_STATE_DONE:
             return _refuse(JOIN_DONE, JOIN_DONE_MESSAGE, action=action)
-        message = new_action_conflict_message(snapshot) if action in NEW_ACTIONS else conflict_message(snapshot)
+        message = new_action_conflict_message(snapshot) if action in NEW_ACTIONS else conflict_message(snapshot, action)
         return MarkDecision(DECISION_CONFLICT, message=message, action=action)
     if (seen_by is not SEEN_BY_UNSET and seen == "need" and action not in (ACTION_JOIN, ACTION_CHECK)
             and not _seen_by_ok(snapshot, seen_by)):

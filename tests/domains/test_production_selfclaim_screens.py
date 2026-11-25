@@ -213,7 +213,7 @@ def test_관리자_남의_담당은_고르기_창_단추_지금_완료_단추_�
     _login(client, admin)
     card = _card(_get(client, HOME + "?tab=parts&part=cut"), "한빛", 0)
     assert 'class="fph-wi pp-act pp-st-need pp-not-need pp-held" data-pp-act="held"' in card and "<b>김재단 작업\u00a0중</b>" in card  # K5
-    assert '<button type="button" class="fph-qr__done pp-act pp-fin pp-only-need" data-pp-act="done">재단 완료</button>' in card
+    assert '<button type="button" class="fph-qr__done pp-act pp-fin pp-only-need" data-pp-act="check">재단 완료</button>' in card  # 대신 완료
     with client.session_transaction() as sess:
         sess["user_id"], sess["username"], sess["role"] = cs_user
     card = _card(_get(client, HOME + "?tab=parts&part=cut"), "한빛", 0)
@@ -291,9 +291,11 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "-crew", "", "-sync")]
     assert order == sorted(order)
-    # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다
-    for name in ("parts", "parts-claim", "parts-modal", "parts-crew", "parts-sync"):
-        assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v=20261125s\" defer", tpl)) == 1, name
+    # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다 — 검토 고침(11-25 [대신 완료] =
+    # check · 반장 자기 몫 되돌리기 줄)이 modal · crew · parts 를 한 번 더
+    for name, pin in (("parts", "20261125t"), ("parts-claim", "20261125s"), ("parts-modal", "20261125t"),
+                      ("parts-crew", "20261125t"), ("parts-sync", "20261125s")):
+        assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v={pin}\" defer", tpl)) == 1, name
 
 
 def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> None:

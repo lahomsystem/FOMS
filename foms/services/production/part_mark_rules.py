@@ -226,15 +226,21 @@ def took_first_message(line: str) -> str:
     return f"{subject_particle(line)} 먼저 시작했어요." if line else "다른 사람이 먼저 시작했어요."
 
 
-def conflict_message(snapshot: MarkSnapshot) -> str:
+def conflict_message(snapshot: MarkSnapshot, action: str = "") -> str:
     """경합 409 글 — 지금 작업하는 사람 · 완료한 사람 이름을 넣은 해요체 한 문장(이름 줄은 둘까지 + "외 n").
+
+    [되돌리기]의 경합(둘 다 완료한 줄을 한 명이 먼저 되돌린 뒤 낡은 화면이 누름 · 1/2 완료 화면인데 그사이 모두 완료)은 이름 글이 누른
+    본인을 넣거나 '시작'이 아니라 틀리므로 지금 글 :data:`STALE_MESSAGE`(11-25 검토 4).
 
     Args:
         snapshot: 서버의 지금 모습.
+        action: 누름(넘김 뒤 — 되돌리기면 이름 글 대신 지금 글).
 
     Returns:
         "박재단이 먼저 시작했어요." 같은 글. 이름을 모르면 두루 쓰는 글.
     """
+    if action == ACTION_UNDO and snapshot.state in (MARK_STATE_NEED, MARK_STATE_DONE):
+        return STALE_MESSAGE
     if snapshot.state == MARK_STATE_NEED:
         return took_first_message(crew_line(snapshot))
     if snapshot.state == MARK_STATE_DONE:
