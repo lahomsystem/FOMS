@@ -327,7 +327,7 @@ def test_작업_시트_JS_는_새_파일이_없으면_지금_그대로() -> None
     assert "sp && sp.refused(page, result) ? '' : failText(result)" in page
     assert "var why = window.FomsSheetParts && window.FomsSheetParts.why(page);" in page and "completeBlockedText()" in page
     sheet = (JS / "foms-production-sheet-parts.js").read_text(encoding="utf-8")
-    assert "' 작업 완료로 처리할까요?'" in sheet and "'이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.'" in sheet
+    assert "' 완료할까요?'" in sheet and "textContent = label + ' 완료';" in sheet and "'이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.'" in sheet
     assert "if (!done) { go(); return; }" in sheet  # 끌 때는 묻지 않는다
     assert "part.uses_cards" in sheet and "/api/production/part-history?order_id=" in sheet
 

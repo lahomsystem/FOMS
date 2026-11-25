@@ -56,7 +56,7 @@ def test_node_my_steps_row_dialog_shows_the_new_body(client, cohort, tmp_path):
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
     path = tmp_path / "row.html"
     path.write_text(page, encoding="utf-8")
-    want = {"mode": "row", "first": ready, "bare": bare, "key": "cut", "title": "재단을 작업 완료로 처리할까요?", "text": ASK}
+    want = {"mode": "row", "first": ready, "bare": bare, "key": "cut", "title": "재단 완료할까요?", "text": ASK}
     node = shutil.which("node")
     if node is None:
         pytest.skip("node 없음")

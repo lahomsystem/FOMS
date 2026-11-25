@@ -25,6 +25,7 @@ from db import db_session
 from foms.services.production.factory_chip import factory_chips
 from foms.services.production.part_mark_gates import HOLD_MESSAGE, REVISING_MESSAGE
 from foms.services.production.part_mark_write import NOT_IN_PRODUCTION_MESSAGE
+from foms.services.production.sync_blocks import DONE_WHY
 from tests.support.production_factory_seed import HOME_NONE, PC, TABLET, factory_user, mixed_order, put_mark, set_cookies
 from tests.support.production_part_claim_seed import check_step, code, fresh, login, make_order, make_user, mark, patch_sd
 from tests.domains.test_production_home_query_count import _count_queries
@@ -207,7 +208,7 @@ def test_sync_carries_each_orders_block_in_the_same_single_read(client):
     assert blocks[str(held.id)]["all"] == {"kind": "hold", "text": "보류 · 자재 기다림", "why": HOLD_MESSAGE, "code": "HOLD_ACTIVE"}
     assert blocks[str(whole.id)]["all"]["text"] == "도면 고치는 중" and blocks[str(whole.id)]["all"]["why"] == REVISING_MESSAGE
     assert blocks[str(part.id)]["all"] is None and list(blocks[str(part.id)]["keys"]) == [part.keys[1]]  # 그 장만
-    assert blocks[str(done.id)]["all"] == {"kind": "done", "text": "제작 완료", "why": NOT_IN_PRODUCTION_MESSAGE,
+    assert blocks[str(done.id)]["all"] == {"kind": "done", "text": "제작 완료", "why": DONE_WHY,
                                            "code": "NOT_IN_PRODUCTION"}
 
 
@@ -300,7 +301,7 @@ def test_js_complete_from_the_last_inspect_card_drops_undo_for_that_order(client
     assert mark(client, order, 0, "inspect", "done", "need").status_code == 200
     html = _page(client, HOME_NONE)
     cfg = json.loads(unescape(re.search(r'data-foms-parts-config="([^"]+)"', html).group(1)))
-    assert cfg["done_block"] == {"kind": "done", "text": "제작 완료", "why": NOT_IN_PRODUCTION_MESSAGE, "code": "NOT_IN_PRODUCTION"}
+    assert cfg["done_block"] == {"kind": "done", "text": "제작 완료", "why": DONE_WHY, "code": "NOT_IN_PRODUCTION"}
     page = tmp_path / "kang.html"
     page.write_text(html, encoding="utf-8")
     last = mark(client, order, 1, "inspect", "done", "need").get_json()

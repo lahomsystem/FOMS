@@ -150,7 +150,7 @@ def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohor
     assert [(p["body"]["action"], p["body"]["seen"], p["body"].get("seen_by")) for p in out["minePosts"]] == [
         ("undo", "done", None), ("release", "need", me)]  # 나 혼자 시작 + 완료한 장 = 시작 취소까지
     assert out["allTools"] == ["모두 완료 처리"] and out["confirmOpen"] is True and out["confirmClosed"] is True
-    assert (out["confirmTitle"], out["confirmYes"]) == ("조립을 작업 완료로 처리할까요?", "작업 완료")  # 확인 창 글 그대로
+    assert (out["confirmTitle"], out["confirmYes"]) == ("조립 완료할까요?", "조립 완료")  # 확인 창 글 그대로
     assert out["postsAfterCancel"] == 4  # [취소] = 공정 칸 쓰기 0
     assert out["handTools"] == ["모두 완료 취소"] and {r["word"] for r in out["handRows"]} == {"엣지 완료 · 박반장"}
     # 바뀐 기록 낱말(§8-2 24 · §8-1) — 도면마다 한 줄
