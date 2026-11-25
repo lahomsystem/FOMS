@@ -154,7 +154,7 @@ def _step_cells(row: dict[str, Any]) -> list[dict[str, Any]]:
         label = s['label']
         if s.get('done'):
             who = ' · '.join(p for p in (s.get('by'), s.get('at_label')) if p)
-            tip = f"{label} 끝 · {who}" if who else f"{label} 끝 · 기록 없음"
+            tip = f"{label} 완료 · {who}" if who else f"{label} 완료 · 기록 없음"  # K4 '완료'(옛 '끝')
             short = ' '.join(p for p in (s.get('by'), (s.get('at_label') or '').split(' ')[0]) if p)
             cell = short or '기록 없음'
         elif s['key'] == stopped:
@@ -178,7 +178,7 @@ def _status_sub(row: dict[str, Any], late_line: str) -> str:
 
 
 def _prev_parts(row: dict[str, Any]) -> dict[str, str] | None:
-    """'내 공정' PC 줄의 앞 공정 — ``{head: '재단 끝', meta: '김재단 · 11/20 14:05' | '기록 없음'}``."""
+    """'내 공정' PC 줄의 앞 공정 — ``{head: '재단 완료', meta: '김재단 · 11/20 14:05' | '기록 없음'}``."""
     key = production_home_queue_key(row)
     if key is None:
         return None

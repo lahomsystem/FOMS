@@ -173,18 +173,18 @@ def test_거절_본문은_기존_게이트_모양_쉬운_말_남은_공정() -> 
     assert production_complete_block_body({"production": {"steps": inspected_steps()}}) is None
 
 
-def test_판정은_첫_화면_검수_끝과_같다() -> None:
-    """공정 칸을 쓴 주문에서 서버 판정 == 첫 화면 큰 글자 '검수 끝'(제작 중 · run 있음) — 두 화면이 다른 말을 하지 않는다.
+def test_판정은_첫_화면_검수_완료와_같다() -> None:
+    """공정 칸을 쓴 주문에서 서버 판정 == 첫 화면 큰 글자 '검수 완료'(옛 '검수 끝' — K4, 제작 중 · run 있음) — 두 화면이 같은 말.
 
-    한 칸도 안 켠 주문은 규칙 밖이라 판정은 참이지만 첫 화면은 '검수 끝' 이 아니다(공정을 안 쓴 주문을 검수 끝이라 하지 않는다)."""
+    한 칸도 안 켠 주문은 규칙 밖이라 판정은 참이지만 첫 화면은 '검수 완료' 가 아니다(공정을 안 쓴 주문을 검수 완료라 하지 않는다)."""
     cases = [{"production": {"steps": inspected_steps(upto=k)}} for k in ("cut", "edge", "assemble", "inspect")]
     cases += [{"production": {"steps": [{"key": "inspect", "done": True}]}}]
     for sd in cases:
         big, _small, _view = production_home_stage("PRODUCTION", True, production_home_steps(sd, mark_now=True), False)
-        assert (big == "검수 끝") is production_complete_ready(sd), sd
+        assert (big == "검수 완료") is production_complete_ready(sd), sd
     for sd in ({}, {"production": {"steps": _all_off()}}):
         big, _small, _view = production_home_stage("PRODUCTION", True, production_home_steps(sd, mark_now=True), False)
-        assert big != "검수 끝" and production_complete_ready(sd) is True, sd
+        assert big != "검수 완료" and production_complete_ready(sd) is True, sd
 
 
 # --------------------------------------------------------------------------- #

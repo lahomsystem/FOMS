@@ -2,10 +2,12 @@
 
 * 칸: 확정 도면 1장 이상인 줄의 PC 공정 칸만 누름 칸(role=button · data-foms-pc-sheet) — 모양 · 글 · 쿼리 수는 그대로, 도면 0장 줄 ·
   태블릿 출력은 하나도 안 바뀐다(음성 대조).
-* 창 자료 ``GET /api/production/part-sheet``: 도면 판 글 그대로(안 봄 · 아직 · 작업 필요 · 재단 끝 · 기본 · 손 체크 "재단 완료 · 박반장" +
-  "작업 시트") · 담당 · 완료한 사람과 시각 · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절 글 그대로) · [모두 체크] 조건 ·
+* 창 자료 ``GET /api/production/part-sheet``: 상태 글(안 봄 · 아직 · 작업 필요 · 재단 완료(옛 재단 끝 — 2026-11-25 K4) · 기본 · 손 체크
+  "재단 완료 · 박반장" + "작업 시트") · 줄 글(사람마다 "작업 시작 …" · "완료 …" — K6) · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절
+  글 그대로) · [모두 완료 처리] 조건 ·
   쓰기 가능(관리자 · 반장) · 그 줄 공정 칸 HTML(첫 화면과 같은 매크로 — 바이트까지 같음). 쿼리 3(+ 로그인 사용자).
-* 쓰기는 있는 길만(part-marks · 공정 API) — 창 JS 가 부르는 순서(맡기 → 완료, 완료 취소, 공정 칸 켜기)대로 보내 칸이 "재단 3/5" → 채움.
+* 쓰기는 있는 길만(part-marks · 공정 API) — 창 JS 가 부르는 대로([완료 처리] = check 한 요청, [완료 취소] = undo(→ 시작 취소), 공정 칸 켜기)
+  보내 칸이 "재단 3/5" → 채움. 여러 명 같이 작업 줄은 ``test_production_multi_holder_screens.py``.
 창 틀 · 스크립트 · JS · CSS 계약은 ``test_production_pc_sheet_screen.py``.
 """
 from __future__ import annotations
@@ -169,7 +171,7 @@ def test_칸은_도면이_있는_줄만_누름_칸이고_태블릿은_그대로(
 # 창 자료
 # --------------------------------------------------------------------------- #
 def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> None:
-    order, people = _seed_five()
+    order, _ = _seed_five()
     _login(client, _user("관리", role="ADMIN", team="CS"))
     body = _get(client, order, "cut").get_json()
     assert body["success"] is True and body["error"] is None
@@ -180,13 +182,14 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     assert d["notice"] == "도면 3장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."  # 거절 글 그대로(승인 때 고친 것 2)
     rows = d["rows"]
     assert [r["label"] for r in rows] == [f"도면 {i}/5" for i in range(1, 6)]
-    assert [r["word"] for r in rows] == ["재단 끝", "재단 끝", "작업 필요", "안 봄", "안 봄"]
+    assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 필요", "안 봄", "안 봄"]  # 옛 "재단 끝"(K4)
     assert [r["act"] for r in rows] == ["uncheck", "uncheck", "check", "check", "check"]
-    assert rows[0]["holder"] == "담당 김재단 · 11/24 08:10" and rows[0]["done"] == "완료 김재단 · 11/24 09:16"
-    assert rows[2]["holder"] == "담당 박재단 · 11/24 08:10" and rows[2]["done"] is None
+    # 줄 글 = 사람마다 "작업 시작 …" · "완료 …"(옛 한 명짜리 줄 — 요약 칸에서 푼 목록, K6)
+    assert rows[0]["lines"] == ["작업 시작 김재단 · 11/24 08:10", "완료 김재단 · 11/24 09:16"]
+    assert rows[2]["lines"] == ["작업 시작 박재단 · 11/24 08:10"] and rows[2]["note"] is None
     assert rows[2]["handed"] == "박엣지에서 바뀜 11/24 09:16"  # 작업 시트 바뀐 기록 꼴(시각까지)
-    assert (rows[2]["seen"], rows[2]["seen_by"]) == ("need", people["park"])
-    assert rows[3]["holder"] == "담당 미정" and rows[3]["block"] is None and rows[3]["item"] == "붙박이장 · W2400"
+    assert rows[2]["seen"] == "need" and "seen_by" not in rows[2]  # [완료 처리] = check 한 요청 — 본 담당을 안 보낸다
+    assert rows[3]["lines"] == ["담당 미정"] and rows[3]["block"] is None and rows[3]["item"] == "붙박이장 · W2400"
     assert rows[0]["thumb"].startswith("/erp/production/parts/thumb/") and rows[0]["image"] is True
     assert d["sheets"] == 5 and d["parts"]["cut"]["uses_cards"] is True and d["keys"][0].endswith("_0.png")
     # 그 줄 공정 칸 = 첫 화면이 그린 칸과 바이트까지 같다(체크 뒤 그대로 바꿔 끼운다)
@@ -235,7 +238,7 @@ def test_손_체크_파트는_도면_판_손_체크_글과_통째_해제(client,
     d = _get(client, order, "cut").get_json()["data"]
     assert d["hand_off"] is True and d["all"] is False and d["hand"] == "재단 완료 · 박반장"
     assert {(r["word"], r["note"], r["act"]) for r in d["rows"]} == {("재단 완료 · 박반장", "작업 시트", None)}
-    assert d["rows"][0]["done"] == "완료 박반장 · 11/24 10:20" and d["can_write"] is True
+    assert d["rows"][0]["lines"] == ["완료 박반장 · 11/24 10:20"] and d["can_write"] is True
 
 
 def test_막힘은_서버_글_그대로(client, cohort) -> None:
@@ -304,26 +307,32 @@ def test_질의가_틀리면_400_없는_주문_404_쿼리_셋(client, cohort) ->
 # --------------------------------------------------------------------------- #
 
 
-def test_체크_맡기_완료_뒤_칸이_3_5_그리고_해제(client, cohort) -> None:
-    order, people = _seed_five()
+def test_완료_처리_한_요청_뒤_칸이_3_5_그리고_완료_취소(client, cohort) -> None:
+    order, _ = _seed_five()
     oid, name = order.id, order.customer_name
-    admin_id = _login(client, _user("관리", role="ADMIN", team="CS")).id
+    _login(client, _user("관리", role="ADMIN", team="CS"))
     key, held = f"orders/pcs/{name}_3.png", f"orders/pcs/{name}_2.png"
 
-    def mark(drawing_key: str, action: str, seen: str, **extra):
+    def mark(drawing_key: str, action: str, seen: str, **extra) -> dict:
         resp = _post(client, "/api/production/part-marks", {"order_id": oid, "drawing_key": drawing_key, "part": "cut",
                                                             "action": action, "seen": seen, **extra})
         assert resp.status_code == 200, resp.get_json()
+        return resp.get_json()["data"]
 
-    mark(key, "take", "none")
-    mark(key, "done", "need", seen_by=admin_id)
+    mark(key, "check", "none")  # [완료 처리] 빈 장 = 한 요청으로 시작 + 완료(2026-11-25 판결 2)
     d = _get(client, oid, "cut").get_json()["data"]
-    assert d["rows"][3]["word"] == "재단 끝" and d["rows"][3]["done"].startswith("완료 관리 · ")
+    assert d["rows"][3]["word"] == "재단 완료" and d["rows"][3]["lines"][0].startswith("작업 시작 관리 · ")
+    assert d["rows"][3]["lines"][1].startswith("완료 관리 · ") and d["rows"][3]["undo_releases"] is True
     assert ">재단 3/5</span>" in d["cells_html"]
-    mark(held, "done", "need", seen_by=people["park"])  # 남의 장(박재단) 대신 완료 — 서버가 덮어쓰기로 적는다(지금 규칙)
-    mark(key, "undo", "done")
+    assert mark(held, "check", "need")["proxied"] is True  # 남의 장(박재단) = 대신 완료 — 관리는 목록에 안 들어간다
     d = _get(client, oid, "cut").get_json()["data"]
-    assert d["rows"][3]["word"] == "작업 필요" and d["rows"][2]["word"] == "재단 끝" and ">재단 3/5</span>" in d["cells_html"]
+    assert d["rows"][2]["lines"][0] == "작업 시작 박재단 · 11/24 08:10" and d["rows"][2]["lines"][1].startswith("완료 관리 · ")
+    assert len(d["rows"][2]["lines"]) == 2 and d["rows"][2]["undo_releases"] is False
+    mark(key, "undo", "done")  # [완료 취소] — 나 혼자 시작 + 완료한 장이라 창 JS 는 시작 취소까지 잇는다
+    mark(key, "release", "need", seen_by=d["me"])
+    d = _get(client, oid, "cut").get_json()["data"]
+    assert (d["rows"][3]["word"], d["rows"][3]["lines"]) == ("안 봄", ["담당 미정"])
+    assert d["rows"][2]["word"] == "재단 완료" and ">재단 3/5</span>" in d["cells_html"]
 
 
 def test_모두_체크는_공정_칸_길_그대로이고_칸이_채워진다(client, cohort) -> None:

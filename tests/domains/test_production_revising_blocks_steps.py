@@ -3,7 +3,7 @@
 보류를 막는 문이 있는 곳마다 같이 — 같은 자리 · 같은 방식 · 같은 차례(보류가 먼저). 거절 code ``DRAWING_REVISING`` · 글은 도면 한 장
 누름과 같은 ``REVISING_MESSAGE``(새 글 없음). 켜기(작업 완료)만 막고 끄기(작업 취소)는 된다(보류와 같다 — ``ALLOWED_WHILE_BLOCKED``).
 막히면 칸 · 버전 · 이벤트 그대로. 관리자도 같다(공정 칸 길에는 관리자 뚫기가 없다 — 보류와 같음).
-화면: PC 도면별 창 [모두 작업] 안 보임 · '내 공정' 줄 · 판 · PC 줄 [<공정> 끝] 대신 "도면 고치는 중"(보류 "보류" 자리와 같은 꼴),
+화면: PC 도면별 창 [모두 완료 처리] 안 보임 · '내 공정' 줄 · 판 · PC 줄 [<공정> 완료] 대신 "도면 고치는 중"(보류 "보류" 자리와 같은 꼴),
 '끝내면 다음은' · 처음 고른 줄에서 건너뜀. 작업 시트 · 폰 공정 시트는 보류처럼 서버 거절 글을 그대로 보인다.
 
 되돌리면 실패: 도면 고치는 중 켜기가 200 · 끄기가 409 · PC ``all`` 참 · '내 공정'에 [끝]이 남음. 대조군: 새 도면이 온 주문은 다시 된다.
@@ -83,7 +83,7 @@ def test_pc_sheet_hides_all_while_revising_but_keeps_turn_off():
     sd = {"drawing_current_files": [{"key": "a"}, {"key": "b"}], "drawing_status": "RETURNED",
           "production": {"steps": [{"key": "edge", "label": "엣지", "done": True, "at": None, "by_name": "박반장", "via": "sheet"}]}}
     assert build_part_sheet(sd, [], "cut", hold_active=False)["all"] is False
-    assert build_part_sheet(sd, [], "edge", hold_active=False)["hand_off"] is True  # [모두 작업 취소]는 남는다(끄기는 된다)
+    assert build_part_sheet(sd, [], "edge", hold_active=False)["hand_off"] is True  # [모두 완료 취소]는 남는다(끄기는 된다)
 
 
 def test_pc_sheet_api_while_revising_has_no_all(client, cohort):

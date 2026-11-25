@@ -5,7 +5,7 @@
    오른쪽은 고른 날 장 하나만 그린다(home_day_pane.html, 11-14 — 예전 D5 는 15장을 다 보내고 보이기/숨기기만 했다). 다른 날을 누르면
    foms-production-home.js 가 그 날 장만 받아(?view=day&day=) 끼우고, 한 번 받은 날은 기억한다. 날 단추는 진짜 링크다 —
    스크립트가 묶이기 전에 눌러도 그 날 주소로 이동한다(셸 조각 교체 제외 data-foms-erp-no-shell). 막대는 SVG 좌표(인라인 style 없음).
-   만들 것(제작 대기~검수 끝·보류)은 공정 4칸과 큰 줄, 도면·컨펌 기다림과 제작 완료는 작은 칸 — 전체 주문은 다 있다(D10). #}
+   만들 것(제작 대기~검수 완료·보류)은 공정 4칸과 큰 줄, 도면·컨펌 기다림과 제작 완료는 작은 칸 — 전체 주문은 다 있다(D10). #}
 {% from 'production/partials/home_date_macros.html' import home_href %}
 
 <div class="fph-date{% if part_board %} has-parts{% endif %}" data-foms-home-date>
