@@ -384,3 +384,21 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
   .pp-rq__pick, .foms-prod-home .pp-rq .pp-rq__add { min-height: max(48px, calc(44px / var(--foms-ui-zoom, 1))); }
   .pp-rq__picks { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
 }
+
+/* ── 글자를 키운 판(비평 C04 · C34, 2026-11-26) — 칸 · 글자 · 단추 크기는 그대로, 한 줄에 서는 도면 수와 이름 줄 꺾임만 ──
+   판 칸(날짜 장 컨테이너 fph-pane)이 38rem(1rem = 16px × 글자 배율)보다 좁으면 한 줄에 도면 둘. 1176×626 실측: 판 칸 = 100% 46 ·
+   110% 39.9 · 120% 34.8 · 150% 24.6rem(화면 크기 90% 는 120% 41.6 · 130% 36.8, 80% 는 140% 39.9 · 150% 35.8) — 셋씩이면 120% 부터
+   이름 줄 · 다른 파트 줄이 두 줄로 꺾여 첫 줄 도면 단추가 화면 밑(626px)으로 내려갔다. 판 칸이 30rem 이상(셋씩 · 둘씩 서는 130% 까지)이면
+   이름 줄을 꺾지 않는다(이름만 말줄임, '도면 n/N' 은 같은 줄 — 이름이 4자 넘게 남는 폭) — 이름 길이에 따라 옆 도면과 아래 줄이 22px
+   어긋나던 것(C34). 그보다 좁으면(글자 140% 넘게) 지금처럼 넘치면 '도면 n/N' 이 다음 줄(11-21 '자…' 규칙). 작업 필요 칸(그림 왼쪽 큰
+   도면 한 줄)은 그대로. */
+@media (min-width: 992px) {
+  @container fph-pane (max-width: calc(38rem - 0.02px)) {
+    .pp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @container fph-pane (min-width: 30rem) {
+    .pp-card .pp-ln { flex-wrap: nowrap; }
+  }
+}
+/* [도면 수정 요청] 창 폭은 글자 배율을 따른다(C04 — 640px 고정이라 150% 에서 사진 칸이 첫 화면 밖). 화면 폭(배율로 나눈) − 32px 까지 */
+.foms-prod-home .pp-modal.pp-rq .foms-prod-change-modal__dialog { max-width: min(calc(640px * var(--foms-fs, 1)), calc(100vw / var(--foms-ui-zoom, 1) - 32px)); }

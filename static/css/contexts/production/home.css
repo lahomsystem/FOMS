@@ -279,6 +279,18 @@
 .foms-prod-home__status { margin: 0; padding: 0 20px; min-height: 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); }
 .foms-prod-home__status.is-bad { color: var(--fph-danger); font-weight: 700; padding-top: 6px; }
 .foms-prod-home__status:empty { display: none; }
+/* 누른 뒤 알림 줄은 터치 화면 아래에 붙박이(비평 C08 — 아래로 내려 누르면 문서 맨 위 지나간 자리(−3,271px)에 떴다). 글이 있을 때만,
+   가운데 · 글 폭만큼 · 그림자. 가로 태블릿 16px 위, 세로 · 폰은 아래 메뉴 위. 떠 있는 동안 페이지 아래를 그만큼 비워 마지막 줄 단추를
+   안 가린다. '내 공정' 판(.fph-has-sp — 판 [되돌리기] 띠는 왼쪽 목록 바닥, 페이지가 안 굴러감)과 PC(마우스)는 지금 그대로.
+   [되돌리기] 띠(.is-undo)는 자기 남색 꼴 그대로 자리만. 창(1070) 아래 · 크게 보기(1065) 위. */
+@media (pointer: coarse) {
+  .foms-prod-home:not(.fph-has-sp) > .foms-prod-home__status:not(:empty) { position: fixed; z-index: 1068; left: 16px; right: 16px; bottom: calc(16px + var(--foms-safe-area-bottom, 0px)); width: fit-content; max-width: calc(100vw / var(--foms-ui-zoom, 1) - 32px); margin: 0 auto; box-shadow: 0 8px 24px rgba(20, 23, 28, .28); }
+  .foms-prod-home:not(.fph-has-sp) > .foms-prod-home__status:not(:empty):not(.is-undo) { padding: 12px 18px; border: 1px solid var(--fph-line); border-radius: 12px; background: var(--fph-surface); }
+  .foms-prod-home:not(.fph-has-sp):has(> .foms-prod-home__status:not(:empty)) { padding-bottom: 72px; }
+}
+@media (max-width: 991.98px) and (pointer: coarse) {
+  .foms-prod-home:not(.fph-has-sp) > .foms-prod-home__status:not(:empty) { bottom: calc(var(--foms-shell-bottom-nav-h, 72px) + var(--foms-safe-area-bottom, 0px) + 12px); }
+}
 .foms-prod-home__btn--pri { background: var(--fph-brand); border-color: var(--fph-brand); color: #fff; }
 .foms-prod-home__btn--pri:hover, .foms-prod-home__btn--pri:focus-visible { background: var(--fph-brand-dark); border-color: var(--fph-brand-dark); color: #fff; }
 .foms-prod-home__btn--ghost { border-color: transparent; background: transparent; color: var(--fph-text2); }
@@ -505,6 +517,10 @@
 /* 긴 이름(상호 등)은 안쪽 b 만 말줄임으로 줄고 주문 번호는 늘 보인다 — flex 칸 자체엔 text-overflow 가 안 먹는다(M6 11-11) */
 .fph-dr__nm > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
 .fph-dr__nm > small { flex-shrink: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+/* 날짜 장 줄의 긴 손님 이름은 두 줄까지 낱말에서 꺾는다(비평 C33 — 396px 이름 중 111px 만 보였다). 이름이 줄 폭을 넘을 때만 번호 ·
+   시공일 표가 다음 줄로 가고, 짧은 이름 줄은 지금 그대로 한 줄. 도면 카드(.pp-card)의 이름 줄은 이 규칙 밖. */
+.fph-dr .fph-dr__nm { flex-wrap: wrap; row-gap: 2px; }
+.fph-dr .fph-dr__nm > b { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 /* 품목·치수 글은 두 줄까지 — 글자를 키워 이름 칸이 좁아져도 치수·바뀐 내용이 말줄임에 안 묻힌다(S5 11-10 · M3 11-11) */
 .fph-dr__pr { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .fph-dr__pr em { font-style: normal; font-weight: 800; color: var(--fph-danger); }
