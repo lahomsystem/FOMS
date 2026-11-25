@@ -50,9 +50,16 @@ from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
     order_by_wizard_sheets,
-    replace_same_sheet_files,
-    sends_only_other_sheets,
 )
+from foms.services.orders.drawing_fix_transfer import (
+    apply_fix_writes,
+    can_fix_production_drawing,
+    collect_picks,
+    manual_picks,
+    precheck,
+    worked_refusal,
+)
+from foms.services.orders.drawing_transfer_plan import changed_detail, changed_numbers, plan_transfer_files
 from foms.services.orders.drawing_key_safety import history_referenced_keys, split_deletable_keys
 from foms.services.orders.drawing_revision_files import is_revision_reference_key
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
@@ -107,12 +114,16 @@ def _apply_hotfix_confirm(s_data, *, now_str, user_id, user_name):
     s_data['drawing_confirmed_by'] = user_name
 
 
-def _hotfix_production_detail(current_user, user_name, *, answered_revision):
-    """생산 변경 알림 본문 — 도면팀이 스스로 고친 것과 영업 수정 요청에 답한 것을 가른다."""
+def _hotfix_production_detail(current_user, user_name, *, answered_revision, changed=None, note=''):
+    """생산 변경 알림 본문 — 도면팀이 스스로 고친 것과 영업 수정 요청에 답한 것을 가른다.
+
+    뒤에 바뀐 도면 번호 · 메모를 붙인다(설계서 2026-11-25 §6 — "도면 2 바뀜 · 메모: …", 없으면 지금 글 그대로).
+    """
     team = (getattr(current_user, 'team', None) or '').strip().upper()
     who = f"{'도면팀 ' if team == 'DRAWING' else ''}{user_name} 님이"
     how = f"영업 수정 요청을 {who} 반영해" if answered_revision else f"{who} 고쳐"
-    return f"{how} 바로 최종 도면이 됐습니다. 새 도면으로 만들어 주세요"
+    detail = changed_detail(changed, note)
+    return f"{how} 바로 최종 도면이 됐습니다. 새 도면으로 만들어 주세요" + (f". {detail}" if detail else "")
 
 
 #: 발주 PUSH 이력(``channeltalk_push_drawing``)에 남기는 "그 뒤 도면이 바뀜" 시각 필드.
@@ -144,8 +155,14 @@ def perform_drawing_transfer(
     note='', mode='', files=None, is_retransfer=False,
     replace_target_key='', replace_target_keys=None,
     emergency_override=False, override_reason='', prepare_structured=None,
+    ack_worked=False,
 ):
     """도면 전달 핵심 처리 — ``transfer-drawing`` 및 작업실 ``transfer-pending`` 공용.
+
+    생산 · 시공 단계(바로 반영)는 두 길이 같은 차례로 수정본 규칙을 거친다(설계서 2026-11-25 D2 §5 —
+    ``drawing_fix_transfer``): 권한(도면팀 누구나 · 담당 없음 통과) → 메모 → 파일 바꿀 도면(``files[].replace_of``) → 열린 공장
+    요청 → 지금 검사들 → 작업이 닿은 도면 · 시공 단계 409(``ack_worked`` 면 지나감) → 같은 사본에 풀림 · 이어받기 · 손 처리
+    풀기 · 패킹 풀기. 이력 ``TRANSFER`` 줄에 ``changed``. 그 밖 단계는 지금 그대로다.
 
     drawing_current_files 갱신·drawing_status='TRANSFERRED'·전달 히스토리 append·담당자
     알림(fan_out+push+realtime)·SecurityLog·대시보드 캐시 무효화를 한 트랜잭션으로 수행하고
@@ -187,8 +204,12 @@ def perform_drawing_transfer(
             except Exception:
                 s_data = {}
 
+    # 생산·시공 단계 = 도면팀이 보내면 영업 확인 없이 바로 최종(바로 반영, 2026-10-27 결정).
+    hotfix = is_drawing_hotfix_stage(order)
+    # 그 단계에서는 도면팀 누구나 · 관리자가 보낸다 — 담당 없음이어도(설계서 2026-11-25 §4-1, 사장님 답 4).
+    can_fix = can_fix_production_drawing(current_user, order)
     draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
-    if not draw_assignee_ids:
+    if not draw_assignee_ids and not can_fix:
         return {'success': False, 'message': '도면 담당자가 지정되지 않아 전달할 수 없습니다. 먼저 담당자를 지정해주세요.'}, 400
 
     if not current_user:
@@ -200,7 +221,7 @@ def perform_drawing_transfer(
     # explicit assignment 만 쓰기 허용 — 도면팀 소속(team-only write)만으로는 전달 불가.
     # 술어(관리자 · 지정 담당자)는 작업실·태블릿 시트 전달 버튼과 같은 함수다(M14-a 화면 == 서버).
     # 사유 있는 매니저 긴급 오버라이드는 서버에만 있다.
-    can_do_transfer = can_transfer_drawing(current_user, order) or (
+    can_do_transfer = can_transfer_drawing(current_user, order) or can_fix or (
         current_user.role == 'MANAGER' and emergency_override and override_reason
     )
     if not can_do_transfer:
@@ -222,15 +243,18 @@ def perform_drawing_transfer(
         }, 400
 
     drawing_status = effective_drawing_status(s_data, default='PENDING')  # 판정 정본(2a-2)
-    # 생산·시공 단계 = 도면팀이 보내면 영업 확인 없이 바로 최종(바로 반영, 2026-10-27 결정).
-    hotfix = is_drawing_hotfix_stage(order)
-    # 영업 수령 확정 전(TRANSFERRED)에 다시 보내면서 방식을 고르지 않았으면 전체 교체로 본다.
-    # 예전엔 APPEND 로 쌓여 확정 뒤 도면 칸에 이전 회차가 전부 남았다(2026-09-30 주문 5331,
-    # 3회 전달 → 3장). 한 장 더 보태려면 호출측이 mode='APPEND' 를 명시해야 한다.
-    if not mode and not replace_target_keys and not is_retransfer and drawing_status == 'TRANSFERRED':
-        mode = 'REPLACE_ALL'
-    if not is_retransfer:
-        is_retransfer = drawing_status == 'RETURNED'
+    # WIZ-TRANSFER helper 로 전달 소스 조립(인라인 재구현 금지). 도면 key 경로만 통과시켜
+    # 실측/일반 첨부 유출을 차단한다(drawing_current_files leak 함정 SSOT).
+    new_files = materialize_transfer_attachments(order_id, files or [])
+    # 도면 장 번호(마법사 시트 순서)와 ERP 번호를 맞춘다(2026-10-12 주문 5600).
+    new_files = order_by_wizard_sheets(new_files, s_data)
+    old_files = list(s_data.get('drawing_current_files', []) or [])
+    # 생산·시공 단계 수정본 앞 검사(설계서 2026-11-25 §5 순서 — 메모 → 파일 바꿀 도면 → 열린 공장 요청).
+    picks = collect_picks(files or []) if hotfix else {}
+    if hotfix:
+        refused = precheck(s_data, note=note, new_files=new_files, picks=picks, old_files=old_files)
+        if refused is not None:
+            return refused
     if (
         drawing_status == 'RETURNED'
         and has_pending_unchecked_drawing_revision_requests(s_data)
@@ -244,92 +268,27 @@ def perform_drawing_transfer(
     now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
     user_name = current_user.name if current_user else 'Unknown'
 
-    # WIZ-TRANSFER helper 로 전달 소스 조립(인라인 재구현 금지). 도면 key 경로만 통과시켜
-    # 실측/일반 첨부 유출을 차단한다(drawing_current_files leak 함정 SSOT).
-    new_files = materialize_transfer_attachments(order_id, files or [])
-    # 도면 장 번호(마법사 시트 순서)와 ERP 번호를 맞춘다(2026-10-12 주문 5600).
-    new_files = order_by_wizard_sheets(new_files, s_data)
-
-    old_files = list(s_data.get('drawing_current_files', []) or [])
-    updated_files = list(old_files)
-    replaced_target_numbers = []
-
-    # 바로 반영인데 방식을 고르지 않았고(태블릿 시트·대시보드 전달) 확정 도면이 한 장뿐이면 그
-    # 장을 바꾼다 — 추가로 쌓으면 고친 도면과 옛 도면이 둘 다 최종이 된다(주문 5690). 두 장
-    # 이상이면 어느 장인지 몰라 지금처럼 더한다. 그 한 장과 이번 파일이 서로 다른 마법사 시트로
-    # 증명되면 바꾸지 않고 더한다 — 다른 제품 도면을 보냈다고 앞 제품 도면이 사라지면 안 된다.
-    # 수정 요청에 답하는 길(RETURNED)의 "한 장이면 교체"에도 같은 예외를 건다. 전달 창이 이 조건에서
-    # 미리 고르는 '추가'도 같은 뜻이라 함께 받는다(교체 · 전체 교체를 고른 것은 그대로 따른다).
-    other_sheet_only = bool(
-        hotfix and mode in ('', 'APPEND') and not replace_target_keys
-        and sends_only_other_sheets(old_files, new_files, s_data)
+    # 새 도면 목록 계산(지금 규칙 그대로 — 방식 기본값 · 같은 시트 자리 교체 · 교체 대상 · 한 장이면 교체 · 다른 시트면 더하기,
+    # 미리 보기 R1 과 같은 함수). 생산·시공 단계는 직접 올린 파일을 고른 도면 자리에(설계서 2026-11-25 §3-5).
+    plan = plan_transfer_files(
+        old_files, new_files, s_data, drawing_status=drawing_status, hotfix=hotfix, mode=mode,
+        replace_target_keys=replace_target_keys, is_retransfer=is_retransfer,
+        picks=manual_picks(new_files, picks) if hotfix else None,
     )
-    if (
-        hotfix and not mode and not replace_target_keys and not is_retransfer
-        and len(old_files) == 1 and not other_sheet_only
-    ):
-        is_retransfer = True
+    if plan.error:
+        return {'success': False, 'message': plan.error}, 400
+    mode, is_retransfer, other_sheet_only = plan.mode, plan.is_retransfer, plan.other_sheet_only
+    updated_files = plan.updated_files
+    replaced_target_numbers = plan.replaced_numbers
+    sheet_replaced_numbers = plan.sheet_replaced_numbers
+    # 보내기 전 확인(§2-3) — 시공 단계 409 ORDER_MADE · 작업이 닿은 도면 409 WORKED_DRAWING(ack_worked 면 지나감).
+    marks = None
+    if hotfix:
+        refused, marks = worked_refusal(db, order, s_data, plan, old_files, ack=bool(ack_worked))
+        if refused is not None:
+            return refused
 
-    if is_retransfer and not new_files:
-        return {'success': False, 'message': '수정본 재전송 시 도면 파일 업로드가 필요합니다.'}, 400
-
-    # 첫 전달이라도 결과가 0장이면 막는다. 상태만 'TRANSFERRED' 로 넘어가고 영업이 볼
-    # 도면이 없는 주문이 운영에 24건 쌓였다(2026-09-08 실측). 도면 작업실 모달은
-    # 클라이언트에서 막지만 ERP 대시보드 전달 경로는 빈 files 로 그대로 요청을 보낸다.
-    if not new_files and not old_files:
-        return {'success': False,
-                'message': '전달할 도면이 없습니다. 도면 파일을 먼저 업로드해주세요.'}, 400
-
-    sheet_replaced_numbers = []
     if new_files:
-        if mode == 'REPLACE_ALL':
-            # 기존 파일은 타임라인 히스토리에서 계속 참조되므로 R2에서 삭제하지 않음.
-            # drawing_current_files 만 새 파일로 교체한다.
-            for idx, old_file in enumerate(old_files):
-                replaced_target_numbers.append(idx + 1)
-            updated_files = list(new_files)
-        else:
-            # 마법사 시트가 같은 옛 판은 상태·mode 와 상관없이 그 자리에서 바꾼다(2026-10-04,
-            # 주문 5407 — 영업 확정 뒤 같은 시트 2판이 APPEND 로 쌓였다). 시트로 자리를 못 찾은
-            # 새 파일(직접 올린 파일·새 시트)만 아래 기존 규칙으로 간다.
-            base_files, rest_files, sheet_replaced_numbers = replace_same_sheet_files(
-                old_files, new_files, s_data)
-            replaced_target_numbers.extend(sheet_replaced_numbers)
-            base_keys = {((f or {}).get('key') or '').strip() for f in base_files}
-            # 교체 대상으로 고른 옛 판이 이미 시트 교체로 빠졌으면 대상에서 지운다.
-            target_keys = [
-                k for k in replace_target_keys
-                if k in base_keys or not sheet_replaced_numbers
-            ]
-            updated_files = list(base_files)
-            if not rest_files:
-                pass
-            elif target_keys:
-                indices_to_replace = []
-                for target_key in target_keys:
-                    for i, f in enumerate(base_files):
-                        if ((f or {}).get('key') or '').strip() == target_key:
-                            indices_to_replace.append((i, target_key))
-                            break
-                if len(indices_to_replace) != len(target_keys):
-                    return {'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}, 400
-                indices_to_replace.sort(key=lambda x: x[0], reverse=True)
-                for idx, target_key in indices_to_replace:
-                    replaced_target_numbers.append(idx + 1)
-                    # 교체 대상 파일도 히스토리 참조를 위해 R2에서 삭제하지 않음.
-                    updated_files.pop(idx)
-                first_index = min([x[0] for x in indices_to_replace])
-                for offset, nf in enumerate(rest_files):
-                    updated_files.insert(first_index + offset, nf)
-            elif is_retransfer and not sheet_replaced_numbers and not other_sheet_only:
-                if len(base_files) > 1:
-                    return {'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}, 400
-                # 수정 재전달 APPEND는 단일 도면일 때 교체로 처리 (이전본 누적 방지)
-                updated_files = list(rest_files)
-            else:
-                updated_files = list(base_files) + list(rest_files)
-            replaced_target_numbers = sorted(set(replaced_target_numbers))
-
         s_data['drawing_current_files'] = updated_files
         _mark_order_push_stale(s_data, old_files, updated_files, now_str)
         new_keys = [((f or {}).get('key') or '').strip() for f in new_files]
@@ -397,8 +356,12 @@ def perform_drawing_transfer(
         'replace_target_key': replace_target_keys[0] if len(replace_target_keys) == 1 else None,
         'replace_target_number': replaced_target_numbers[0] if len(replaced_target_numbers) == 1 else None,
     }
+    changed = None
     if hotfix:
         transfer_info['hotfix'] = True
+        # 바뀐 도면 번호(설계서 2026-11-25 §3-4) — 공장 '바뀐 것' 글 · 알림 글이 읽는다.
+        changed = changed_numbers(old_files, updated_files, plan.pairs)
+        transfer_info['changed'] = changed
 
     if 'drawing_transfer_history' not in s_data:
         s_data['drawing_transfer_history'] = []
@@ -412,6 +375,13 @@ def perform_drawing_transfer(
         _apply_hotfix_confirm(s_data, now_str=now_str, user_id=user_id, user_name=user_name)
     if prepare_structured is not None:
         prepare_structured(s_data)
+    fix_result = None
+    if hotfix:
+        # 같은 사본에서 — 고치는 중 풀림 · 파일 이어받기 · 손 처리 풀기(생산) · 패킹 줄 체크 풀기(설계서 2026-11-25 §3-4 ~ §3-7).
+        fix_result = apply_fix_writes(
+            db, order, s_data, plan=plan, old_files=old_files, picks=picks, marks=marks, user=current_user,
+            by_name=user_name, at_iso=now_utc_naive().isoformat() + '+00:00',
+        )
     # 생산·시공 단계: 새 key 는 파트 표시가 없어 '안 봄'이다 — 카드로 일한 파트의 공정 칸을 같은 사본에서 맞춘다
     # (설계서 §15.5 ②, 바로 반영 확정이 목록을 다시 쓴 뒤라 쓰기 직전에 본다).
     sync_steps_in_drawing_write(db, order, s_data, trigger=TRIGGER_TRANSFER,
@@ -447,6 +417,8 @@ def perform_drawing_transfer(
                 'auto_confirm': DRAWING_HOTFIX_AUTO_CONFIRM,
                 'is_override': False,
                 'override_reason': None,
+                'changed': changed,
+                **({'fix': fix_result} if fix_result and any(fix_result.values()) else {}),
             },
             created_by_user_id=user_id,
         ))
@@ -464,7 +436,12 @@ def perform_drawing_transfer(
         else " 도면을 협력사에 보냈습니다(협력사가 확인합니다)." if is_partner_sd(s_data)
         else " 도면이 준비되었습니다."
     )
-    if note:
+    if hotfix:
+        # 바뀐 도면 번호 · 메모(설계서 2026-11-25 §6) — 번호가 없으면 지금 글(" 메모: …") 그대로.
+        hotfix_detail = changed_detail(changed, note)
+        if hotfix_detail:
+            notification_message += f" {hotfix_detail}"
+    elif note:
         notification_message += f" 메모: {note}"
 
     new_notification = Notification(
@@ -492,7 +469,8 @@ def perform_drawing_transfer(
             prod_notif, prod_notif_created = apply_production_change_alert(
                 db, order, "drawing_hotfix",
                 _hotfix_production_detail(current_user, user_name,
-                                          answered_revision=drawing_status == 'RETURNED'),
+                                          answered_revision=drawing_status == 'RETURNED',
+                                          changed=changed, note=note),
                 actor_user_id=user_id, actor_name=user_name, merge=False,
             )
         else:
@@ -510,7 +488,7 @@ def perform_drawing_transfer(
         action="DRAWING_DELIVERED", target_type="order", target_id=int(order_id),
         detail={"note": note or None, "target_team": target_team,
                 "target_manager_name": target_manager_name,
-                "target_role": target_role, "hotfix": hotfix, **context},
+                "target_role": target_role, "hotfix": hotfix, "changed": changed, **context},
         db=db,  # 호출자 소유 세션 — get_db() 를 부르면 teardown 이 호출자 인스턴스를 detach 한다.
     )
     db.commit()
@@ -583,6 +561,7 @@ def perform_drawing_transfer(
             'message': '도면이 바로 반영되었습니다. 생산·시공 단계라 영업 확인 없이 최종 도면이 됩니다. '
                        f'[{target_info}]·생산팀에 알림이 전송되었습니다.',
             'info': '잘못 보냈으면 전달 취소 대신 고친 도면을 다시 보내 교체하세요.',
+            'changed': changed,
         }, 200
     return {
         'success': True,
@@ -654,6 +633,7 @@ def api_order_transfer_drawing(order_id):
             emergency_override=bool(data.get('emergency_override')),
             override_reason=data.get('override_reason') or '',
             prepare_structured=prepare,
+            ack_worked=bool(data.get('ack_worked')),
         )
         if payload.get('success') and stale_keys:
             delete_stale_version_files(stale_keys)  # 커밋 뒤에만

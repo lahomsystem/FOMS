@@ -27,7 +27,7 @@ from foms.services.orders.confirm_drawing_gate import (
     revision_request_target_keys,
     targeted_revision_request,
 )
-from foms.services.orders.drawing_factory import DRAWING_FIX_KEY, current_factories
+from foms.services.orders.drawing_factory import DRAWING_FACTORY_KEY, DRAWING_FIX_KEY, current_factories, sheet_factory
 from foms.services.orders.drawing_transfer import clean_sheet_id
 
 SHEET_PREFIX = "sheet:"
@@ -274,8 +274,84 @@ def expand_done_text(total: int, done: int, part_label: str, numbers: list[int])
     return f"도면 {total}장 중 {done}장을 {part_label} 완료로 처리했어요. {expanded_words(numbers)['tail']}"
 
 
+# --------------------------------------------------------------------------- #
+# 수정본 보내기의 풀림 · 이어받기(D2 — §3-4 · §3-5, 전달 쓰기가 같은 JSON 사본에서 부른다)
+# --------------------------------------------------------------------------- #
+#: ``drawing_fix.log`` · ``file_successor`` 에 남기는 줄 수(넘으면 앞을 버림 — 전체 기록은 ``OrderEvent``).
+FIX_LOG_CAP = 50
+LOG_DONE = "done"
+
+
+def file_successor(sd: Any) -> dict[str, str]:
+    """파일 도면 이어받기 표(``drawing_fix.file_successor`` — 새 key → 옛 key, §3-5). 없으면 빈 사전."""
+    raw = _fix_table(sd).get("file_successor")
+    return {str(k): str(v) for k, v in raw.items() if isinstance(k, str) and isinstance(v, str)} if isinstance(raw, dict) else {}
+
+
+def _writable_fix(sd: dict[str, Any]) -> dict[str, Any]:
+    table = sd.get(DRAWING_FIX_KEY)
+    if not isinstance(table, dict):
+        table = {}
+        sd[DRAWING_FIX_KEY] = table
+    return table
+
+
+def release_fixing_on_transfer(sd: dict[str, Any], idents: Iterable[str], *, by_name: str, at: str) -> list[int]:
+    """수정본 전달이 건드린 열쇠의 [수정 시작] 표시를 지운다(제자리 — §3-4). 안 건드린 도면은 그대로 막힘.
+
+    공장 요청은 건드리지 않는다 — 열린 공장 요청이 있으면 전달이 먼저 400 ``FACTORY_REQUEST_OPEN`` 으로 멈춘다(사장님 "공장 요청은
+    [반영 완료]를 먼저"). 지운 것이 있으면 ``log`` 에 ``done`` 한 줄(최근 :data:`FIX_LOG_CAP` 줄).
+
+    Args:
+        sd: 고칠 ``structured_data`` 사본(부르는 쪽이 재대입 · ``flag_modified``).
+        idents: 건드린 열쇠(:func:`fix_ident` 꼴).
+        by_name: 보낸 사람 이름. at: 보낸 때(UTC iso).
+
+    Returns:
+        풀린 도면 번호(고치는 중 표시의 ``no``, 없으면 빈 목록).
+    """
+    fixing = _fix_table(sd).get("fixing")
+    wanted = set(_clean_idents(idents))
+    hit = sorted(ident for ident in fixing if ident in wanted) if isinstance(fixing, dict) else []
+    if not hit:
+        return []
+    table = _writable_fix(sd)
+    numbers = [table["fixing"].pop(ident).get("no") for ident in hit]
+    numbers = [n for n in numbers if isinstance(n, int)]
+    log = [row for row in table.get("log") or [] if isinstance(row, dict)]
+    log.append({"act": LOG_DONE, "idents": hit, "numbers": numbers, "by_name": by_name, "at": at})
+    table["log"] = log[-FIX_LOG_CAP:]
+    return numbers
+
+
+def inherit_file_successors(sd: dict[str, Any], pairs: dict[str, str], old_files: Iterable[Any]) -> None:
+    """파일로 올린 도면이 고른 도면을 이어받는다(제자리 — §3-5): ``file_successor[새 key] = 옛 key`` · 옛 도면 공장.
+
+    공장은 옛 도면(그 항목의 시트 신원 · key — :func:`~foms.services.orders.drawing_factory.sheet_factory`)이 2공장일 때만 새
+    key 를 2공장 줄로 적는다(1공장이면 줄 없음 — 지금 규칙). 막힘 풀림은 :func:`release_fixing_on_transfer`(건드린 열쇠)가 한다.
+
+    Args:
+        sd: 고칠 사본. pairs: 파일 도면 짝(새 key → 고른 옛 key, '새 도면'은 빼고).
+        old_files: 전달 전 확정 도면 목록(옛 항목의 시트 신원으로 공장을 읽는다).
+    """
+    if not pairs:
+        return
+    olds = {str(e.get("key") or ""): e for e in old_files if isinstance(e, dict)}
+    from_factory = {new: sheet_factory(sd, olds.get(old) or {"key": old}) for new, old in pairs.items()}
+    table = _writable_fix(sd)
+    successors = {**file_successor(sd), **pairs}
+    table["file_successor"] = dict(list(successors.items())[-FIX_LOG_CAP:])
+    seconds = {new: factory for new, factory in from_factory.items() if factory != 1}
+    if seconds:
+        raw = sd.get(DRAWING_FACTORY_KEY) if isinstance(sd.get(DRAWING_FACTORY_KEY), dict) else {}
+        files = dict(raw.get("files") or {}) if isinstance(raw.get("files"), dict) else {}
+        files.update(seconds)
+        sd[DRAWING_FACTORY_KEY] = {**raw, "sheets": raw.get("sheets") or {}, "files": files}
+
+
 __all__ = [
     "Block", "DRAWING_FIX_KEY", "FILE_PREFIX", "REQUEST_OPEN", "SHEET_PREFIX", "WHY_FACTORY", "WHY_FIXING", "WHY_SALES",
+    "file_successor", "inherit_file_successors", "release_fixing_on_transfer",
     "blocked", "blocked_entries", "blocked_left_numbers", "complete_blocked", "confirm_extras", "drawing_blocked", "entry_blocked",
     "expand_confirm", "expand_confirm_body", "expand_done_text", "expand_plan", "expanded_words", "factory_complete_blocked", "factory_has_blocked", "fix_ident", "fixing_idents", "fixing_label", "idents_for_keys",
     "number_topic", "numbers_text", "open_request_idents", "per_drawing_numbers", "sales_request_idents", "skip_tail",

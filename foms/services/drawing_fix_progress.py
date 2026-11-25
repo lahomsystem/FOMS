@@ -1,0 +1,144 @@
+"""도면별 공장 진행 · 보내기 전 경고 글(설계서 2026-11-25 §2-3 · R1 — D2 가 만들고 D3 작업실 상세가 부른다). 순수 계산(쿼리 0).
+
+* 파트마다 상태(:func:`drawing_parts`) — 표시 줄 ``DONE`` → 완료, 재단 ``BASIC`` → 기본, ``NEED`` + 맡은 사람 → 작업 중, 손 처리
+  (카드 0장 · 공정 칸 켜짐 — ``drawing_factory.hand_checked_parts``) → 완료(이름 = 칸을 켠 사람), 그 도면 공장이 제작 완료면 남은 파트도
+  완료로 본다(``drawing_factory.factory_made`` — 시공 대기 뒤는 모든 공장 완료).
+* "작업이 닿음"(§2-3) = 완료 · 기본 · 작업 중 파트가 하나라도 있거나 그 도면 공장이 제작 완료.
+* 경고 글(§10 '보내기 전 확인 창'): 완료가 있으면 완료 문장 하나(풀이 §11-7), 아니면 작업 중 문장 — 그 아래 진행 줄
+  "도면 2 · 재단 완료 · 엣지 작업 중".
+"""
+
+from __future__ import annotations
+
+from typing import Any, Iterable, Optional
+
+from foms.services.orders.drawing_factory import factory_made, hand_checked_parts, sheet_factory
+from foms.services.orders.drawing_fix import blocked, fix_ident, number_topic
+from foms.services.production.part_constants import (
+    MARK_STATE_BASIC,
+    MARK_STATE_DONE,
+    MARK_STATE_NEED,
+    PRODUCTION_PART_KEYS,
+    PRODUCTION_PART_LABELS,
+)
+from foms.services.production.part_mark_rules import subject_particle
+from foms.services.production.part_progress import marks_by_part
+
+#: 파트 상태 낱말(R1 자료 · 화면이 읽는다).
+DONE, BASIC, WORKING, NONE = "done", "basic", "working", "none"
+AGAIN = "보내면 공장에서 다시 작업해야 합니다."
+ORDER_MADE_TEXT = "이미 제작 완료된 주문입니다. 보내면 공장에 도면 바뀜 알림이 갑니다."
+ORDER_MADE_LINE = "주문은 시공 대기 그대로예요."
+
+
+def _step_names(sd: Any) -> dict[str, Optional[str]]:
+    production = sd.get("production") if isinstance(sd, dict) else None
+    steps = production.get("steps") if isinstance(production, dict) else None
+    return {str(s.get("key")): s.get("by_name") for s in steps or [] if isinstance(s, dict)}
+
+
+def drawing_parts(entry: dict[str, Any], rows: dict[str, dict[str, Any]], *, hand_parts: Iterable[str],
+                  step_names: dict[str, Optional[str]], made: bool) -> dict[str, dict[str, Any]]:
+    """도면 한 장의 파트마다 ``{state, name}``(``state`` ∈ done · basic · working · none).
+
+    Args:
+        entry: 확정 도면 항목. rows: :func:`~foms.services.production.part_progress.marks_by_part` 값.
+        hand_parts: 손 처리한 파트. step_names: 공정 칸을 켠 사람 이름. made: 그 도면 공장이 제작 완료인지.
+    """
+    hands = set(hand_parts)
+    out = {}
+    for part in PRODUCTION_PART_KEYS:
+        row = rows.get(part, {}).get(entry["key"])
+        state = getattr(row, "state", None)
+        if state == MARK_STATE_DONE:
+            out[part] = {"state": DONE, "name": row.done_by_name or row.picked_by_name or ""}
+        elif state == MARK_STATE_BASIC:
+            out[part] = {"state": BASIC, "name": row.done_by_name or ""}
+        elif state == MARK_STATE_NEED and getattr(row, "picked_by_user_id", None) is not None:
+            out[part] = {"state": WORKING, "name": row.picked_by_name or ""}
+        elif part in hands:
+            out[part] = {"state": DONE, "name": step_names.get(part) or "", "hand": True}
+        else:
+            out[part] = {"state": DONE if made else NONE, "name": ""}
+    return out
+
+
+def is_worked(parts: dict[str, dict[str, Any]]) -> bool:
+    """작업이 닿은 도면인지(§2-3)."""
+    return any(p["state"] != NONE for p in parts.values())
+
+
+def progress_line(no: int, parts: dict[str, dict[str, Any]]) -> str:
+    """진행 줄 "도면 2 · 재단 완료 · 엣지 작업 중"(재단 기본은 "재단 기본")."""
+    words = []
+    for part, info in parts.items():
+        label = PRODUCTION_PART_LABELS[part]
+        if info["state"] == DONE:
+            words.append(f"{label} 완료")
+        elif info["state"] == BASIC:
+            words.append(f"{label} 기본")
+        elif info["state"] == WORKING:
+            words.append(f"{label} 작업 중")
+    return " · ".join([f"도면 {no}", *words])
+
+
+def worked_sentence(no: int, parts: dict[str, dict[str, Any]]) -> str:
+    """경고 한 문장(§2-3) — 완료가 있으면 완료 문장, 아니면 작업 중 문장(작업이 안 닿았으면 빈 글)."""
+    finished = [PRODUCTION_PART_LABELS[p] for p, info in parts.items() if info["state"] in (DONE, BASIC)]
+    head = f"도면 {no}{number_topic(no)}"
+    if finished:
+        return f"{head} {subject_particle(' · '.join(finished))} 완료된 도면입니다. {AGAIN}"
+    working = next(((p, info) for p, info in parts.items() if info["state"] == WORKING), None)
+    if working is None:
+        return ""
+    who = subject_particle(working[1]["name"])
+    return f"{head} {who + ' ' if who else ''}{PRODUCTION_PART_LABELS[working[0]]} 작업 중인 도면입니다. {AGAIN}"
+
+
+def progress_context(sd: Any, marks: Iterable[Any]) -> dict[str, Any]:
+    """도면마다 진행을 계산할 재료(한 번만) — 파트별 줄 · 손 처리 파트 · 칸 이름."""
+    marks = list(marks)
+    return {"rows": marks_by_part(marks), "hand_parts": hand_checked_parts(sd, marks), "step_names": _step_names(sd)}
+
+
+def entry_parts(sd: Any, entry: dict[str, Any], ctx: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """도면 한 장의 파트 상태(:func:`drawing_parts` 를 주문 JSON · 재료로)."""
+    return drawing_parts(entry, ctx["rows"], hand_parts=ctx["hand_parts"], step_names=ctx["step_names"],
+                         made=factory_made(sd, sheet_factory(sd, entry)))
+
+
+def worked_warnings(sd: Any, marks: Iterable[Any], changed: Iterable[tuple[int, dict[str, Any]]]) -> list[dict[str, Any]]:
+    """바뀌거나 빠지는 옛 도면 중 작업이 닿은 것의 경고 ``[{no, text, line}]``(옛 번호 순 — 409 ``WORKED_DRAWING`` 자료)."""
+    ctx = progress_context(sd, marks)
+    out = []
+    for no, entry in changed:
+        parts = entry_parts(sd, entry, ctx)
+        if is_worked(parts):
+            out.append({"no": no, "text": worked_sentence(no, parts), "line": progress_line(no, parts)})
+    return out
+
+
+def order_made_warning() -> list[dict[str, Any]]:
+    """시공 대기 주문 경고(§2-3 답 7 — 409 ``ORDER_MADE`` 자료)."""
+    return [{"no": None, "text": ORDER_MADE_TEXT, "line": ORDER_MADE_LINE}]
+
+
+def drawings_progress(sd: Any, marks: Iterable[Any], entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """R1 자료 — 지금 확정 도면마다 ``{no, ident, key, factory, parts, worked, fixing, requests}``."""
+    ctx = progress_context(sd, marks)
+    block = blocked(sd)
+    out = []
+    for no, entry in enumerate(entries, 1):
+        parts = entry_parts(sd, entry, ctx)
+        ident = fix_ident(entry)
+        reasons = block.why.get(ident, ())
+        out.append({"no": no, "ident": ident, "key": entry["key"], "factory": sheet_factory(sd, entry), "parts": parts,
+                    "worked": is_worked(parts), "line": progress_line(no, parts),
+                    "fixing": "fixing" in reasons, "requests": [r for r in reasons if r != "fixing"]})
+    return out
+
+
+__all__ = [
+    "AGAIN", "ORDER_MADE_LINE", "ORDER_MADE_TEXT", "drawing_parts", "drawings_progress", "entry_parts", "is_worked",
+    "order_made_warning", "progress_context", "progress_line", "worked_sentence", "worked_warnings",
+]

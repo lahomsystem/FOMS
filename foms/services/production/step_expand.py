@@ -102,6 +102,8 @@ def expand_hand_step(db: Any, order: Any, sd: Any, marks: Iterable[Any], part: s
         if done_by_name is not None:
             write.values.update(done_by_user_id=done_by_user_id, done_by_name=done_by_name,
                                 done_at=done_at or write.values["done_at"])
+            # 장별 기록(part-history 는 payload ``by_name`` 을 먼저 읽는다)이 표시 줄과 같은 사람(칸을 켠 사람)을 말하게(D2 검토)
+            write.event["payload"]["by_name"] = done_by_name
         write.event["payload"]["via"] = VIA_STEP_EXPAND
         writes.append(write)
     if writes:

@@ -45,6 +45,7 @@ from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.drawing_confirm_partial_view import build_confirm_result_view, build_ok_scope
 from foms.services.orders.drawing_key_safety import is_own_order_key
+from foms.services.orders.drawing_fix_transfer import can_fix_production_drawing
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage, sends_only_other_sheets
 from foms.services.orders.drawing_factory_view import pending_split_text, workbench_factory_view
 from foms.services.orders.erp_policy_permissions import can_set_sheet_factory
@@ -1295,7 +1296,8 @@ def erp_drawing_workbench_detail(order_id):
     )
     # 전달 버튼 = 서버 전달 권한과 같은 술어(관리자 · 지정 도면 담당, M14-a 화면 == 서버).
     # 담당 아닌 도면팀은 버튼 대신 "담당자만 전달할 수 있어요" 한 줄.
-    can_transfer = can_transfer_drawing(current_user, order)
+    # 생산·시공 단계는 도면팀 누구나 · 관리자(설계서 2026-11-25 §4-1 — 전달 API 와 같은 술어).
+    can_transfer = can_transfer_drawing(current_user, order) or can_fix_production_drawing(current_user, order)
     # 전달 취소 표시는 도면팀+관리자로 한정(아래 최종 게이트) — 전달 버튼과 별개 축.
     is_transfer_authorized_team = bool(is_admin or is_drawing_team)
     show_transfer_assignee_only_hint = bool(is_drawing_team and not is_admin and not can_transfer)

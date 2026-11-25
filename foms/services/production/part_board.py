@@ -24,7 +24,7 @@ from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.orders.drawing_factory import sheet_factory
-from foms.services.orders.drawing_fix import blocked
+from foms.services.orders.drawing_fix import blocked, file_successor
 from foms.services.production.part_access import (
     VIEW_ADMIN,
     VIEW_NONE,
@@ -158,12 +158,14 @@ def index_marks(marks: Iterable[Any]) -> tuple[MarkIndex, SheetIndex]:
     """표시 줄 → (장 · 파트 자리 사전, 시트 신원 사전).
 
     Returns:
-        ``({(order_id, key, part): 줄}, {(order_id, sheet_id): [줄…]})`` — 둘째는 시트 신원이 있는 줄만.
+        ``({(order_id, key, part): 줄}, {(order_id, sheet_id): [줄…]})`` — 둘째는 시트 신원이 있는 줄 + 모든 줄을 ``file:<key>``
+        자리에도(파일 도면 이어받기 짝 — 설계서 2026-11-25 §3-5, 시트 id 에는 ``:`` 가 없어 겹치지 않는다).
     """
     by_slot: MarkIndex = {}
     by_sheet: SheetIndex = {}
     for row in marks:
         by_slot[(int(row.order_id), str(row.drawing_key), str(row.part))] = row
+        by_sheet.setdefault((int(row.order_id), f"file:{row.drawing_key}"), []).append(row)
         if row.sheet_id:
             by_sheet.setdefault((int(row.order_id), str(row.sheet_id)), []).append(row)
     return by_slot, by_sheet
@@ -202,23 +204,24 @@ def _prev_word(row: Any) -> str:
 
 
 def replaced_info(order_id: int, entry: dict[str, Any], current_keys: set[str], by_sheet: SheetIndex,
-                  part: str) -> Optional[dict[str, Any]]:
+                  part: str, successor: str = "") -> Optional[dict[str, Any]]:
     """바뀐 도면 짝(D56) — 같은 시트 신원의 옛 key 줄이 있으면 전 판 진행을 붙인다.
 
     Args:
         order_id: 주문 id.
-        entry: 지금 확정 도면 항목(``sheet_id`` 가 없으면 짝 없음 — 직접 올린 파일).
+        entry: 지금 확정 도면 항목(``sheet_id`` 가 없으면 ``successor`` 로만 짝 — 직접 올린 파일).
         current_keys: 그 주문 지금 확정 도면 key 집합.
         by_sheet: :func:`index_marks` 의 시트 신원 사전.
         part: 보고 있는 파트.
+        successor: 파일 도면이 이어받은 옛 key(``drawing_fix.file_successor`` — 설계서 2026-11-25 §3-5, 없으면 빈 글).
 
     Returns:
         ``{label, prev:{part:{state, name}}}`` 또는 None. ``label`` 은 보는 파트의 전 판 진행(없으면 '바뀐 도면').
     """
-    sheet_id = str(entry.get("sheet_id") or "")
-    if not sheet_id:
+    slot = str(entry.get("sheet_id") or "") or (f"file:{successor}" if successor else "")
+    if not slot:
         return None
-    old = [r for r in by_sheet.get((order_id, sheet_id), []) if str(r.drawing_key) not in current_keys]
+    old = [r for r in by_sheet.get((order_id, slot), []) if str(r.drawing_key) not in current_keys]
     if not old:
         return None
     latest: dict[str, Any] = {}
@@ -320,7 +323,8 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
         "in_need": state == "need" and (picked_by_me or not ctx["mine"]),
         "in_done": (finished and (done_by_me or not ctx["mine"])) or (state == "hand" and not ctx["mine"]),
         "others": _other_words(order_id, key, part, marks, ctx["hands"][order_id], ctx),
-        "replaced": replaced_info(order_id, entry, ctx["current_keys"][order_id], ctx["by_sheet"], part),
+        "replaced": replaced_info(order_id, entry, ctx["current_keys"][order_id], ctx["by_sheet"], part,
+                                  file_successor(row.get("structured_data")).get(key, "")),
         **extra,
     }
 

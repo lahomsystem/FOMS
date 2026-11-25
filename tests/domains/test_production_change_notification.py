@@ -337,7 +337,7 @@ def test_hook_drawing_transfer(app):
             # 도면 key 경로여야 materialize_transfer_attachments 를 통과한다(leak 필터).
             # 통과하지 못하면 전달 파일 0장이 되어 빈 전달 가드에 400 으로 막힌다.
             files=[{"key": f"orders/{order.id}/drawing_wizard/exports/d1.png",
-                    "filename": "d1.png"}],
+                    "filename": "d1.png", "replace_of": "NEW"}],  # 2026-11-25 D2: 생산 단계 파일은 바꿀 도면을 고른다
         )
     assert payload.get("success") is True
     assert len(_notifs(order.id)) == len(TARGET_TEAMS)
