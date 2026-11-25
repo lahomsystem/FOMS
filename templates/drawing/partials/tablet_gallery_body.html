@@ -175,5 +175,8 @@
     {% endif %}
   </section>
 </section>
-<script src="{{ url_for('static', filename='js/foms/tablet-drawing-gallery.js') }}?v=20260930a" defer></script>
+{#- 생산·시공 단계 '시트 전달' — 보내기 전 확인 창 · 메모 칸(설계서 2026-11-25 D2 · M) -#}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125c">
+<script src="{{ url_for('static', filename='js/drawing/drawing-fix-send.js') }}?v=20261125b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-drawing-gallery.js') }}?v=20261125a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-drawing-review.js') }}?v=20260727b" defer></script>
