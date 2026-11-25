@@ -216,8 +216,8 @@ def inspect_left(sd: Any, marks: Iterable[Any], key: str) -> list[dict[str, Any]
     카드를 쓴 파트는 그 장의 표시로, 카드를 안 쓴 파트는 공정 칸 체크로 본다(칸이 체크됐으면 모든 장 완료).
 
     Returns:
-        ``[{part, label, holder}]`` — ``holder`` 는 그 장 작업하는 사람 이름 줄(둘까지 + "외 n" — "이시영 · 김재단",
-        아무도 없으면 None = 미정, multi-holder Q20).
+        ``[{part, label, holder}]`` — ``holder`` 는 그 장 작업하는 사람 이름 줄(칸 꼴 — 둘까지 + "외 n", 아무도 없으면
+        None = 미정, multi-holder Q20). 문장 속 "외 n명" 꼴은 부르는 쪽이 표시 줄에서 만든다(``part_mark_gates``).
     """
     marks = list(marks)
     used = cards_used(marks)
@@ -229,8 +229,8 @@ def inspect_left(sd: Any, marks: Iterable[Any], key: str) -> list[dict[str, Any]
         state = str(getattr(row, "state", None) or MARK_STATE_NONE)
         finished = mark_finished(part, state) if part in used else done.get(part, False)
         if not finished:
-            holder = _mark_crew.name_line(_mark_crew.names(_mark_crew.crew_of(row))) if state == MARK_STATE_NEED else None
-            out.append({"part": part, "label": PRODUCTION_PART_LABELS[part], "holder": holder or None})
+            people = _mark_crew.names(_mark_crew.crew_of(row)) if state == MARK_STATE_NEED else []
+            out.append({"part": part, "label": PRODUCTION_PART_LABELS[part], "holder": _mark_crew.name_line(people) or None})
     return out
 
 

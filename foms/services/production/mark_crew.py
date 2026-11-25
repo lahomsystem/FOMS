@@ -242,12 +242,28 @@ def done_names(crew: Iterable[Member]) -> list[str]:
     return out
 
 
+def _people(people: Iterable[str]) -> list[str]:
+    """빈 이름을 뺀 이름 목록."""
+    return [str(p).strip() for p in people if str(p or "").strip()]
+
+
 def name_line(people: Iterable[str], limit: int = NAME_LINE_LIMIT) -> str:
-    """이름 줄 — 둘까지 이름, 나머지는 "외 n"("이시영 · 김재단 외 1"). 비면 빈 글."""
-    people = [str(p).strip() for p in people if str(p or "").strip()]
+    """칸 표시용 이름 줄 — 둘까지 이름, 나머지는 "외 n"("이시영 · 김재단 외 1 작업 중"). 비면 빈 글. 문장 속은 :func:`name_sentence`."""
+    people = _people(people)
     head = " · ".join(people[:limit])
     rest = len(people) - limit
     return f"{head} 외 {rest}" if rest > 0 else head
+
+
+def name_sentence(people: Iterable[str], limit: int = NAME_LINE_LIMIT) -> str:
+    """문장 속 이름 줄 — 둘까지 이름, 나머지는 "외 n명"("이시영 · 김재단 외 2명이 먼저 시작했어요." — Q20). 비면 빈 글.
+
+    토씨는 부르는 쪽의 지금 함수(``subject_particle`` 등)가 마지막 글자로 고른다 — "명"은 받침이 있어 이 · 을 · 과 · 은 · 으로.
+    """
+    people = _people(people)
+    head = " · ".join(people[:limit])
+    rest = len(people) - limit
+    return f"{head} 외 {rest}명" if rest > 0 else head
 
 
 def late_join(action: str, seen: str, state: str, crew: list[Member], uid: Any) -> tuple[str, str, bool]:
@@ -266,6 +282,7 @@ def late_join(action: str, seen: str, state: str, crew: list[Member], uid: Any) 
 
 __all__ = [
     "NAME_LINE_LIMIT", "SHARE_DONE", "SHARE_HELD", "SHARE_NONE", "SHARE_VALUES", "crew_of", "done_names", "find", "finish",
-    "finish_rest", "from_iso", "is_done", "join", "late_join", "leave", "member", "name_line", "names", "share_of", "summarize",
+    "finish_rest", "from_iso", "is_done", "join", "late_join", "leave", "member", "name_line", "name_sentence", "names", "share_of",
+    "summarize",
     "swap", "to_iso", "unfinish",
 ]
