@@ -170,7 +170,7 @@ def _decide_undo(snap: MarkSnapshot, p: _Press, seen: str) -> MarkDecision:
               and (p.target_uid is None or m.get("uid") == p.target_uid)]
     if others:
         if not p.admin:
-            return _forbid(UNDO_NOT_MINE, undo_not_mine_message(mc.name_line(mc.done_names(others))))
+            return _forbid(UNDO_NOT_MINE, undo_not_mine_message(mc.name_sentence(mc.done_names(others))))
         return _applied(mc.unfinish(crew, [m.get("uid") for m in others]), ACTION_UNDO, override=True)
     if not crew and snap.state == MARK_STATE_DONE:  # 사람 없는 완료(풀어 쓴 완료 · 옛 줄)
         owner = snap.done_by_user_id

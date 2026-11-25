@@ -212,13 +212,13 @@ def toward_particle(name: str) -> str:
 
 
 def crew_line(snapshot: MarkSnapshot) -> str:
-    """작업하는 사람 이름 줄("이시영 · 김재단 외 1") — 목록이 비면 한 명짜리 칸."""
-    return mc.name_line(mc.names(snapshot.crew) or [snapshot.picked_by_name or ""])
+    """문장 속 작업하는 사람 이름("이시영 · 김재단 외 1명") — 목록이 비면 한 명짜리 칸. 경합 · 넘김 글이 쓴다."""
+    return mc.name_sentence(mc.names(snapshot.crew) or [snapshot.picked_by_name or ""])
 
 
 def done_line(snapshot: MarkSnapshot) -> str:
-    """완료한 사람 이름 줄 — 목록이 비면(사람 없는 완료) 한 명짜리 칸."""
-    return mc.name_line(mc.done_names(snapshot.crew) or [snapshot.done_by_name or ""])
+    """문장 속 완료한 사람 이름 — 목록이 비면(사람 없는 완료) 한 명짜리 칸."""
+    return mc.name_sentence(mc.done_names(snapshot.crew) or [snapshot.done_by_name or ""])
 
 
 def took_first_message(line: str) -> str:

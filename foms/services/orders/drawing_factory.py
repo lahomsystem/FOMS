@@ -188,17 +188,34 @@ def sheet_work(key: str, marks: Iterable[Any], *, hand_parts: Iterable[str] = ()
                   key=_part_order)
     done = [m for m in rows if m.state in _FINISHED]
     if done:
-        row = done[0]
-        crew = mc.crew_of(row)
-        name = mc.name_line(mc.done_names(crew)) or row.done_by_name or mc.name_line(mc.names(crew)) or row.picked_by_name
-        return {"kind": "done", "part": row.part, "name": name or ""}
+        return {"kind": "done", "part": done[0].part, "name": mc.name_line(_row_people(done[0], "done"))}
     if rows:
-        row = rows[0]
-        return {"kind": "held", "part": row.part, "name": mc.name_line(mc.names(mc.crew_of(row))) or row.picked_by_name or ""}
+        return {"kind": "held", "part": rows[0].part, "name": mc.name_line(_row_people(rows[0], "held"))}
     hand = [part for part in PRODUCTION_PART_KEYS if part in set(hand_parts)]
     if hand:
         return {"kind": "hand", "part": hand[0], "parts": hand, "name": ""}
     return None
+
+
+def _one(name: Any) -> list[str]:
+    """이름 하나 → 목록(빈 이름은 빈 목록)."""
+    text = str(name or "").strip()
+    return [text] if text else []
+
+
+def _row_people(row: Any, kind: str) -> list[str]:
+    """표시 줄의 이름 목록 — 완료(``done``)는 완료한 사람(없으면 작업하는 사람), 작업 중(``held``)은 작업하는 사람."""
+    crew = mc.crew_of(row)
+    if kind == "done":
+        return mc.done_names(crew) or _one(row.done_by_name) or mc.names(crew) or _one(row.picked_by_name)
+    return mc.names(crew) or _one(row.picked_by_name)
+
+
+def work_people(key: str, marks: Iterable[Any], work: dict[str, Any]) -> list[str]:
+    """:func:`sheet_work` 결과의 이름 목록(문장 속 "외 n명" 꼴 — :func:`work_block_message`). 손 체크 · 줄 없음은 빈 목록."""
+    row = next((m for m in marks if getattr(m, "drawing_key", None) == key and getattr(m, "part", None) == work.get("part")),
+               None)
+    return _row_people(row, work["kind"]) if row is not None and work.get("kind") in ("done", "held") else []
 
 
 def _final_particle(word: str, with_final: str, without_final: str) -> str:
@@ -209,13 +226,15 @@ def _final_particle(word: str, with_final: str, without_final: str) -> str:
     return word + with_final
 
 
-def work_block_message(work: dict[str, Any], *, from_factory: int, to_factory: int) -> str:
+def work_block_message(work: dict[str, Any], *, from_factory: int, to_factory: int,
+                       people: Optional[list[str]] = None) -> str:
     """일이 시작된 장을 옮기려 할 때의 글(409 ``SHEET_HAS_WORK``, §4-13 — 완료 · 작업 중을 갈라, multi-holder §8-2 21).
 
     Args:
         work: :func:`sheet_work` 결과.
         from_factory: 지금 공장.
         to_factory: 옮기려던 공장.
+        people: :func:`work_people`(주면 셋 이상을 "김민준 · 박엣지 외 1명이" — Q20 문장 꼴, 안 주면 ``work['name']``).
 
     Returns:
         해요체 한 문장 둘("2공장으로 옮길 수 없어요 — …").
@@ -225,7 +244,8 @@ def work_block_message(work: dict[str, Any], *, from_factory: int, to_factory: i
         labels = " · ".join(PRODUCTION_PART_LABELS.get(p, p) for p in work["parts"])
         return f"{head}{subject_particle(labels)} 이미 작업 완료된 주문이에요. 옮기려면 공정 칸 작업부터 취소해 주세요."
     part = PRODUCTION_PART_LABELS.get(work["part"], work["part"])
-    name = str(work.get("name") or "").strip()
+    # 문장 속 이름 — 셋 이상이면 "김민준 · 박엣지 외 1명"(Q20, 토씨는 지금 함수가 '명' 받침으로 고른다)
+    name = mc.name_sentence(people or [str(work.get("name") or "")])
     if work["kind"] == "done":
         who = subject_particle(name) if name else "다른 사람이"
         return (f"{head}{factory_label(from_factory)}에서 {who} {_final_particle(part, '을', '를')} 이미 완료한 장이에요. "
@@ -356,7 +376,8 @@ def _check_started(sd: dict[str, Any], moving: list[FactoryChange], marks: list[
             work = sheet_work(key, marks, hand_parts=hand)
             if work is not None:
                 blocked.append({"sheet_id": change.ident if change.kind == "sheet" else None, "key": key, **work,
-                                "message": work_block_message(work, from_factory=change.before, to_factory=change.after)})
+                                "message": work_block_message(work, from_factory=change.before, to_factory=change.after,
+                                                              people=work_people(key, marks, work))})
     if blocked:
         raise SheetFactoryRefusal(409, "SHEET_HAS_WORK", blocked[0]["message"], {"blocked": blocked})
 

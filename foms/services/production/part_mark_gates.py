@@ -158,9 +158,13 @@ def hand_step_gate(sd: Any, marks: Iterable[Any], part: str) -> Optional[Gate]:
     return Gate(409, STEP_SET_BY_HAND, message, {"part": part, "checked_by": name or None})
 
 
-def _not_ready_message(left: list[dict[str, Any]]) -> str:
-    """검수 막힘 글 — "재단(이시영 · 김재단 작업 중)" · "엣지(담당 미정)"(multi-holder §8-2 20 · '미정'은 K2 그대로)."""
-    parts = " · ".join(f"{item['label']}({item['holder']} 작업 중)" if item["holder"] else f"{item['label']}(담당 미정)"
+def _not_ready_message(left: list[dict[str, Any]], people: Optional[dict[str, list[str]]] = None) -> str:
+    """검수 막힘 글 — "재단(이시영 · 김재단 외 1명 작업 중)" · "엣지(담당 미정)"(multi-holder §8-2 20 · Q20 문장 꼴 "외 n명" ·
+    '미정'은 K2 그대로). ``people`` = 파트 → 작업하는 사람 이름 목록(없으면 칸 이름 그대로)."""
+    def who(item: dict[str, Any]) -> str:
+        return mc.name_sentence((people or {}).get(item["part"]) or [item["holder"] or ""])
+
+    parts = " · ".join(f"{item['label']}({who(item)} 작업 중)" if item["holder"] else f"{item['label']}(담당 미정)"
                        for item in left)
     last = left[-1]["label"]
     particle = subject_particle(last)[len(last):]  # 괄호 앞 파트 이름에 맞춘 토씨(조립이 · 엣지가)
@@ -200,7 +204,9 @@ def inspect_gate(sd: Any, marks: Iterable[Any], key: str, part: str, action: str
     if part == PART_INSPECT and action in INSPECT_READY_ACTIONS:
         left = inspect_left(sd, marks, key)
         if left:
-            return Gate(409, INSPECT_NOT_READY, _not_ready_message(left),
+            rows = marks_by_part(marks)
+            people = {item["part"]: mc.names(mc.crew_of(rows.get(item["part"], {}).get(key))) for item in left}
+            return Gate(409, INSPECT_NOT_READY, _not_ready_message(left, people),
                         {"left": [{"part": item["part"], "holder": item["holder"]} for item in left]})
         return None
     if part in INSPECT_PREREQ_PARTS and action == ACTION_UNDO:
@@ -208,8 +214,8 @@ def inspect_gate(sd: Any, marks: Iterable[Any], key: str, part: str, action: str
         crew = mc.crew_of(row)
         if row is not None and (str(getattr(row, "state", "")) == MARK_STATE_DONE or any(mc.is_done(m) for m in crew)):
             done = mc.done_names(crew) or [str(getattr(row, "done_by_name", None) or "").strip()]
-            inspector = mc.name_line(done)  # 여러 명이면 "강검수 · 윤검수"(Q20)
-            return Gate(409, INSPECT_DONE_FIRST, _done_first_message(inspector, part, undo_basic),
+            inspector = mc.name_line(done)  # 자료 칸 — 여러 명이면 "강검수 · 윤검수"(Q20)
+            return Gate(409, INSPECT_DONE_FIRST, _done_first_message(mc.name_sentence(done), part, undo_basic),
                         {"inspected_by": inspector or None})
     return None
 
