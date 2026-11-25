@@ -1,0 +1,60 @@
+{#- '공장 진행' 접는 칸(설계서 2026-11-25 §2-2 · §10, D3) — 생산 · 시공 단계에만(workbench.py fix_progress_view → drawing_workbench_production).
+    타임라인 · 요청사항 · 파일 비교와 같은 접는 칸 꼴, 맨 위에 펼친 채(오른쪽 고정 패널 밖 — 왼쪽 본문).
+    도면마다 한 줄: 번호 + 공장 칩(2공장 장이 있을 때만) · 파트 칸(완료 초록 · 작업 중 분홍 · 미정 점선 — 무채색 없음) · 줄 끝 [수정 시작]/[수정 취소].
+    고치는 중 · 요청이 걸린 줄은 빨간 바탕(공장에서 그 도면만 막힘). 시공 대기는 줄마다 "제작 완료" 한 칸, 단추 없음(지휘 풀이 §11).
+    단추는 서버 술어(can_fix_production_drawing — 도면팀 누구나 + 관리자)가 참일 때만 그린다. 누르면 확인 창(workbench-drawing-fix.js). -#}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125d3">
+{%- if fix_progress.two_factories %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">
+{%- endif %}
+<details class="dw-secondary-collapse dwp" open data-dwp data-order-id="{{ fix_progress.order_id }}">
+  <summary>
+    <span><i class="fas fa-industry"></i> 공장 진행</span>
+    <span class="badge bg-light text-dark border">{{ fix_progress.count }}</span>
+  </summary>
+  <div class="dw-secondary-body">
+    <div class="dwp-wrap">
+      <table class="dwp-table">
+        <thead>
+          <tr>
+            <th>도면</th>
+            {%- if fix_progress.made %}<th></th>{% else %}{% for label in fix_progress.parts %}<th>{{ label }}</th>{% endfor %}{% endif %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {%- for row in fix_progress.rows %}
+          <tr{% if row.blocked %} class="dwp-fixrow"{% endif %}>
+            <td class="dwp-no">도면 {{ row.no }}{% if row.factory_label %}{{ row.factory_label|factory_chips }}{% endif %}
+              {%- if row.fixing_text or row.requests %}<span class="dwp-sub">
+                {%- if row.fixing_text %}<span class="dwp-fix">{{ row.fixing_text }}</span>{% endif %}
+                {%- for req in row.requests %}<span class="dwp-req">{{ req }}</span>{% endfor -%}
+              </span>{% endif %}</td>
+            {%- if fix_progress.made %}
+            <td><span class="dwp-cell dwp-done">{{ fix_progress.made_text }}</span></td>
+            {%- else %}
+            {%- for cell in row.cells %}
+            <td><span class="dwp-cell dwp-{{ cell.tone }}">{{ cell.text }}</span></td>
+            {%- endfor %}
+            {%- endif %}
+            <td class="dwp-act">
+              {%- if row.made_text %}<span class="dwp-made">{{ row.made_text|factory_chips if fix_progress.two_factories else row.made_text }}</span>{% endif %}
+              {%- if row.can_stop %}
+              <button type="button" class="btn btn-sm btn-outline-danger" data-dwp-act="stop" data-sheet-id="{{ row.sheet_id }}"
+                data-key="{{ row.key }}" data-confirm="{{ row.confirm_stop }}">수정 취소</button>
+              {%- elif row.can_start %}
+              <button type="button" class="btn btn-sm btn-outline-primary" data-dwp-act="start" data-sheet-id="{{ row.sheet_id }}"
+                data-key="{{ row.key }}" data-confirm="{{ row.confirm_start }}">수정 시작</button>
+              {%- endif %}
+            </td>
+          </tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="dwp-err" data-dwp-error role="alert" hidden></p>
+  </div>
+</details>
+{%- if fix_progress.can_fix %}
+<script src="{{ url_for('static', filename='js/drawing/workbench-drawing-fix.js') }}?v=20261125d3" defer></script>
+{%- endif %}

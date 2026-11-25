@@ -27,7 +27,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session, engine
 from foms.services.common import dashboard_cache as dc
-from models import Order, OrderAttachment, OrderEvent, User
+from models import Order, OrderAttachment, OrderEvent, ProductionPartMark, User
 
 _SEED_BASE = datetime.datetime(2026, 6, 1, 9, 0, 0)
 
@@ -168,3 +168,66 @@ def test_drawing_workbench_no_n_plus_one(client):
     assert q_big <= ABS_QUERY_CAP, (
         f"절대 쿼리 상한 초과: big={q_big} > {ABS_QUERY_CAP}"
     )
+
+
+# '생산 중' 칸(설계서 2026-11-25 §7, D3) — 모집단 SQL 두 번 + 하이드레이트(기본 큐와 한 번에) + 파트 표시 1번(그 쪽 주문 IN).
+# 주문 8건을 더해도 증가 0, 절대 상한 = 기본 목록 실측 + 3. 기본 목록 실측 = 4(로그인 사용자 · seed · 칸 카운트 · 하이드레이트 —
+# 2026-11-25 D3 전 코드도 4, 위 "3" 주석은 사용자 읽기를 빼고 센 옛 값). 칸 숫자는 누적 완료 카운트와 같은 문장에서 세어 그대로 4.
+DEFAULT_LIST_QUERIES = 4
+PRODUCTION_TAB_ABS_CAP = DEFAULT_LIST_QUERIES + 3
+
+
+def _seed_production_order(idx: int) -> int:
+    """생산 단계 가짜 주문(확정 도면 2장 · 파트 표시 1줄) — '생산 중' 칸 줄 · 공장 진행 요약 경로가 돈다."""
+    order = Order(
+        received_date="2026-06-01", customer_name=f"생산{idx}", phone=f"010-6000-{idx:04d}", address=f"서울시 생산구 {idx}",
+        product="붙박이장", status="PRODUCTION", manager_name="도면담당", is_erp_order=True, erp_stage_code="PRODUCTION",
+        structured_data={"workflow": {"stage": "PRODUCTION"}, "parties": {"customer": {"name": f"생산{idx}"}},
+                         "drawing_status": "CONFIRMED", "drawing_current_files": []},
+    )
+    db_session.add(order)
+    db_session.flush()
+    files = [{"key": f"orders/{order.id}/drawing_wizard/exports/s{j}.png", "filename": f"s{j}.png", "sheet_id": f"s{j}"}
+             for j in range(2)]
+    order.structured_data = {**order.structured_data, "drawing_current_files": files}
+    db_session.add(ProductionPartMark(order_id=order.id, drawing_key=files[0]["key"], part="cut", state="DONE",
+                                      done_by_name="김재단"))
+    db_session.commit()
+    return order.id
+
+
+def _production_get(client):
+    return client.get("/erp/drawing-workbench?view=fragment&status=PRODUCTION", headers={"X-FOMS-ERP-SHELL": "1"})
+
+
+def test_drawing_workbench_production_tab_no_n_plus_one(client):
+    """'생산 중' 칸: 주문 4 → 12건에도 쿼리 증가 0, 절대 상한 기본 목록 + 3."""
+    _login_admin(client)
+    for i in range(4):
+        _seed_production_order(i)
+    _production_get(client)  # warmup
+    dc.reset_dashboard_cache_runtime_for_tests()
+    _, q_small = _count_queries(lambda: _production_get(client))
+
+    for i in range(100, 108):
+        _seed_production_order(i)
+    dc.reset_dashboard_cache_runtime_for_tests()
+    resp_big, q_big = _count_queries(lambda: _production_get(client))
+
+    assert resp_big.status_code == 200 and resp_big.get_data(as_text=True).count("dw-prod-prog") == 12
+    assert q_big - q_small == 0, f"'생산 중' 칸 N+1 의심: small={q_small}, big={q_big}"
+    assert q_big <= PRODUCTION_TAB_ABS_CAP, f"'생산 중' 칸 절대 상한 초과: big={q_big} > {PRODUCTION_TAB_ABS_CAP}"
+
+
+def test_default_list_queries_do_not_grow_with_production_tile(client):
+    """기본 목록은 '생산 중' 칸 숫자를 세어도 쿼리가 늘지 않는다(누적 완료 카운트와 한 문장) — 생산 주문이 있어도 그대로."""
+    _login_admin(client)
+    for i in range(4):
+        _seed_order(i)
+    for i in range(200, 208):
+        _seed_production_order(i)
+    _fragment_get(client)  # warmup
+    dc.reset_dashboard_cache_runtime_for_tests()
+    resp, queries = _count_queries(lambda: _fragment_get(client))
+    assert resp.status_code == 200 and "dw-prod-prog" not in resp.get_data(as_text=True)
+    assert queries == DEFAULT_LIST_QUERIES, f"기본 목록 쿼리 {queries}건(전 {DEFAULT_LIST_QUERIES}건)"

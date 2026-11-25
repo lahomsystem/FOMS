@@ -1003,6 +1003,9 @@
               title="담당자 변경">
               <i class="fas fa-user-edit"></i>
             </button>
+            {%- if production_sheet_url %}
+            <a class="btn btn-sm btn-outline-primary ms-2" href="{{ production_sheet_url }}" target="_blank" rel="noopener">생산 작업 시트 열기</a>
+            {%- endif %}
           </div>
         </div>
         <div class="dw-detail-header-right">
@@ -1375,6 +1378,7 @@
         <div class="small text-muted mb-2">
           타임라인/요청/파일비교는 보조 정보로 접어두고 필요 시 열어 확인합니다.
         </div>
+        {%- if fix_progress %}{% include 'drawing/partials/workbench_fix_progress.html' %}{% endif %}
 
         <details class="dw-secondary-collapse" {% if active_tab=='timeline' or (order_change_pending and active_tab not in ('requests', 'compare')) %}open{% endif %}>
           <summary>
