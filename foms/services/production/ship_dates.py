@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import and_, func, not_, or_, select
@@ -38,6 +39,28 @@ PANE_RECENT = 'recent'
 PANE_LATER = 'later'
 PANE_PAST = 'past'
 PANE_NONE = 'none'
+
+
+#: 상차 예정일로 읽는 글 — 앞 10자가 ``YYYY-MM-DD``(ASCII 숫자 · 달 01~12 · 날 01~31). 경계 SQL(:func:`_loading_sql`)과 같은 꼴.
+_LOADING_RE = re.compile(r'[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')
+_DIGITS = tuple('0123456789')
+_MONTHS = tuple(f"{m:02d}" for m in range(1, 13))
+_MDAYS = tuple(f"{d:02d}" for d in range(1, 32))
+
+
+def loading_day(value: Any) -> Optional[datetime.date]:
+    """상차 예정일 글 → date — 앞 10자가 날짜 꼴일 때만(뒤에 시각이 붙어도 앞 10자). '미정' · '11/27' · 없는 날은 None.
+
+    경계 SQL(:func:`_loading_sql`)과 같은 꼴 규칙이라 두 쪽이 같은 주문을 같은 묶음에 둔다(없는 날 '2026-02-30' 만 SQL 은
+    꼴만 보아 상차 갈래로 본다 — 지방 대시보드는 날짜 칸으로만 적는다).
+    """
+    text = str(value or '').strip()[:10]
+    if not _LOADING_RE.fullmatch(text):
+        return None
+    try:
+        return datetime.date.fromisoformat(text)
+    except ValueError:
+        return None
 
 
 def _day(value: Any) -> Optional[datetime.date]:
@@ -70,7 +93,7 @@ def ship_dates(sd: Any, *, regional: bool, loading_date: Any, partner_org_id: An
         ④ 그 밖 ``[]``(출고일 없음).
     """
     builds = [datetime.date.fromisoformat(day) for day in all_construction_dates(sd)]
-    loading = _day(loading_date) if regional else None
+    loading = loading_day(loading_date) if regional else None
     if loading is not None and (not builds or loading <= builds[0]):
         return [(loading, SHIP_LOAD)]
     if builds:
@@ -118,7 +141,7 @@ def ship_fields(order: Any, today: datetime.date) -> dict[str, Any]:
     days = [day for day, _kind in ship]
     kind = ship[0][1] if ship else ''
     # 상차 표 = 적힌 상차 예정일(시공일보다 뒤라 시공일에 놓였어도 보인다 — 어긋남을 알게), 희망일 표 = 희망일로 놓인 주문
-    loading = _day(getattr(order, 'shipping_scheduled_date', None)) if getattr(order, 'is_regional', False) else None
+    loading = loading_day(getattr(order, 'shipping_scheduled_date', None)) if getattr(order, 'is_regional', False) else None
     marked = (SHIP_LOAD, loading) if loading is not None else ((SHIP_WISH, days[0]) if kind == SHIP_WISH else None)
     mark = {'k': marked[0], 'md': f"{marked[1].month}/{marked[1].day}"} if marked else None
     sd = order.structured_data if isinstance(getattr(order, 'structured_data', None), dict) else {}
@@ -183,16 +206,29 @@ def _build_on(start: str, end: str | None = None) -> Any:
     return Order.schedule_dates.any(and_(*on))
 
 
+def _loading_sql() -> tuple[Any, Any]:
+    """(상차 예정일 앞 10자 글, 그 글이 날짜 꼴인가) — :func:`loading_day` 와 같은 꼴 규칙의 SQL.
+
+    SQLite(시험) · PostgreSQL(운영)에서 같은 뜻이 되게 ``trim`` · ``substr`` · 같음(``IN``)만 쓴다 — 정규식 · ``GLOB`` 은 DB 마다
+    다르고, 글자 크기 견주기(``BETWEEN``)는 운영 PostgreSQL 정렬 규칙(en_US)에서 한글 · 기호가 다르게 놓일 수 있다.
+    """
+    text = func.substr(func.trim(func.coalesce(Order.shipping_scheduled_date, '')), 1, 10)
+    shape = and_(*(func.substr(text, i, 1).in_(_DIGITS) for i in (1, 2, 3, 4)),
+                 func.substr(text, 5, 1) == '-', func.substr(text, 6, 2).in_(_MONTHS),
+                 func.substr(text, 8, 1) == '-', func.substr(text, 9, 2).in_(_MDAYS))
+    return text, shape
+
+
 def _by_loading() -> Any:
-    """SQL 로 본 ① 갈래 — 상차 예정일이 적힌 지방 주문이고 시공일(일정 표)이 없거나 상차 예정일이 가장 이른 시공일과 같거나 앞.
+    """SQL 로 본 ① 갈래 — 날짜 꼴 상차 예정일이 적힌 지방 주문이고 시공일(일정 표)이 없거나 상차 예정일이 가장 이른 시공일과 같거나 앞.
 
     NULL 이 되지 않게 짰다(``IS TRUE`` · ``coalesce`` · 서브쿼리 NULL 은 ``IS NULL`` 갈래가 받는다).
     """
     first_build = (select(func.min(OrderScheduleDate.date))
                    .where(OrderScheduleDate.order_id == Order.id, OrderScheduleDate.kind == 'construction')
                    .correlate(Order).scalar_subquery())
-    loading = func.coalesce(Order.shipping_scheduled_date, '')
-    return and_(Order.is_regional.is_(True), loading != '', or_(first_build.is_(None), loading <= first_build))
+    loading, shape = _loading_sql()
+    return and_(Order.is_regional.is_(True), shape, or_(first_build.is_(None), loading <= first_build))
 
 
 def live_condition(cutoff: str) -> Any:
@@ -205,7 +241,7 @@ def live_condition(cutoff: str) -> Any:
     flat = Order.erp_construction_date
     by_loading = _by_loading()
     return or_(
-        and_(by_loading, func.coalesce(Order.shipping_scheduled_date, '') >= cutoff),
+        and_(by_loading, _loading_sql()[0] >= cutoff),
         and_(not_(by_loading), or_(flat.is_(None), flat == '', flat >= cutoff, _build_on(cutoff))),
     )
 
@@ -217,10 +253,10 @@ def window_condition(start: str, end: str) -> Any:
     일정 표 시공일 · 지방 상차 예정일 · 시공일 없이 희망일만 있을 수 있는 협력사 주문(희망일은 JSONB 라 SQL 에서 고르지 않는다).
     """
     flat = Order.erp_construction_date
-    loading = func.coalesce(Order.shipping_scheduled_date, '')
+    loading, shape = _loading_sql()
     return or_(
         and_(flat >= start, flat <= end), _build_on(start, end),
-        and_(Order.is_regional.is_(True), loading >= start, loading <= end),
+        and_(Order.is_regional.is_(True), shape, loading >= start, loading <= end),
         and_(Order.partner_org_id.isnot(None), or_(flat.is_(None), flat == '')),
     )
 
@@ -232,6 +268,7 @@ def kind_word(kind: Any) -> str:
 
 __all__ = [
     'PAST_DAYS', 'STRIP_DAYS', 'SHIP_BUILD', 'SHIP_LOAD', 'SHIP_WISH', 'build_day', 'due_day', 'kind_word', 'live_condition',
+    'loading_day',
     'order_ship_dates', 'pane_key', 'pane_slots', 'placed_days', 'row_due', 'row_ship_days', 'ship_dates', 'ship_fields',
     'window_condition',
 ]
