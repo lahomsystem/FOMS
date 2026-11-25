@@ -1103,3 +1103,8 @@
 - 일꾼이 찾은 것(고치지 않음): 제작 회차 없는 주문을 풀어 쓰면 '내 공정' 줄에는 안 나오고(`production_home_read_model.py:121` 회차 없으면 '제작 대기') 도면 판에는 '완료'가 보임. "표시 DONE 이면 회차 있음"을 믿다 틀리는 코드는 못 찾음.
 - D1 일곱 커밋을 세션 가지에 cherry-pick → smoke → deploy push 차례.
 - D2 브리프에 넣을 것: `step_expand.expand_hand_step`(`done_by_name` · `done_at`) 부름, 줄 이름과 이벤트 `by_name` 이 갈리지 않게(다시 검토 6), 패킹 풀기 `packing_factory.release_packing_checks`, 단계를 나갔다 오면 옛 막힘이 살아나는 것(D3).
+
+### 2026-11-25 · D1 스테이징 올림
+
+- deploy = 2c5874c2c. smoke `21524 passed, 821 skipped` · `174 passed, 27 skipped`, 스캔 다섯 0, 머리 `prodlead_02` 하나. CI 넷 초록(FOMS CI · Harness CI · perf-gate · PostgreSQL Lane), 스테이징 배포 일치. 운영 a2f8ec14 그대로.
+- D2 일꾼 `d2-send`(opus · xhigh), 워크트리 `c:/tmp/foms-w-d2`, 가지 `work/d2-send`(2c5874c2c 에서 땀) — 만드는 중.
