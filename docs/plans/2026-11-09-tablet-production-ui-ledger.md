@@ -1295,3 +1295,10 @@
 - 빼 둔 것: 다른 세션 시험 고침 e058ffdca(`test(brain)` Jinja 로더 — 내가 고친 남의 시험) · 문서 커밋 전부 · D3(스테이징 올리는 중) · 띠 · 모바일.
 - 다음: `promote_completeness.py --shas <87>` 결과(`scratchpad/promote_check2.txt`) → `promote_own_to_production.py --shas` → 부딪히면 총람대로(인벤토리 = 운영 쪽 두고 승격 트리에서 다시 만듦 · 핀 = 내 핀만 · 문서 = 뺌) → 승격 트리에서 APP_OK · alembic 머리 하나 · 관련 시험 → PR.
 - D3 스테이징 올림: deploy = bc7b759dc. smoke `21689 passed, 823 skipped` · `174 passed`. CI 넷 초록(FOMS CI · Harness · perf-gate · PG Lane), 스테이징 배포 일치. 운영 a2f8ec14 그대로. 날짜 띠 고침 · 모바일 고침은 일꾼에게 보냄(검토 판결대로).
+
+### 2026-11-25 · 운영용 가지 만들기
+
+- `promote_completeness.py --shas <87>` 도 15분 넘게 결과가 없어 멈춤. 대신 총람 절차대로 직접: `origin/production`(a07519d4e — 그사이 다른 세션 PR #917 병합) 위 워크트리 `c:/tmp/foms-promo2`, 가지 `promo/own-factory2-dfix-2` 에 한 커밋씩 cherry-pick(`scratchpad/promo_pick.sh` — 문서 · 인벤토리 JSON 만 부딪히면 운영 쪽을 두고 계속, 그 밖은 멈춤).
+- 첫 시도는 #38 bba6b9725 에서 `part_mark_write.py` 가 부딪힘 — 빠진 커밋 0b5b94711(제목은 `docs(production)` 인데 코드의 함수 설명을 고침)이 원인. 목록에 넣어 **88개**(`scratchpad/promo_list.txt`)로 다시 하니 끝까지 얹힘: 빈 커밋 1(d4afc05e9 — 문서만 부딪혀 내용 없음) · 문서만 부딪혀 운영 쪽 둔 것 1(9126e7d02 — 원장 문서, 매니페스트 등재는 deploy 와 같음을 확인).
+- 승격 트리 확인: 스캔 다섯 0 · alembic 머리 `['prodlead_02']` 하나 · `APP_OK` · `requirements.txt` 차이 없음. 전체 smoke 도는 중(`scratchpad/promo_smoke.log`).
+- 남은 폴더 `c:/tmp/foms-promo`(첫 시도, 지우기 권한 거절)는 나중에 치움. 훅이 `reset --hard origin/…` 을 막음(정상).
