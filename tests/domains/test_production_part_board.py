@@ -88,8 +88,8 @@ def _card(pane: dict, key: str) -> dict:
 # 낱말 · 상태별 카드
 # --------------------------------------------------------------------------- #
 def test_other_part_words_cut_has_basic_others_say_not_yet():
-    assert [other_part_word("cut", s)["word"] for s in ("done", "basic", "need", "none")] == ["끝", "기본", "중", "안 봄"]
-    assert [other_part_word("assemble", s)["word"] for s in ("done", "need", "none")] == ["끝", "중", "아직"]
+    assert [other_part_word("cut", s)["word"] for s in ("done", "basic", "need", "none")] == ["완료", "기본", "중", "안 봄"]  # '끝' → '완료'(multi-holder K4)
+    assert [other_part_word("assemble", s)["word"] for s in ("done", "need", "none")] == ["완료", "중", "아직"]
     assert other_part_word("edge", "none") == {"part": "edge", "label": "엣지", "word": "아직", "tone": "none"}
 
 
@@ -111,7 +111,7 @@ def test_cards_carry_state_names_badges_and_other_part_line(app):
     assert (taken["state"], taken["badge"], taken["taken_by_other"]) == ("need", "taken", True)
     assert (basic["state"], basic["badge"], basic["done_by_name"]) == ("basic", "basic", "박재단")
     assert (fresh["state"], fresh["badge"]) == ("none", None)  # 안 봄 = 배지 없음(D52)
-    assert [(o["label"], o["word"]) for o in mine["others"]] == [("엣지", "끝"), ("조립", "중"), ("검수", "아직")]
+    assert [(o["label"], o["word"]) for o in mine["others"]] == [("엣지", "완료"), ("조립", "중"), ("검수", "아직")]
     assert (mine["no"], mine["of"], mine["customer_name"], mine["order_id"]) == (1, 4, "한빛", order.id)
 
     # 엣지 계정이 보면 재단 줄 낱말이 '안 봄 · 기본 · 중' 으로 선다(그 밖 파트는 '기본' 낱말이 없다).
@@ -188,7 +188,7 @@ def test_replaced_drawing_pairs_by_sheet_id_only(app):
     pane = _today(_board(me))
     new_a = _card(pane, "o5/new-a.png")
     assert new_a["state"] == "none"  # 새 판은 안 봄부터
-    assert new_a["replaced"]["label"] == "바뀐 도면 · 전 판 재단 끝(김재단)"
+    assert new_a["replaced"]["label"] == "바뀐 도면 · 전 판 재단 완료(김재단)"
     assert new_a["replaced"]["prev"] == {"cut": {"state": "done", "name": "김재단"},
                                          "assemble": {"state": "need", "name": "김재단"}}
     assert _card(pane, "o5/direct-new.png")["replaced"] is None

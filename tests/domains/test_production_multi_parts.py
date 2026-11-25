@@ -1,4 +1,4 @@
-"""여러 파트(P2) — 계정 파트 0 ~ 4개 · 대신(반장) · 판 머리 고르기 · 다른 파트 줄 '내 담당'.
+"""여러 파트(P2) — 계정 파트 0 ~ 4개 · 대신(반장) · 판 머리 고르기 · 다른 파트 줄 '내 작업'(2026-11-25 multi-holder §8-2 10).
 
 설계서 ``docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md`` §4-12 · §5 권한 표 · §6-1 · §8-1 '여러 파트(P2)' · §12 ·
 맨 위 '승인 때 고친 것' 5(반장 따로 지정 — 대신은 관리자가 반장으로 체크한 생산팀 계정만, 파트도 반장도 아니면 보기만).
@@ -273,7 +273,7 @@ def test_other_part_line_says_mine_only_for_my_second_part(app):
         return {c["key"]: {o["part"]: (o["word"], o["tone"]) for o in c["others"]} for c in _today(_board(user))["cards"]}
 
     mine = words(me)
-    assert mine["mo/d0.png"]["edge"] == ("내 담당", "mine") and mine["mo/d1.png"]["edge"] == ("중", "need")
+    assert mine["mo/d0.png"]["edge"] == ("내 작업", "mine") and mine["mo/d1.png"]["edge"] == ("중", "need")
     for viewer in (single, admin):  # 대조군: 그 파트가 내 파트가 아니면 지금 낱말(단 하나 파트 계정은 자기가 맡았어도)
         got = words(viewer)
         assert got["mo/d0.png"]["edge"] == ("중", "need") and got["mo/d1.png"]["edge"] == ("중", "need")
@@ -287,7 +287,7 @@ def test_sync_words_follow_the_viewer_like_the_board(client):
     since = (now_utc_naive() - datetime.timedelta(days=3)).isoformat()
     url = f"/api/production/part-marks?order_ids={order.id}&since={since}"
     edge = next(m for m in client.get(url).get_json()["data"]["marks"] if m["part"] == "edge")
-    assert (edge["word"], edge["tone"]) == ("내 담당", "mine")
+    assert (edge["word"], edge["tone"]) == ("내 작업", "mine")
     login(client, _user("박재단", parts=["cut"]))
     edge = next(m for m in client.get(url).get_json()["data"]["marks"] if m["part"] == "edge")
     assert (edge["word"], edge["tone"]) == ("중", "need")
@@ -332,9 +332,9 @@ def test_two_part_account_head_picks_parts_keeps_day_and_titles_both(client, coh
     assert all(f"day={_first_day()}" in href for href in re.findall(r'href="([^"]*)"', nav))  # 같은 날
     assert '<h1 class="foms-prod-home__title">재단 · 엣지 <span class="foms-prod-home__me">김두파</span></h1>' in html
     assert _day_hrefs(html) and all("part=cut" in href for href in _day_hrefs(html))  # 날을 바꿔도 고른 파트
-    assert 'data-pp-act="take">내가 자름<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
+    assert 'data-pp-act="take">작업 시작<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
     edge = _pane(_get(client, HOME + "?part=edge"))
-    assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">내가 엣지<' in edge
+    assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">작업 시작<' in edge
     assert "pp-bulk" not in edge and "출고 1건 · 도면 나온 1집" in edge  # 엣지 판 머리 글(날짜 묶음 말 = 출고, 사장님 2026-11-25)
     assert 'data-pp-pick="cut" aria-current="page">' in _pane(_get(client, HOME + "?part=inspect"))  # 내 파트 밖 → 첫 파트
 
@@ -346,7 +346,7 @@ def test_single_part_account_head_and_links_stay_as_now(client, cohort):
     assert "pp-picks" not in html and "data-pp-pick" not in html
     assert '<h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">박재단</span></h1>' in html
     assert _day_hrefs(html) and not any("part=" in href for href in _day_hrefs(html))
-    assert 'data-pp-act="take">내가 자름<' in _pane(html)
+    assert 'data-pp-act="take">작업 시작<' in _pane(html)
 
 
 def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
@@ -359,8 +359,8 @@ def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
     html = _get(client, HOME + "?tab=parts&part=cut")
     pane = _pane(html)
     assert html.count('id="foms-part-confirm-modal"') == 1 and '&#34;mode&#34;: &#34;sub&#34;' in html
-    assert 'class="pp-parts"' in pane and 'data-pp-act="take"' in pane and "박재단 맡음" not in pane
-    assert "작업 필요 · 박재단" in pane and 'data-pp-act="done"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료]
+    assert 'class="pp-parts"' in pane and 'data-pp-act="take"' in pane and 'data-pp-act="join"' not in pane
+    assert "<b>박재단 작업\u00a0중</b>" in pane and 'data-pp-act="done"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료]
     assert "<h1 class=\"foms-prod-home__title\">생산</h1>" in html
     _tablet(client, _user("최보기"))  # 파트도 반장도 아님 = 같은 판을 단추 없이(P1 읽기 전용 모습)
     view = _get(client, HOME + "?tab=parts&part=cut")
@@ -384,7 +384,7 @@ def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client,
     _old_claim(order, "mm/d2.png", "cut", me)
     _tablet(client, Person(me.id, me.username, me.role, me.name))
     html = _get(client, HOME)
-    assert 'aria-controls="pp-mpop">어제부터 내 담당 3장 <span aria-hidden="true">›</span>' in html
+    assert 'aria-controls="pp-mpop">어제부터 내 작업 3장 <span aria-hidden="true">›</span>' in html
     lines = re.findall(r'<p>(출고 [^<]*?) (\d)장 <a href="([^"]*)" aria-label="([^"]*)">보기</a></p>', html)
     assert [(t.rsplit(" ", 1)[1], n) for t, n, _h, _a in lines] == [("재단", "1"), ("엣지", "2")]
     assert "part=cut" in lines[0][2] and "part=edge" in lines[1][2] and all(f"day={_first_day()}" in h for _t, _n, h, _a in lines)
@@ -393,7 +393,7 @@ def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client,
     _old_claim(order, "mm/d1.png", "cut", other)  # 엣지를 보는 중에도 재단에 밤 넘긴 담당이 있으면 칩이 뜨고 [보기]는 재단 판
     _tablet(client, Person(other.id, other.username, other.role, other.name))
     html = _get(client, HOME + "?part=edge")
-    assert 'aria-controls="pp-mpop">어제부터 내 담당 1장' in html
+    assert 'aria-controls="pp-mpop">어제부터 내 작업 1장' in html
     only = re.findall(r'<p>(출고 [^<]*?) 1장 <a href="([^"]*)"', html)
     assert len(only) == 1 and only[0][0].endswith(" 재단") and "part=cut" in only[0][1]
 
