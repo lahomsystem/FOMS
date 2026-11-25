@@ -64,6 +64,9 @@ const out = {};
   click(go);
   await tick();
   out.emptyNote = d.querySelector('[role="alert"]').textContent;
+  d.querySelector('textarea').value = '실';
+  D.dispatch(d.querySelector('textarea'), 'input');            // 적기 시작하면 빨간 글이 바로 지워진다
+  out.afterTyping = d.querySelector('[role="alert"]').hidden ? '' : d.querySelector('[role="alert"]').textContent;
   out.callsAfterEmpty = calls.filter((c) => /\/reject$/.test(c.url)).length;
   d.querySelector('textarea').value = '실측과 같아요';
   click(go);                                                    // 서버 거절 → 창 안 글

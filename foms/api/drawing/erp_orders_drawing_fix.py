@@ -82,7 +82,7 @@ from foms.services.orders.drawing_fix_requests import (
 )
 from foms.services.orders.drawing_fix_transfer import can_fix_production_drawing
 from foms.services.orders.revision import RevisionError, execute_single_order_write, lock_order_row
-from models import Notification, OrderEvent
+from models import Notification, OrderEvent, User
 
 logger = logging.getLogger(__name__)
 
@@ -214,9 +214,16 @@ def _record_request(db: Any, order: Any, user: Any, req: dict[str, Any], numbers
 
 
 def _reject_notification(db: Any, order: Any, user: Any, req: dict[str, Any], numbers: list[int]) -> Any:
-    """요청한 사람 한 명에게 반려 알림 줄(종 — 받는 사람 state 까지, 같은 tx). 요청한 사람 번호가 없으면 None."""
+    """요청한 사람 한 명에게 반려 알림 줄(종 — 받는 사람 state 까지, 같은 tx).
+
+    만들지 않는 경우(None): 요청한 사람 번호가 없음 · 반려한 사람이 요청한 사람 본인(제가 닫은 일을 저에게 알리지 않는다) · 요청한 사람
+    계정이 없거나 꺼짐(받을 사람이 없다). 공장 '바뀐 것' 줄(이벤트)은 어느 경우든 그대로 남는다.
+    """
     uid = req.get("by_user_id")
-    if not isinstance(uid, int) or isinstance(uid, bool):
+    if not isinstance(uid, int) or isinstance(uid, bool) or uid == getattr(user, "id", None):
+        return None
+    requester = db.get(User, uid)
+    if requester is None or not requester.is_active:
         return None
     notification = Notification(order_id=order.id, notification_type=REJECTED_TYPE, target_type="USER", target_user_id=uid,
                                 title=REJECTED_TITLE,

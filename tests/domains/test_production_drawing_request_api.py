@@ -14,7 +14,10 @@
 """
 from __future__ import annotations
 
+import html as htmllib
 import io
+import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -27,6 +30,7 @@ from foms.services.orders import drawing_fix as fx
 from foms.services.orders.order_mutation_policy import load_policy_manifest
 from foms.services.production.part_mark_gates import DRAWING_REVISING, REVISING_MESSAGE
 from foms.services.request_write_guard import load_write_guard_manifest
+from foms.services.storage import StorageAdapter
 from models import Notification, NotificationUserState, Order, OrderEvent, PartnerOrg, SecurityLog
 from tests.support.production_factory_seed import TABLET, factory_user, mixed_order, set_cookies
 from tests.support.production_part_claim_seed import code, fresh, login, make_order, make_user, mark
@@ -38,7 +42,9 @@ FORBIDDEN = "도면 수정 요청은 반장이나 그 도면 파트 담당만 �
 
 
 class FakeStorage:
-    """사진 올리기를 받아만 두는 가짜 저장소(실제 저장소 손 안 댐)."""
+    """사진 올리기를 받아만 두는 가짜 저장소(실제 저장소 손 안 댐). 파일 종류 판정은 진짜 저장소 함수 그대로."""
+
+    get_file_type = StorageAdapter.get_file_type
 
     def __init__(self, key_override=None):
         self.saved: list[str] = []
@@ -207,7 +213,7 @@ def test_one_request_event_audit_and_version_and_the_same_key_makes_it_once(clie
     assert db_session.query(SecurityLog).filter_by(action="PRODUCTION_DRAWING_REQUESTED", target_id=seed.id).count() == 1
     log = fresh(seed.id).structured_data["drawing_fix"]["log"]
     assert [(row["act"], row["numbers"], row["by_name"]) for row in log] == [("request", [2], "최엣지")]
-    other = _post(client, seed.id, [1], seed=seed, idem="k-2")          # 다른 열쇠 = 새 요청
+    other = _post(client, seed.id, [2], seed=seed, idem="k-2")          # 다른 열쇠 = 새 요청(도면 2 는 이미 막혀 다른 장)
     assert other.status_code == 200 and len(_requests(seed.id)) == 2
 
 
@@ -293,7 +299,7 @@ def test_push_banner_and_bell_links_open_the_requests_section(app):
 # --- 사진 길 ---------------------------------------------------------------------
 
 
-def _upload(client, oid: int, name: str = "측판.jpg"):
+def _upload(client, oid: int, name: str = "측판.jpg"):  # noqa: D103
     return client.post(PHOTO.format(oid=oid), data={"file": (io.BytesIO(b"\xff\xd8fake"), name)},
                        content_type="multipart/form-data")
 
@@ -343,23 +349,102 @@ def cohort(monkeypatch):
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
 
 
-def _board(client, user) -> str:
+def _board(client, user, url: str = "/erp/production/home?day=none") -> str:
     login(client, user)
     set_cookies(client, TABLET)
-    return client.get("/erp/production/home?day=none").get_data(as_text=True)
+    return client.get(url).get_data(as_text=True)
+
+
+def _card_opts(html: str, oid: int) -> dict[int, list[dict] | None]:
+    """판의 그 주문 카드마다 [도면 수정 요청] 창 고르기(단추가 없으면 None) — 카드 칸만 읽는다(페이지 통째 낱말 아님)."""
+    out = {}
+    for m in re.finditer(r'<article class="pp-card[^"]*"\s+data-pp-card data-order-id="%d"[^>]*data-no="(\d+)"(.*?)</article>' % oid,
+                         html, re.S):
+        btn = re.search(r'<button type="button" class="foms-prod-home__btn pp-req" data-pp-req data-pp-req-opts="([^"]*)">', m.group(2))
+        out[int(m.group(1))] = json.loads(htmllib.unescape(btn.group(1))) if btn else None
+    return out
+
+
+def _modal(html: str) -> str:
+    start = html.index('<div id="foms-part-request-modal"')
+    return html[start:html.index('<div class="pp-view"', start)]
 
 
 def test_board_button_only_on_own_factory_unblocked_cards_and_dialog_only_for_requesters(client, sent, who, cohort):
     seed = mixed_order(4, f2=(2, 3))
+    sids = [f["sheet_id"] for f in fresh(seed.id).structured_data["drawing_current_files"]]
     html = _board(client, who.part)
-    assert html.count("data-pp-req ") == 2 and html.count('id="foms-part-request-modal"') == 1  # 1공장 카드 둘 · 창 하나
-    assert "foms-production-drawing-request.js" in html and "data-foms-no-capture" in html
-    assert "어느 도면인가요?" in html and "사진 (있으면 올려 주세요 · 3장까지)" in html and "요청 보내기" in html
-    assert '[{&#34;no&#34;: 1, &#34;sheet_id&#34;: &#34;' in html or '&#34;no&#34;: 1' in html   # 고르기 = 자기 공장 장만
-    assert '&#34;no&#34;: 3' not in html
+    mine = [{"no": 1, "sheet_id": sids[0]}, {"no": 2, "sheet_id": sids[1]}]          # 고르기 = 자기 공장 장만(도면 3 · 4 = 2공장)
+    assert _card_opts(html, seed.id) == {1: mine, 2: mine}
+    modal = _modal(html)
+    assert "어느 도면인가요?" in modal and "사진 (있으면 올려 주세요 · 3장까지)" in modal and ">요청 보내기</button>" in modal
+    assert re.search(r'<input type="file" accept="image/\*" multiple hidden data-foms-no-capture data-pp-rq-file>', modal)
+    assert re.search(r'foms-production-drawing-request\.js\?v=\d{8}[a-z]" defer', html)
     login(client, who.lead)
     assert _post(client, seed.id, [0], seed=seed).status_code == 200
-    blocked = _board(client, who.part)
-    assert blocked.count("data-pp-req ") == 1                   # 막힌 카드는 단추 대신 '도면 고치는 중'
-    readonly = _board(client, who.readonly)
-    assert "data-pp-req " not in readonly and "foms-part-request-modal" not in readonly
+    blocked = _card_opts(_board(client, who.part), seed.id)
+    assert blocked == {1: None, 2: [{"no": 2, "sheet_id": sids[1]}]}   # 막힌 카드는 단추 없음 · 남은 카드 창에서도 막힌 장이 빠진다
+    readonly = _board(client, who.readonly, "/erp/production/home?tab=parts&day=none")   # 읽기 전용은 '도면 카드' 화면에서 판을 본다
+    assert _card_opts(readonly, seed.id) == {1: None, 2: None} and 'id="foms-part-request-modal"' not in readonly
+
+
+def test_order_whose_drawings_are_all_blocked_shows_no_button(client, sent, who, cohort):
+    """대조군: 고를 도면이 0장인 주문(도면 모두 막힘)은 어느 카드에도 단추가 없다."""
+    seed = mixed_order(2, f2=())
+    login(client, who.lead)
+    assert _post(client, seed.id, [0, 1], seed=seed).status_code == 200
+    assert _card_opts(_board(client, who.part), seed.id) == {1: None, 2: None}
+
+
+# --- 검토 고침(막힌 도면 · 사진 길 · 멱등) -------------------------------------------------
+
+
+def test_request_that_overlaps_an_already_blocked_drawing_is_refused_with_that_block_text(client, sent, who):
+    seed = make_order(3)
+    login(client, who.lead)
+    assert _post(client, seed.id, [1], seed=seed).status_code == 200
+    login(client, who.part)
+    res = _post(client, seed.id, [0, 1], seed=seed)                        # 도면 2 는 이미 열린 공장 요청으로 막힘
+    assert res.status_code == 409 and code(res) == "REQUEST_BLOCKED" and res.get_json()["error"] == REVISING_MESSAGE
+    assert len(_requests(seed.id)) == 1
+    assert _post(client, seed.id, [0], seed=seed).status_code == 200      # 대조군: 안 막힌 장만이면 된다
+
+
+def test_photo_route_refuses_an_order_with_no_drawing_of_mine_but_not_for_blocks(client, sent, who):
+    other = mixed_order(2, f2=(0, 1))                                      # 모두 2공장 — 1공장 파트 계정 몫 0장
+    login(client, who.part)
+    res = _upload(client, other.id)
+    assert res.status_code == 403 and code(res) == "REQUEST_FORBIDDEN" and not sent.storage.saved
+    mine = make_order(2)
+    login(client, who.lead)
+    assert _post(client, mine.id, [0, 1], seed=mine).status_code == 200      # 내 공장 도면이 모두 막혀도
+    login(client, who.part)
+    assert _upload(client, mine.id).status_code == 200                      # 사진 길은 막힘을 보지 않는다(사람 · 공장만)
+
+
+def test_photo_route_takes_only_image_files(client, sent, who):
+    seed = make_order(2)
+    login(client, who.part)
+    res = _upload(client, seed.id, name="견적.pdf")
+    assert res.status_code == 400 and code(res) == "REQUEST_PHOTOS" and res.get_json()["error"] == "사진을 다시 올려 주세요."
+    assert not sent.storage.saved
+
+
+def test_photo_over_one_mebibyte_passes_the_body_cap(client, sent, who):
+    """폰 사진은 1 MiB 를 넘는다 — 몸 상한 목록에 영업 창구 업로드와 같은 줄로 있어야 413 이 아니다."""
+    seed = make_order(2)
+    login(client, who.part)
+    big = io.BytesIO(bytes([0xFF, 0xD8]) + b"0" * (2 * 1024 * 1024))
+    res = client.post(PHOTO.format(oid=seed.id), data={"file": (big, "big.jpg")}, content_type="multipart/form-data")
+    assert res.status_code == 200, (res.status_code, res.get_data(as_text=True)[:200])
+
+
+def test_replay_without_the_request_line_is_closed_not_empty(client, sent, who):
+    seed = make_order(2)
+    login(client, who.lead)
+    assert _post(client, seed.id, [0], seed=seed, idem="k-gone").status_code == 200
+    order = db_session.get(Order, seed.id)
+    order.structured_data = {**order.structured_data, "drawing_fix": {"requests": []}}   # 손으로 지운 자료
+    db_session.commit()
+    res = _post(client, seed.id, [0], seed=seed, idem="k-gone")
+    assert res.status_code == 409 and code(res) == "REQUEST_CLOSED"

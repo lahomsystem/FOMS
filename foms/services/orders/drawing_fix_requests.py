@@ -37,6 +37,7 @@ from foms.services.orders.drawing_fix import (
 from foms.services.orders.drawing_transfer import clean_sheet_id
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_SUB, can_write_sheet, part_view_mode
+from foms.services.production.part_card_state import BLOCK_REVISE, order_block
 
 #: 이벤트(``OrderEvent.event_type``) — 반려는 생산 '바뀐 것' 한 줄(``production_change_alerts``)이 읽는다.
 REQUEST_EVENT = "PRODUCTION_DRAWING_REQUESTED"
@@ -60,6 +61,8 @@ REQUEST_PHOTOS = "REQUEST_PHOTOS"
 REJECT_NOTE_REQUIRED = "REJECT_NOTE_REQUIRED"
 REQUEST_CLOSED = "REQUEST_CLOSED"
 REQUEST_NOT_FOUND = "REQUEST_NOT_FOUND"
+#: 이미 막힌 도면(고치는 중 · 영업 요청 · 열린 공장 요청)이 낀 요청 — 글은 그 막힘의 지금 글(``order_block`` 의 ``why``).
+REQUEST_BLOCKED = "REQUEST_BLOCKED"
 INVALID_STAGE = "INVALID_STAGE"
 PHOTOS_TOO_MANY = "사진은 3장까지 올릴 수 있어요."
 PHOTOS_BAD = "사진을 다시 올려 주세요."
@@ -114,9 +117,22 @@ def can_request_drawing_fix(user: Any, order: Any, entries: Iterable[dict[str, A
     return all(can_request_entry(user, sd, entry) for entry in entries)
 
 
-def requestable_entries(user: Any, sd: Any) -> list[dict[str, Any]]:
-    """창의 '어느 도면인가요?' 고르기 — 지금 확정 도면 중 이 사람이 요청할 수 있는 장(번호 순).
+def entry_block(sd: Any, entry: dict[str, Any]) -> Optional[dict[str, str]]:
+    """그 도면이 이미 '도면 고치는 중'으로 막혔는지 — 도면 판 카드와 같은 함수(``part_card_state.order_block`` 의 도면 막힘,
+    보류는 보지 않는다 — 판도 보류 카드에는 단추를 그린다). 막혔으면 ``{kind, text, why, code}``, 아니면 None."""
+    block = order_block({"structured_data": sd}, entry)
+    return block if block and block.get("kind") == BLOCK_REVISE else None
 
+
+def has_requestable_drawing(user: Any, sd: Any) -> bool:
+    """그 주문에 이 사람이 요청할 수 있는 도면이 한 장이라도 있는지 — 사람 · 공장만 본다(막힘은 안 본다, 사진 길 문)."""
+    return can_request_people(user) and any(can_request_entry(user, sd, e) for e in resolve_final_drawing_files(sd))
+
+
+def requestable_entries(user: Any, sd: Any) -> list[dict[str, Any]]:
+    """창의 '어느 도면인가요?' 고르기 — 지금 확정 도면 중 이 사람이 요청할 수 있고 아직 안 막힌 장(번호 순).
+
+    이미 막힌 장(:func:`entry_block` — 판에서 단추 대신 '도면 고치는 중'이 서는 그 카드)은 뺀다(서버도 409 ``REQUEST_BLOCKED``).
     한 장 = ``{no, sheet_id}``(마법사 시트) 또는 ``{no, key}``(직접 올린 파일) — 번호를 뺀 나머지가 그대로 N3 ``targets`` 한 칸이다
     (판 카드마다 싣는 글이라 짧게).
     """
@@ -124,7 +140,7 @@ def requestable_entries(user: Any, sd: Any) -> list[dict[str, Any]]:
         return []
     out = []
     for no, entry in enumerate(resolve_final_drawing_files(sd), 1):
-        if can_request_entry(user, sd, entry):
+        if can_request_entry(user, sd, entry) and entry_block(sd, entry) is None:
             sid = clean_sheet_id(entry.get("sheet_id"))
             out.append({"no": no, "sheet_id": sid} if sid else {"no": no, "key": entry["key"]})
     return out
@@ -320,8 +336,8 @@ def reject_detail(numbers: list[int], note: str) -> str:
 __all__ = [
     "CHECK_EVENT", "INVALID_STAGE", "LOG_REJECT", "LOG_REQUEST", "MAX_PHOTOS", "MESSAGES", "PHOTOS_BAD", "PHOTOS_TOO_MANY",
     "REJECT_EVENT", "REJECT_NOTE_REQUIRED", "REQUEST_CLOSED", "REQUEST_EVENT", "REQUEST_FORBIDDEN",
-    "REQUEST_NOTE_REQUIRED", "REQUEST_NOT_FOUND", "REQUEST_PHOTOS", "REQUEST_PICK", "RequestRefusal",
+    "REQUEST_BLOCKED", "REQUEST_NOTE_REQUIRED", "REQUEST_NOT_FOUND", "REQUEST_PHOTOS", "REQUEST_PICK", "RequestRefusal",
     "STATE_DONE", "STATE_REJECTED", "VIA_STAGE_EXIT", "add_request", "board_request_options", "can_request_drawing_fix", "can_request_entry",
-    "can_request_people", "check_request", "clean_note", "close_on_stage_exit", "find_request", "left_numbers", "numbers_label", "open_requests", "order_label", "photo_rows", "reject_body", "reject_detail", "reject_message",
+    "can_request_people", "check_request", "clean_note", "close_on_stage_exit", "entry_block", "find_request", "has_requestable_drawing", "left_numbers", "numbers_label", "open_requests", "order_label", "photo_rows", "reject_body", "reject_detail", "reject_message",
     "reject_request", "request_id", "request_message", "requestable_entries",
 ]

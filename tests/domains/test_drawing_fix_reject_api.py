@@ -28,7 +28,7 @@ from foms.services.orders import drawing_fix as fx
 from foms.services.orders.order_mutation_policy import load_policy_manifest
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.request_write_guard import load_write_guard_manifest
-from models import Notification, NotificationUserState, Order, OrderEvent, SecurityLog
+from models import Notification, NotificationUserState, Order, OrderEvent, SecurityLog, User
 from tests.support.drawing_fix_transfer_seed import send
 from tests.support.drawing_fix_workbench_seed import day, login, make_order, make_user, people, sales_request, sd_of
 from tests.support.production_steps_seed import mark_order_inspected
@@ -139,6 +139,34 @@ def test_reject_closes_unblocks_notifies_requester_and_adds_a_changes_line(clien
     alerts = collect_production_change_alerts(db_session, [db_session.get(Order, oid)], None)[oid]["alerts"]
     assert [(a["label"], a["detail"], a["by_name"], a["by_id"]) for a in alerts if a["label"] == "도면 수정 요청 반려"] == [
         ("도면 수정 요청 반려", "도면 2 · 사유: 실측과 같아요. 측판은 그대로예요", "오도면", who.manager.id)]
+
+
+def _notes(oid: int) -> list[Notification]:
+    db_session.expire_all()
+    return db_session.query(Notification).filter_by(order_id=oid, notification_type="DRAWING_FACTORY_REQUEST_REJECTED").all()
+
+
+def test_rejecting_your_own_request_makes_no_notification_but_keeps_the_changes_line(client, sent, who):
+    """반려한 사람이 요청한 사람 본인(관리자가 공장에서 요청하고 작업실에서 반려 등)이면 알림 줄 · state · 폰 0."""
+    oid = make_order(3, cdate=day(3), extra={"drawing_fix": {"requests": [_request(who.admin.id)], "log": []}})
+    login(client, who.admin)
+    assert _reject(client, oid).status_code == 200 and _req(oid)["state"] == "rejected"
+    assert _notes(oid) == [] and sent.push == [] and sent.emits == []
+    assert len(_events(oid, "DRAWING_FIX_REQUEST_REJECTED")) == 1
+
+
+def test_inactive_requester_gets_no_notification_line(client, sent, who):
+    oid = _order(who)
+    user = db_session.get(User, who.lead.id)
+    user.is_active = False
+    db_session.commit()
+    login(client, who.staff)
+    assert _reject(client, oid).status_code == 200
+    assert _notes(oid) == [] and sent.push == [] and len(_events(oid, "DRAWING_FIX_REQUEST_REJECTED")) == 1
+    active = _order(who)                                                     # 대조군: 켜진 요청자는 알림 한 줄
+    db_session.get(User, who.lead.id).is_active = True
+    db_session.commit()
+    assert _reject(client, active).status_code == 200 and len(_notes(active)) == 1
 
 
 def test_reject_twice_is_quiet_and_a_request_closed_by_the_fix_is_refused(client, sent, who):
@@ -275,8 +303,8 @@ def test_sales_rows_and_empty_text_stay_as_today_without_factory_requests(client
 def test_readonly_viewer_sees_the_row_without_buttons(client, sent, who):
     oid = _order(who)
     login(client, who.sales)
-    html = client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True)
-    assert "수정 요청 · 공장" in html and "data-dfr-act" not in html
+    block = _requests_block(client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True))
+    assert '<span class="dwp-req dfr-src">수정 요청 · 공장</span>' in block and "data-dfr-act" not in block
 
 
 # --- 매니페스트 ---------------------------------------------------------------------
