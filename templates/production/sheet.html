@@ -23,7 +23,7 @@
     <header class="foms-prod-page__bar">
       <a class="foms-prod-page__back" data-foms-prod-back href="{{ url_for('erp_production_page.erp_production_home') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>생산</a>
       <h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>
-      {% if pc_sheet_due %}<span class="foms-prod-page__due fpc-sheet-due is-{{ pc_sheet_due.state }}" data-foms-pc-due>시공 {{ pc_sheet_due.md }}{% if pc_sheet_due.rel %} · <b>{{ pc_sheet_due.rel }}</b>{% endif %}{% if pc_sheet_due.more %} · 외 {{ pc_sheet_due.more }}{% endif %}</span>{% else %}<span class="foms-prod-page__due">시공 {{ order.construction_label }}</span>{% endif %}
+      {% if pc_sheet_due %}<span class="foms-prod-page__due fpc-sheet-due is-{{ pc_sheet_due.state }}" data-foms-pc-due>시공 {{ pc_sheet_due.md }}{% if pc_sheet_due.rel %} · <b>{{ pc_sheet_due.rel }}</b>{% endif %}{% if pc_sheet_due.more %} · 외 {{ pc_sheet_due.more }}{% endif %}{% if pc_sheet_due.mark %} · {{ pc_sheet_due.mark.k }} {{ pc_sheet_due.mark.md }}{% endif %}</span>{% else %}<span class="foms-prod-page__due">시공 {{ order.construction_label }}</span>{% endif %}
       {% if order.hold_active %}<span class="foms-prod-page__badge foms-prod-page__badge--hold">보류</span>{% endif %}
       {% if order.rework_active %}<span class="foms-prod-page__badge foms-prod-page__badge--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>{% endif %}
       {% if order.drawing_badge %}<span class="foms-prod-page__badge foms-prod-page__badge--drawing" title="{{ order.drawing_badge.title }}">{{ order.drawing_badge.label }}</span>{% endif %}

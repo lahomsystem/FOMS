@@ -17,12 +17,12 @@ import time
 from typing import Any
 
 from foms.services.feature_flags import pointer_hint
-from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date
+from foms.services.orders.construction_dates import all_construction_dates
 from foms.services.production.home_step_panel import _hold_reason, _prev_line, _run_start_text
 from foms.services.production.late_rule import production_late_view
 from foms.services.production.part_access import steps_lock
 from foms.services.production.part_holders import attach_part_holders
-from foms.services.production.ship_dates import row_due
+from foms.services.production.ship_dates import build_day, row_due
 from foms.services.production.write_access import can_ack_production_change, can_write_production
 from foms.services.production_home_read_model import (
     production_home_queue_key,
@@ -112,10 +112,12 @@ def _rel(day: datetime.date, today: datetime.date) -> tuple[str, str]:
 
 
 def _due_day(row: dict[str, Any], today: datetime.date) -> tuple[datetime.date | None, int]:
-    """(칸에 쓸 진짜 시공일, 외 n). 여러 시공일 주문은 가장 가까운 날 + 나머지 수(§6-3 · 결정 5). 시공일 전부 =
-    :func:`all_construction_dates`(띠 · 출고 화면과 같은 출처 — 납작 칸은 그중 처음 적힌 날일 뿐이다)."""
-    days = all_construction_dates(row.get('structured_data') or {})
-    return pick_nearest_date(days, today), max(0, len(days) - 1)
+    """(칸에 쓸 진짜 시공일, 외 n). 여러 시공일 주문은 판정 날과 같은 규칙의 날(``ship_dates.build_day`` — 내일 이후 가장
+    가까운 날, 없으면 가장 늦은 날) + 나머지 수(§6-3 · 결정 5). 날짜 장마다 다시 센 행은 그 장의 날(행의 ``build_day``).
+    시공일 전부 = :func:`all_construction_dates`(띠 · 출고 화면과 같은 출처 — 납작 칸은 그중 처음 적힌 날일 뿐이다)."""
+    sd = row.get('structured_data') or {}
+    day = row['build_day'] if 'build_day' in row else build_day(sd, today)
+    return day, max(0, len(all_construction_dates(sd)) - 1)
 
 
 def _prev_date(row: dict[str, Any]) -> str:

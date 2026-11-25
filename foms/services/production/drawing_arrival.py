@@ -210,11 +210,20 @@ def attach_drawing_arrival(rows: list[dict[str, Any]], today: datetime.date) -> 
                 deadlines[day] = drawing_deadline(day)
             deadline = deadlines[day]
         sd = row.get('structured_data') or {}
-        row['dw_deadline'] = deadline
-        row['dw_deadline_md'] = f"{deadline.month}/{deadline.day}" if deadline else ''
-        row['dw_state'] = deadline_state(deadline, today, all_in=False)
+        row.update(deadline_fields(deadline, today))
         row['dw_blocker'] = drawing_blocker(sd)
         row['dw_people'] = drawing_people(sd, row.get('manager_name'))
+
+
+def deadline_fields(deadline: datetime.date | None, today: datetime.date) -> dict[str, Any]:
+    """기다림 행의 마감 칸 ``{dw_deadline, dw_deadline_md, dw_state}`` — 첫 화면 행 · 날짜 장마다 다시 센 행이 같이 쓴다.
+
+    Args:
+        deadline: 도면 마감(:func:`drawing_deadline`, 출고일이 없으면 None).
+        today: KST 오늘.
+    """
+    return {'dw_deadline': deadline, 'dw_deadline_md': f"{deadline.month}/{deadline.day}" if deadline else '',
+            'dw_state': deadline_state(deadline, today, all_in=False)}
 
 
 def _wait_state(row: dict[str, Any], today: datetime.date) -> tuple[str, datetime.date | None]:

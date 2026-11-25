@@ -51,6 +51,7 @@ from foms.services.production.part_constants import PART_CUT, production_parts_l
 from foms.services.production.part_marks_query import marks_by_order
 from foms.services.production.part_screen import morning_chip, read_screen_marks
 from foms.services.production.pc_view import attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
+from foms.services.production.ship_dates import ship_fields
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_home_changes import (
     DONE_ALL_VALUE,
@@ -398,9 +399,11 @@ def erp_production_sheet_page(order_id: int):
         abort(404)
     sheet = build_production_sheet_view(db, order, user, full=True)
     flags = production_screen_flags(user, request)
-    # PC 머리 시공일 = 첫 화면 ① 칸과 같은 글(M/D (요일) · D-n · 외 n, 설계서 §6-3 규칙 1). 태블릿 · 폰은 지금 글 그대로.
-    due = (pc_due({'construction_date': order.erp_construction_date, 'structured_data': order.structured_data or {}},
-                  get_today_kst()) if flags['pc_view'] else None)
+    # PC 머리 시공일 = 첫 화면 ① 칸과 같은 글(M/D (요일) · D-n · 외 n · 상차/희망일 표, 설계서 §6-3 규칙 1 · 사장님 2026-11-25
+    # "출고 일정 = 제작 일정" — 같은 출고 칸 ship_fields). 태블릿 · 폰은 지금 글 그대로.
+    today = get_today_kst()
+    due = (pc_due({'construction_date': order.erp_construction_date, 'structured_data': order.structured_data or {},
+                   **ship_fields(order, today)}, today) if flags['pc_view'] else None)
     return render_template(
         'production/sheet.html',
         order=sheet,

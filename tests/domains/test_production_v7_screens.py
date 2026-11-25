@@ -99,9 +99,9 @@ def test_7판_CSS_는_목업_덩이_그대로_글자는_배율을_따르고_무�
 
 
 def test_PC_여러_시공일_기다림_줄_늦음은_띠와_같은_날(client, cohort) -> None:
-    """출고일이 여럿(납작 칸 = 열흘 뒤, 다른 제품 날 = 내일)이면 두 날 장에 다 서고, 늦음 · 마감은 가장 가까운 남은 날(내일)로 —
-    띠 두 줄의 도면 글도 같은 판정(사장님 2026-11-25 "출고 일정 = 제작 일정", 예전 §4-6 은 납작 칸). ① 칸은 그대로 가까운 날 + 외 1
-    (PC 설계서 §6-3 결정 5)."""
+    """출고일이 여럿(납작 칸 = 열흘 뒤, 다른 제품 날 = 내일)이면 두 날 장에 다 서고, 장마다 그 장의 날로 판정 · 표시한다(사장님
+    2026-11-25 "출고 일정 = 제작 일정" · 검토 "장마다 그 날", 예전 §4-6 은 납작 칸) — 내일 장은 마감 지남 · 늦음, 열흘 뒤 장은 여유.
+    ① 칸은 그 장의 날 + 외 1(PC 설계서 §6-3 결정 5). 띠 두 줄의 도면 글도 줄마다 그 날."""
     flat = (get_today_kst() + datetime.timedelta(days=10)).isoformat()
     near = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
     order = _wait_order("가여럿", 10, drawing_assignees=[{"id": 1, "name": "장가짜"}],
@@ -112,12 +112,15 @@ def test_PC_여러_시공일_기다림_줄_늦음은_띠와_같은_날(client, c
     pane = get_html(client, HOME + f"?view=day&day={flat}")
     head = pane.split(f'data-foms-home-dayrow="{oid}"', 1)[0].rsplit("<div ", 1)[1]
     row = pane.split(f'data-foms-home-dayrow="{oid}"', 1)[1].split('<div class="fpc-r', 1)[0]
-    assert "is-late" in head and "늦음 — 도면 마감" in row  # 가까운 날(내일)의 마감은 이미 지났다
-    assert "<small>외 1</small>" in row  # ① 칸은 그대로 가까운 날 + 외 n
-    assert f'data-foms-home-dayrow="{oid}"' in get_html(client, HOME + f"?view=day&day={near}")  # 내일 장에도 선다
+    assert "is-late" not in head and "is-tight" not in head and "늦음" not in row  # 열흘 뒤 장 = 열흘 뒤로 판정
+    assert "<small>외 1</small>" in row and "<span>D-10</span>" in row  # ① 칸은 그 장의 날 + 외 n
+    near_pane = get_html(client, HOME + f"?view=day&day={near}")  # 내일 장에도 선다 — 내일로 판정
+    head = near_pane.split(f'data-foms-home-dayrow="{oid}"', 1)[0].rsplit("<div ", 1)[1]
+    row = near_pane.split(f'data-foms-home-dayrow="{oid}"', 1)[1].split('<div class="fpc-r', 1)[0]
+    assert "is-late" in head and "늦음 — 도면 마감" in row and "<span>내일</span>" in row and "<small>외 1</small>" in row
     strip = get_html(client, HOME)
-    for key in (flat, near):
-        assert "마감 지남" in strip.split(f'data-foms-home-daybtn="{key}"')[1].split("</a>")[0], key
+    assert "마감 지남" in strip.split(f'data-foms-home-daybtn="{near}"')[1].split("</a>")[0]
+    assert "마감 지남" not in strip.split(f'data-foms-home-daybtn="{flat}"')[1].split("</a>")[0]
 
 
 def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지난_날이면_빨강(client, cohort) -> None:

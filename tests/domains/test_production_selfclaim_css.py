@@ -18,8 +18,9 @@ from tests.support.color_contrast import contrast_ratio, hex_rgb, pair_distances
 ROOT = Path(__file__).resolve().parents[2]
 CSS_DIR = ROOT / "static/css/contexts/production"
 #: 공장 칩(2026-11-24 사장님 "1공장, 2공장 구분이 잘 안 돼")이 네 파일을 모두 다시 올렸다 — home.css 는 2026-11-25 '내 공정' [끝]
-#: 확인 창 본문 한 줄(사장님 "도면이 있는 주문만 한 번 묻기")이 한 번 더, 같은 날 '도면 고치는 중' 줄 흐림("보류처럼")이 또 한 번 올렸다.
-PIN = "20261125b"
+#: 확인 창 본문 한 줄(사장님 "도면이 있는 주문만 한 번 묻기")이 한 번 더, 같은 날 '도면 고치는 중' 줄 흐림("보류처럼")이 또 한 번,
+#: 날짜 띠 출고일 — 작은 칸 상차 · 희망일 표가 이름 뒤로 줄을 넘기는 has-ship(사장님 2026-11-25)이 또 한 번 올렸다.
+PIN = "20261125sd"
 #: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다.
 PARTS_PIN = "20261124g"
 #: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 · 셋째 판)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
