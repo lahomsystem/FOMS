@@ -18,7 +18,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.drawing_fix_progress import BASIC, DONE, WORKING, drawings_progress, entry_parts, progress_context
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status, last_revision_request
 from foms.services.orders.drawing_factory import DRAWING_FIX_KEY, current_factories, factory_made, has_second_factory
-from foms.services.orders.drawing_fix import REQUEST_OPEN, blocked, fix_ident, numbers_text
+from foms.services.orders.drawing_fix import REQUEST_OPEN, blocked, fix_ident, numbers_text, request_left
 from foms.services.orders.drawing_fix_marks import confirm_text, fixing_rows
 from foms.services.orders.drawing_fix_transfer import can_fix_production_drawing, load_marks
 from foms.services.orders.state_axes import read_main_stage
@@ -59,17 +59,31 @@ def _current_numbers(sd: Any) -> dict[str, int]:
     return {fix_ident(entry): no for no, entry in enumerate(resolve_final_drawing_files(sd), 1)}
 
 
+def _stored_numbers(request: dict[str, Any], left: list[str]) -> list[int]:
+    """지금 도면으로 못 센 남은 열쇠의 번호 — 요청 ``numbers`` 가 ``targets`` 와 짝일 때만 그 열쇠 몫(짝이 아니면 빈 목록)."""
+    targets, numbers = request.get("targets") or [], request.get("numbers") or []
+    if len(targets) != len(numbers):
+        return []
+    wanted = set(left)
+    return sorted({n for t, n in zip(targets, numbers) if t in wanted and isinstance(n, int) and not isinstance(n, bool)})
+
+
 def open_factory_requests(sd: Any, numbers: dict[str, int]) -> list[dict[str, Any]]:
-    """열린 공장 요청(``state == "open"``) — ``[{name, at, numbers}]`` 요청 시각 순. 번호는 대상 열쇠를 지금 도면으로 다시 센다(못 세면 적힌 번호)."""
+    """아직 막는 공장 요청(``state == "open"`` 이고 남은 열쇠가 있음) — ``[{name, at, numbers}]`` 요청 시각 순.
+
+    번호는 **남은** 열쇠(``drawing_fix.request_left`` = targets − resolved — 수정본이 간 도면은 빠진다, D2 지휘 N)를 지금 도면으로
+    다시 센다(못 세면 적힌 번호 중 그 열쇠 몫). 남은 열쇠가 없는 요청은 막지 않으므로 뺀다.
+    """
     table = sd.get(DRAWING_FIX_KEY) if isinstance(sd, dict) else None
     requests = table.get("requests") if isinstance(table, dict) else None
     out = []
     for request in requests if isinstance(requests, list) else []:
         if not isinstance(request, dict) or request.get("state") != REQUEST_OPEN:
             continue
-        targets = [t for t in request.get("targets") or [] if isinstance(t, str)]
-        nos = sorted({numbers[t] for t in targets if t in numbers}) or [
-            n for n in request.get("numbers") or [] if isinstance(n, int) and not isinstance(n, bool)]
+        left = request_left(request)
+        if not left:
+            continue
+        nos = sorted({numbers[t] for t in left if t in numbers}) or _stored_numbers(request, left)
         out.append({"name": str(request.get("by_name") or "").strip(), "at": request.get("at"), "numbers": nos})
     return sorted(out, key=lambda r: _ts(r["at"]))
 
@@ -201,7 +215,9 @@ def _cell(part: str, info: dict[str, Any]) -> dict[str, str]:
 def _detail_row(sd: Any, row: dict[str, Any], *, entry: dict[str, Any], fixing: dict[str, dict[str, Any]], made: bool,
                 two: bool, can_fix: bool, whole_sales: bool) -> dict[str, Any]:
     fix = fixing.get(row["ident"])
-    asks = ([MARK_SALES] if whole_sales or "sales" in row["requests"] else []) + ([MARK_FACTORY] if "factory" in row["requests"] else [])
+    # requests = 그 도면을 막는 열린 요청 ``[{id, from, checked, left}]``(D2 drawings_progress — 공장 · 영업)
+    sources = {str(r.get("from") or "") for r in row["requests"] if isinstance(r, dict)}
+    asks = ([MARK_SALES] if whole_sales or "sales" in sources else []) + ([MARK_FACTORY] if "factory" in sources else [])
     factory = row["factory"]
     return {
         "no": row["no"], "sheet_id": str(entry.get("sheet_id") or ""), "key": "" if entry.get("sheet_id") else row["key"],
@@ -210,7 +226,8 @@ def _detail_row(sd: Any, row: dict[str, Any], *, entry: dict[str, Any], fixing: 
         "made_text": f"{factory_label(factory)} {MADE_TEXT}" if not made and factory_made(sd, factory) else "",
         "fixing_text": _join(MARK_FIXING, fix["by_name"], _md_hm(fix["at"])) if fix else "",
         "requests": asks, "blocked": bool(fix or asks),
-        "can_start": can_fix and not fix, "can_stop": can_fix and bool(fix),
+        # [수정 시작]은 생산 단계만(시공 대기 없음 — 지휘 풀이), [수정 취소]는 고치는 중인 도면이면 시공 대기에도(사장님 답 "둘 다")
+        "can_start": can_fix and not made and not fix, "can_stop": can_fix and bool(fix),
         "confirm_start": confirm_text([row["no"]], starting=True), "confirm_stop": confirm_text([row["no"]], starting=False),
     }
 
@@ -219,8 +236,9 @@ def fix_progress_view(db: Any, order: Any, sd: Any, user: Any) -> Optional[dict[
     """상세 '공장 진행' 칸 값 — 생산 · 시공 단계에 지금 확정 도면이 있을 때만(그 밖 None · 쿼리 0). 생산 단계만 표시 1번.
 
     Returns:
-        ``{order_id, made, count, two_factories, can_fix, parts: [파트 이름], rows: [...]}``. [수정 시작] · [수정 취소]는 생산 단계에서
-        ``can_fix_production_drawing``(도면팀 누구나 + 관리자 — 서버와 같은 술어)일 때만 그린다.
+        ``{order_id, made, count, two_factories, can_fix, parts: [파트 이름], rows: [...]}``. 단추는 ``can_fix_production_drawing``
+        (도면팀 누구나 + 관리자 — 서버와 같은 술어)일 때만: [수정 시작]은 생산 단계만, [수정 취소]는 고치는 중인 도면이면 시공 대기에도
+        (옛 표시가 남은 시공 대기 주문을 풀 길 — 사장님 답 "둘 다"). ``can_fix`` = 단추가 하나라도 있는지(확인 창 JS 를 싣는다).
     """
     stage = read_main_stage(order)
     entries = resolve_final_drawing_files(sd)
@@ -230,11 +248,12 @@ def fix_progress_view(db: Any, order: Any, sd: Any, user: Any) -> Optional[dict[
     progress = drawings_progress(sd, [] if made else load_marks(db, order.id), entries)
     fixing = {r["ident"]: r for r in fixing_rows(sd)}
     two = has_second_factory(sd)
-    can_fix = not made and can_fix_production_drawing(user, order)
+    can_fix = can_fix_production_drawing(user, order)
     whole_sales = blocked(sd).whole and effective_drawing_status(sd) == "RETURNED"
     rows = [_detail_row(sd, row, entry=entry, fixing=fixing, made=made, two=two, can_fix=can_fix, whole_sales=whole_sales)
             for row, entry in zip(progress, entries)]
-    return {"order_id": int(order.id), "made": made, "count": len(rows), "two_factories": two, "can_fix": can_fix,
+    return {"order_id": int(order.id), "made": made, "count": len(rows), "two_factories": two,
+            "can_fix": any(r["can_start"] or r["can_stop"] for r in rows),
             "parts": [PRODUCTION_PART_LABELS[p] for p in PRODUCTION_PART_KEYS], "made_text": MADE_TEXT, "rows": rows}
 
 

@@ -26,6 +26,7 @@ from sqlalchemy import event
 from werkzeug.security import generate_password_hash
 
 from db import db_session, engine
+from foms.services.datetime_kst import get_today_kst
 from foms.services.common import dashboard_cache as dc
 from models import Order, OrderAttachment, OrderEvent, ProductionPartMark, User
 
@@ -178,18 +179,26 @@ PRODUCTION_TAB_ABS_CAP = DEFAULT_LIST_QUERIES + 3
 
 
 def _seed_production_order(idx: int) -> int:
-    """생산 단계 가짜 주문(확정 도면 2장 · 파트 표시 1줄) — '생산 중' 칸 줄 · 공장 진행 요약 경로가 돈다."""
+    """'생산 중' 칸 가짜 주문(확정 도면 2장 · 파트 표시 1줄) — 줄 · 공장 진행 요약 경로가 돈다. ``idx % 4`` 로 모양을 돌린다:
+    보통 · 영업 요청(RETURNED) · 공장 요청 + 고치는 중(``drawing_fix``) · 시공 대기(시공일 남음 — 표시 안 읽음)."""
+    kind = idx % 4
+    stage = "CONSTRUCTION" if kind == 3 else "PRODUCTION"
     order = Order(
         received_date="2026-06-01", customer_name=f"생산{idx}", phone=f"010-6000-{idx:04d}", address=f"서울시 생산구 {idx}",
-        product="붙박이장", status="PRODUCTION", manager_name="도면담당", is_erp_order=True, erp_stage_code="PRODUCTION",
-        structured_data={"workflow": {"stage": "PRODUCTION"}, "parties": {"customer": {"name": f"생산{idx}"}},
-                         "drawing_status": "CONFIRMED", "drawing_current_files": []},
+        product="붙박이장", status=stage, manager_name="도면담당", is_erp_order=True, erp_stage_code=stage,
+        erp_construction_date=(get_today_kst() + datetime.timedelta(days=3 + idx % 5)).isoformat(),
+        structured_data={"workflow": {"stage": stage}, "parties": {"customer": {"name": f"생산{idx}"}},
+                         "drawing_status": "RETURNED" if kind == 1 else "CONFIRMED", "drawing_current_files": []},
     )
     db_session.add(order)
     db_session.flush()
     files = [{"key": f"orders/{order.id}/drawing_wizard/exports/s{j}.png", "filename": f"s{j}.png", "sheet_id": f"s{j}"}
              for j in range(2)]
-    order.structured_data = {**order.structured_data, "drawing_current_files": files}
+    history = [{"action": "REQUEST_REVISION", "by_user_name": "이영업", "at": "2026-06-02 01:00:00", "note": "깊이 고침"}] if kind == 1 else []
+    fix = {"drawing_fix": {"fixing": {"sheet:s1": {"no": 2, "by_name": "김도면", "at": "2026-06-02T01:00:00Z"}},
+                           "requests": [{"id": f"fr{idx}", "from": "factory", "targets": ["sheet:s0"], "numbers": [1],
+                                         "state": "open", "by_name": "박반장", "at": "2026-06-02T02:00:00Z"}]}} if kind == 2 else {}
+    order.structured_data = {**order.structured_data, "drawing_current_files": files, "drawing_transfer_history": history, **fix}
     db_session.add(ProductionPartMark(order_id=order.id, drawing_key=files[0]["key"], part="cut", state="DONE",
                                       done_by_name="김재단"))
     db_session.commit()
@@ -214,7 +223,9 @@ def test_drawing_workbench_production_tab_no_n_plus_one(client):
     dc.reset_dashboard_cache_runtime_for_tests()
     resp_big, q_big = _count_queries(lambda: _production_get(client))
 
-    assert resp_big.status_code == 200 and resp_big.get_data(as_text=True).count("dw-prod-prog") == 12
+    html = resp_big.get_data(as_text=True)
+    assert resp_big.status_code == 200 and html.count("dw-prod-prog") == 12 and "<b>제작 완료</b>" in html
+    assert "수정 요청 · 영업" in html and "수정 요청 · 공장" in html and "도면 고치는 중" in html     # 모양 넷이 모두 돈다
     assert q_big - q_small == 0, f"'생산 중' 칸 N+1 의심: small={q_small}, big={q_big}"
     assert q_big <= PRODUCTION_TAB_ABS_CAP, f"'생산 중' 칸 절대 상한 초과: big={q_big} > {PRODUCTION_TAB_ABS_CAP}"
 
