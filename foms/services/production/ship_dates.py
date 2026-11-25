@@ -21,7 +21,7 @@ from typing import Any, Iterable, Optional
 
 from sqlalchemy import and_, func, or_
 
-from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date
+from foms.services.orders.construction_dates import all_construction_dates
 from foms.services.partners.schedule_request import clean_date, pending_request
 from models import Order, OrderScheduleDate
 
@@ -91,26 +91,34 @@ def order_ship_dates(order: Any) -> list[tuple[datetime.date, str]]:
 
 
 def due_day(days: Iterable[datetime.date], today: datetime.date) -> Optional[datetime.date]:
-    """판정 기준 날(도면 마감 · 늦음 · 줄 차례) — 오늘 이후(오늘 포함) 가장 가까운 출고일, 모두 지났으면 가장 늦은 날."""
-    return pick_nearest_date((day.isoformat() for day in days), today)
+    """판정 기준 날(도면 마감 · 늦음 · 줄 차례 · 찾기 묶음) — 띠에 놓는 날과 같은 규칙(:func:`placed_days` 의 첫 날):
+    내일 이후 가장 가까운 출고일, 없으면 가장 늦은 지난 날(오늘 포함). 출고일이 없으면 None.
+
+    오늘 출고는 이미 나가고 있어(사장님 2026-11-25 "당일은 이미 시공 중") 남은 날이 있으면 그 날로 센다. 마감 · 늦음 계산의
+    기준 시각(오늘이 며칠인지)은 그대로 오늘이다.
+    """
+    placed = placed_days(days, today)
+    return placed[0] if placed else None
 
 
 def build_day(sd: Any, today: datetime.date) -> Optional[datetime.date]:
     """줄의 "시공 11/28" 표에 쓸 진짜 시공일 — 시공일이 여럿이면 :func:`due_day` 와 같은 규칙으로 하나."""
-    return pick_nearest_date(all_construction_dates(sd), today)
+    return due_day((datetime.date.fromisoformat(day) for day in all_construction_dates(sd)), today)
 
 
 def ship_fields(order: Any, today: datetime.date) -> dict[str, Any]:
-    """행에 실을 출고 칸 — ``ship_days`` · ``ship_kind`` · ``ship_due`` · ``ship_mark``(쿼리 0).
+    """행에 실을 출고 칸 — ``ship_days`` · ``ship_kind`` · ``ship_due`` · ``ship_mark`` · ``build_day``(쿼리 0).
 
     ``ship_mark`` = 상차 예정일 · 희망일로 놓인 주문의 줄 표 ``{'k': '상차', 'md': '12/1'}``(시공일로 놓인 주문은 None —
-    줄의 "시공 11/28" 표가 이미 그 날이다).
+    줄의 "시공 11/28" 표가 이미 그 날이다). ``build_day`` = 그 표의 진짜 시공일(:func:`build_day`).
     """
     ship = order_ship_dates(order)
     days = [day for day, _kind in ship]
     kind = ship[0][1] if ship else ''
     mark = {'k': kind, 'md': f"{days[0].month}/{days[0].day}"} if kind in (SHIP_LOAD, SHIP_WISH) else None
-    return {'ship_days': days, 'ship_kind': kind, 'ship_due': due_day(days, today), 'ship_mark': mark}
+    sd = order.structured_data if isinstance(getattr(order, 'structured_data', None), dict) else {}
+    return {'ship_days': days, 'ship_kind': kind, 'ship_due': due_day(days, today), 'ship_mark': mark,
+            'build_day': build_day(sd, today)}
 
 
 def row_ship_days(row: dict[str, Any]) -> list[datetime.date]:

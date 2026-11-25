@@ -24,7 +24,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
 from foms.services.production.part_card_state import order_block
-from foms.services.production.ship_dates import PAST_DAYS, build_day, live_condition, row_due, ship_fields
+from foms.services.production.ship_dates import PAST_DAYS, live_condition, row_due, ship_fields
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from foms.services.production_read_model import (
@@ -424,7 +424,7 @@ def build_production_home(
         in_production = raw_stage in _PRODUCTION_STAGES and has_run
         steps = production_home_steps(sd, mark_now=in_production)
         big, sub, view = production_home_stage(raw_stage, has_run, steps, bool(row.get('hold_active')))
-        day = production_home_day(build_day(sd, today), today)  # 줄의 "시공 11/28" 표 = 진짜 시공일
+        day = production_home_day(row['build_day'], today)  # 줄의 "시공 11/28" 표 = 진짜 시공일(판정 날과 같은 규칙)
         # 바뀐 것(숫자·받은함·빨간 테두리·정렬·찾기 거르기)은 생산팀이 만들 주문만 — 도면·컨펌 기다림과 제작 완료는
         # 알림이 있어도 치지 않는다(사용자 D20 11-10 "만들 주문만": 운영 '바뀐 것 218' 대부분이 도면 단계 재전달이었다).
         change = (alerts_by_id.get(row['id']) or {}) if view == 'prod' else {}

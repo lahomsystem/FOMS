@@ -134,6 +134,19 @@ def test_B_남은_날마다_서고_남은_날이_없으면_가장_늦은_지난_
         [D(2026, 11, 27), D(2026, 11, 30), D(2026, 12, 20), D(2026, 12, 25)], [D(2026, 11, 25)]]
 
 
+def test_D_시공일이_여럿이면_장마다_그_장의_날로_판정_표시() -> None:
+    """같은 주문이 두 장에 서면 장마다 그 날 — 마감 · 시공일 표가 장의 날을 따른다(행 판정 날은 첫 장의 날)."""
+    row = _row(7, D(2026, 11, 26), D(2026, 12, 2), view="wait", stage="도면 기다림")
+    attach_drawing_arrival([row], TODAY)
+    by = {p["key"]: p for p in production_home_days([row], TODAY)["panes"]}
+    first, second = by["2026-11-26"]["wait_rows"][0], by["2026-12-02"]["wait_rows"][0]
+    assert first is row and second is not row and second["id"] == row["id"]  # 첫 장은 행 그대로(보통 주문과 같은 길)
+    assert first["dw_deadline"] == drawing_deadline(D(2026, 11, 26)) and first["dw_state"] == "late"
+    assert second["dw_deadline"] == drawing_deadline(D(2026, 12, 2)) and second["dw_state"] == "calm"
+    assert second["ship_due"] == D(2026, 12, 2) and second["day_label"] == "12/2 (수)" and second["day_sub"] == "D-7"
+    assert by["2026-11-26"]["arrival"]["state"] == "late" and by["2026-12-02"]["arrival"]["state"] == "calm"
+
+
 def test_G_날_줄은_내일부터_오늘은_지난_7일_장_처음은_내일() -> None:
     days = production_home_days([_row(1, TODAY)], TODAY)
     keys = [b["key"] for b in days["strip"]]
@@ -153,11 +166,16 @@ def test_G_날_줄은_내일부터_오늘은_지난_7일_장_처음은_내일() 
     assert pane_key(D(2026, 11, 17), TODAY) == "past" and pane_key(D(2026, 12, 7), TODAY) == "later"
 
 
-def test_D_판정은_가장_가까운_남은_날_오늘_포함_없으면_가장_늦은_지난_날() -> None:
-    assert due_day([D(2026, 11, 20), D(2026, 11, 25), D(2026, 11, 28)], TODAY) == TODAY  # 판정의 '오늘'은 그대로
+def test_D_판정_날은_놓는_날과_같다_내일_이후_가장_가까운_날_없으면_가장_늦은_지난_날() -> None:
+    # 오늘 출고는 이미 나가고 있다 — 남은 날(내일 이후)이 있으면 그 날, 없을 때만 오늘을 포함한 가장 늦은 날
+    assert due_day([D(2026, 11, 20), D(2026, 11, 25), D(2026, 11, 28)], TODAY) == D(2026, 11, 28)
+    assert due_day([D(2026, 11, 25), D(2026, 11, 30)], TODAY) == D(2026, 11, 30)
+    assert due_day([D(2026, 11, 20), D(2026, 11, 25)], TODAY) == TODAY
     assert due_day([D(2026, 11, 20), D(2026, 11, 28), D(2026, 12, 5)], TODAY) == D(2026, 11, 28)
     assert due_day([D(2026, 11, 10), D(2026, 11, 20)], TODAY) == D(2026, 11, 20)
     assert due_day([], TODAY) is None
+    for days in ([D(2026, 11, 25), D(2026, 11, 30)], [D(2026, 11, 20), D(2026, 11, 25)], [D(2026, 11, 26)]):
+        assert due_day(days, TODAY) == placed_days(days, TODAY)[0]  # 판정 날 = 첫 장의 날
     # 도면 마감 · 늦음 = 판정 날(납작 열 construction_date 가 아니다)
     row = {**_row(1, D(2026, 11, 20), D(2026, 12, 4), view="wait", stage="도면 기다림"), "construction_date": "2026-11-20"}
     attach_drawing_arrival([row], TODAY)
@@ -290,11 +308,12 @@ def test_E_띠_글과_상차_희망일_표_보통_주문은_그대로(client) ->
     orders = _six(_partner())
     today_order = _order("오늘출고가짜", _iso(0))
     html = client.get(HOME).get_data(as_text=True)
-    assert '<aside class="fph-strip" aria-label="출고일 2주">' in html and ">출고일 2주<small>만들 것 / 전체</small>" in html
-    assert re.search(r'data-foms-home-daybtn="past"[^>]*>지난 출고일 0건</a>', html)
-    assert re.search(r'data-foms-home-daybtn="none"[^>]*>출고일 없음 1건</a>', html)
-    assert "시공일 2주" not in html and "지난 시공일 0건" not in html
-    assert "전체 7건" in html  # 주문 수는 한 번(두날가짜는 장 둘)
+    strip = html.split('<aside class="fph-strip"', 1)[1].split("</aside>", 1)[0]
+    assert strip.startswith(' aria-label="출고일 2주">') and '<div class="fph-strip__h">출고일 2주<small>만들 것 / 전체</small>' in strip
+    assert re.search(r'data-foms-home-daybtn="past"[^>]*>지난 출고일 0건</a>', strip)
+    assert re.search(r'data-foms-home-daybtn="none"[^>]*>출고일 없음 1건</a>', strip)
+    head = re.search(r'<span class="foms-prod-home__date">(.*?)</span>', html).group(1)
+    assert head.endswith(" · 전체 7건")  # 주문 수는 한 번(두날가짜는 장 둘)
     # 지방 + 상차 예정일 → 상차 날 장, 줄 = 진짜 시공일 표 + 같은 모양 '상차 M/D'(이름 칸 바로 뒤 — 이름을 더 줄이지 않는다)
     load = _row_html(_pane(client.get(HOME + f"?day={_iso(2)}&view=day").get_data(as_text=True), _iso(2)),
                      orders["load"].id)
@@ -303,12 +322,13 @@ def test_E_띠_글과_상차_희망일_표_보통_주문은_그대로(client) ->
     # 희망일만 있는 협력사 주문 → 희망일 장(기다림 칸), 시공일 없음 표 + '희망일 M/D'
     wish = _row_html(_pane(client.get(HOME + f"?day={_iso(7)}&view=day").get_data(as_text=True), _iso(7)),
                      orders["wish"].id)
-    assert (f'<span class="fph-due is-none" data-foms-home-due><b>시공일 없음</b></span>'
-            f'<span class="fph-due" data-foms-home-ship><i>희망일</i><b>{_md(7)}</b></span>') in wish
+    assert wish.startswith('<a class="fph-wi has-why" ')  # 기다림 칸은 이미 줄을 넘긴다
+    assert re.search(r'<span class="fph-due is-none" data-foms-home-due><b>시공일 없음</b></span><b class="fph-wi__nm">희망가짜</b>'
+                     rf'<small>[^<]*</small><span class="fph-due" data-foms-home-ship><i>희망일</i><b>{_md(7)}</b></span>', wish)
     # 시공일 둘(하나 지남) → 남은 날 장에만, 표는 남은 시공일
     two_pane = _pane(client.get(HOME + f"?day={_iso(4)}&view=day").get_data(as_text=True), _iso(4))
     assert "data-foms-home-ship" not in _row_html(two_pane, orders["two"].id)
-    recent = client.get(HOME + "?day=recent&view=day").get_data(as_text=True)
+    recent = _pane(client.get(HOME + "?day=recent&view=day").get_data(as_text=True), "recent")
     assert f"/{orders['two'].id}\"" not in recent and f"/{today_order.id}\"" in recent  # 오늘 출고 = 지난 7일 장
     # 지방인데 상차 예정일이 없으면 시공일 장, 표 없음
     noload = _row_html(_pane(client.get(HOME + f"?day={_iso(5)}&view=day").get_data(as_text=True), _iso(5)),
@@ -341,6 +361,69 @@ def test_E_PC_시공일_칸에_상차_표_늦음은_출고일로(client) -> None
     row = {"structured_data": orders["plain"].structured_data, "ship_days": [get_today_kst() + datetime.timedelta(days=3)],
            "ship_due": get_today_kst() + datetime.timedelta(days=3), "ship_mark": None}
     assert pc_due(row, get_today_kst())["more"] == 0 and pc_due(row, get_today_kst())["mark"] is None
+
+
+def _cell(html: str, oid: int) -> str:
+    """PC 줄 하나의 ① 시공일 칸 ~ ② 상태 칸(늦음 줄 포함)."""
+    row = html.split(f'data-foms-home-dayrow="{oid}"', 1)[1]
+    return row.split('<span class="fpc-who"', 1)[0]
+
+
+def test_D_오늘과_앞날_시공_주문은_앞날로_판정_장_늦음_PC_칸_찾기(client) -> None:
+    """[오늘, +5] 주문은 +5 장에만 서고, +5 로 판정한다 — 시공일 표 · 늦음 · PC 칸 · 찾기 묶음이 +5 하나만 시공인 주문과 같다."""
+    user = _login(client, role="ADMIN", team="CS")
+    two = _order("오늘닷새가짜", f"{_iso(0)}, {_iso(5)}")
+    one = _order("닷새만가짜", _iso(5))
+    rows, _stats = build_production_home(db_session, user)
+    by = {r["id"]: r for r in rows}
+    today = get_today_kst()
+    plus5 = today + datetime.timedelta(days=5)
+    assert by[two.id]["ship_due"] == by[one.id]["ship_due"] == plus5 and by[two.id]["day_key"] == _iso(5)
+    assert by[two.id]["day_label"] == by[one.id]["day_label"] and not by[two.id]["day_label"].startswith("오늘")
+    assert production_late_level(by[two.id], today) == production_late_level(by[one.id], today)
+    groups = production_home_groups(rows, today)
+    assert [(g["key"], sorted(r["id"] for r in g["rows"])) for g in groups] == [(_iso(5), sorted([two.id, one.id]))]
+    # 날짜 탭(태블릿 · 폰 줄): +5 장에 두 주문, 시공일 표 글이 같다
+    pane = _pane(client.get(HOME + f"?day={_iso(5)}&view=day").get_data(as_text=True), _iso(5))
+    due = re.compile(r'<span class="fph-due[^"]*" data-foms-home-due>.*?</span>')
+    assert due.search(_row_html(pane, two.id)).group(0) == due.search(_row_html(pane, one.id)).group(0)
+    assert f"/{two.id}\"" not in _pane(client.get(HOME + "?day=recent&view=day").get_data(as_text=True), "recent")
+    # PC: ① 칸 · 늦음 줄 · 줄 꼴이 +5 하나뿐인 주문과 같고, 다른 시공일은 '외 1'
+    for k, v in PC.items():
+        client.set_cookie(k, v, domain="localhost")
+    pc = _pane(client.get(HOME + f"?day={_iso(5)}&view=day").get_data(as_text=True), _iso(5))
+    two_cell, one_cell = _cell(pc, two.id), _cell(pc, one.id)
+    assert "<small>외 1</small>" in two_cell and "<small>외 1</small>" not in one_cell
+    assert two_cell.replace("<small>외 1</small>", "") == one_cell
+    assert "오늘 시공" not in two_cell and "<span>오늘</span>" not in two_cell
+
+
+def test_D_PC_늦음_줄_글(client) -> None:
+    """PC 상태 칸 아래 늦음 줄 — 내일 출고인데 시작 전 = '늦음 — 내일 시공, 아직 시작 전'. 오늘 · 내일 시공 주문은 내일로 센다."""
+    _login(client, role="ADMIN", team="CS")
+    tomorrow = _order("내일늦음가짜", _iso(1))
+    both = _order("오늘내일가짜", f"{_iso(0)}, {_iso(1)}")
+    for k, v in PC.items():
+        client.set_cookie(k, v, domain="localhost")
+    pc = _pane(client.get(HOME + f"?day={_iso(1)}&view=day").get_data(as_text=True), _iso(1))
+    for oid in (tomorrow.id, both.id):
+        assert '<small>늦음 — 내일 시공, 아직 시작 전</small>' in _cell(pc, oid), oid
+    head = pc.split(f'data-foms-home-dayrow="{both.id}"', 1)[0].rsplit("<div ", 1)[1]
+    assert "is-late" in head
+
+
+def test_D_PC_작업_시트_머리에_상차_희망일_표(client) -> None:
+    _login(client, role="ADMIN", team="CS")
+    ids = {key: order.id for key, order in _six(_partner()).items()}  # 요청 뒤에는 세션이 닫혀 객체를 못 읽는다
+    for k, v in PC.items():
+        client.set_cookie(k, v, domain="localhost")
+    for key, word, off in (("load", "상차", 2), ("wish", "희망일", 7)):
+        html = client.get(f"/erp/production/sheet/{ids[key]}").get_data(as_text=True)
+        head = re.search(r'<span class="foms-prod-page__due fpc-sheet-due[^"]*" data-foms-pc-due>(.*?)</span>', html).group(1)
+        assert head.endswith(f" · {word} {_md(off)}"), head
+    plain = client.get(f"/erp/production/sheet/{ids['plain']}").get_data(as_text=True)
+    head = re.search(r'<span class="foms-prod-page__due fpc-sheet-due[^"]*" data-foms-pc-due>(.*?)</span>', plain).group(1)
+    assert "상차" not in head and "희망일" not in head and head.startswith("시공 ")  # 음성 대조군
 
 
 def test_G_오늘_출고_주문의_아침_칩_보기는_지난_7일_장(client) -> None:

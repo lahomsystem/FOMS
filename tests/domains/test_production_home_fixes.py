@@ -138,7 +138,7 @@ def test_제목_줄_탭은_보드_없이_찾기로_끝나고_레일_생산이_�
     nav = nav[: nav.index("</nav>")]
     assert "data-foms-home-board" not in nav and "/erp/production/dashboard" not in nav and "navtab--out" not in nav
     assert nav.rstrip().endswith(">찾기</a>")
-    assert "home.css?v=20261125b" in html
+    assert "home.css?v=20261125sd" in html
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
     tools = html[html.index('class="foms-prod-home__tools"'):]
     tools = tools[: tools.index("</header>")]
@@ -209,10 +209,15 @@ def test_날짜_장_큰_줄_긴_이름은_말줄임으로_줄고_주문_번호�
     """M6(11-11): 글자 150% 에서 긴 이름이 말줄임 없이 잘리고 #번호까지 밀려 사라졌다 — flex 칸엔 text-overflow 가 안 먹는다."""
     _make_user(client, "tabs_prod_m6", "PRODUCTION")
     order = _add_order("PRODUCTION", "아주긴상호이름가구인테리어주식회사본점", 1)
+    today_order = _add_order("PRODUCTION", "오늘나가는아주긴상호가구인테리어본점", 0)
     pane = _pane(client.get(HOME).get_data(as_text=True), _first_key())
     # 시공일 표는 이름 칸 안 맨 뒤(11-21) — 이름(b)만 줄고 번호 · 시공일은 안 줄어든다
     assert (f'<span class="fph-dr__nm"><b>아주긴상호이름가구인테리어주식회사본점</b> <small>#{order.id}</small>'
             '<span class="fph-due" data-foms-home-due><i>시공</i><b>내일 ' in pane)
+    # 오늘 표(is-today)를 단 큰 줄도 같은 꼴 — 오늘 나가는 주문은 날 줄이 없어 지난 7일 장에 선다(사장님 2026-11-25 "내일 부터")
+    recent = _pane(client.get(HOME + "?day=recent").get_data(as_text=True), "recent")
+    assert (f'<span class="fph-dr__nm"><b>오늘나가는아주긴상호가구인테리어본점</b> <small>#{today_order.id}</small>'
+            '<span class="fph-due is-today" data-foms-home-due><i>시공</i><b>오늘 ' in recent)
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     assert ".fph-dr__nm > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }" in css
     assert ".fph-dr__nm > small { flex-shrink: 0;" in css
@@ -284,7 +289,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261125b" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261125sd" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -359,7 +364,7 @@ def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채�
     assert _pane(626, 1) < _pane(626, 0.9) < _px(1)  # 100% · 90%: 줄 48 그대로 띠 안에서 굴린다
     assert _pane(626, 0.9) < 40 + rows * 48 + 49
     assert _pane(800, 1) >= _px(1)  # 1280×800: 칸을 채운다(줄 49.1px)
-    assert "home.css') }}?v=20261125b" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261125sd" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_두_줄로_100퍼센트는_그대로() -> None:
