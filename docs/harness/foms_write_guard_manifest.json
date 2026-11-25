@@ -3,7 +3,7 @@
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
   "exempt_count": 9,
-  "guard_count": 245,
+  "guard_count": 249,
   "routes": {
     "admin.discard_sent_unregistered_draft": {
       "mode": "guard",
@@ -471,6 +471,14 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing/fix/stop"
     },
+    "erp_orders_drawing_fix.api_drawing_fix_request_reject": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/requests/<rid>/reject"
+    },
+    "erp_orders_drawing_fix.api_drawing_fix_request_check": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing/fix/requests/<rid>/check"
+    },
     "erp_orders_sheet_factory.api_order_sheet_factory": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing/sheet-factory"
@@ -562,6 +570,14 @@
     "erp_orders_factory_done.api_production_factory_done": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/production/factory-done"
+    },
+    "erp_orders_drawing_request.api_production_drawing_request": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/drawing-request"
+    },
+    "erp_orders_drawing_request.api_production_drawing_request_photo": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/drawing-request/photo"
     },
     "erp_orders_production.api_production_complete": {
       "mode": "guard",
