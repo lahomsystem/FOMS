@@ -1108,3 +1108,12 @@
 
 - deploy = 2c5874c2c. smoke `21524 passed, 821 skipped` · `174 passed, 27 skipped`, 스캔 다섯 0, 머리 `prodlead_02` 하나. CI 넷 초록(FOMS CI · Harness CI · perf-gate · PostgreSQL Lane), 스테이징 배포 일치. 운영 a2f8ec14 그대로.
 - D2 일꾼 `d2-send`(opus · xhigh), 워크트리 `c:/tmp/foms-w-d2`, 가지 `work/d2-send`(2c5874c2c 에서 땀) — 만드는 중.
+
+### 2026-11-25 · D2 일꾼 보고(주장 — 지휘 확인 전)
+
+- 가지 `work/d2-send` c2f75331c(서버 · R1 · 시험) · 688d49970(화면) · dbd5c2db9(인벤토리). 일꾼 끝 줄: 도메인 `17577 passed, 6 skipped` · 계약/하네스 `868 passed` · 보안 `1144 passed`.
+- 새 모듈: `drawing_fix_transfer.py`(규칙 · 쓰기 · `can_fix_production_drawing`) · `drawing_transfer_plan.py`(자리 계산 · `changed`) · `drawing_fix_progress.py` · `erp_orders_drawing_fix_read.py`(R1) · JS 둘 · `workbench-fix.css`.
+- 뜻이 바뀌어 고친 지금 시험: `test_drawing_production_hotfix.py`(담당 아닌 도면팀 = 생산 200 · 도면 단계 403) · `test_production_part_steps_sync.py`(손 칸 대조군 → 모든 장 고치면 칸 꺼짐) · 알림 · 배지 · 저장 창 시험에 메모 · 고른 도면.
+- 설계서와 다르게 한 것(일꾼 말): ① [반영 완료] = `state: done` 으로 합침 → **[반영 완료] 뒤 보내기 전까지 그 도면이 안 막히는 틈** ② 마법사 저장 창은 실제로 `transfer-drawing`(+`pending_sheet_ids`)을 씀, `transfer-pending` 은 작업실 일괄 · 태블릿 갤러리 — 둘 다 `perform_drawing_transfer` 하나 ③ 술어를 `drawing_fix_transfer.py` 에(순환 import) ④ 모든 장을 고치면 손 칸을 직접 끔 · 생산 단계에서만 ⑤ R1 이 보낼 것(`sheet` · `pick` · `mode` …)을 받아 `plan` 을 돌려줌 ⑥ '바뀐 것' 읽기 함수 틀은 D3 로 ⑦ 전달 창 빨간 안내가 5초 뒤 저절로 닫히던 것 고침(`data-foms-no-autodismiss`).
+- 남은 틈(일꾼 말): ERP 대시보드 전달 창(`erp-dashboard-drawing.js`)과 태블릿 갤러리(`transfer-pending`, 메모 빈 글)는 생산 · 시공 단계에서 400/409 서버 글만 보이고 고르기 · 확인 화면 없음 / 작업실 목록 줄 `workbench.py:853` 은 옛 술어(D3) / 공장 제작 완료면 네 파트 모두 완료로 봄 / `changed` 번호(고침 · 새 도면 = 새 번호, 빠짐 = 옛 번호) / 풀어 쓴 줄 `done_by_user_id` 빔.
+- 시안과 다른 곳: 태블릿 '바뀐 것'은 지금 줄 꼴 한 줄 · §10 에 없는 글 셋 뺌 · 시안 ②의 도면 3 은 규칙(완료 문장 하나만)대로.
