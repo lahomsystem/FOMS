@@ -16,7 +16,7 @@
            옛 보드(칸반)로 가는 [보드 →] 는 태블릿에서 뺐다 — PC(마우스)에는 탭 끝에 남긴다(home_pc_board_link.html,
            설계서 2026-11-21-production-pc-viewer §10 R0 · R2 에서 뺀다). PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
         <a class="foms-prod-home__navtab{% if tab in ('date', 'parts') %} is-on{% endif %}" href="{{ home_href(None, nav_part) }}"{% if tab in ('date', 'parts') %} aria-current="page"{% endif %}>날짜</a>
-        {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정 <small>{{ counts.making }}</small></a>
+        {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>남은 공정 <small>{{ counts.making }}</small></a>
 {% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ home_href('changes', nav_part) }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
         <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>{% if pc_view %}{% include 'production/partials/home_pc_board_link.html' %}{% endif %}
       </nav>

@@ -14,6 +14,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from foms.services.orders.team_labels import team_label
+
 logger = logging.getLogger(__name__)
 
 SOURCE_CUSTOMER = "customer"
@@ -82,6 +84,22 @@ def revision_source_tag(entry: Any, round_no: int) -> str:
     if via:
         parts.append(via)
     return " · ".join(parts)
+
+
+#: 요청 줄 표에 쓰는 짧은 팀 이름(생산 '바뀐 것' 줄 "영업 서하나"와 같은 말) — 없으면 팀 화면 이름.
+_SHORT_TEAM: dict[str, str] = {"SALES": "영업", "CS": "CS"}
+
+
+def staff_request_tag(entry: Any, team: Any) -> str:
+    """직원이 한 수정 요청 줄의 표 "수정 요청 · 영업"(사장님 2026-11-26 — 도면팀이 볼 때 누가 한 요청인지).
+
+    고객 요청은 이미 "고객 요청 · 1차 · 카톡 답장" 표가 있어 ""(겹치지 않게). 팀을 모르면(지워진 계정 · 옛 기록) "".
+    공장 요청 줄 "수정 요청 · 공장"(``workbench_fix_requests.html``)과 같은 꼴.
+    """
+    key = str(team or "").strip()
+    if is_customer_request(entry) or not key:
+        return ""
+    return f"수정 요청 · {_SHORT_TEAM.get(key) or team_label(key)}"
 
 
 def notification_title(fields: Any, *, edited: bool = False) -> str:
@@ -169,4 +187,5 @@ __all__ = [
     "received_via_label",
     "request_rounds",
     "revision_source_tag",
+    "staff_request_tag",
 ]

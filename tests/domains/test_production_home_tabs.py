@@ -100,7 +100,7 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     # 첫 화면 = 날짜 탭. 제목 줄: 탭 넷 + 글자 크기 손잡이(①), 옛 "이번 주" 탭 없음
     assert 'data-foms-home-tab="date"' in html and "data-foms-home-date" in html
     assert "data-foms-fs-ctl" in html and ">이번 주<" not in html
-    for label in (">날짜</a>", ">내 공정 <small>1</small></a>", ">바뀐 것 <small>0</small></a>", ">찾기</a>"):
+    for label in (">날짜</a>", ">남은 공정 <small>1</small></a>", ">바뀐 것 <small>0</small></a>", ">찾기</a>"):
         assert label in html, label
     assert "전체 9건" in html  # 머리 숫자 = 실제 총계
     # 띠: 지난 7일(오늘까지) + 내일부터 11일 + 그 뒤 = 13줄, 아래 지난 출고일·출고일 없음 = 단추 15. 오늘 날 줄은 없다

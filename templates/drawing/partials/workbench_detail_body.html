@@ -1454,6 +1454,10 @@
           <div class="dw-secondary-body">
             {%- if factory_requests %}{% include 'drawing/partials/workbench_fix_requests.html' %}{% endif %}
             {% if revision_requests %}
+            {#- 직원 요청 줄 표 "수정 요청 · 영업"(2026-11-26)은 공장 요청 줄 표와 같은 CSS — 생산 · 시공 단계와 공장 요청이 있는 주문은 이미 실려 있다 -#}
+            {%- if not drawing_hotfix_stage and not factory_requests and revision_requests | selectattr('staff_tag') | list %}
+            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-fix.css') }}?v=20261125e">
+            {%- endif %}
             {% for r in revision_requests %}
             {% set review = r.review_check if r.review_check is mapping else {} %}
             {% set checked = review.get('checked') %}
@@ -1461,7 +1465,7 @@
               id="request-{{ r.event_key|replace(':','-') }}">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div class="small text-muted">
-                  {% if r.source_tag %}<span class="badge text-bg-warning me-1" data-source-tag>{{ r.source_tag }}</span>{% endif %}
+                  {% if r.source_tag %}<span class="badge text-bg-warning me-1" data-source-tag>{{ r.source_tag }}</span>{% elif r.staff_tag %}<span class="dwp-req dfr-src" data-staff-tag>{{ r.staff_tag }}</span>{% endif %}
                   {{ r.at_text }} · {{ r.by_text }}
                 </div>
                 {% if checked %}
