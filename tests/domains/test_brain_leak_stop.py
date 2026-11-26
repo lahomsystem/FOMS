@@ -137,13 +137,15 @@ def ends(app):
 
 
 def test_the_kinds_learning_links_without_a_person_are_the_first_list(ends):
-    """처음 값 = 지금 학습이 바로 넣는 종류 — 넘긴 상담 배우기의 온톨로지 '잇기'(사진 학습 넣기 길의 ``link`` 갈래)."""
+    """처음 값 = 지금 학습이 바로 넣는 종류 — 넘긴 상담 배우기의 온톨로지 '잇기'(사진 학습 넣기 길의 ``link`` 갈래). 2026-11-26
+    7.2 넓힘(밤 배우기 끝 이어 붙이기 — 적용 · 공정 단계 · 쓰는 낱말 · 자세히 풂) 뒤에도 이 길은 그대로 바로 들어간다."""
     idea = {"kind": "link", "key": "lahom/synth-sit", "target_key": "common/synth-door"}
     with agent_judge():
         code, make = photo_learning._filer(db_session, idea, key="lahom/synth-unused", reason="합성", evidence=EVIDENCE,
                                            now=NOW.replace(tzinfo=datetime.timezone.utc), known="", agent_name=AGENT)
         change = make()
-    assert AUTO_LINK_KINDS == frozenset({"applies_to"})
+    assert AUTO_LINK_KINDS == frozenset({"applies_to", "at_step", "uses", "refines"})
+    assert not AUTO_LINK_KINDS & {"value_from", "copy_in", "quantity_from", "requires", "excludes", "supersedes"}
     assert code is None and change.link_kind in AUTO_LINK_KINDS
     apply_change(db_session, change.id, actor=None, now=NOW, auto=AutoLearn(ends.id))
     assert current_link(db_session, "applies_to", "lahom/synth-sit", "common/synth-door") is not None
