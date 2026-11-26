@@ -34,7 +34,7 @@ CORE_MEDIA_QUERY = (
 )
 # ADMIN-OVERRIDE-01: tablet-domain-sheets.js 에 관리자 강제 진행 재시도가 들어가
 # 자산 핀을 올렸다. 핀 고정 계약은 새 핀을 따라간다(안 바꾼 자산의 핀은 안 올린다).
-SCRIPT_CACHEBUSTER = "?v=20261126c"  # 11-26: 큰 단추 기본 창 글을 생산 단추 글에 맞춤(제작을 시작할까요? 등)
+SCRIPT_CACHEBUSTER = "?v=20261127a"  # 11-27: 작업 시트 · 생산 첫 화면 단추는 앱 창(사장님 "앱 창으로 바꾸기"), 그 밖은 기본 창 그대로
 
 
 def _read(rel: str) -> str:
