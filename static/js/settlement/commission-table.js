@@ -102,19 +102,24 @@
     var cust = td('');
     cust.appendChild(orderLink(row.order_id, row.customer_name));
     tr.appendChild(cust);
-    var product = td('s-cm-product', row.product_summary || '—');
-    if (row.product_summary) product.title = row.product_summary;
+    var product = td('s-cm-product');
+    var productText = C.el('span', 's-cm-product-text', row.product_summary || '—');
+    if (row.product_summary) productText.title = row.product_summary;
+    product.appendChild(productText);
+    var drawingBtn = C.peekButton ? C.peekButton(row) : null;   // 확정 도면이 있는 줄만 [도면]
+    if (drawingBtn) product.appendChild(drawingBtn);
     tr.appendChild(product);
-    tr.appendChild(td('', C.DEAL_LABELS[row.deal_type] || ''));
+    if (String(ctx.state.peekId || '') === String(row.order_id)) tr.className = 's-cm-row--on';
+    tr.appendChild(td('s-cm-fold', C.DEAL_LABELS[row.deal_type] || ''));
     tr.appendChild(td('s-ops-num', C.won(row.shipping_price)));
 
-    var cost = td('s-ops-num');
+    var cost = td('s-ops-num s-cm-fold');
     cost.setAttribute('data-settlement-cm-cell', 'install_cost');
     if (editable) cost.appendChild(numberInput('install_cost', C.inputText(row, 'install_cost'), '시공비'));
     else cost.textContent = C.won(row.install_cost);
     tr.appendChild(cost);
 
-    var ded = td('s-ops-num');
+    var ded = td('s-ops-num s-cm-fold');
     if (editable) {
       var btn = C.el('button', 's-cm-ded-btn', C.won(row.deduction_total || 0));
       btn.type = 'button';
@@ -152,7 +157,8 @@
     var sum = summarize(ctx.state.rows);
     var tr = C.el('tr', '');
     var label = C.el('td', '', '합계');
-    label.colSpan = ctx.state.basis === 'completion' ? 8 : 9;
+    // 도면 판이 열리면 거래구분 · 시공비 · 차감 칸이 접힌다(.s-cm-fold) — 합계 칸이 밀리지 않게 그만큼 줄인다.
+    label.colSpan = (ctx.state.basis === 'completion' ? 8 : 9) - (ctx.state.peekId ? 3 : 0);
     var waits = ['WAIT_COST', 'WAIT_RATE', 'FORECAST']
       .filter(function (key) { return sum.counts[key] > 0; })
       .map(function (key) { return C.STATE_LABELS[key] + ' ' + sum.counts[key] + '건'; });
@@ -161,6 +167,7 @@
     tr.appendChild(td('s-ops-num', C.won(sum.total)));
     tr.appendChild(td(''));
     host.appendChild(tr);
+    if (C.peekSync) C.peekSync(ctx);   // 줄이 바뀌면 열린 도면 판의 숫자도 같이
   };
 
   C.renderNear = function (ctx, nearMisses) {
@@ -193,7 +200,11 @@
     var id = String(row.order_id);
     var rows = ctx.state.rows;
     for (var i = 0; i < rows.length; i += 1) {
-      if (String(rows[i].order_id) === id) { rows[i] = row; break; }
+      if (String(rows[i].order_id) === id) {
+        if (!row.drawings) row.drawings = rows[i].drawings;   // 저장 응답의 줄에는 도면 목록이 없다
+        rows[i] = row;
+        break;
+      }
     }
     var old = ctx.els.rows.querySelector('[data-settlement-cm-row="' + id + '"]');
     if (old) {

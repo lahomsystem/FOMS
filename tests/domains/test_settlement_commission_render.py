@@ -48,6 +48,7 @@ JS_ASSETS = (
     "js/settlement/commission-edit.js",
     "js/settlement/commission-deduct.js",
     "js/settlement/commission-close.js",
+    "js/settlement/commission-peek.js",
     "js/settlement/commission.js",
 )
 ALL_ASSETS = (CSS_ASSET,) + JS_ASSETS
@@ -90,6 +91,14 @@ PARTIAL_HOOKS = (
     "data-settlement-cm-close-waiting",
     "data-settlement-cm-close-msg",
     "data-settlement-cm-close-confirm",
+    # 2026-11-26 도면 판 · 거래구분 합계
+    "data-settlement-cm-mix",
+    "data-settlement-cm-split",
+    "data-settlement-cm-peek",
+    "data-settlement-cm-peek-paper",
+    "data-settlement-cm-peek-rate",
+    "data-settlement-cm-peek-big",
+    "data-settlement-cm-peek-next",
 )
 
 #: 표 머리 — 회계팀 엑셀과 같은 순서(설계서 §2.1-2).
@@ -167,7 +176,8 @@ def test_construction_date_column_only_for_measurement_basis(client, app):
     assert '<th scope="col" data-settlement-cm-construction-head hidden>시공일</th>' in pane
     table_js = (ROOT / "static/js/settlement/commission-table.js").read_text(encoding="utf-8")
     assert "if (!editable) tr.appendChild(td('', row.construction_date || '—'));" in table_js
-    assert "label.colSpan = ctx.state.basis === 'completion' ? 8 : 9;" in table_js
+    # 도면 판이 열리면 접힌 세 칸(거래구분 · 시공비 · 차감)만큼 합계 칸을 줄인다(2026-11-26).
+    assert "label.colSpan = (ctx.state.basis === 'completion' ? 8 : 9) - (ctx.state.peekId ? 3 : 0);" in table_js
     main_js = (ROOT / "static/js/settlement/commission.js").read_text(encoding="utf-8")
     assert "C.hide(ctx.els.constructionHead, s.basis !== 'measurement');" in main_js
 
@@ -346,3 +356,30 @@ def test_css_rules_stay_under_the_settlement_root():
 @pytest.mark.parametrize("rel", tuple(f"static/{a}" for a in JS_ASSETS))
 def test_js_files_stay_under_300_lines(rel):
     assert len(_read(rel).splitlines()) < 300, rel
+
+
+# ==========================================================================
+# 5 — 도면 판 · 거래구분 합계(2026-11-26)
+# ==========================================================================
+def test_peek_reuses_the_shared_viewer_and_the_single_save_path():
+    """큰 창은 공용 사진 보기 창이고, 판의 요율 칸은 표 칸에 값을 옮겨 change 만 일으킨다(저장 길 한 벌)."""
+    peek = _js("js/settlement/commission-peek.js")
+    assert "window.GlobalImageViewer" in peek and "viewer.open(viewerFiles(row), at)" in peek
+    assert "target.dispatchEvent(new Event('change', { bubbles: true }));" in peek
+    # 판의 칸은 자기 주문 번호를 든다 — 다음 주문으로 넘어간 뒤 늦게 온 change 가 새 주문에 저장되지 않게.
+    assert "C.rowOf(ctx, input.getAttribute('data-settlement-cm-peek-rate-input'))" in peek
+    assert "'PUT'" not in peek and "C.request(" not in peek
+    assert "row.state === 'DONE' ? Number(row.commission) || 0 : 0" in peek   # 합계 줄과 같은 규칙
+    table_js = _js("js/settlement/commission-table.js")
+    assert "if (!row.drawings) row.drawings = rows[i].drawings;" in table_js
+    main = _js("js/settlement/commission.js")
+    for needle in ("C.peek)", "C.bindPeek(ctx)", "C.peekClose(ctx)", "C.renderMix(ctx)"):
+        assert needle in main, needle
+
+
+def test_fold_columns_match_between_head_and_rows():
+    """판이 열리면 접는 칸 — 머리 3칸과 줄 3칸이 같은 class 를 쓴다(하나만 접히면 칸이 밀린다)."""
+    partial = _read(PARTIAL_TEMPLATE)
+    assert len(re.findall(r'<th[^>]*s-cm-fold', partial)) == 3
+    table_js = _js("js/settlement/commission-table.js")
+    assert len(re.findall(r"td\('[^']*s-cm-fold", table_js)) == 3
