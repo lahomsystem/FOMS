@@ -74,8 +74,8 @@ def test_owner_words_for_people_orders_dialogs_and_defect():
     assert START_NOTE == "이 주문 첫 도면이라 제작 시작도 같이 돼요."
     parts = _read(TPL / "partials" / "home_parts.html")
     assert "도면 나온 {{ pp.drawn_orders }}건" in parts and "파트 일이 끝난 주문" in parts and "집</small>" not in parts
-    for name in ("home_steps.html", "home_pc_steps.html"):
-        assert "도면 마감 지난 주문 <b>" in _read(TPL / "partials" / name), name
+    assert "도면 마감 지난 주문 <b>" in _read(TPL / "partials" / "home_pc_steps.html")  # 태블릿 안내 줄은 뺐다(11-26)
+    assert "fph-stepnote" not in _read(TPL / "partials" / "home_steps.html")
     modal = _read(JS / "foms-production-parts-modal.js")
     assert "p.closeText || '닫기';" in modal and "'이 주문 첫 도면이라 제작 시작도 같이 돼요.'" in modal
     assert "data-pp-modal-close>닫기</button>" in _read(TPL / "partials" / "home_parts_overlays.html")
