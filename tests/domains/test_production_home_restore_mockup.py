@@ -39,7 +39,7 @@ def _tabs(html: str) -> list[str]:
 
 
 def _parts_links(html: str) -> list[str]:
-    return re.findall(r'<a class="fph-pane__cards" data-foms-home-partslink href="([^"]+)">도면 카드로 보기<svg', html)
+    return re.findall(r'<a class="fph-pane__cards" data-foms-home-partslink href="([^"]+)">도면으로 보기<svg', html)
 
 
 def _rail(html: str) -> str:
@@ -59,7 +59,7 @@ def test_태블릿_위_탭은_넷이고_도면_카드_보드가_없다_파트_�
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     for url in (HOME, HOME + "?tab=steps", HOME + "?tab=changes", HOME + "?tab=all"):
         html = _get(client, url)
-        assert _tabs(html) == ["날짜", "내 공정", "바뀐 것", "찾기"], url
+        assert _tabs(html) == ["날짜", "남은 공정", "바뀐 것", "찾기"], url
         assert "data-foms-home-partstab" not in html and "data-foms-home-board" not in html and f'href="{BOARD}"' not in _nav(html)
     _login(client, _user("김재단", part="cut"))  # 파트 계정은 '내 공정' 이 원래 없다(D50) — 셋
     assert _tabs(_get(client, HOME)) == ["날짜", "바뀐 것", "찾기"]
@@ -159,7 +159,8 @@ def test_전체_화면_시트도_위_줄에_종(client, cohort):
 def test_종은_가로_태블릿에서_레일이_보일_때만() -> None:
     for path, ns in ((HOME_CSS, "foms-prod-home"), (SHEET_CSS, "foms-prod-page")):
         css = path.read_text(encoding="utf-8")
-        assert f".{ns}__btn.{ns}__bell {{ display: none; position: relative; width: 56px; padding: 0; }}" in css
+        shrink = " flex-shrink: 0;" if ns == "foms-prod-page" else ""  # 작업 시트 종은 긴 손님 이름에 안 눌린다(생산 비평 C13 — 20.8px)
+        assert f".{ns}__btn.{ns}__bell {{ display: none; position: relative; width: 56px; padding: 0;{shrink} }}" in css
         assert f".{ns}__bell-badge[hidden] {{ display: none; }}" in css
         show = f"body:has(.foms-tablet-rail) .{ns}__btn.{ns}__bell {{ display: inline-flex; }}"
         assert css.count(show) == 1 and show in _tablet_rules(css), path.name

@@ -34,9 +34,9 @@ def test_파트_계정_기다림_묶음은_카드_위_머리에_마감_칩에_�
     block = _parts_block(_first_pane(_get(client, HOME)))
     assert block.index('class="fph-pane__g pp-wait-g"') < block.index("data-pp-grid")
     head = block.split('class="fph-pane__g pp-wait-g"')[1].split("</h3>")[0]
-    assert '<small><span class="is-late">마감 ' in head and "지났어요</span> · 도면이 오면 카드로 나와요</small>" in head
+    assert '<small><span class="is-late">마감 ' in head and "지났어요</span> · 도면이 오면 여기 나와요</small>" in head
     assert f'<a class="fph-wi has-why pp-wait" href="/erp/production/sheet/{ids["wait"]}">' in block
-    assert '<span class="fph-wi__why"><b class="is-none">담당 없음</b></span>' in block
+    assert '<span class="fph-wi__why"><b class="is-none">도면 담당 없음</b></span>' in block
     assert block.count("data-pp-card ") == 5  # 카드는 그대로
 
 
@@ -83,7 +83,7 @@ def test_PC_장은_태블릿과_같은_순서_기다림_줄에_까닭_한_줄_�
 
 
 def test_7판_CSS_는_목업_덩이_그대로_글자는_배율을_따르고_무채색이_없다() -> None:
-    """§5 '꾸밈': 목업 '7판에서 더한 것' 덩이(색은 토큰) · 새 글자 calc(Npx * var(--foms-fs, 1)) · 상태 색 넷(늦음 · 빠듯 · 다 옴 · 여유)."""
+    """§5 '꾸밈': 목업 '7판에서 더한 것' 덩이(색은 토큰) · 새 글자 calc(Npx * var(--foms-fs, 1)) · 상태 색 넷(늦음 · 빠듯 · 다 내려옴 · 여유)."""
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     block = css.split("/* ── 7판: 도면 내려옴")[1].split("/* ── 내 공정: 곧 올 것")[0]
     for line in (".fph-sd__mid { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }",
@@ -135,7 +135,7 @@ def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지
     _add_order("CONFIRM", "옛날컨펌", -2)  # 시공일 지남 → 안 셈
     _add_order("DRAWING", "여유도면", 12)  # 마감 전 → 안 셈
     html = client.get(HOME + "?tab=steps").get_data(as_text=True)
-    assert "제작 대기 <b>0</b>건 · 도면 마감 지난 집 <b>1</b>건 · 검수까지 끝난 것 <b>0</b>건" in html
+    assert "제작 대기 <b>0</b>건 · 도면 마감 지난 주문 <b>1</b>건 · 검수까지 끝난 것 <b>0</b>건" in html
     edge = html.split('data-foms-home-stepq="edge"')[1].split('data-foms-home-stepq="assemble"')[0]
     row = edge.split(f'data-foms-home-qrow="{old.id}"')[1].split("</div>\n  ")[0]
     assert '<span class="fph-qr__due is-past">시공<b>' in row and "<small>3일 지남</small></span>" in row
@@ -143,7 +143,7 @@ def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지
     assert 'class="fph-qr__due">시공<b>' in cut and "is-past" not in cut.split("fph-q__nextlist")[0]
     # PC 안내 글도 같은 셈
     set_cookies(client, PC)
-    assert "도면 마감 지난 집 <b>1</b>건" in get_html(client, HOME + "?tab=steps")
+    assert "도면 마감 지난 주문 <b>1</b>건" in get_html(client, HOME + "?tab=steps")
 
 
 def test_바뀐_것은_컨펌_단계_시공일_변경을_안_치고_생산_진입_뒤만_친다(client) -> None:
@@ -194,7 +194,7 @@ def test_찾기_묶음_머리_도면_글_순서_기다림_줄_까닭(client, coh
     assert '<span class="fph-dwst is-late">도면 2/3 마감 지남</span>' in grp.split("</button>")[0]
     assert grp.index(f"/sheet/{wait.id}") < grp.index(f"/sheet/{made.id}") < grp.index(f"/sheet/{done.id}")
     job = grp.split(f"/sheet/{wait.id}")[1].split("</a>")[0]
-    assert '<span class="foms-prod-home__pr is-why"><b class="is-none">담당 없음</b> · <span>영업 박가짜</span></span>' in job
+    assert '<span class="foms-prod-home__pr is-why"><b class="is-none">도면 담당 없음</b> · <span>영업 박가짜</span></span>' in job
     assert "다도면 사는 곳" in job.split('data-q="')[1].split('"')[0]  # 주소로 찾기는 그대로
     made_job = grp.split(f"/sheet/{made.id}")[1].split("</a>")[0]
     assert "나생산 사는 곳" in made_job and "is-why" not in made_job  # 내려온 줄은 주소 그대로
@@ -241,7 +241,7 @@ def test_작업_시트_안_내려온_주문은_도면_칸에_까닭_담당_마�
     assert "<span>영업 확인 기다림 · 도면 장가짜 · 영업 이가짜</span><span>마감 " in band  # 여유 = 색 없음
     assert "data-foms-sheet-dwg-main" in body  # 그림은 그대로
     body = client.get(f"/erp/production/sheet/{nobody}").get_data(as_text=True)
-    assert '<span><em class="is-none">담당 없음</em> · 영업 이가짜</span>' in body
+    assert '<span><em class="is-none">도면 담당 없음</em> · 영업 이가짜</span>' in body
     body = client.get(f"/erp/production/sheet/{made}").get_data(as_text=True)
     assert "data-foms-sheet-dwwait" not in body and "도면 전달본이 아직 없어요." in body
     # PC 시트도 같은 템플릿
@@ -296,7 +296,6 @@ def test_도면_마감_색_넷은_짝마다_정상_10_색약_6_이상이고_글_
 
     home = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     sheet = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
-    parts = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
     assert {k: _css_token(home, k) for k in DEADLINE_TOKENS} == DEADLINE_TOKENS
     assert {k: _css_token(sheet, k) for k in DARK_TOKENS} == DARK_TOKENS
     colors = {k: hex_rgb(v) for k, v in DEADLINE_TOKENS.items()}
@@ -306,7 +305,7 @@ def test_도면_마감_색_넷은_짝마다_정상_10_색약_6_이상이고_글_
     # 글이 놓이는 바탕: 띠 흰 · 고른 띠 줄 · 장 · 찾기 바탕(넷 다). 칩(여러 날 장의 '마감 M/D' — 기다림 칸 · 파트 기다림 칩)은
     # 주문 하나의 상태(늦음 · 빠듯 · 여유)만 놓인다 — '다 옴' 은 줄 · 묶음 글에만 있다.
     wide = [_css_token(home, k) for k in ("--fph-surface", "--fph-brand-50", "--fph-bg")]
-    chips = [_css_token(home, "--fph-raised"), _css_token(parts, "--fph-wait-50")]
+    chips = [_css_token(home, "--fph-raised"), _css_token(home, "--fph-wait-50")]  # 기다림 토큰은 home.css(생산 비평 C16 — 날짜 장 기다림 칸도 연두)
     for name, rgb in colors.items():
         for back in wide + (chips if name != "--fph-dw-ok" else []):
             assert contrast_ratio(rgb, hex_rgb(back)) >= 4.5, (name, back)

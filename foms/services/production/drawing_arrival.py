@@ -35,7 +35,7 @@ _URGENCY = {LATE: 0, SOON: 1, CALM: 2}
 BLOCKER_LABELS: dict[str, str] = {
     'sales_check': '영업 확인 기다림',
     'customer': '고객 컨펌 기다림',
-    'no_owner': '담당 없음',
+    'no_owner': '도면 담당 없음',
     'fixing': '도면 고치는 중',
     'drawing': '도면 그리는 중',
 }
@@ -243,7 +243,7 @@ def arrival_line(rows: list[dict[str, Any]], today: datetime.date) -> dict[str, 
         today: KST 오늘.
 
     Returns:
-        ``{'x', 'n', 'state', 'strip', 'pane'}`` — ``strip`` = '도면 5/6 마감 지남' · '도면 3/7 마감 내일' · '도면 5/5 다 옴' ·
+        ``{'x', 'n', 'state', 'strip', 'pane'}`` — ``strip`` = '도면 5/6 마감 지남' · '도면 3/7 마감 내일' · '도면 5/5 다 내려옴' ·
         '도면 0/4', ``pane`` = '도면 5/6 내려옴'. 여러 날을 담은 줄은 주문마다 상태를 매겨 가장 급한 것(§4-3).
     """
     total = len(rows)
@@ -252,7 +252,7 @@ def arrival_line(rows: list[dict[str, Any]], today: datetime.date) -> dict[str, 
     waiting = [_wait_state(r, today) for r in rows if r.get('home_view') == 'wait']
     arrived = total - len(waiting)
     if not waiting:
-        state, suffix = ALL_IN, ' 다 옴'
+        state, suffix = ALL_IN, ' 다 내려옴'  # 장 제목 '내려옴'과 같은 말(사장님 2026-11-26)
     else:
         state = min((s for s, _d in waiting), key=lambda s: _URGENCY.get(s, 2))
         suffix = {LATE: ' 마감 지남', CALM: ''}.get(state, '')

@@ -82,6 +82,7 @@ from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras  # noqa: F401  # complete_block_body = 판정 한 곳 재노출(위치 고정 시험)
 from foms.services.production.complete_order import clear_factory_marks, complete_production, reopen_after_uncomplete
 from foms.services.production.factory_home import factory_step_fields
+from foms.services.production.factory_scope import order_factory_gate, steps_factory_note
 from foms.services.production.order_write_helpers import (  # noqa: F401  # 옮긴 조각 — 옛 이름 그대로 다시 내보냄(시험 · 다른 생산 API)
     PRODUCTION_HOLD_HISTORY_CAP as _PRODUCTION_HOLD_HISTORY_CAP,
     _append_hold_history,
@@ -1112,7 +1113,9 @@ def api_production_steps_get(order_id: int):
     defects = production.get("defects") if isinstance(production.get("defects"), list) else []
     latest_defect = defects[-1] if defects else None
     # 파트 계정은 도면 카드에서만 · 파트도 반장도 아닌 생산팀은 못 체크(설계서 §15.4 · '승인 때 고친 것' 5) — 바텀시트가 읽기 전용으로 그린다.
+    # 반장에게 장이 모두 남의 공장인 주문도(비평 C02 — POST 403 OTHER_FACTORY 와 같은 판정, 글 = 남의 공장 카드 글).
     lock = steps_lock(getattr(g, "current_user", None))
+    note = lock.message if lock else steps_factory_note(getattr(g, "current_user", None), sd)
     marks = order_marks(db, order_id)  # 카드를 쓴 주문의 완료 판정 · 파트 진행(§4-3, +1)
     return jsonify(
         {
@@ -1124,8 +1127,8 @@ def api_production_steps_get(order_id: int):
                 # [제작 완료] 를 누를 수 있는지 — 제작 완료 API 와 같은 한 함수(검수까지 끝남)
                 "complete_ready": complete_ready(sd, marks),
                 "latest_defect": latest_defect,
-                "locked": lock is not None,
-                "locked_note": lock.message if lock else None,
+                "locked": note is not None,
+                "locked_note": note,
                 **step_api_extras(sd, marks),  # sheets(손 체크 확인 창 장 수) · parts(카드 3/5)
                 **factory_step_fields(sd, marks),  # 섞인 주문만 공장마다 준비 · 까닭(2공장 §4-14)
                 **confirm_extras(sd),  # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4)
@@ -1169,7 +1172,8 @@ def api_production_steps(order_id: int):
             o = orders[0]
             sd = copy.deepcopy(_ensure_dict(o.structured_data))
             marks = order_marks(sess, o.id)  # 잠금 아래 — 카드를 쓴 파트는 카드가 기준(§4-2 B5′, +1)
-            gate = step_cell_gate(sd, marks, key, done)
+            # 장이 모두 남의 공장인 주문 = 도면 칸과 같은 403(비평 C02 — 반장도 자기 공장만, 섞인 주문은 지금 규칙 · 판결 A)
+            gate = order_factory_gate(user, sd) or step_cell_gate(sd, marks, key, done)
             if gate is not None:
                 raise GateRefusal(gate)  # 쓰기 · 이벤트 없음(부르는 쪽이 되감는다)
             name = user.name if user else None
@@ -1208,7 +1212,7 @@ def api_production_steps(order_id: int):
         except RevisionError as exc:
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
-        except GateRefusal as refusal:  # PART_USES_CARDS(+left) · STEP_SET_BY_CARDS
+        except GateRefusal as refusal:  # OTHER_FACTORY(403) · PART_USES_CARDS(+left) · STEP_SET_BY_CARDS
             db.rollback()
             return jsonify(refusal.gate.body()), refusal.gate.status
 

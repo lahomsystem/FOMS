@@ -7,10 +7,10 @@
   --fpc-brand-dark: #4a55b8;
   --fpc-brand-50: #f3f4ff;
   --fpc-line: #dde1e6;
-  --fpc-line2: #c1c7d0;
+  --fpc-line2: #7f8794; /* 빈 공정 칸 · 보조 단추 테두리 3 이상 · 흐린 글 4.5 이상(비평 C12 — 태블릿 --fph-* 와 같은 값) */
   --fpc-text: #14171c;
   --fpc-text2: #4b525d;
-  --fpc-text3: #6b7380;
+  --fpc-text3: #626a76;
   --fpc-danger: #dc2626;
   --fpc-danger-ink: #b91c1c;
   --fpc-danger-50: #fef2f2;
@@ -27,6 +27,9 @@
   --fpc-hold: #be185d;
   --fpc-hold-50: #fdf2f8;
   --fpc-hold-line: #f472b6;
+  --fpc-pre-50: #fef08a; /* 남은 장이 있어 지금 못 누름(도면 판 '엣지 · 조립 미완료' 칸 — 태블릿 --fph-pre-* 와 같은 값) */
+  --fpc-pre-300: #eab308;
+  --fpc-pre-700: #713f12;
   --fpc-tip: #1f2329;
   --fpc-old-700: #9a3412; /* 밤 넘긴 담당 이름(태블릿 --fph-old-700 과 같은 값, 설계서 2026-11-23 §4-9) */
   /* 도면 목록 창 상태 칸(2026-11-24) — 도면 판(parts.css)의 상태 색과 같은 값, 자기 접두사(PC 는 parts.css 를 싣지 않는다) */
@@ -141,6 +144,12 @@
 .fpc-done:disabled { opacity: .6; cursor: wait; }
 .fpc-hold { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 4px 12px; border: 2px solid #f9a8d4; border-radius: 10px; background: #fff; color: var(--fpc-hold); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; }
 .fpc-prev .fpc-hold { display: flex; width: fit-content; min-height: 0; margin-top: 4px; padding: 2px 10px; font-size: calc(14px * var(--foms-fs, 1)); }
+/* [끝] 자리 막힘 둘(비평 갈래 가 C02 · C03) — 분홍 보류 테두리는 보류 · 도면 고치는 중에만. 크기 · 글자는 그대로, 색 · 밑줄만(태블릿과 같은 뜻):
+   도면 칸을 쓴 주문 = 도면 판 '엣지 · 조립 미완료' 노랑(누르면 그 주문 도면 판), 장이 모두 남의 공장 = 흰 바탕 · 회색 테두리 · 공장 칩 */
+.fpc-hold.is-cards { border-color: var(--fpc-pre-300); background: var(--fpc-pre-50); color: var(--fpc-pre-700); text-decoration: none; }
+.fpc-hold.is-cards:hover, .fpc-hold.is-cards:focus { color: var(--fpc-pre-700); text-decoration: none; }
+.fpc-hold.is-cards:focus-visible { outline: 3px solid var(--fpc-brand); outline-offset: 2px; }
+.fpc-hold.is-elsewhere { border-color: var(--fpc-line2); color: var(--fpc-text); }
 .fpc-qs > .fph-q__next { margin-bottom: 8px; }
 
 /* ── 마우스 올리기(§6-5) — CSS 만(JS 없음). 칸은 tabindex · aria-label 같은 글이라 키보드로도 뜬다 ── */

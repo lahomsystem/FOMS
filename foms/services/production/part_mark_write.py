@@ -38,16 +38,18 @@ from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import is_part_admin
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PART,
-    MARK_STATE_BASIC,
     MARK_STATE_DONE,
     MARK_STATE_NONE,
     PART_INSPECT,
     PRODUCTION_PART_LABELS,
 )
+from foms.services.production.part_mark_decide import decide_mark
 from foms.services.production.part_mark_gates import Gate, hand_step_gate, inspect_gate, order_gate
+from foms.services.production.part_mark_notes import actor_name, event_payload, mark_note
 from foms.services.production.part_mark_rules import (
     ACTION_BASIC,
-    ACTION_RELEASE,
+    ACTION_CHECK,
+    ACTION_JOIN,
     ACTION_TAKE,
     ACTION_TAKEOVER,
     DECISION_APPLY,
@@ -56,10 +58,12 @@ from foms.services.production.part_mark_rules import (
     DECISION_INVALID,
     DECISION_SAME,
     SEEN_BY_UNSET,
+    TARGET_GONE,
+    MarkDecision,
     MarkSnapshot,
-    decide_mark,
     mark_payload,
     next_mark_values,
+    target_gone_message,
 )
 from foms.services.production.part_marks_query import order_marks, orders_with_current_run
 from foms.services.production.part_progress import complete_state
@@ -79,15 +83,15 @@ from foms.services.production.start_run import (
     started_event_values,
 )
 from foms.services.production.write_access import can_write_production
-from models import Order, OrderEvent, ProductionPartMark, ProductionRun, SecurityLog
+from models import Order, OrderEvent, ProductionPartMark, ProductionRun, SecurityLog, User
 
 PART_MARK_EVENT = "PRODUCTION_PART_MARKED"
 #: 공정 칸 동기화의 정책 id — 지금 공정 API(``POST …/production/steps``)와 같다(설계서 §15.5).
 STEP_SYNC_POLICY_ID = "PRODUCTION_STEP_CHECK"
-#: 첫 카드로 제작이 시작되는 누름(§4-8 — 맡기 · 기본 · 담당 바꾸기 · 일괄 기본).
-STARTING_ACTIONS: tuple[str, ...] = (ACTION_TAKE, ACTION_BASIC, ACTION_TAKEOVER)
-NOT_CURRENT_MESSAGE = "도면이 바뀌었어요. 다시 받아 주세요."
-NOT_IN_PRODUCTION_MESSAGE = "생산 단계 주문이 아니에요. 다시 받아 주세요."
+#: 첫 카드로 제작이 시작되는 누름(§4-8 — 작업 시작 · 기본 · 담당 바꾸기 · 일괄 기본 + 같이 작업 · PC [완료 처리], multi-holder §5).
+STARTING_ACTIONS: tuple[str, ...] = (ACTION_TAKE, ACTION_BASIC, ACTION_TAKEOVER, ACTION_JOIN, ACTION_CHECK)
+NOT_CURRENT_MESSAGE = "도면이 바뀌었어요. [다시 받기]를 눌러 주세요."
+NOT_IN_PRODUCTION_MESSAGE = "생산 단계 주문이 아니에요. [다시 받기]를 눌러 주세요."
 NOT_FOUND_MESSAGE = "주문을 찾을 수 없어요."
 
 
@@ -106,7 +110,7 @@ class MarkRefusal(Exception):
 
 @dataclass(frozen=True)
 class MarkRequest:
-    """한 장 누름 — 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당(안 보냈으면 :data:`SEEN_BY_UNSET`)."""
+    """한 장 누름 — 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당(안 보냈으면 :data:`SEEN_BY_UNSET`) · 본 내 몫 · 대상."""
 
     order_id: int
     key: str
@@ -114,6 +118,8 @@ class MarkRequest:
     action: str
     seen: str
     seen_by: Any = SEEN_BY_UNSET
+    seen_me: Optional[str] = None
+    target_uid: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -148,43 +154,19 @@ def current_entry(order: Order, key: str) -> dict[str, Any]:
     return entry
 
 
-def _state_words(part: str, state: str) -> str:
-    """감사 글의 상태 낱말 — 안 봄(재단) · 안 고름 · 작업 필요 · 기본 · <파트> 끝(지금 글 그대로)."""
-    label = PRODUCTION_PART_LABELS.get(part, part)
-    return {"NEED": "작업 필요", "BASIC": "기본", "DONE": f"{label} 끝"}.get(
-        state, "안 봄" if part == BASIC_ALLOWED_PART else "안 고름")
-
-
-def actor_name(user: Any) -> Optional[str]:
-    """이름 스냅샷(표시 줄 · 이벤트 ``by_name`` — 사용자가 지워져도 남는다)."""
-    return getattr(user, "name", None) or getattr(user, "username", None)
-
-
-def _event_payload(entry: dict[str, Any], before: MarkSnapshot, *, part: str, target: str, user: Any, action: str,
-                   override: bool) -> dict[str, Any]:
-    """이벤트 payload — 지금 칸(key · part · from · to · action · override · sheet_id) + 3판 칸(§4-11)."""
-    payload: dict[str, Any] = {"key": entry["key"], "part": part, "from": before.state, "to": target, "action": action,
-                               "override": override, "sheet_id": entry.get("sheet_id"), "domain": "PRODUCTION_DOMAIN",
-                               "by_name": actor_name(user)}
-    if action == ACTION_TAKEOVER:
-        payload.update(from_user_id=before.picked_by_user_id, from_name=before.picked_by_name)
-    if override:  # 관리자가 남의 장을 완료 · 맡기 취소 · 되돌리기 — 그 전 담당(되돌리기는 끝낸 사람)
-        finished = before.state in (MARK_STATE_DONE, MARK_STATE_BASIC)
-        payload["holder_name"] = before.done_by_name if finished else before.picked_by_name
-    return payload
-
-
 def plan_write(order: Order, entry: dict[str, Any], row: Optional[ProductionPartMark], *, part: str, target: str,
-               user: Any, action: str, override: bool) -> MarkWrite:
-    """표시 한 장의 새 값과 이벤트 ``PRODUCTION_PART_MARKED`` 를 만든다(쓰지는 않는다)."""
-    now = now_utc_naive()
+               user: Any, action: str, override: bool, decision: Optional[MarkDecision] = None,
+               now: Optional[datetime.datetime] = None) -> MarkWrite:
+    """표시 한 장의 새 값과 이벤트 ``PRODUCTION_PART_MARKED`` 를 만든다(쓰지는 않는다). ``decision`` = 판정의 새 목록 · 대상
+    (없으면 풀어 쓰기 · 일괄 기본 — :func:`~foms.services.production.part_mark_rules.default_crew`)."""
+    now = now or now_utc_naive()
     before = MarkSnapshot.from_row(row)
     values = next_mark_values(row, order_id=int(order.id), drawing_key=entry["key"], part=part,
                               sheet_id=entry.get("sheet_id"), target=target, actor_id=user.id,
-                              actor_name=actor_name(user), now=now, action=action)
+                              actor_name=actor_name(user), now=now, action=action, decision=decision)
     event = {"order_id": int(order.id), "event_type": PART_MARK_EVENT, "created_by_user_id": user.id, "created_at": now,
-             "payload": _event_payload(entry, before, part=part, target=target, user=user, action=action,
-                                       override=override)}
+             "payload": event_payload(entry, before, part=part, target=target, user=user, action=action,
+                                      override=override, decision=decision, crew_after=values["holders"])}
     return MarkWrite(row.id if row is not None else None, values, event, before)
 
 
@@ -343,45 +325,51 @@ def _factory_ready(order: Order, entry: dict[str, Any], views: list[Any], user: 
                          stage=read_main_stage(order), hold=_factory_complete_blocked(sd, entry))  # 보류 · 도면 고치는 중이면 묻지 않는다
 
 
-def _note(req: MarkRequest, write: MarkWrite, target: str, override: bool, user: Any = None) -> str:
-    """감사 글 — 지금 누름은 지금 글 그대로, 새 누름(맡기 취소 · 담당 바꾸기)은 새 글. 덮어쓰기 꼬리는 관리자 "(관리자 덮어쓰기)",
+def _note(req: MarkRequest, write: MarkWrite, decision: MarkDecision, user: Any) -> str:
+    """감사 글(:func:`~foms.services.production.part_mark_notes.mark_note`) — 덮어쓰기 꼬리는 관리자 "(관리자 덮어쓰기)",
     대신(반장, 2026-11-23 §4-12 · 승인 때 고친 것 5)은 "(대신 처리)"."""
-    label = PRODUCTION_PART_LABELS[req.part]
-    if req.action == ACTION_TAKEOVER:
-        return f"{label} 담당 바꿈 ({write.before.picked_by_name or '담당 없음'} → {write.values['picked_by_name']})"
-    if req.action == ACTION_RELEASE:
-        note = f"{label} 맡기 취소 ({write.before.picked_by_name or '담당 없음'})"
-    else:
-        note = f"{label} {_state_words(req.part, write.before.state)} → {_state_words(req.part, target)}"
-    if not override:
-        return note
-    return note + (" (관리자 덮어쓰기)" if is_part_admin(user) else " (대신 처리)")
+    return mark_note(req.part, decision.action or req.action, write.before, decision.target, write.values["holders"],
+                     user=user, override=decision.override, admin_tail=is_part_admin(user), decision=decision)
 
 
-def _decide(req: MarkRequest, order: Order, entry: dict[str, Any], rows: list[Any], row: Any, user: Any,
-            admin: bool) -> Any:
-    """전이 표 + 막는 까닭(§4-6) — apply · same(멱등) 결정을 돌려주고, 막히면 :class:`MarkRefusal` 로 거절한다.
+def _refusal(db: Any, decision: MarkDecision, server_mark: dict[str, Any]) -> MarkRefusal:
+    """판정 거절 → 응답 거절. 고른 사람이 빠졌으면(``TARGET_GONE``) 그 이름을 사용자 표에서 한 번 읽는다(거절 길만 +1)."""
+    if decision.kind == DECISION_CONFLICT:
+        return MarkRefusal(409, "MARK_CONFLICT", decision.message, server_mark)
+    if decision.kind == DECISION_FORBIDDEN:
+        return MarkRefusal(403, decision.code, decision.message)
+    message = decision.message
+    if decision.code == TARGET_GONE and decision.target_uid is not None:
+        gone = db.get(User, decision.target_uid)
+        message = target_gone_message(actor_name(gone) or "") if gone is not None else message
+    return MarkRefusal(decision.status, decision.code, message, server_mark)
 
-    순서: 잘못된 짝(400) → 멱등(막힘 안 봄) → 남의 공장 장(403 ``OTHER_FACTORY``, 3단계 C6) → 보류 · 도면 고치는 중 · 손 체크
-    칸(409) → 경합(409) · 남의 장 맡기 취소(403) → 검수 순서(409). 경합 · 막힘 응답에는 서버의 지금 표시(``mark``)를 싣는다.
+
+def _decide(db: Any, req: MarkRequest, order: Order, entry: dict[str, Any], rows: list[Any], row: Any, user: Any,
+            admin: bool, now: datetime.datetime) -> MarkDecision:
+    """전이 표 + 막는 까닭(§4-6 · multi-holder §7-3) — apply · same(멱등) 결정을 돌려주고, 막히면 :class:`MarkRefusal` 로 거절한다.
+
+    순서: 잘못된 짝(400) → 멱등(막힘 안 봄) → 넘김(take → join · join → take) → 남의 공장 장(403 ``OTHER_FACTORY``) → 보류 ·
+    도면 고치는 중 · 손 체크 칸(409) → 경합(409, ``JOIN_DONE`` · ``TARGET_GONE``) · 권한(403) · 새 거절 → 검수 순서(409).
+    막는 까닭은 넘김 뒤 누름으로 본다(넘어온 join 도 take 와 같은 막힘). 경합 · 막힘 응답에는 서버의 지금 표시(``mark``)를 싣는다.
     """
     sd = order.structured_data
     decision = decide_mark(MarkSnapshot.from_row(row), action=req.action, seen=req.seen, actor_id=user.id, admin=admin,
-                           seen_by=req.seen_by)
+                           seen_by=req.seen_by, seen_me=req.seen_me, target_uid=req.target_uid,
+                           actor_name=actor_name(user), now=now, label=PRODUCTION_PART_LABELS[req.part])
     if decision.kind == DECISION_INVALID:
         raise MarkRefusal(400, "BAD_REQUEST", decision.message)
     if decision.kind == DECISION_SAME:
         return decision  # 같은 사람 · 같은 결과(멱등) — 막힘을 보지 않고 그대로 성공
+    action = decision.action or req.action
     server_mark = {"mark": mark_body(row, req.order_id, req.key, req.part)}
-    gate = (factory_gate(user, sd, entry, action=req.action, row=row) or order_gate(sd, req.action, entry)
+    gate = (factory_gate(user, sd, entry, action=action, row=row) or order_gate(sd, action, entry)
             or hand_step_gate(sd, rows, req.part))
     if gate is not None:
         raise MarkRefusal.from_gate(gate, server_mark)
-    if decision.kind == DECISION_CONFLICT:
-        raise MarkRefusal(409, "MARK_CONFLICT", decision.message, server_mark)
-    if decision.kind == DECISION_FORBIDDEN:
-        raise MarkRefusal(403, "RELEASE_NOT_HOLDER", decision.message)
-    gate = inspect_gate(sd, rows, req.key, req.part, req.action, undo_basic=req.seen == "basic")
+    if decision.kind != DECISION_APPLY:
+        raise _refusal(db, decision, server_mark)
+    gate = inspect_gate(sd, rows, req.key, req.part, action, undo_basic=req.seen == "basic")
     if gate is not None:
         raise MarkRefusal.from_gate(gate, server_mark)
     return decision
@@ -391,35 +379,39 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     """잠금 → 주문 · 도면 검사 → 전이 표 · 막는 까닭 → 쓰기 → 주문 쓰기 → 감사. 커밋 전 응답 자료를 돌려준다.
 
     Returns:
-        ``{mark, order_step, changed, run_started, order_ready, factory_ready}`` — 바뀐 게 없으면(멱등) ``changed`` False.
-        섞인 주문(2공장)은 ``order_ready`` 대신 ``factory_ready``(그 장 공장의 마지막 검수 장일 때).
+        ``{mark, order_step, changed, run_started, order_ready, factory_ready, joined_late, notice, proxied}`` — 바뀐 게
+        없으면(멱등) ``changed`` False. 섞인 주문(2공장)은 ``order_ready`` 대신 ``factory_ready``(그 장 공장의 마지막 검수 장일 때 —
+        줄이 DONE 이 된 누름만, 검수 1/2 완료면 안 묻는다). ``joined_late`` · ``notice`` = 늦은 [작업 시작]이 같이 작업으로 넘어감(Q16
+        "{이름}이 먼저 시작했어요."), ``proxied`` = PC [완료 처리]가 대신 완료로 감(판결 2).
     """
     order = check_order(lock_order_row(db, req.order_id))
     entry = current_entry(order, req.key)
     rows = order_marks(db, req.order_id)  # 네 파트 한 번(검수 순서 · 손 체크 · 완료 물음 — 쿼리 수는 그대로 1)
     row = next((r for r in rows if r.drawing_key == req.key and r.part == req.part), None)
-    decision = _decide(req, order, entry, rows, row, user, admin)
+    now = now_utc_naive()
+    decision = _decide(db, req, order, entry, rows, row, user, admin, now)
+    extra = {"joined_late": decision.joined_late, "notice": decision.notice or None, "proxied": decision.proxied}
     if decision.kind != DECISION_APPLY:
         return {"mark": mark_body(row, req.order_id, req.key, req.part), "order_step": None, "changed": False,
                 "run_started": False, "order_ready": order_ready(order, rows, user, req, decision.target),
-                "factory_ready": _factory_ready(order, entry, rows, user, req, decision.target)}
-    write = plan_write(order, entry, row, part=req.part, target=decision.target, user=user, action=req.action,
-                       override=decision.override)
+                "factory_ready": _factory_ready(order, entry, rows, user, req, decision.target), **extra}
+    action = decision.action or req.action
+    write = plan_write(order, entry, row, part=req.part, target=decision.target, user=user, action=action,
+                       override=decision.override, decision=decision, now=now)
     flush_writes(db, [write])
     starting = set()
-    if req.action in STARTING_ACTIONS and decision.target != MARK_STATE_NONE:
+    if action in STARTING_ACTIONS and decision.target != MARK_STATE_NONE:
         starting = {req.order_id} - orders_with_current_run(db, [req.order_id])  # 잠금 아래 — 회차 찾기 +1
     views = after_views(rows, [write])
     steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting)
-    write_audit(db, user, _note(req, write, decision.target, decision.override, user) + step_note(steps)
-                + (" · 제작 시작" if started else ""),
-                {"key": req.key, "part": req.part, "action": req.action, "from": write.before.state,
+    write_audit(db, user, _note(req, write, decision, user) + step_note(steps) + (" · 제작 시작" if started else ""),
+                {"key": req.key, "part": req.part, "action": action, "from": write.before.state,
                  "to": decision.target, "override": decision.override, "order_steps": steps,
-                 "run_started": bool(started)}, order=order)
+                 "run_started": bool(started), "joined_late": decision.joined_late}, order=order)
     return {"mark": mark_body(write.view, req.order_id, req.key, req.part), "order_step": steps[0] if steps else None,
             "changed": True, "run_started": bool(started),
             "order_ready": order_ready(order, views.get(req.order_id, []), user, req, decision.target),
-            "factory_ready": _factory_ready(order, entry, views.get(req.order_id, []), user, req, decision.target)}
+            "factory_ready": _factory_ready(order, entry, views.get(req.order_id, []), user, req, decision.target), **extra}
 
 
 def lock_orders(db: Any, order_ids: list[int]) -> dict[int, Order]:
@@ -438,7 +430,8 @@ def _bulk_one(user: Any, admin: bool, order: Optional[Order], key: str, row: Any
     """
     order = check_order(order)
     entry = current_entry(order, key)
-    decision = decide_mark(MarkSnapshot.from_row(row), action=ACTION_BASIC, seen="none", actor_id=user.id, admin=admin)
+    decision = decide_mark(MarkSnapshot.from_row(row), action=ACTION_BASIC, seen="none", actor_id=user.id, admin=admin,
+                           actor_name=actor_name(user))
     if decision.kind not in (DECISION_APPLY, DECISION_CONFLICT):
         return None
     gate = (factory_gate(user, order.structured_data, entry, action=ACTION_BASIC)
@@ -449,7 +442,7 @@ def _bulk_one(user: Any, admin: bool, order: Optional[Order], key: str, row: Any
     if decision.kind == DECISION_CONFLICT:
         raise MarkRefusal(409, "MARK_CONFLICT", decision.message)
     return plan_write(order, entry, row, part=BASIC_ALLOWED_PART, target=decision.target, user=user,
-                      action=ACTION_BASIC, override=False)
+                      action=ACTION_BASIC, override=False, decision=decision)
 
 
 def bulk_basic(db: Any, user: Any, admin: bool, pairs: list[tuple[int, str]]) -> dict[str, Any]:

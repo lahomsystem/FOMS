@@ -4,13 +4,13 @@
  * (foms-production-home-steppane.js, 2026-11-22). 그 파일이 아직 없으면 줄 링크(?tab=steps&order=)가 그대로 그 줄 페이지를 연다.
  * 주소 · [다시 받기]는 고른 줄 링크의 href(?tab=steps&order=<id>, 서버 home_href 가 지은 것)로 맞춘다(replaceState). 공정 탭을 바꾸면
  * 그 탭의 고른 줄로, [보류]를 누르면 그 판의 줄로 맞춘다(보류 뒤 새로고침이 같은 줄로 돌아온다).
- * 큰 [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true} 한 번. 확정 도면이 있는 주문만 먼저 한 번 묻는다(사장님 2026-11-25
+ * 큰 [<공정> 완료](옛 [<공정> 끝]) = POST /api/orders/<id>/production/steps {key, done:true} 한 번. 확정 도면이 있는 주문만 먼저 한 번 묻는다(사장님 2026-11-25
  * "도면이 있는 주문만 한 번 묻기" — 작업 시트와 같은 창 · 글 · 판정 window.FomsSheetParts.beforeToggle, 자료 = 서버가 단추에 실은
  * data-foms-sheet-parts), 도면 없는 주문은 지금처럼 바로. [취소]면 POST 0 · 화면 그대로. 첫 누름부터 답이 올 때까지
  * 판 [끝]은 모두 잠그고, 저장되면 '끝내면 다음은' 줄 주소로 다시 받는다(셸이 있으면 셸 조각 교체). 새 화면이 뜬 뒤 GUARD_MS 동안은
  * 새 판 [끝]도 잠그고 그동안 또 누르면 다시 센다 — 두 번 누름 · 연타가 바뀐 화면의 다음 주문 [끝]에 떨어지지 않게(잠금은
  * aria-disabled + 흐림 — 진짜 disabled 는 누름을 삼켜 연장을 못 한다). 저장 뒤 UNDO_MS 동안 화면 상태 줄에
- * '<손님> <공정> 끝 — [되돌리기]'(48px 이상). [되돌리기] = 같은 공정 API {key, done:false}(공정 칸 끄기와 같은 길) → 그 주문 줄로 다시 받기.
+ * '<손님> <공정> 완료 — [되돌리기]'(48px 이상). [되돌리기] = 같은 공정 API {key, done:false}(공정 칸 끄기와 같은 길) → 그 주문 줄로 다시 받기.
  * 저장 · 되돌리기 실패는 판 · 상태 줄에 글(화면은 그대로). 되돌리기 상태는 셸 교체를 건너 window.__FOMS_PROD_STEPS_BOUND 에 둔다.
  * 그림을 누르면 전역 원본 뷰어(GlobalImageViewer)에 그림 원본 전부(작업 시트와 같은 목록). [불량] = foms-production-sheet-page.js,
  * [보류] = tablet-domain-sheets.js 몫(지금 작업 시트와 같은 길). 판이 안 보이면(태블릿을 세로로 돌림) 줄 이름은 지금처럼 작업 시트로 간다.
@@ -41,7 +41,7 @@
   // 카드를 쓴 파트의 [끝]은 서버가 남은 장을 세어 막는다(409 PART_USES_CARDS, 설계서 2026-11-23 §4-2) — 그 글은 서버 글 그대로
   function failText(result) {
     return !result || result.kind === 'network' || result.kind === 'timeout' || result.status === 0 ? OFFLINE_TEXT
-      : result.status === 409 && result.message ? result.message : ('오류: ' + (result.message || '처리하지 못했어요'));
+      : (result.message || '처리하지 못했어요'); // 서버 글 그대로('오류:' 머리 · 숫자 없음 — 사장님 2026-11-26)
   }
   var statusBox = root.querySelector('[data-foms-home-status]');
   function setStatus(text, bad) {
@@ -119,7 +119,7 @@
       return res.json().catch(function () { return null; }).then(function (data) {
         var ok = !!data && res.ok && data.success !== false;
         return { ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data || {},
-          message: (data && (data.error || data.message)) || ('HTTP ' + res.status) };
+          message: (data && (data.error || data.message)) || (res.status === 409 ? '다른 사람이 먼저 바꿨어요. [다시 받기]를 눌러 주세요.' : '') };
       });
     }).catch(function () { return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT }; });
   }
@@ -204,7 +204,7 @@
     statusBox.classList.add('is-undo');
     statusBox.classList.toggle('is-err', !!u.error);
     var msg = document.createElement('span');
-    msg.textContent = u.error || (u.name + ' ' + u.label + ' 끝');
+    msg.textContent = u.error || (u.name + ' ' + u.label + ' 완료'); // '{고객} 재단 완료'(옛 '끝' — 2026-11-25 multi-holder §8-3 지휘 판결)
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'foms-prod-home__undo';
@@ -267,7 +267,7 @@
       return; // [불량] · [보류] 는 작업 시트 JS · 도메인 시트 JS 몫
     }
     var row = t.closest('[data-foms-home-qrow]');
-    if (!row || t.closest('[data-foms-home-step-done]') || e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) { return; }
+    if (!row || t.closest('[data-foms-home-step-done], [data-foms-step-cards]') || e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) { return; } // 도면 판 링크(C03)는 링크 그대로
     var link = t.closest('[data-foms-step-sheet]');
     if (!panelShown(row.closest('[data-foms-home-stepq]'))) {
       // 판이 안 보이는 화면(세로로 돌림): 줄 이름은 지금처럼 작업 시트로

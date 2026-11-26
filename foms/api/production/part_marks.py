@@ -1,8 +1,11 @@
-"""생산 파트 표시 쓰기 API — 도면 카드의 맡기 · 기본 · 완료 · 되돌리기 · 맡기 취소 · 담당 바꾸기(설계서 §15.4 · 2026-11-23 §7).
+"""생산 파트 표시 쓰기 API — 도면 카드의 작업 시작 · 같이 작업 · 기본 · 완료 · 되돌리기 · 시작 취소 · 담당 바꾸기
+(설계서 §15.4 · 2026-11-23 §7 · 2026-11-25 multi-holder §7-1).
 
-* ``POST /api/production/part-marks`` — 한 장. 몸 ``{order_id, drawing_key, part, action, seen[, seen_by]}``.
-  ``action`` = take · basic · done · undo · release · takeover. ``seen_by`` = 화면이 본 담당 id(null = 담당 없음) —
-  담당 바꾸기는 꼭 보낸다, 그 밖은 보내면 담당까지 견준다.
+* ``POST /api/production/part-marks`` — 한 장. 몸 ``{order_id, drawing_key, part, action, seen[, seen_by][, seen_me]
+  [, target_user_id]}``. ``action`` = take · basic · done · undo · release · takeover · join · remove · check.
+  ``seen_by`` = 옛 화면이 본 담당 id(null = 담당 없음, 한 명일 때만 뜻) — 담당 바꾸기는 이것이나 ``target_user_id`` 를 꼭 보낸다.
+  ``seen_me`` = 새 화면이 본 내 몫(none · held · done — 안 보내면 견주지 않음), ``target_user_id`` = 바꾸기 · 시작 취소 대상.
+  ``check`` = PC [완료 처리](시작 + 완료를 한 요청 — 반장 · 관리자만, 판결 2).
 * ``POST /api/production/part-marks/basic`` — 재단 [남은 N장 모두 기본]. 몸 ``{part:'cut', seen:'none', items:[{order_id,
   drawing_key}…]}``(최대 200). **화면이 보낸 목록만** 바꾼다(서버가 '남은 전부'를 고르지 않는다) · 일부 성공.
 
@@ -23,8 +26,11 @@ from db import get_db
 from foms.services.orders.revision import RevisionError
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_SUB, part_account_parts, part_view_mode
 from foms.services.production.part_constants import BASIC_ALLOWED_PART, PRODUCTION_PART_KEYS
+from foms.services.production.mark_crew import SHARE_VALUES
+from foms.services.production.part_card_crew import attach_crew
 from foms.services.production.part_mark_rules import (
     ACTION_BASIC,
+    ACTION_CHECK,
     ACTION_TAKEOVER,
     MARK_ACTIONS,
     SEEN_BY_UNSET,
@@ -38,6 +44,8 @@ production_part_marks_bp = Blueprint("production_part_marks", __name__, url_pref
 #: 일괄 기본 한 번의 장 수 상한(화면 한 장 카드 캡과 같다).
 BULK_MAX_ITEMS = 200
 _SAVE_FAILED = "저장하지 못했어요. 잠시 뒤 다시 해 주세요."
+#: PC [완료 처리](``check``)는 감독 단추 — 반장 · 관리자만(판결 2, 지금 대신 처리 문과 같다).
+CHECK_FORBIDDEN_MESSAGE = "[완료 처리]는 반장이나 관리자만 할 수 있어요."
 
 
 def _ok(data: dict[str, Any]):
@@ -47,8 +55,20 @@ def _ok(data: dict[str, Any]):
 
 
 def _fail(refusal: MarkRefusal):
-    body = {"success": False, "data": {"code": refusal.code, **refusal.extra}, "error": refusal.message}
+    data = {"code": refusal.code, **refusal.extra}
+    attach_crew(data.get("mark"), getattr(g, "current_user", None))  # 진 경합 화면이 그 카드를 서버 모습으로(multi-holder M2)
+    body = {"success": False, "data": data, "error": refusal.message}
     return jsonify(body), refusal.status
+
+
+def _with_crew(data: dict[str, Any], user: Any) -> dict[str, Any]:
+    """응답 표시마다 누른 사람 몫 칸(``crew`` — 이름 줄 · 내 몫, :func:`~part_card_crew.crew_view`)을 붙인다(쿼리 0)."""
+    attach_crew(data.get("mark"), user)
+    for item in data.get("applied") or []:
+        attach_crew(item, user)
+    for item in data.get("skipped") or []:
+        attach_crew(item.get("mark"), user)
+    return data
 
 
 def _int_id(value: Any) -> int:
@@ -73,9 +93,9 @@ def _choice(value: Any, allowed: tuple[str, ...], label: str) -> str:
 
 
 def _seen_by(body: dict[str, Any], action: str) -> Any:
-    """``seen_by`` — 안 보냄(:data:`SEEN_BY_UNSET`) · null(담당 없음으로 봄) · 양의 정수. 담당 바꾸기는 꼭 보낸다."""
+    """``seen_by`` — 안 보냄(:data:`SEEN_BY_UNSET`) · null(담당 없음으로 봄) · 양의 정수. 담당 바꾸기는 이것이나 대상을 꼭 보낸다."""
     if "seen_by" not in body:
-        if action == ACTION_TAKEOVER:
+        if action == ACTION_TAKEOVER and body.get("target_user_id") is None:
             raise MarkRefusal(400, "BAD_REQUEST", "본 담당 값이 올바르지 않아요.")
         return SEEN_BY_UNSET
     value = body.get("seen_by")
@@ -83,6 +103,23 @@ def _seen_by(body: dict[str, Any], action: str) -> Any:
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise MarkRefusal(400, "BAD_REQUEST", "본 담당 값이 올바르지 않아요.")
+    return value
+
+
+def _seen_me(body: dict[str, Any]) -> Any:
+    """``seen_me`` — 안 보냄(None — 옛 화면, 견주지 않음) · none · held · done."""
+    if body.get("seen_me") is None:
+        return None
+    return _choice(body.get("seen_me"), SHARE_VALUES, "본 내 몫")
+
+
+def _target_uid(body: dict[str, Any]) -> Any:
+    """``target_user_id`` — 안 보냄(None) · 양의 정수(바꾸기 · 시작 취소 대상)."""
+    value = body.get("target_user_id")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise MarkRefusal(400, "BAD_REQUEST", "고른 사람 값이 올바르지 않아요.")
     return value
 
 
@@ -113,12 +150,13 @@ def _gate_part(user: Any, part: str) -> bool:
 
 
 def _parse_one(body: dict[str, Any]) -> MarkRequest:
-    """한 장 몸 → :class:`MarkRequest`(검사 순서는 지금 그대로: 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당)."""
+    """한 장 몸 → :class:`MarkRequest`(검사 순서: 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당 · 본 내 몫 · 대상)."""
     order_id, key = _int_id(body.get("order_id")), _drawing_key(body.get("drawing_key"))
     part = _choice(body.get("part"), PRODUCTION_PART_KEYS, "파트")
     action = _choice(body.get("action"), MARK_ACTIONS, "누름")
     seen = _choice(body.get("seen"), SEEN_VALUES, "본 상태")
-    return MarkRequest(order_id=order_id, key=key, part=part, action=action, seen=seen, seen_by=_seen_by(body, action))
+    return MarkRequest(order_id=order_id, key=key, part=part, action=action, seen=seen, seen_by=_seen_by(body, action),
+                       seen_me=_seen_me(body), target_uid=_target_uid(body))
 
 
 def _run(handler: Any) -> Any:
@@ -144,7 +182,8 @@ def _run(handler: Any) -> Any:
 
 @production_part_marks_bp.route("/part-marks", methods=["POST"])
 def api_part_mark():
-    """도면 한 장 · 내 파트 표시 하나를 바꾼다(맡기 · 기본 · 완료 · 되돌리기 · 맡기 취소 · 담당 바꾸기). 멱등 다시 보냄은 200."""
+    """도면 한 장 · 내 파트 표시 하나를 바꾼다(작업 시작 · 같이 작업 · 기본 · 완료 · 되돌리기 · 시작 취소 · 담당 바꾸기 ·
+    PC [완료 처리]). 멱등 다시 보냄은 200."""
 
     def _handle(db: Any) -> dict[str, Any]:
         user = _actor()
@@ -152,7 +191,9 @@ def api_part_mark():
         override = _gate_part(user, req.part)
         if req.action == ACTION_BASIC and req.part != BASIC_ALLOWED_PART:
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
-        return mark_one(db, user, override, req)
+        if req.action == ACTION_CHECK and not override:
+            raise MarkRefusal(403, "PART_FORBIDDEN", CHECK_FORBIDDEN_MESSAGE)
+        return _with_crew(mark_one(db, user, override, req), user)
 
     return _run(_handle)
 
@@ -186,6 +227,6 @@ def api_part_marks_basic():
         override = _gate_part(user, part)
         if part != BASIC_ALLOWED_PART:
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
-        return bulk_basic(db, user, override, pairs)
+        return _with_crew(bulk_basic(db, user, override, pairs), user)
 
     return _run(_handle)

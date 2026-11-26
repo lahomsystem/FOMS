@@ -153,7 +153,7 @@ def test_same_value_writes_nothing(client):
 
 @pytest.mark.parametrize(("state", "part", "message"), [
     ("DONE", "cut", "2공장으로 옮길 수 없어요 — 1공장에서 김재단이 재단을 이미 완료한 장이에요. 이미 완료한 장은 옮기지 않아요."),
-    ("NEED", "edge", "2공장으로 옮길 수 없어요 — 1공장 김재단이 엣지 담당이에요. 김재단에게 맡기 취소를 부탁한 뒤 다시 해 주세요."),
+    ("NEED", "edge", "2공장으로 옮길 수 없어요 — 1공장 김재단이 엣지 작업 중이에요. 김재단에게 시작 취소를 부탁한 뒤 다시 해 주세요."),
 ])
 def test_started_sheet_is_refused_and_nothing_changes_even_with_other_items(client, state, part, message):
     seed = _order()

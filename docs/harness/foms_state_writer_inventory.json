@@ -90,13 +90,6 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 771,
-      "axis": "MAIN",
-      "kind": "subscript_stage",
-      "owner": "STATE-PROD"
-    },
-    {
-      "path": "foms/api/production/orders.py",
       "lineno": 772,
       "axis": "MAIN",
       "kind": "subscript_stage",
@@ -104,7 +97,14 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 810,
+      "lineno": 773,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 811,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-PROD"
@@ -235,14 +235,6 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 771,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-PROD"
-    },
-    {
-      "path": "foms/api/production/orders.py",
       "lineno": 772,
       "kind": "subscript_stage",
       "axis": "MAIN",
@@ -251,7 +243,15 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 810,
+      "lineno": 773,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 811,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",

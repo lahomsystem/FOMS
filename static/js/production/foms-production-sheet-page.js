@@ -38,7 +38,7 @@
         }
         var ok = res.ok && data.success !== false;
         return { ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data,
-          message: (data && (data.error || data.message)) || ('HTTP ' + res.status) };
+          message: (data && (data.error || data.message)) || (res.status === 409 ? '다른 사람이 먼저 바꿨어요. [다시 받기]를 눌러 주세요.' : '') };
       });
     }).catch(function () {
       return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT };
@@ -46,7 +46,7 @@
   }
   function failText(result) {
     if (!result || result.kind === 'network' || result.status === 0) { return OFFLINE_TEXT; }
-    return '오류: ' + (result.message || '처리하지 못했어요');
+    return result.message || '처리하지 못했어요';
   }
 
   function initRoot(page) {
@@ -175,7 +175,7 @@
       if (btn.disabled) { return; }
       if (btn.getAttribute('aria-disabled') === 'true') { // 잠긴 칸(파트 계정) — 요청 없이 까닭만
         var note = page.querySelector('[data-foms-sheet-steps-locked]');
-        setStatus((note && String(note.textContent || '').trim()) || '공정은 도면 카드에서 작업해요', 'bad');
+        setStatus((note && String(note.textContent || '').trim()) || '공정은 도면에서 작업해요', 'bad');
         return;
       }
       var key = btn.getAttribute('data-foms-sheet-step');

@@ -120,7 +120,7 @@
       return res.json().catch(function () { return null; }).then(function (data) {
         var ok = !!data && res.ok && data.success !== false;
         return { ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data || {},
-          message: (data && (data.error || data.message)) || ('HTTP ' + res.status) };
+          message: (data && (data.error || data.message)) || (res.status === 409 ? '다른 사람이 먼저 바꿨어요. [다시 받기]를 눌러 주세요.' : '') };
       });
     }).catch(function () { return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT }; });
   }
@@ -159,7 +159,7 @@
       .then(function (result) {
         if (!result.ok) {
           btn.disabled = false;
-          setStatus(result.kind === 'network' || result.status === 0 ? OFFLINE_TEXT : ('오류: ' + (result.message || '처리하지 못했어요')), true);
+          setStatus(result.kind === 'network' || result.status === 0 ? OFFLINE_TEXT : (result.message || '처리하지 못했어요'), true);
           return;
         }
         var ex = ((result.data || {}).data || {}).expanded; // 막힌 도면을 빼고 처리됨(판결 B) — 알림 글 · 줄은 그 자리 그대로
@@ -223,13 +223,14 @@
   // ── 받은 시각 — 1분마다 "N분 전에 받음". 10분 넘으면 점이 노랗게. ──
   // 시각은 본문에 없다(셸 조각이 304 로 답하게, 11-22). 셸로 끼운 화면 = 셸이 #main-content 에 적은 때(그 본문을 받았거나
   // 서버가 '그대로'라고 확인한 때 — 복귀 재수혈 · 같은 탭 다시 받기가 304 면 새로 적고 foms:shell-fragment-checked 를 쏜다), 온전한 문서 = 문서를 연 때.
+  // 도면 카드 30초 받아 오기가 받을 때마다(foms:prod-parts-synced) 그때로 새로 한다(비평 C06 — 카드는 새로운데 '11분 전'으로 낡아 보이지 않게).
   var sync = root.querySelector('[data-foms-home-sync]');
   var syncAt = root.querySelector('[data-foms-home-sync-at]');
   var openedAt = (window.performance && window.performance.timeOrigin) || Date.now();
   function loadedAt() {
     var main = document.getElementById('main-content');
     var stamped = main && main.contains(root) ? Number(main.getAttribute('data-foms-shell-checked-at')) : 0;
-    return stamped > 0 ? stamped : openedAt;
+    return Math.max(stamped > 0 ? stamped : openedAt, G.syncedAt || 0);
   }
   function tick() {
     if (!sync || !document.contains(root)) { return; }
@@ -257,5 +258,6 @@
     window.addEventListener('offline', function () { G.api.online(); });
     window.setInterval(function () { G.api.tick(); }, 60000);
     document.addEventListener('foms:shell-fragment-checked', function () { G.api.tick(); });
+    document.addEventListener('foms:prod-parts-synced', function () { G.syncedAt = Date.now(); G.api.tick(); });
   }
 })();

@@ -7,16 +7,20 @@
   --fph-surface: #ffffff;
   --fph-raised: #f7f8fa;
   --fph-line: #dde1e6;
-  --fph-line2: #c1c7d0;
+  /* 읽기 기준(비평 C12, 2026-11-26) — 흐린 글은 회색 바탕 · 연남색 · 연빨강 바탕에서도 4.5 이상(#6b7380 은 회색 바탕 4.19),
+     빨강 글은 회색 바탕 4.5 이상(#dc2626 은 4.23 — 도면 마감 '늦음' 과 같은 값), 보조 단추 · 빈 공정 칸 테두리는 흰 · 회색 바탕에서
+     3 이상(#c1c7d0 은 흰 바탕 1.70). 값 · 대비는 시험이 못 박는다(test_production_crit_b_css.py). */
+  --fph-line2: #7f8794;
   --fph-text: #14171c;
   --fph-text2: #4b525d;
-  --fph-text3: #6b7380;
+  --fph-text3: #626a76;
   --fph-brand: #5a67d8;
   --fph-brand-dark: #4a55b8;
   --fph-brand-50: #f3f4ff;
-  --fph-danger: #dc2626;
+  --fph-danger: #b91c1c;
   --fph-danger-50: #fef2f2;
   --fph-warn: #d97706;
+  --fph-warn-50: #fffbeb;
   --fph-ok: #059669;
   /* 도면 마감 상태 색(설계서 2026-11-22-production-drawing-arrival-upgrade §4-3) — 늦음 · 빠듯 · 다 옴. 여유는 --fph-brand-dark.
      띠 · 장 제목 · 묶음 머리 · 찾기가 같이 쓴다(작업 시트는 어두운 도면 칸이라 sheet.css 에 밝은 짝).
@@ -32,6 +36,18 @@
   --fph-old-50: #ffedd5;
   --fph-old-300: #fdba74;
   --fph-old-700: #9a3412;
+  /* 같은 상태는 화면마다 한 색(비평 C16, 2026-11-26) — 보류 = 도면 칸 보류 칸(주황), 도면·컨펌 기다림 = 도면 판 기다림 칸(연두).
+     parts.css 에서 옮겨 왔다('내 공정' 보류 · 날짜 장 기다림 칸 · 띠 막대 '기다림' 조각이 같이 쓴다 — 첫 화면은 parts.css 를 늘 싣지 않는다). */
+  --fph-hold-50: #fed7aa;
+  --fph-hold-300: #fb923c;
+  --fph-hold-700: #9a3412;
+  --fph-wait-50: #eeebb2;
+  --fph-wait-300: #d6d38a;
+  --fph-wait-700: #57571f;
+  /* 남은 장이 있어 지금 못 누름 = 도면 판 '엣지 · 조립 미완료' 칸(노랑) — '내 공정' [끝] 자리 도면 칸 막힘도 같은 색(parts.css 에서 옮겨 옴) */
+  --fph-pre-50: #fef08a;
+  --fph-pre-300: #eab308;
+  --fph-pre-700: #713f12;
   --fph-holder: var(--fph-text2);
   --fph-holder-done: var(--fph-brand-dark);
   --fph-holder-none: var(--fph-text3);
@@ -40,7 +56,7 @@
      화면에만 실린다)의 --foms-fac1-* · --foms-fac2-* 를 쓴다(사장님 2026-11-24 식별성). */
   background: var(--fph-bg);
   color: var(--fph-text);
-  min-height: 60vh;
+  min-height: calc(60dvh / var(--foms-ui-zoom, 1)); /* 화면 높이는 화면 크기 배율로 나눈다(C35) */
   font-variant-numeric: tabular-nums;
 }
 .foms-prod-home * { box-sizing: border-box; }
@@ -60,7 +76,7 @@
   background: var(--fph-surface);
   border-bottom: 1px solid var(--fph-line);
 }
-.foms-prod-home__title { margin: 0; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; }
+.foms-prod-home__title { margin: 0; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; color: var(--fph-text); } /* 기기 어두운 설정의 공용 머리글 색을 안 따른다(C05) */
 .foms-prod-home__date { font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; }
 .foms-prod-home__tabs { display: flex; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
 .foms-prod-home__tab {
@@ -81,7 +97,7 @@
   cursor: pointer;
 }
 .foms-prod-home__tab:last-child { border-right: 0; }
-.foms-prod-home__tab small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; opacity: .8; }
+.foms-prod-home__tab small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; } /* 흐림 없음 — 고른 칸 흰 글 위 4.81(C12) */
 .foms-prod-home__tab.is-on { background: var(--fph-brand); color: #fff; }
 .foms-prod-home__tab:focus-visible { outline: 3px solid var(--fph-brand-dark); outline-offset: -3px; }
 .foms-prod-home__search { flex: 1 1 220px; min-width: 0; margin: 0; }
@@ -254,7 +270,6 @@
 .foms-prod-home__navtab:hover, .foms-prod-home__navtab:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
 .foms-prod-home__navtab.is-on { background: var(--fph-surface); color: var(--fph-brand-dark); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .foms-prod-home__navtab:active { background: var(--fph-brand-50); color: var(--fph-brand-dark); } /* 누른 느낌(11-14) */
-.foms-prod-home__sp { flex: 1; }
 .foms-prod-home__tools { margin-left: auto; display: flex; align-items: center; gap: 10px 14px; }
 /* 알림 종(11-21 사용자 ③) — 가로 태블릿에서 레일이 보일 때만(맨 아래 가로 태블릿 블록). PC · 폰은 제 위 줄 종이 있어 숨긴다. */
 .foms-prod-home__btn.foms-prod-home__bell { display: none; position: relative; width: 56px; padding: 0; }
@@ -267,15 +282,26 @@
 .foms-prod-home__status { margin: 0; padding: 0 20px; min-height: 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); }
 .foms-prod-home__status.is-bad { color: var(--fph-danger); font-weight: 700; padding-top: 6px; }
 .foms-prod-home__status:empty { display: none; }
+/* 누른 뒤 알림 줄은 터치 화면 아래에 붙박이(비평 C08 — 아래로 내려 누르면 문서 맨 위 지나간 자리(−3,271px)에 떴다). 글이 있을 때만,
+   가운데 · 글 폭만큼 · 그림자. 가로 태블릿 16px 위, 세로 · 폰은 아래 메뉴 위. 떠 있는 동안 페이지 아래를 그만큼 비워 마지막 줄 단추를
+   안 가린다. '내 공정' 판(.fph-has-sp — 판 [되돌리기] 띠는 왼쪽 목록 바닥, 페이지가 안 굴러감)과 PC(마우스)는 지금 그대로.
+   [되돌리기] 띠(.is-undo)는 자기 남색 꼴 그대로 자리만. 창(1070) 아래 · 크게 보기(1065) 위. */
+@media (pointer: coarse) {
+  .foms-prod-home:not(.fph-has-sp) > .foms-prod-home__status:not(:empty) { position: fixed; z-index: 1068; left: 16px; right: 16px; bottom: calc(16px + var(--foms-safe-area-bottom, 0px)); width: fit-content; max-width: calc(100vw / var(--foms-ui-zoom, 1) - 32px); margin: 0 auto; box-shadow: 0 8px 24px rgba(20, 23, 28, .28); }
+  .foms-prod-home:not(.fph-has-sp) > .foms-prod-home__status:not(:empty):not(.is-undo) { padding: 12px 18px; border: 1px solid var(--fph-line); border-radius: 12px; background: var(--fph-surface); }
+  .foms-prod-home:not(.fph-has-sp):has(> .foms-prod-home__status:not(:empty)) { padding-bottom: 72px; }
+}
+@media (max-width: 991.98px) and (pointer: coarse) {
+  .foms-prod-home:not(.fph-has-sp) > .foms-prod-home__status:not(:empty) { bottom: calc(var(--foms-shell-bottom-nav-h, 72px) + var(--foms-safe-area-bottom, 0px) + 12px); }
+}
 .foms-prod-home__btn--pri { background: var(--fph-brand); border-color: var(--fph-brand); color: #fff; }
 .foms-prod-home__btn--pri:hover, .foms-prod-home__btn--pri:focus-visible { background: var(--fph-brand-dark); border-color: var(--fph-brand-dark); color: #fff; }
-.foms-prod-home__btn--ghost { border-color: transparent; background: transparent; color: var(--fph-text2); }
 .foms-prod-home__btn svg { width: 1em; height: 1em; font-size: calc(22px * var(--foms-fs, 1)); }
 
 /* ── 바뀐 것: 받은함(미확인 변경 + 취소 주문) ── */
 .fph-inbox { background: var(--fph-surface); border-left: 1px solid var(--fph-line); padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .fph-al { border: 1px solid var(--fph-line); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
-.fph-al--cancel { border-color: var(--fph-warn); background: var(--fph-warn-50, #fffbeb); }
+.fph-al--cancel { border-color: var(--fph-warn); background: var(--fph-warn-50); }
 .fph-al__body { min-width: 0; }
 .fph-al__name { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; }
 .fph-al__name > .fph-due { margin-left: 8px; }
@@ -286,8 +312,8 @@
 .fph-al__list li { font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-danger); }
 .fph-al__list b { font-weight: 800; }
 .fph-al__d strong { font-weight: 800; }
-.fph-al__list li.is-drawing { color: #2563eb; }
-.fph-al__list li.is-cancelled { color: #92400e; }
+.fph-al__list li.is-drawing { color: var(--fph-brand-dark); } /* 셋째 파랑(#2563eb)을 빼고 화면 남색으로(C16) */
+.fph-al__list li.is-cancelled { color: var(--fph-why); }
 .fph-al__m { display: block; margin-top: 1px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 400; line-height: 1.35; color: var(--fph-text3); }
 /* [확인했어요] · 더 보기: 화면 크기 80% 에서도 실제 48px 이상(60 × 0.8) — 공용 단추 56px 은 80% 에서 44.8px 였다 */
 .fph-al .foms-prod-home__btn { min-width: 128px; min-height: 60px; }
@@ -317,7 +343,8 @@
 .fph-q[hidden] { display: none; }
 .fph-qr { min-height: 96px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr) calc(150px * var(--foms-fs, 1)) 190px; align-items: center; padding-right: 16px; gap: 0 10px; }
 .fph-qr.is-chg { border-color: var(--fph-danger); }
-.fph-qr.is-hold, .fph-qr.is-revise { opacity: .7; } /* 도면 고치는 중 줄도 보류처럼 흐리게(사장님 2026-11-25 "보류처럼") */
+/* 도면 고치는 중 줄도 보류처럼(사장님 2026-11-25 "보류처럼") — 줄을 통째 흐리면 글이 2.73 ~ 3.67 로 읽기 기준 밑이라(C12) 바탕색으로 가른다 */
+.fph-qr.is-hold, .fph-qr.is-revise { background: var(--fph-warn-50); }
 .fph-qr__n { font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); text-align: center; }
 .fph-qr__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: inherit; text-decoration: none; padding: 8px 0; }
 .fph-qr__who:hover, .fph-qr__who:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
@@ -336,9 +363,22 @@
 .fph-qr__due b { font-size: calc(20px * var(--foms-fs, 1)); color: var(--fph-text); }
 .fph-qr__done { min-height: 72px; border: 1px solid var(--fph-ok); border-radius: 12px; background: var(--fph-ok); color: #fff; font: inherit; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
 .fph-qr__done svg { width: 1em; height: 1em; font-size: calc(30px * var(--foms-fs, 1)); stroke-width: 2.6; }
-.fph-qr__done:hover, .fph-qr__done:focus-visible { background: #047857; border-color: #047857; outline: none; }
+.fph-qr__done:hover, .fph-qr__done:focus-visible { background: var(--fph-dw-ok); border-color: var(--fph-dw-ok); outline: none; }
 .fph-qr__done:disabled { opacity: .6; cursor: wait; }
-.fph-qr__hold { justify-self: end; padding: 8px 16px; border-radius: 999px; background: var(--fph-warn-50, #fffbeb); color: #92400e; font-weight: 800; font-size: calc(16px * var(--foms-fs, 1)); }
+.fph-qr__hold { justify-self: end; padding: 8px 16px; border-radius: 999px; background: var(--fph-hold-50); color: var(--fph-hold-700); font-weight: 800; font-size: calc(16px * var(--foms-fs, 1)); } /* 보류 = 도면 칸 보류 색(C16) */
+/* [끝] 자리 막힘 둘(비평 갈래 가 C02 · C03, 2026-11-26) — 보류 색은 보류 · 도면 고치는 중에만(C16). 줄 끝 · 이름 옆 표 · 오른쪽 판 같은 규칙.
+   is-cards = 도면 칸을 쓴 주문(남은 장이 있어 지금 못 누름) — 도면 판 '엣지 · 조립 미완료' 칸과 같은 노랑 · 테두리, 누르면 그 주문 도면 판
+   (링크 밑줄 없음 · 누름 칸 44px · 키보드 초점 테두리). is-elsewhere = 장이 모두 남의 공장 — 도면 판 남의 공장 칸(흰 바탕 · 회색 테두리 ·
+   공장 칩), 줄은 날짜 탭 남의 공장 줄(공장 색 점선, '바뀜' 빨강이 이긴다). 새 칩 · 새 상자 없이 색 · 테두리만. */
+.fph-qr__hold.is-cards, .fph-qr__holdtag.is-cards { border: 1px solid var(--fph-pre-300); background: var(--fph-pre-50); color: var(--fph-pre-700); }
+.fph-qr__hold.is-cards { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.fph-qr__hold.is-cards:hover, .fph-qr__hold.is-cards:focus { color: var(--fph-pre-700); text-decoration: none; }
+.fph-qr__hold.is-cards:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.fph-qr__hold.is-elsewhere, .fph-qr__holdtag.is-elsewhere { border: 1px solid var(--fph-line2); background: var(--fph-surface); color: var(--fph-text); font-weight: 700; }
+.fph-qr.is-elsewhere { border: 2px dashed var(--fph-text3); }
+.fph-qr.is-elsewhere:has(.foms-fac--1) { border-color: var(--foms-fac1-line); }
+.fph-qr.is-elsewhere:has(.foms-fac--2) { border-color: var(--foms-fac2-line); }
+.fph-qr.is-elsewhere.is-chg { border-style: solid; border-color: var(--fph-danger); }
 
 /* ── 제목 줄: 탭 숫자 · 글자 손잡이 ── */
 .foms-prod-home__navtab small { margin-left: 6px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); }
@@ -410,13 +450,15 @@
 .fph-sd__d { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .fph-sd__d b { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 .fph-sd__d small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); white-space: nowrap; }
-.fph-sd.is-wk .fph-sd__d b { color: var(--fph-danger); }
+/* 주말은 빨강 대신 굵은 요일 글(비평 C16 — 빨강은 '늦음 · 바뀜' 만) */
+.fph-sd.is-wk .fph-sd__d small { font-weight: 800; }
+.fph-sd.is-wk:not(.is-zero) .fph-sd__d small { color: var(--fph-text); }
 .fph-sd.is-zero .fph-sd__d b, .fph-sd.is-zero .fph-sd__n b { color: var(--fph-text3); }
 .foms-prod-home .fph-sd__bar { width: 100%; height: 16px; border-radius: 5px; background: var(--fph-raised); border: 1px solid var(--fph-line); stroke: none; }
 .fph-sd__bar rect.is-f { fill: var(--fph-ok); }
 .fph-sd__bar rect.is-p { fill: var(--fph-brand); }
 .fph-sd__bar rect.is-w { fill: #f59e0b; }
-.fph-sd__bar rect.is-x { fill: var(--fph-line2); }
+.fph-sd__bar rect.is-x { fill: var(--fph-wait-300); } /* 도면·컨펌 기다림 = 기다림 연두(무채색 금지, C16) */
 .fph-sd__n { text-align: right; white-space: nowrap; }
 .fph-sd__n b { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
 .fph-sd__n small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
@@ -445,7 +487,6 @@
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) { .fph-pane__cards { min-height: calc(44px / var(--foms-ui-zoom, 1)); } }
 .fph-pane__g { margin: 4px 0 0; min-height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); }
 .fph-pane__g small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
-.fph-pane__g--next { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--fph-line2); }
 .fph-pane__none { margin: 0; padding: 10px 4px; font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text3); }
 .fph-dr {
   content-visibility: auto; /* 화면 밖 줄은 그리기를 미룬다(11-14) — 크기는 한 번 그린 뒤 기억 */
@@ -474,8 +515,8 @@
 .fph-dr.is-chg { border-color: var(--fph-danger); }
 .fph-dr__sg { align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 6px; border-right: 1px solid var(--fph-line); text-align: center; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.15; color: var(--fph-brand-dark); }
 .fph-dr__sg small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
-.fph-dr.is-w .fph-dr__sg { color: #92400e; }
-.fph-dr.is-f .fph-dr__sg { color: #047857; }
+.fph-dr.is-w .fph-dr__sg { color: var(--fph-why); }
+.fph-dr.is-f .fph-dr__sg { color: var(--fph-dw-ok); }
 .fph-dr.is-chg .fph-dr__sg small { color: var(--fph-danger); }
 .fph-dr__who { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
 /* 이름 줄 = 이름 칸 + 발주사·담당(사용자 11-11). 자리가 모자라면 발주사·담당 글만 다음 줄로, 혼자 남은 이름은 M6 말줄임 */
@@ -490,6 +531,10 @@
 /* 긴 이름(상호 등)은 안쪽 b 만 말줄임으로 줄고 주문 번호는 늘 보인다 — flex 칸 자체엔 text-overflow 가 안 먹는다(M6 11-11) */
 .fph-dr__nm > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
 .fph-dr__nm > small { flex-shrink: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+/* 날짜 장 줄의 긴 손님 이름은 두 줄까지 낱말에서 꺾는다(비평 C33 — 396px 이름 중 111px 만 보였다). 이름이 줄 폭을 넘을 때만 번호 ·
+   시공일 표가 다음 줄로 가고, 짧은 이름 줄은 지금 그대로 한 줄. 도면 카드(.pp-card)의 이름 줄은 이 규칙 밖. */
+.fph-dr .fph-dr__nm { flex-wrap: wrap; row-gap: 2px; }
+.fph-dr .fph-dr__nm > b { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 /* 품목·치수 글은 두 줄까지 — 글자를 키워 이름 칸이 좁아져도 치수·바뀐 내용이 말줄임에 안 묻힌다(S5 11-10 · M3 11-11) */
 .fph-dr__pr { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .fph-dr__pr em { font-style: normal; font-weight: 800; color: var(--fph-danger); }
@@ -538,7 +583,7 @@
 .fph-wi:hover, .fph-wi:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; outline: none; }
 .fph-wi > small { min-width: 0; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); overflow: hidden; text-overflow: ellipsis; }
 .fph-wi.is-chg { border-color: var(--fph-danger); }
-.fph-wi.is-done { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.fph-wi.is-done { background: #ecfdf5; border-color: #a7f3d0; color: var(--fph-dw-ok); }
 .fph-wi__nm { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
 .fph-wi > small { flex: 1 1 0; }
 
@@ -550,8 +595,8 @@
 .fph-due b { font-weight: 800; }
 .fph-due small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: inherit; }
 .fph-due.is-today { border-color: var(--fph-brand); background: var(--fph-brand); color: #fff; }
-.fph-due.is-past { border-color: #fecaca; background: var(--fph-danger-50); color: #b91c1c; }
-.fph-due.is-none { border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; }
+.fph-due.is-past { border-color: #fecaca; background: var(--fph-danger-50); color: var(--fph-dw-late); }
+.fph-due.is-none { border: 1px dashed #f59e0b; background: var(--fph-warn-50); color: var(--fph-why); }
 .fph-wi .fph-due { font-size: calc(13px * var(--foms-fs, 1)); padding: 0 5px; }
 .fph-wi > .fph-due { margin: 0; }
 .pp-card > .fph-due { align-self: flex-start; margin: 1px 0; } /* 도면 카드: 이름 줄 아래 한 줄 — 품목 줄 폭을 안 뺏는다 */
@@ -568,7 +613,9 @@
 .fph-sd__dw.is-ok, .fph-dwst.is-ok { color: var(--fph-dw-ok); }
 /* ② 기다림 칸 둘째 줄: 막힌 까닭 · 도면 담당 · 영업 담당('담당 없음' 만 빨강). 칸이 좁으면(100% · 글자 150% · 폰) 말줄임 대신
    낱말 단위로 다음 줄 — 목업(80%)은 한 줄에 들었지만 100% 세 칸에서는 영업 담당 이름이 '…' 로 잘렸다(2026-11-22 실화면). */
-.fph-wi.has-why { flex-wrap: wrap; row-gap: 1px; align-content: center; padding-block: 5px; }
+/* 기다림 칸 = 도면 판 기다림 칸과 같은 연두(비평 C16 — 회색 칸은 무채색 금지에 걸렸다). 작은 글도 칸 글 색(회색 글은 연두 바탕 4.47) */
+.fph-wi.has-why { flex-wrap: wrap; row-gap: 1px; align-content: center; padding-block: 5px; background: var(--fph-wait-50); border-color: var(--fph-wait-300); color: var(--fph-wait-700); }
+.fph-wi.has-why > small { color: var(--fph-wait-700); }
 .fph-wi.has-ship { flex-wrap: wrap; row-gap: 1px; } /* 상차 · 희망일 표(사장님 2026-11-25)는 이름을 줄이지 않고 다음 줄로 넘어간다 */
 .fph-wi__why { flex: 1 1 100%; min-width: 0; overflow: hidden; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.3; color: var(--fph-text2); }
 .fph-wi__why > * { display: inline-block; max-width: 100%; } /* 까닭 · '도면 장미래' · '영업 이하늘' 은 한 덩이로 줄을 넘긴다 */
@@ -774,7 +821,7 @@
 .fph-q__list { display: contents; }
 .fph-q__list > .fph-stepnote { padding: 0 4px; }
 .fph-q__panes, .fph-qr__holdtag { display: none; }
-.fph-qr__holdtag { align-self: center; padding: 2px 10px; border-radius: 999px; background: #fffbeb; color: #92400e; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.fph-qr__holdtag { align-self: center; padding: 2px 10px; border-radius: 999px; background: var(--fph-hold-50); color: var(--fph-hold-700); font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 .fph-sp { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 14px; background: var(--fph-surface); border-left: 1px solid var(--fph-line); line-height: 1.35; }
 .fph-sp[hidden] { display: none; }
 .fph-sp__top { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior: contain; }
@@ -796,16 +843,21 @@
 .fph-sp__spec dd { margin: 0; font-weight: 700; }
 .fph-sp__done { min-height: 96px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; border-radius: 14px; background: var(--fph-ok); color: #fff; font: inherit; font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
 .fph-sp__done svg { font-size: calc(40px * var(--foms-fs, 1)); stroke-width: 2.6; }
-.fph-sp__done:hover, .fph-sp__done:focus-visible { background: #047857; outline: none; }
+.fph-sp__done:hover, .fph-sp__done:focus-visible { background: var(--fph-dw-ok); outline: none; }
 .fph-sp__done:active { background: #065f46; }
-.fph-sp__hold { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 2px solid #f59e0b; border-radius: 14px; background: #fffbeb; color: #92400e; text-align: center; }
+.fph-sp__hold { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 2px solid var(--fph-hold-300); border-radius: 14px; background: var(--fph-hold-50); color: var(--fph-hold-700); text-align: center; }
 .fph-sp__hold b { display: inline-flex; align-items: center; gap: 8px; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; }
 .fph-sp__hold span { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; }
+/* 판 [끝] 자리 막힘 둘 — 위 줄 끝 규칙과 같은 색(보류 색 아님). 도면 칸 막힘은 누르면 그 주문 도면 판(밑줄 없음 · 초점 테두리) */
+.fph-sp__hold.is-cards { border-color: var(--fph-pre-300); background: var(--fph-pre-50); color: var(--fph-pre-700); text-decoration: none; }
+.fph-sp__hold.is-cards:hover, .fph-sp__hold.is-cards:focus { color: var(--fph-pre-700); text-decoration: none; }
+.fph-sp__hold.is-cards:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.fph-sp__hold.is-elsewhere { border-color: var(--fph-line2); background: var(--fph-surface); color: var(--fph-text); }
 .fph-sp__acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .fph-sp__act { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); color: var(--fph-text); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
 .fph-sp__act svg { font-size: calc(20px * var(--foms-fs, 1)); }
 .fph-sp__act.is-bad { border-color: var(--fph-danger); background: var(--fph-danger-50); color: var(--fph-danger); }
-.fph-sp__act.is-on { border-color: #f59e0b; background: #fffbeb; color: #92400e; }
+.fph-sp__act.is-on { border-color: var(--fph-hold-300); background: var(--fph-hold-50); color: var(--fph-hold-700); } /* [보류] 켜짐 = 보류 색 */
 .fph-sp__act:focus-visible, .fph-sp__chip:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: -3px; }
 .fph-sp__chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .fph-sp__chips[hidden] { display: none; }
@@ -888,7 +940,7 @@
   .foms-prod-home__navtab { justify-content: center; padding: 0 14px; border-radius: 0; border-right: 1px solid var(--fph-line2); }
   .foms-prod-home__navtab:last-child { border-right: 0; }
   .foms-prod-home__navtab.is-on, .foms-prod-home__navtab.is-on:hover, .foms-prod-home__navtab.is-on:focus-visible { background: var(--fph-brand); color: #fff; box-shadow: none; }
-  .foms-prod-home__navtab.is-on small, .foms-prod-home__navtab.is-on small.is-hot { color: inherit; opacity: .85; }
+  .foms-prod-home__navtab.is-on small, .foms-prod-home__navtab.is-on small.is-hot { color: inherit; } /* 흐림 없음 — 흰 글 4.81(C12) */
   .foms-prod-home .foms-fs { gap: 0; height: 44px; margin-right: 0; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
   .foms-prod-home .foms-fs__label { margin: 0; padding: 0 10px; align-self: stretch; display: inline-flex; align-items: center; border-right: 1px solid var(--fph-line2); color: var(--fph-text3); }
   .foms-prod-home .foms-fs__btn, .foms-prod-home .foms-fs__now { height: 44px; min-width: 44px; border: 0; border-right: 1px solid var(--fph-line2); border-radius: 0; background: var(--fph-surface); color: var(--fph-text2); }
@@ -913,4 +965,13 @@
   body:has(.foms-prod-home-page) .foms-tablet-rail > .foms-graft-rail,
   body:has(.foms-prod-home-page) .foms-tablet-rail > .foms-tablet-rail__notify { display: none; }
   body:has(.foms-tablet-rail) .foms-prod-home__btn.foms-prod-home__bell { display: inline-flex; }
+}
+
+/* ── 세로 태블릿(터치, 600 ~ 991px) 글자 손잡이도 누름 칸 44px · 칸 사이 8px(비평 C13 — 가로에만 걸려 세로는 30 × 30 · 50 × 30 이었다).
+   모양(공용 조각 테두리 단추)은 그대로 크기만. 폰(600px 아래)은 위 줄 자리가 빠듯해 그대로, PC(마우스)는 이 규칙 밖. ── */
+@media (min-width: 600px) and (max-width: 991.98px) and (pointer: coarse) {
+  .foms-prod-home .foms-fs { gap: 8px; }
+  .foms-prod-home .foms-fs__btn, .foms-prod-home .foms-fs__now { height: 44px; }
+  .foms-prod-home .foms-fs__btn { width: 44px; }
+  .foms-prod-home .foms-fs__now { min-width: 60px; }
 }

@@ -229,9 +229,12 @@ def test_other_parts_have_no_basic_and_bad_pairs_are_400(client):
     for action, seen, state in (("take", "none", "NEED"), ("done", "need", "DONE"), ("undo", "done", "NEED")):
         assert _one(client, order, 0, "assemble", action, seen).status_code == 200
         assert _row(order, 0, "assemble").state == state
-    for action, seen in (("take", "need"), ("done", "none"), ("undo", "need"), ("undo", "none")):
+    for action, seen in (("take", "need"), ("done", "none"), ("undo", "none"), ("join", "none"), ("remove", "none")):
         resp = _one(client, order, 1, "assemble", action, seen)
         assert resp.status_code == 400 and _code(resp) == "BAD_REQUEST", (action, seen)
+    # 되돌리기는 작업 필요("조립 1/2 완료")에서도 짝이 맞다(2026-11-25 multi-holder §3-1) — 아무도 안 고른 장이면 경합
+    partial = _one(client, order, 1, "assemble", "undo", "need")
+    assert partial.status_code == 409 and _code(partial) == "MARK_CONFLICT"
     assert client.post(ONE, json={"order_id": order.id, "drawing_key": _key(order, 0), "part": "paint",
                                   "action": "take", "seen": "none"}).status_code == 400
 
@@ -244,15 +247,18 @@ def test_mark_conflict_names_the_owner(client):
     _login(client, _user("박재단", part="cut"))
     assert _one(client, order, 0, "cut", "take", "none").status_code == 200
     _login(client, _user("김재단", part="cut"))
-    for action, seen in (("take", "none"), ("basic", "none"), ("done", "need")):
+    for action, seen in (("basic", "none"), ("done", "need")):
         resp = _one(client, order, 0, "cut", action, seen)
         body = resp.get_json()
         assert resp.status_code == 409 and body["data"]["code"] == "MARK_CONFLICT", action
-        assert body["error"] == "박재단이 먼저 맡았어요"
+        assert body["error"] == "박재단이 먼저 시작했어요."
         assert body["data"]["mark"]["picked_by_name"] == "박재단" and body["data"]["mark"]["state"] == "need"
+    # 늦은 [작업 시작]은 거절이 아니라 저절로 같이 작업(2026-11-25 multi-holder Q16) — 테스트 파일 test_production_multi_holder_api.py
+    late = _one(client, order, 0, "cut", "take", "none")
+    assert late.status_code == 200 and late.get_json()["data"]["notice"] == "박재단이 먼저 시작했어요."
     stale = _one(client, order, 1, "cut", "done", "need")  # 화면은 작업 필요로 봤는데 아무도 안 맡은 장
     assert stale.status_code == 409 and _code(stale) == "MARK_CONFLICT"
-    assert _row(order, 0, "cut").picked_by_name == "박재단" and len(_events(order)) == 1
+    assert _row(order, 0, "cut").picked_by_name == "박재단" and len(_events(order)) == 2
 
 
 def test_drawing_not_current_and_not_in_production(client):
@@ -262,7 +268,7 @@ def test_drawing_not_current_and_not_in_production(client):
     gone = client.post(ONE, json={"order_id": order.id, "drawing_key": "m0/old.png", "part": "cut", "action": "take",
                                   "seen": "none"})
     assert gone.status_code == 409 and _code(gone) == "DRAWING_NOT_CURRENT"
-    assert gone.get_json()["error"] == "도면이 바뀌었어요. 다시 받아 주세요."
+    assert gone.get_json()["error"] == "도면이 바뀌었어요. [다시 받기]를 눌러 주세요."
     waiting = _order(stage="CONFIRM")
     resp = _one(client, waiting, 0, "cut", "take", "none")
     assert resp.status_code == 409 and _code(resp) == "NOT_IN_PRODUCTION"
@@ -332,7 +338,7 @@ def test_bulk_partial_success_reports_skipped_with_owner(client):
     data = client.post(BULK, json={"part": "cut", "seen": "none", "items": items}).get_json()["data"]
     assert [a["drawing_key"] for a in data["applied"]] == [_key(order, 0), _key(order, 2)]
     reasons = {s["drawing_key"]: (s["reason"], s["error"]) for s in data["skipped"]}
-    assert reasons[_key(order, 1)] == ("MARK_CONFLICT", "박재단이 먼저 맡았어요")
+    assert reasons[_key(order, 1)] == ("MARK_CONFLICT", "박재단이 먼저 시작했어요.")
     assert reasons["gone.png"][0] == "DRAWING_NOT_CURRENT"
     assert reasons[_key(other, 0)][0] == "NOT_IN_PRODUCTION" and reasons["x.png"][0] == "NOT_FOUND"
     assert _row(order, 1, "cut").state == "NEED"

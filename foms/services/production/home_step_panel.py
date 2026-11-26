@@ -10,6 +10,10 @@ DB 를 읽지 않는다(쿼리 0개 더함). 금액은 싣지 않는다(D7). 엣
   '끝내면 다음은' 이 한 화면에 다 그릴 때와 같다.
 - :func:`step_confirm_ids` · :func:`attach_step_confirm` — [<공정> 끝] 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번
   묻기"). 표시 줄은 부르는 쪽(``foms.web.production.home``)이 한 번에 읽어 넘긴다 — 이 모듈은 그대로 DB 를 읽지 않는다.
+- [끝] 자리 막힘 ``step_block``(비평 C02 · C03, 보류 · 도면 고치는 중과 같은 자리 · 꼴): 장이 모두 남의 공장인 주문 = "2공장 작업"
+  (:func:`attach_step_blocks` — 공정 API 와 같은 :func:`~foms.services.production.factory_scope.order_factory_gate`, 줄 끝으로 — 날짜 탭
+  남의 공장 줄처럼 빼지 않고 뒤에) · 그 파트가 도면 칸을 쓴 주문 = "재단 3/5 · 2장 미완료"(공정 API 와 같은 거절 ``PART_USES_CARDS`` —
+  누르면 그 주문 도면 판).
 
 2026-11-22 터치 점검: 숨은 판을 줄마다 다 그리면(주문 150건 · 판 96개) 조각이 396KB · DOM 13,100 이 되어 탭 바꾸기 ·
 [다시 받기] · [끝] 뒤 화면이 1~2초 얼고 그동안 누름이 버려졌다 — 날짜 탭(11-14)처럼 고른 판만 그리고 나머지는 누를 때 받는다.
@@ -22,8 +26,9 @@ from typing import Any
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_fix import blocked_left_numbers, confirm_extras, fixing_label, per_drawing_numbers
+from foms.services.production.factory_scope import order_elsewhere
 from foms.services.production.part_card_state import BLOCK_REVISE
-from foms.services.production.part_mark_gates import DRAWING_REVISING, REVISING_MESSAGE
+from foms.services.production.part_mark_gates import DRAWING_REVISING, PART_USES_CARDS, REVISING_MESSAGE, step_cell_gate
 from foms.services.files.list_thumb import mid_thumb_url
 from foms.services.production.part_progress import part_progress, step_api_extras
 from foms.services.production_dashboard_display import _production_first_item
@@ -54,14 +59,14 @@ def _run_start_text(value: Any) -> str:
 
 
 def _prev_line(sd: dict[str, Any], key: str, run_started_at: Any) -> str:
-    """앞 공정 한 줄 — '재단 끝 · 김재단 · 11/21 09:12'(재단 탭은 '제작 시작 · 11/21 08:40'). 빈 칸은 뺀다."""
+    """앞 공정 한 줄 — '재단 완료 · 김재단 · 11/21 09:12'(재단 탭은 '제작 시작 · 11/21 08:40'). 빈 칸은 뺀다."""
     idx = _KEYS.index(key)
     if idx == 0:
         parts = [STEP_PANEL_RUN_START, _run_start_text(run_started_at)]
     else:
         prev_key = _KEYS[idx - 1]
         src = _raw_steps(sd).get(prev_key) or {}
-        parts = [f"{_LABELS[prev_key]} 끝", str(src.get('by_name') or '').strip(), _format_at_kst(src.get('at'))]
+        parts = [f"{_LABELS[prev_key]} 완료", str(src.get('by_name') or '').strip(), _format_at_kst(src.get('at'))]
     return ' · '.join(p for p in parts if p)
 
 
@@ -141,6 +146,7 @@ def production_home_step_panel(row: dict[str, Any], key: str, next_row: dict[str
         'hold_active': bool(row.get('hold_active')),
         'hold_reason': _hold_reason(sd),
         'revise_block': row.get('revise_block'),  # 도면 고치는 중 — [끝] 대신 까닭(보류와 같은 자리, 2026-11-25)
+        'step_block': row.get('step_block'),  # 남의 공장 주문 · 도면 칸을 쓴 파트 — [끝] 대신(비평 C02 · C03)
         'confirm': row.get('step_confirm'),  # [끝] 확인 창 자료(도면 있는 줄만, attach_step_confirm — 없으면 지금처럼 바로 저장)
         'latest_defect': _latest_defect(sd),
         'next_id': next_row['id'] if next_row else None,
@@ -155,8 +161,9 @@ def parse_step_order(raw: Any) -> int | None:
 
 
 def _blocked(row: dict[str, Any]) -> bool:
-    """[끝]이 막힌 줄 — 보류 · 도면 고치는 중(사장님 2026-11-25 "보류처럼"). '끝내면 다음은' · 처음 고른 줄에서 건너뛴다."""
-    return bool(row.get('hold_active') or row.get('revise_block'))
+    """[끝]이 막힌 줄 — 보류 · 도면 고치는 중(사장님 2026-11-25 "보류처럼") · [끝] 자리 막힘(비평 C02 · C03). '끝내면 다음은' · 처음 고른
+    줄에서 건너뛴다."""
+    return bool(row.get('hold_active') or row.get('revise_block') or row.get('step_block'))
 
 
 def _panel_at(q: dict[str, Any], index: int) -> dict[str, Any]:
@@ -216,6 +223,28 @@ def step_confirm_ids(queues: dict[str, Any], *, fix_only: bool = False) -> list[
             and (not fix_only or per_drawing_numbers(r.get('structured_data') or {}))]
 
 
+def attach_step_blocks(queues: dict[str, Any], user: Any) -> None:
+    """장이 모두 남의 공장인 줄의 [끝] 자리 = "2공장 작업"(비평 C02 — 공정 API 403 과 같은 판정, 반장 · 파트 계정은 자기 공장만 ·
+    관리자는 막힘 없음). 보류 · 도면 고치는 중 줄은 그 막힘이 먼저다. 막힌 줄은 그 공정 줄 끝으로(날짜 탭 남의 공장 줄처럼 빼지 않고
+    뒤에, 같은 칸 안 순서 그대로). [끝]을 그리는 사람(``can_check_steps``)만 부른다 — 쿼리 0(이미 든 주문 JSON)."""
+    for q in queues.get('queues') or []:
+        for row in q.get('rows') or []:
+            if not _blocked(row):
+                row['step_block'] = order_elsewhere(user, row.get('structured_data') or {})
+        q['rows'].sort(key=lambda r: (r.get('step_block') or {}).get('kind') == 'elsewhere')
+
+
+def _cards_block(sd: dict[str, Any], marks: list[Any], key: str) -> dict[str, str] | None:
+    """그 파트가 도면 칸을 쓴 주문의 [끝] 자리(비평 C03) — 누르면 서버가 거절(409 ``PART_USES_CARDS`` — 같은 함수 :func:`step_cell_gate`)
+    하는 줄만. 칸 글 = 날짜 줄 칸 이름 꼴 "재단 3/5 · 2장 미완료", 까닭 = 거절 글 그대로."""
+    gate = step_cell_gate(sd, marks, key, True)
+    if gate is None or gate.code != PART_USES_CARDS:
+        return None
+    left, total = gate.extra['left'], gate.extra['total']
+    return {'kind': 'cards', 'text': f"{_LABELS[key]} {total - left}/{total} · {left}장 미완료", 'why': gate.message,
+            'code': gate.code}
+
+
 def _fix_wait_block(sd: dict[str, Any], marks: list[Any], key: str) -> dict[str, str] | None:
     """그 공정 파트에 남은 장이 도면별로 막힌 장뿐이면 [끝] 자리 막힘(통째 '도면 고치는 중'과 같은 자리 · 꼴, 글만 "도면 2 고치는 중")."""
     numbers = blocked_left_numbers(sd, part_progress(sd, marks, key)['left_keys'])
@@ -235,6 +264,9 @@ def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]], *, 
     에서 빠지지만, 다음 공정의 '곧 올 것'에는 남는다 — 끝난 장은 다음 공정으로 간다(사장님 답 "나머지는 계속 작업", 둘째 판 1). '곧 올 것'
     에서 빠지는 것은 :func:`~foms.services.production_home_read_model.production_home_step_queues` 가 이미 뺀 통째 막힘 · 보류 줄뿐이다.
 
+    [끝]을 그리는 사람(``confirm``)에게는 그 파트가 도면 칸을 쓴 줄(눌러도 409 ``PART_USES_CARDS``)의 [끝] 대신 ``step_block`` "재단 3/5 · 2장
+    미완료"를 단다(비평 C03 — 같은 표시 줄, 쿼리 0 더함). '곧 올 것'은 그대로다(도면 칸이 끝나면 다음 공정으로 간다).
+
     Args:
         queues: :func:`production_home_step_queues` 결과(행을 그 자리에서 고친다).
         marks: :func:`step_confirm_ids` 주문들의 표시 줄(``marks_by_order`` — 열쇠가 있는 주문만 싣는다).
@@ -248,6 +280,11 @@ def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]], *, 
             wait = _fix_wait_block(sd, marks[row['id']], q['key'])
             if wait is not None:
                 row['revise_block'] = wait
+                row.pop('step_confirm', None)
+                continue
+            cards = _cards_block(sd, marks[row['id']], q['key']) if confirm else None
+            if cards is not None:  # 도면 칸을 쓴 파트 — [끝] 대신 남은 장(눌러도 늘 거절되던 길, 비평 C03)
+                row['step_block'] = cards
                 row.pop('step_confirm', None)
                 continue
             extras = step_api_extras(sd, marks[row['id']]) if confirm else {'sheets': 0}

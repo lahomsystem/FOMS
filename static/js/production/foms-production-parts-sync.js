@@ -7,7 +7,12 @@
  * (window.__FOMS_PROD_PARTS_BOUND.sync = 지금 화면), 30초 타이머는 문서에 한 번(.syncTimer) 달고 지금 화면의 받기(.syncTick)를 부른다.
  * 화면이 문서에서 빠지면(다른 탭으로 셸 이동) 받지 않는다. 날을 받아 끼운 장의 카드도 화면 안이라 같이 받는다.
  * 2026-11-23: 받은 줄의 맡은 때 · 바뀐 기록 칸도 카드에 싣는다(고치기가 그린다). 까닭 말풍선이 열린 카드도 건너뛴다(held).
- * 2공장(2026-11-23 §4-13): 남의 공장 카드([data-pp-elsewhere] — 누름 없음)도 같이 받아 글 한 줄 · 다른 파트 줄만 고친다. */
+ * 2공장(2026-11-23 §4-13): 남의 공장 카드([data-pp-elsewhere] — 누름 없음)도 같이 받아 글 한 줄 · 다른 파트 줄만 고친다.
+ * 2026-11-25 multi-holder: 받은 줄에 작업하는 사람 칸(mark.crew — 이름 줄 · 내 몫, 서버 글)이 실린다. 같은 표시인지는 사람 · 완료 표지(sig)까지 견준다.
+ * 2026-11-26(비평 C06): 응답의 주문마다 지금 막힘(data.blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 서버 sync_blocks)으로 그 주문 카드를
+ * 이미 있는 막힘 칸으로 다시 그린다(그 장만 막힘이 먼저 · 풀리면 단추가 돌아온다 — FomsPartsCards.block). 받을 때마다 'foms:prod-parts-synced'
+ * 를 쏴 머리 줄 받은 때 글 · 점(foms-production-home.js)을 새로 한다. 거절(409 보류 · 고치는 중 · 생산 단계 아님)이면 parts.js 가 바로 부른다
+ * (syncTick(true) — 그때는 확인 창에 걸린 카드도 막힘으로, 30초 받아 오기는 표시 줄처럼 건너뛴다). */
 (function () {
   'use strict';
 
@@ -53,7 +58,7 @@
     return out;
   }
 
-  // 한 묶음 받기 — 성공이면 data({marks, server_time}), 아니면 null(그 판은 버리고 since 를 그대로 둔다)
+  // 한 묶음 받기 — 성공이면 data({marks, blocks, server_time}), 아니면 null(그 판은 버리고 since 를 그대로 둔다)
   function fetchChunk(ids, from) {
     var url = SYNC_URL + '?order_ids=' + ids.join(',') + '&since=' + encodeURIComponent(from);
     try {
@@ -69,15 +74,14 @@
     }
   }
 
-  // 화면 카드가 이미 그 표시면 건너뛴다(내가 쓴 줄 · 겹쳐 받은 줄)
+  // 화면 카드가 이미 그 표시면 건너뛴다(내가 쓴 줄 · 겹쳐 받은 줄) — 같이 작업하는 사람 · 사람마다 완료(sig)까지
   function sameMark(card, mark) {
-    var me = String(cfg.me_id);
-    var pickedMe = mark.picked_by_user_id != null && String(mark.picked_by_user_id) === me ? '1' : '0';
-    var doneMe = mark.done_by_user_id != null && String(mark.done_by_user_id) === me ? '1' : '0';
+    var cr = mark.crew || {};
+    var seen = safeJsonParse(card.getAttribute('data-pp-crew'), {}) || {};
     return card.getAttribute('data-state') === (mark.state || 'none') &&
       card.getAttribute('data-picked-name') === (mark.picked_by_name || '') &&
       card.getAttribute('data-done-name') === (mark.done_by_name || '') &&
-      card.getAttribute('data-picked-me') === pickedMe && card.getAttribute('data-done-me') === doneMe;
+      (seen.sig || '') === (cr.sig || '') && (seen.me || 'none') === (cr.me || 'none');
   }
   // 다른 파트 한 줄의 낱말 하나(낱말 · 색은 서버가 준 word · tone — 화면이 다시 짓지 않는다)
   function setOther(card, mark) {
@@ -90,12 +94,16 @@
     span.appendChild(document.createTextNode(' ' + (mark.word || '')));
     return true;
   }
-  // 남의 공장 카드의 글 한 줄 — 서버 factory_scope.elsewhere_line 과 같은 글("담당 최가은" · "엣지 완료 · 최가은" · "기본 · 김재단" · "미정")
+  // 남의 공장 카드의 글 한 줄 — 서버 factory_scope.elsewhere_line 과 같은 글("이시영 · 김재단 작업 중" · "엣지 완료 · 최가은" · "기본 · 김재단" ·
+  // "미정"). 이름 줄은 서버가 준 mark.crew(who · done)만 쓴다(multi-holder §8-2 16)
   function elsewhereLine(m) {
-    if (m.state === 'need') { return m.picked_by_name ? '담당 ' + m.picked_by_name : '담당 있음'; }
+    var cr = m.crew || {};
+    var who = cr.who || m.picked_by_name;
+    if (m.state === 'need') { return who ? who + ' 작업 중' : '작업 중'; }
     if (m.state !== 'done' && m.state !== 'basic') { return '미정'; }
     var head = m.state === 'done' ? (cfg.label || '') + ' 완료' : '기본';
-    return m.done_by_name ? head + ' · ' + m.done_by_name : head;
+    var done = (m.state === 'done' && cr.done) || m.done_by_name;
+    return done ? head + ' · ' + done : head;
   }
   function applyElsewhere(mark) {
     toArr(root.querySelectorAll('[data-pp-elsewhere][data-order-id="' + mark.order_id + '"]')).forEach(function (card) {
@@ -126,7 +134,23 @@
     return complete;
   }
 
-  function tick() {
+  // 주문마다 지금 막힘 → 그 주문 카드(그 장만 막힘 keys 가 먼저, 없으면 주문 통째 all, 둘 다 없으면 막힘을 걷는다). 확인 창 · 저장 중 ·
+  // 말풍선 카드는 표시 줄처럼 건너뛰고 false(그 판은 since 를 안 옮겨 다음 번에 다시). force = 거절(409) 바로 뒤 — 저장이 끝난 카드라 그린다
+  function applyBlocks(blocks, force) {
+    var cards = window.FomsPartsCards;
+    if (!cards || !cards.block) { return true; }
+    var complete = true;
+    Object.keys(blocks).forEach(function (id) {
+      var b = blocks[id] || {};
+      cards.find(id).forEach(function (card) {
+        if (!force && cards.held(card)) { complete = false; return; }
+        cards.block(card, (b.keys || {})[card.getAttribute('data-key')] || b.all || null);
+      });
+    });
+    return complete;
+  }
+
+  function tick(force) {
     if (running || !canSync()) { return; }
     var ids = orderIds();
     if (!ids.length) { return; }
@@ -135,12 +159,16 @@
     Promise.all(chunks(ids).map(function (part) { return fetchChunk(part, from); })).then(function (results) {
       if (results.some(function (r) { return !r; })) { return; } // 하나라도 못 받으면 다음 번에 같은 since 로
       var marks = [];
+      var blocks = {};
       var next = results[0].server_time;
       results.forEach(function (r) {
         marks = marks.concat(r.marks);
+        Object.keys(r.blocks || {}).forEach(function (id) { blocks[id] = r.blocks[id]; });
         if (r.server_time < next) { next = r.server_time; } // 나눠 받으면 가장 이른 서버 시각부터 다음에
       });
-      if (applyMarks(marks)) { since = next; }
+      var settled = applyBlocks(blocks, force === true); // 막힘 먼저 — 받은 표시를 그릴 때 새 막힘을 읽는다
+      if (applyMarks(marks) && settled) { since = next; }
+      document.dispatchEvent(new CustomEvent('foms:prod-parts-synced'));
     }).then(function () { running = false; }, function () { running = false; });
   }
 

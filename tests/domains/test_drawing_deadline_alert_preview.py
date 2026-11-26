@@ -36,7 +36,7 @@ def test_미리_보기는_아무것도_쓰지_않는다(world, monkeypatch, caps
     assert kinds == sorted([(has, "am"), (has, "pm"), (none, "am"), (none, "pm"), (late, "late")])
     item = next(i for i in got["items"] if i["order_id"] == none and i["kind"] == "am")
     assert item["fallback"] and item["admins"] == ["관가짜"] and item["drawing"] == ["도가짜", "장가짜"]
-    assert item["skipped"] == ["관가짜", "도가짜", "장가짜"] and item["status"] == "담당 없음 · 영업 이가짜"
+    assert item["skipped"] == ["관가짜", "도가짜", "장가짜"] and item["status"] == "도면 담당 없음 · 영업 이가짜"
     text = preview.render_report(got)
     assert f"#{none} 마감 날 아침" in text and "카가짜" not in text and "010" not in text
     monkeypatch.setattr(preview, "_make_readonly_session",

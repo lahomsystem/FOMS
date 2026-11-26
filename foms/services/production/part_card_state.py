@@ -1,9 +1,9 @@
-"""파트 카드 한 장의 3판 상태 — 막힘 · 손 체크 · 밤 넘김 · 바뀐 기록 · 내 담당 꼬리 · 판 순서(설계서 2026-11-23 §4-6 · §4-9 ·
+"""파트 카드 한 장의 3판 상태 — 막힘 · 손 체크 · 밤 넘김 · 바뀐 기록 · 내 작업 꼬리 · 판 순서(설계서 2026-11-23 §4-6 · §4-9 ·
 §4-11 · §8-1). 순수 계산 · 쿼리 0 — :mod:`foms.services.production.part_board` 가 이미 읽은 행 · 표시 줄을 넘긴다.
 
 막는 판정은 쓰기 API 와 같은 함수(:mod:`foms.services.production.part_mark_gates`)를 그대로 부르고 그 글을 까닭 말풍선에
-쓴다 — 화면 글과 서버 거절 글이 늘 같다. 지금 화면 글(``[내가 엣지]`` · "박엣지 맡음" · "작업 필요 · 김재단" 등)은 여기서
-만들지 않는다(템플릿 그대로, 승인 때 고친 것 1). 여기 글은 새 칸의 글뿐이다.
+쓴다 — 화면 글과 서버 거절 글이 늘 같다. 카드 단추 · 이름 칸 글(``[작업 시작]`` · "이시영 · 김재단 작업 중" 등)은 템플릿 ·
+:mod:`~foms.services.production.part_card_crew` 몫이다. 여기 글은 막힘 · 밤 넘김 · 꼬리 글뿐이다.
 """
 
 from __future__ import annotations
@@ -92,17 +92,18 @@ def hand_cell(sd: Any, marks: list[Any], part: str) -> Optional[dict[str, str]]:
     return {"text": f"{label} 완료 · {name}" if name else f"{label} 완료", "name": name, "why": gate.message}
 
 
-def claim_notes(snap: MarkSnapshot, today: datetime.date, *, mine: bool) -> dict[str, Any]:
-    """밤 넘김 · 바뀐 기록 글(B3 · B12) — 남의 담당 칸 둘째 줄과 내 카드 다른 파트 줄 꼬리.
+def claim_notes(snap: MarkSnapshot, today: datetime.date, *, mine: bool, crew_tag: str = "") -> dict[str, Any]:
+    """밤 넘김 · 바뀐 기록 글(B3 · B12) — 남의 작업 칸 둘째 줄과 내 카드 다른 파트 줄 꼬리.
 
     Args:
         snap: 그 장 · 그 파트 표시 모습.
         today: KST 오늘.
-        mine: 내가 담당인 장인지(꼬리 "내 담당 …").
+        mine: 내 몫이 작업 중인 장인지(꼬리 "내 작업 …" — multi-holder §8-2 9).
+        crew_tag: 같이 작업하는 사람 글("이시영과 같이" · "이시영 완료" — :func:`~part_card_crew.crew_view` 의 ``tag``).
 
     Returns:
-        ``{old, handed, held_note, tag}`` — ``held_note`` = 남의 담당 칸 둘째 줄("김민준에서 바뀜 14:20" · "어제부터"),
-        ``tag`` = 내 카드 꼬리 ``{old, chg, aria}``(내 담당이 아니면 None).
+        ``{old, handed, held_note, tag}`` — ``held_note`` = 남의 작업 칸 둘째 줄("김민준에서 바뀜 14:20" · "어제부터"),
+        ``tag`` = 내 카드 꼬리 ``{crew, old, chg, aria}``(내 작업이 아니면 None).
     """
     need = snap.seen_key == "need"
     old = since_text(snap.picked_at, today) if need else ""
@@ -110,8 +111,8 @@ def claim_notes(snap: MarkSnapshot, today: datetime.date, *, mine: bool) -> dict
     tag = None
     if mine and need:
         chg = f"{snap.handed_from_name}에서 바뀜" if snap.handed_from_name else ""
-        tag = {"old": old if not chg else "", "chg": chg,
-               "aria": " · ".join(p for p in ("내 담당", old, handed) if p)}
+        tag = {"crew": crew_tag, "old": old if not chg else "", "chg": chg,
+               "aria": " · ".join(p for p in ("내 작업", crew_tag, old, handed) if p)}
     return {"old": old, "handed": handed, "held_note": (handed or old) if need else "", "tag": tag}
 
 

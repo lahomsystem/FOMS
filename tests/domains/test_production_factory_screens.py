@@ -40,7 +40,7 @@ F1 = '<em class="foms-fac foms-fac--1">1공장</em>'
 F2 = '<em class="foms-fac foms-fac--2">2공장</em>'
 CHIP_CSS = "css/components/foms-factory-chip.css?v="
 
-MSG2 = "2공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
+MSG2 = "2공장에서 작업하는 도면이에요. [다시 받기]를 눌러 주세요."
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def test_second_factory_lead_is_blocked_on_first_factory_sheet_and_admin_writes_
     boss2 = factory_user("강반장", factory=2, lead=True)
     login(client, boss2)
     res = mark(client, seed, 0, "edge", "take", "none")
-    assert res.status_code == 403 and res.get_json()["error"] == "1공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
+    assert res.status_code == 403 and res.get_json()["error"] == "1공장에서 작업하는 도면이에요. [다시 받기]를 눌러 주세요."
     assert mark(client, seed, 2, "edge", "take", "none").status_code == 200
     admin = factory_user("정관리", role="ADMIN", team="CS")
     login(client, admin)
@@ -141,7 +141,8 @@ def test_board_puts_own_factory_first_and_other_factory_behind(client, cohort):
     assert 'data-pp-count="all">3<' in html  # 칸 숫자는 내 공장 카드만
     block = html[html.index('<section class="pp-elsewhere"'):html.index("</section>", html.index('<section class="pp-elsewhere"'))]
     assert "data-pp-act" not in block and "data-pp-card" not in block  # 누름 없음
-    assert f'{F2} 작업 <span data-pp-elsewhere-text>담당 최가은</span>' in block
+    assert f'{F2} <span data-pp-elsewhere-text>최가은 작업 중</span>' in block  # 칩은 공장 이름만('작업' 두 번 → 한 번, 생산 비평 C29)
+    assert f'{F2} 작업 <span data-pp-elsewhere-text>' not in block
     assert block.count('data-pp-why="2공장에서 작업하는 도면이에요."') == 2
 
 
@@ -174,7 +175,9 @@ def test_admin_gets_factory_picker_only_when_second_factory_exists(client, cohor
 
 
 def test_elsewhere_line_words():
-    assert elsewhere_line("edge", "need", picked="최가은", done=None) == "담당 최가은"
+    assert elsewhere_line("edge", "need", picked="최가은", done=None) == "최가은 작업 중"
+    assert elsewhere_line("edge", "need", picked="최가은 · 박엣지", done=None) == "최가은 · 박엣지 작업 중"
+    assert elsewhere_line("edge", "need", picked=None, done=None) == "작업 중"
     assert elsewhere_line("edge", "done", picked="최가은", done="최가은") == "엣지 완료 · 최가은"
     assert elsewhere_line("cut", "basic", picked=None, done="김재단") == "기본 · 김재단"
     assert elsewhere_line("cut", "none", picked=None, done=None) == "미정"
@@ -223,7 +226,7 @@ def test_pc_rows_are_combined_and_pc_sheet_marks_each_row(client, cohort):
             f'<span class="fph-fac">{F2} 1장</span></span>') in html
     data = client.get(f"/api/production/part-sheet?order_id={seed.id}&part=cut").get_json()["data"]
     assert [(r["factory_label"], r["act"]) for r in data["rows"]] == [("1공장", "check"), ("1공장", "check"), ("2공장", None)]
-    assert data["rows"][2]["other_factory"] is True and data["rows"][2]["holder"] == "담당 미정"  # 자세히 보임
+    assert data["rows"][2]["other_factory"] is True and data["rows"][2]["lines"] == ["담당 미정"]  # 자세히 보임(줄 글 — 2026-11-25 multi-holder K6)
     admin = factory_user("정관리", role="ADMIN", team="CS")
     login(client, admin)
     data = client.get(f"/api/production/part-sheet?order_id={seed.id}&part=cut").get_json()["data"]

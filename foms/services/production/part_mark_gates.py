@@ -11,7 +11,7 @@
                                    생산 단계 도면별 막힘(2026-11-25 설계서 §3-3)은 그 장 누름만 막고 ``numbers`` 를 싣는다
 ``STEP_SET_BY_HAND``        409    카드를 안 쓴 파트의 공정 칸이 손으로 체크됨 — 그 파트 카드 쓰기
 ``INSPECT_NOT_READY``       409    그 장 재단 · 엣지 · 조립이 아직 — 검수 맡기 · 완료 · 담당 바꾸기(``left``)
-``INSPECT_DONE_FIRST``      409    그 장 검수가 완료 — 앞 파트 완료 취소 · 기본 취소
+``INSPECT_DONE_FIRST``      409    그 장 검수 완료를 한 명이라도 누름("검수 1/2 완료"부터) — 앞 파트 완료 취소 · 기본 취소
 ``PART_USES_CARDS``         409    카드를 쓴 파트에 미완료 장이 있는데 공정 칸 체크(``left``)
 ``STEP_SET_BY_CARDS``       409    카드로 모두 완료한 파트의 공정 칸 끄기
 =========================  =====  ====================================================================
@@ -28,9 +28,13 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
 from foms.services.orders.drawing_fix import blocked, entry_blocked
 from foms.services.production.part_constants import MARK_STATE_DONE, PART_INSPECT, PRODUCTION_PART_LABELS
+from foms.services.production import mark_crew as mc
 from foms.services.production.part_mark_rules import (
+    ACTION_CHECK,
     ACTION_DONE,
+    ACTION_JOIN,
     ACTION_RELEASE,
+    ACTION_REMOVE,
     ACTION_TAKE,
     ACTION_TAKEOVER,
     ACTION_UNDO,
@@ -55,13 +59,13 @@ STEP_SET_BY_CARDS = "STEP_SET_BY_CARDS"
 HOLD_MESSAGE = "보류된 주문이라 지금은 못 눌러요. 보류가 풀리면 다시 돼요."
 REVISING_MESSAGE = "도면을 고치는 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
 #: 카드를 쓴 파트의 공정 칸 체크(승인 때 고친 것 2 — 글자 그대로, 숫자 = 남은 장).
-PART_USES_CARDS_MESSAGE = "도면 {left}장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
+PART_USES_CARDS_MESSAGE = "도면 {left}장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
 STEP_SET_BY_CARDS_MESSAGE = "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
 
-#: 보류 · 도면 고치는 중에도 되는 누름(§4-6 '되는 것' — 맡기 취소 · 완료 취소).
-ALLOWED_WHILE_BLOCKED: tuple[str, ...] = (ACTION_RELEASE, ACTION_UNDO)
-#: 검수 준비가 필요한 누름(§4-7 — 옛 검수 맡기 취소 · 검수 완료 취소는 된다).
-INSPECT_READY_ACTIONS: tuple[str, ...] = (ACTION_TAKE, ACTION_DONE, ACTION_TAKEOVER)
+#: 보류 · 도면 고치는 중에도 되는 누름(§4-6 '되는 것' — 시작 취소 · 완료 취소 · 반장의 남의 시작 취소, multi-holder §7-3 5).
+ALLOWED_WHILE_BLOCKED: tuple[str, ...] = (ACTION_RELEASE, ACTION_UNDO, ACTION_REMOVE)
+#: 검수 준비가 필요한 누름(§4-7 — 옛 검수 시작 취소 · 검수 완료 취소는 된다). 같이 작업 · PC [완료 처리]도(multi-holder §7-3 9).
+INSPECT_READY_ACTIONS: tuple[str, ...] = (ACTION_TAKE, ACTION_DONE, ACTION_TAKEOVER, ACTION_JOIN, ACTION_CHECK)
 
 
 @dataclass(frozen=True)
@@ -154,8 +158,14 @@ def hand_step_gate(sd: Any, marks: Iterable[Any], part: str) -> Optional[Gate]:
     return Gate(409, STEP_SET_BY_HAND, message, {"part": part, "checked_by": name or None})
 
 
-def _not_ready_message(left: list[dict[str, Any]]) -> str:
-    parts = " · ".join(f"{item['label']}(담당 {item['holder'] or '미정'})" for item in left)
+def _not_ready_message(left: list[dict[str, Any]], people: Optional[dict[str, list[str]]] = None) -> str:
+    """검수 막힘 글 — "재단(이시영 · 김재단 외 1명 작업 중)" · "엣지(담당 미정)"(multi-holder §8-2 20 · Q20 문장 꼴 "외 n명" ·
+    '미정'은 K2 그대로). ``people`` = 파트 → 작업하는 사람 이름 목록(없으면 칸 이름 그대로)."""
+    def who(item: dict[str, Any]) -> str:
+        return mc.name_sentence((people or {}).get(item["part"]) or [item["holder"] or ""])
+
+    parts = " · ".join(f"{item['label']}({who(item)} 작업 중)" if item["holder"] else f"{item['label']}(담당 미정)"
+                       for item in left)
     last = left[-1]["label"]
     particle = subject_particle(last)[len(last):]  # 괄호 앞 파트 이름에 맞춘 토씨(조립이 · 엣지가)
     return f"아직 검수할 수 없어요. {parts}{particle} 미완료예요. 완료되면 검수할 수 있어요."
@@ -173,8 +183,11 @@ def inspect_gate(sd: Any, marks: Iterable[Any], key: str, part: str, action: str
                  undo_basic: bool = False) -> Optional[Gate]:
     """검수 순서(B11) — 장마다. 관리자 · 대신도 똑같이 막힌다.
 
-    * 검수 맡기 · 완료 · 담당 바꾸기 = 그 장 재단 · 엣지 · 조립이 모두 완료여야(``INSPECT_NOT_READY`` + ``left``).
-    * 재단 · 엣지 · 조립 완료 취소 · 기본 취소 = 그 장 검수가 완료면 막는다(``INSPECT_DONE_FIRST``).
+    * 검수 시작 · 같이 작업 · 완료 · 담당 바꾸기 · PC [완료 처리] = 그 장 재단 · 엣지 · 조립이 모두 완료여야(``INSPECT_NOT_READY`` +
+      ``left``). 같이 작업하는 줄은 모두 완료여야 완료다("재단 1/2 완료" = 미완료 — Q14).
+    * 재단 · 엣지 · 조립 완료 취소 · 기본 취소(본인 · 반장 대신 · PC [완료 취소]) = 그 장 검수 줄에서 완료를 누른 사람이 한 명이라도
+      있으면 막는다(``INSPECT_DONE_FIRST`` — 사장님 2026-11-25 "한 명이라도 검수 완료를 눌렀으면 막기", "검수 1/2 완료"부터). 검수를
+      시작만 하고 아무도 완료를 안 눌렀거나, 검수 완료를 모두 되돌려 0명이면 된다. 사람 없는 검수 완료(풀어 쓴 완료 · 옛 줄)도 막는다.
 
     Args:
         sd: 잠근 주문의 ``structured_data``.
@@ -191,14 +204,18 @@ def inspect_gate(sd: Any, marks: Iterable[Any], key: str, part: str, action: str
     if part == PART_INSPECT and action in INSPECT_READY_ACTIONS:
         left = inspect_left(sd, marks, key)
         if left:
-            return Gate(409, INSPECT_NOT_READY, _not_ready_message(left),
+            rows = marks_by_part(marks)
+            people = {item["part"]: mc.names(mc.crew_of(rows.get(item["part"], {}).get(key))) for item in left}
+            return Gate(409, INSPECT_NOT_READY, _not_ready_message(left, people),
                         {"left": [{"part": item["part"], "holder": item["holder"]} for item in left]})
         return None
     if part in INSPECT_PREREQ_PARTS and action == ACTION_UNDO:
         row = marks_by_part(marks).get(PART_INSPECT, {}).get(key)
-        if row is not None and str(getattr(row, "state", "")) == MARK_STATE_DONE:
-            inspector = str(getattr(row, "done_by_name", None) or "").strip()
-            return Gate(409, INSPECT_DONE_FIRST, _done_first_message(inspector, part, undo_basic),
+        crew = mc.crew_of(row)
+        if row is not None and (str(getattr(row, "state", "")) == MARK_STATE_DONE or any(mc.is_done(m) for m in crew)):
+            done = mc.done_names(crew) or [str(getattr(row, "done_by_name", None) or "").strip()]
+            inspector = mc.name_line(done)  # 자료 칸 — 여러 명이면 "강검수 · 윤검수"(Q20)
+            return Gate(409, INSPECT_DONE_FIRST, _done_first_message(mc.name_sentence(done), part, undo_basic),
                         {"inspected_by": inspector or None})
     return None
 

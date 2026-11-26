@@ -1,7 +1,8 @@
 """파트 맡기 고침 P1 화면(설계서 2026-11-23 §8 · 승인 때 고친 것 1~3) — 그려진 HTML · JS 배선 구조.
 
-* 지금 글은 그대로(승인 때 고친 것 1): [내가 엣지] · "박재단 맡음" · "작업 필요 · 김재단" · [되돌리기] · "안 본 도면" · 거르개 글.
-  새 칸에만 새 글: [맡기 취소] · "내 담당" 꼬리 · "미정" · "재단 3/5" · "n장 미완료" · "바뀐 기록 보기" · 아침 칩.
+* 2026-11-25 multi-holder §8-2 로 낱말이 바뀌었다: [작업 시작] · "박재단 작업 중"(+ [같이 작업]) · 관리자 · 보기만 칸도 "김재단 작업 중" ·
+  [시작 취소] · "내 작업" 꼬리 · "엣지 완료 · 김민준"('끝' → '완료') · 아침 칩 "어제부터 내 작업". 그대로: [되돌리기] · "안 본 도면" ·
+  거르개 글 · "미정" · "재단 3/5" · "n장 미완료" · "바뀐 기록 보기".
 * 막힌 칸 = button aria-disabled + 까닭(서버 거절 글) — 누를 수 있고(초점) 말풍선이 뜬다. 남이 맡은 칸 = 누르면 [담당 바꾸기] 창.
 * 작업 시트: 카드 쓴 파트 칸 옆 글 · 막힘 글 자리 · [바뀐 기록 보기] · 회색 [제작 완료] 까닭 · 반장 손 체크 확인 창.
 대조군: 읽기 전용 · 카드를 안 쓴 주문은 지금 꼴(새 단추 · 새 글 없음).
@@ -29,7 +30,8 @@ HOME = "/erp/production/home"
 JS = ROOT / "static/js/production"
 NEW_JS = ("foms-production-parts-claim.js", "foms-production-parts-modal.js", "foms-production-sheet-parts.js")
 TOUCHED_JS = NEW_JS + ("foms-production-parts.js", "foms-production-parts-viewer.js", "foms-production-parts-sync.js",
-                       "foms-production-sheet-page.js", "foms-production-home-steps.js")
+                       "foms-production-sheet-page.js", "foms-production-home-steps.js",
+                       "foms-production-parts-crew.js")  # 여러 명 같이 작업 M2(2026-11-25 multi-holder)
 _seq = count(1)
 
 
@@ -109,15 +111,16 @@ def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘�
     _login(client, me)
     html = _get(client, HOME)
     mine = _card(html, "한빛", 0)
-    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">맡기 취소</button>' in mine
+    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">시작 취소</button>' in mine
     assert '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="done">엣지 완료</button></div>' in mine
-    assert '<span class="pp-tag" data-pp-tag aria-label="내 담당 · 어제부터">내 담당 · <span class="is-old">어제부터</span></span>' in mine
+    assert '<span class="pp-tag" data-pp-tag aria-label="내 작업 · 어제부터">내 작업 · <span class="is-old">어제부터</span></span>' in mine
     assert 'class="fph-dr__by pp-by has-tag"' in mine and f'data-picked-id="{me_id}"' in mine
     other = _card(html, "한빛", 1)
-    assert 'class="fph-wi pp-act pp-st-taken pp-held" data-pp-act="held"' in other and "<b>박엣지 맡음</b>" in other  # 지금 글 그대로
+    assert 'class="fph-wi pp-act pp-st-taken pp-held" data-pp-act="held"' in other and "<b>박엣지 작업\u00a0중</b>" in other
+    assert '<div class="pp-two pp-two--join">' in other and 'data-pp-act="join">같이 작업</button></div>' in other  # §8-2 6
     assert "pp-tag" not in other
-    assert "엣지 끝 · 김민준" in _card(html, "한빛", 2) and "되돌리기" in _card(html, "한빛", 2)  # 지금 글 그대로
-    assert "내가 엣지" in _card(html, "한빛", 3)  # 지금 글 그대로
+    assert "엣지 완료 · 김민준" in _card(html, "한빛", 2) and "되돌리기" in _card(html, "한빛", 2)  # '끝' → '완료'(K4)
+    assert 'data-pp-act="take">작업 시작</button>' in _card(html, "한빛", 3)  # 네 파트 같은 글(§8-2 1)
     hold = _card(html, "보류집", 0)
     assert '<button type="button" class="fph-wi pp-act pp-st-hold" aria-disabled="true"' in hold and ">보류 · 자재 기다림</button>" in hold
     assert 'data-pp-why="보류된 주문이라 지금은 못 눌러요. 보류가 풀리면 다시 돼요."' in hold and 'data-pp-act="take"' not in hold
@@ -126,8 +129,8 @@ def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘�
     assert f'<a class="pp-ln pp-sheetlink" href="/erp/production/sheet/{order_id}"' in mine and '<div class="pp-duerow">' in mine
     keys = re.findall(r'data-key="한빛/d(\d)\.png"', html)
     assert keys == ["3", "0", "1", "2"]
-    # 아침 칩(밤 넘긴 내 담당 1장) · 창 몸 글 · 고르기 · 거절 글 자리
-    assert 'data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 담당 1장' in html
+    # 아침 칩(밤 넘긴 내 작업 1장) · 창 몸 글 · 고르기 · 거절 글 자리
+    assert 'data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 1장' in html
     assert '<p class="pp-mbody" data-pp-modal-body hidden></p>' in html and "data-pp-modal-choices" in html
     assert 'role="alert" aria-live="assertive"' in html
     # 30초 받아 오기 "어제부터" 판정 = 서버 KST 오늘
@@ -149,23 +152,23 @@ def test_손_체크한_파트_카드는_완료_칸이고_단추가_없다(client
 
 def test_보류_주문은_완료_기본_카드에도_막힘을_싣고_되돌린_뒤_그림_규칙이_서버와_같다(client, cohort) -> None:
     """완료 · 기본 카드에도 data-pp-block — 되돌리면(완료 → 담당 · 기본 → 안 봄) JS 가 그 값으로 그린다. 서버는 같은 상태를
-    [맡기 취소][보류 칸] · 보류 칸으로 그린다. JS 규칙(claim.special 은 상태와 상관없이 카드의 data-pp-block 을 읽음)은 아래 정적 단언."""
+    [시작 취소][보류 칸] · 보류 칸으로 그린다. JS 규칙(claim.special 은 상태와 상관없이 카드의 data-pp-block 을 읽음)은 아래 정적 단언."""
     me = _user("김재단", "cut")
     held = _order("보류집", 4, hold=True)
     _mark(held, 0, "cut", "DONE", me)
     _mark(held, 1, "cut", "BASIC", me)
-    _mark(held, 2, "cut", "NEED", me)  # = 완료 카드를 되돌린 뒤 상태(내 담당)
+    _mark(held, 2, "cut", "NEED", me)  # = 완료 카드를 되돌린 뒤 상태(내 작업)
     _login(client, me)
     html = _get(client, HOME)
     for j in range(4):  # 완료 · 기본 · 담당 · 안 본 장 모두 같은 막힘 값
         card = _card(html, "보류집", j)
         assert 'data-pp-block="hold" data-pp-block-text="보류 · 자재 기다림"' in card, j
     done, basic = _card(html, "보류집", 0), _card(html, "보류집", 1)
-    assert "재단 끝 · 김재단" in done and 'data-pp-act="undo"' in done  # 완료 취소는 보류에도 된다(§4-6)
+    assert "재단 완료 · 김재단" in done and 'data-pp-act="undo"' in done  # 완료 취소는 보류에도 된다(§4-6)
     assert 'data-pp-act="undo"' in basic
-    # 되돌린 뒤 상태의 서버 그림 = 내 담당 [맡기 취소][보류 칸] · 안 본 장 = 보류 칸(단추 없음)
+    # 되돌린 뒤 상태의 서버 그림 = 내 작업 [시작 취소][보류 칸] · 안 본 장 = 보류 칸(단추 없음)
     mine = _card(html, "보류집", 2)
-    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">맡기 취소</button><button type="button" class="fph-wi pp-act pp-st-hold"' in mine
+    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">시작 취소</button><button type="button" class="fph-wi pp-act pp-st-hold"' in mine
     fresh = _card(html, "보류집", 3)
     assert 'class="fph-wi pp-act pp-st-hold"' in fresh and 'data-pp-act=' not in fresh
     claim = (JS / "foms-production-parts-claim.js").read_text(encoding="utf-8")
@@ -209,12 +212,12 @@ def test_관리자_남의_담당은_고르기_창_단추_지금_완료_단추_�
     cs_user = (cs.id, cs.username, cs.role)
     _login(client, admin)
     card = _card(_get(client, HOME + "?tab=parts&part=cut"), "한빛", 0)
-    assert 'class="fph-wi pp-act pp-st-need pp-not-need pp-held" data-pp-act="held"' in card and "<b>작업 필요 · 김재단</b>" in card
-    assert '<button type="button" class="fph-qr__done pp-act pp-fin pp-only-need" data-pp-act="done">재단 완료</button>' in card
+    assert 'class="fph-wi pp-act pp-st-need pp-not-need pp-held" data-pp-act="held"' in card and "<b>김재단 작업\u00a0중</b>" in card  # K5
+    assert '<button type="button" class="fph-qr__done pp-act pp-fin pp-only-need" data-pp-act="check">재단 완료</button>' in card  # 대신 완료
     with client.session_transaction() as sess:
         sess["user_id"], sess["username"], sess["role"] = cs_user
     card = _card(_get(client, HOME + "?tab=parts&part=cut"), "한빛", 0)
-    assert '<span class="fph-wi pp-act pp-st-need">작업 필요 · 김재단</span>' in card and "<button" not in card.split("pp-actbox")[1]
+    assert '<span class="fph-wi pp-act pp-st-need">김재단 작업\u00a0중</span>' in card and "<button" not in card.split("pp-actbox")[1]
 
 
 # --------------------------------------------------------------------------- #
@@ -231,7 +234,7 @@ def test_날짜_줄_칸_아래_이름과_단계_칸_미완료(client, cohort) ->
     row = html.split(f'data-foms-home-dayrow="{order.id}"', 1)[1].split("</a>", 1)[0]
     assert '<span class="fph-dr__sg">재단 중<small class="is-miss">2장 미완료</small></span>' in row
     assert '<span class="fph-dr__steps has-hd" aria-label="공정">' in row
-    assert '<i></i>재단 3/5<span class="visually-hidden">, 재단 3/5 · 2장 미완료 · 담당 박재단</span>' in row
+    assert '<i></i>재단 3/5<span class="visually-hidden">, 재단 3/5 · 2장 미완료 · 박재단 작업 중</span>' in row
     assert '<small class="fph-dr__hd" aria-hidden="true"><b>박재단</b></small>' in row
     assert row.count('<small class="fph-dr__hd is-none" aria-hidden="true"><b>미정</b></small>') == 3
 
@@ -248,7 +251,7 @@ def test_작업_시트_카드_진행_글_막힘_글_바뀐_기록_까닭_손_체
     assert '<small class="fpp-note is-miss" data-foms-sheet-step-meta data-foms-sheet-cardnote>도면 3/5 · 2장 미완료 · 바뀜 1</small>' in html
     assert '<p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>' in html
     assert 'data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>' in html
-    assert 'data-foms-sheet-complete-why="아직 미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"' in html
+    assert 'data-foms-sheet-complete-why="미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"' in html
     parts = json.loads(unescape(re.search(r'data-foms-sheet-parts="([^"]+)"', html).group(1)))
     assert parts["sheets"] == 5 and parts["parts"]["cut"]["uses_cards"] and parts["parts"]["cut"]["left_n"] == 2
     assert html.count("data-foms-sheet-confirm ") + html.count("data-foms-sheet-confirm hidden") >= 1
@@ -286,12 +289,13 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
         assert not re.search(r"fetch\s*\(|fomsMutationFetch|XMLHttpRequest|sendBeacon", src), "쓰기는 parts.js send() 하나"
     assert not re.search(r"method: 'POST'|fomsMutationFetch", sheet), "시트 JS 의 POST 는 시트 공정 길 하나"
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "", "-sync")]
+    order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "-crew", "", "-sync")]
     assert order == sorted(order)
-    # P2(2026-11-23 §4-12)가 modal(대신 한 줄)을 다시 올렸다 — parts · claim 은 P1 핀 그대로
-    assert len(re.findall(r"foms-production-parts\.js'\) \}\}\?v=20261124g\" defer", tpl)) == 1  # 3단계 공장 제작 완료 물음
-    assert len(re.findall(r"foms-production-parts-claim\.js'\) \}\}\?v=20261124f\" defer", tpl)) == 1  # 3단계 남의 공장 카드 말풍선
-    assert len(re.findall(r"foms-production-parts-modal\.js'\) \}\}\?v=20261124g\" defer", tpl)) == 1
+    # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다 — 검토 고침(11-25 [대신 완료] =
+    # check · 반장 자기 몫 되돌리기 줄)이 modal · crew · parts 를 한 번 더 · 비평 C06 · C09(11-26 주문 막힘 칸)가 claim · parts · sync 를, 검토 고침(걸린 카드 건너뛰기)이 parts · sync 를 한 번 더
+    for name, pin in (("parts", "20261125x"), ("parts-claim", "20261125t"), ("parts-modal", "20261125v"),
+                      ("parts-crew", "20261125u"), ("parts-sync", "20261125u")):
+        assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v={pin}\" defer", tpl)) == 1, name
 
 
 def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> None:
@@ -310,7 +314,7 @@ def test_창_초점_가두기_되돌리기_막힘_이어_뜨는_창_잠금() -> 
     assert ".foms-prod-home .pp-modal .foms-prod-change-modal__list[hidden] { display: none; }" in css
     assert "var LOCK_MS = 800;" in modal and "run.setAttribute('aria-disabled', 'true');" in modal
     assert "pending.busy || pending.locked" in parts  # 두 번 누름 · 잠금 중 누름은 버린다
-    assert "data.order_ready && p.action === 'done'" in parts and "'/production/complete'" in parts
+    assert "(data.order_ready || fac) && p.action !== 'bulk'" in parts and "'/production/complete'" in parts
     assert "M.lost(text, M.nowLine(data.mark));" in parts and "body.seen_by" in parts
     assert "claim.busy(card)" in parts and "window.FomsPartsClaim.recheck(card)" in sync  # 받아 오기가 열린 말풍선 · 창을 안 덮음
     claim = (JS / "foms-production-parts-claim.js").read_text(encoding="utf-8")
@@ -323,7 +327,7 @@ def test_작업_시트_JS_는_새_파일이_없으면_지금_그대로() -> None
     assert "sp && sp.refused(page, result) ? '' : failText(result)" in page
     assert "var why = window.FomsSheetParts && window.FomsSheetParts.why(page);" in page and "completeBlockedText()" in page
     sheet = (JS / "foms-production-sheet-parts.js").read_text(encoding="utf-8")
-    assert "' 작업 완료로 처리할까요?'" in sheet and "'이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.'" in sheet
+    assert "' 완료할까요?'" in sheet and "textContent = label + ' 완료';" in sheet and "'이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.'" in sheet
     assert "if (!done) { go(); return; }" in sheet  # 끌 때는 묻지 않는다
     assert "part.uses_cards" in sheet and "/api/production/part-history?order_id=" in sheet
 

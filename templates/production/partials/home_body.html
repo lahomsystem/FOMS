@@ -16,7 +16,7 @@
            옛 보드(칸반)로 가는 [보드 →] 는 태블릿에서 뺐다 — PC(마우스)에는 탭 끝에 남긴다(home_pc_board_link.html,
            설계서 2026-11-21-production-pc-viewer §10 R0 · R2 에서 뺀다). PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
         <a class="foms-prod-home__navtab{% if tab in ('date', 'parts') %} is-on{% endif %}" href="{{ home_href(None, nav_part) }}"{% if tab in ('date', 'parts') %} aria-current="page"{% endif %}>날짜</a>
-        {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정 <small>{{ counts.making }}</small></a>
+        {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>남은 공정 <small>{{ counts.making }}</small></a>
 {% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ home_href('changes', nav_part) }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
         <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>{% if pc_view %}{% include 'production/partials/home_pc_board_link.html' %}{% endif %}
       </nav>
@@ -29,7 +29,7 @@
         <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ home_href(tab, part_board.url_part if part_board else nav_part, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
       </div>
     </header>{% if edit_on %}{% include 'production/partials/home_pc_band.html' %}{% endif %}
-    <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 <span data-foms-home-sync-at></span> 에 받은 것이에요.</p>
+    <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 <span data-foms-home-sync-at></span>에 받은 것이에요.</p>
     <p class="foms-prod-home__status" data-foms-home-status aria-live="polite"></p>
 
     {% if tab == 'steps' %}
@@ -48,13 +48,13 @@
 {% endif %}  </section>
   {% if (tab == 'changes' and can_ack) or (step_panel and can_act) %}
   {# [확인했어요] = 옆 시트·묘비와 같은 change-ack 배선 · '내 공정' 판의 [보류](tablet-domain-sheets.js, 이 화면은 기기 무관) #}
-  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126a" defer></script>
   {% endif %}{% if step_panel and can_act %}
   {# '내 공정' 판(설계서 2026-11-21-production-my-steps-panel §3-5): [보류] 사유 창 = 공용 사유 시트 세트(조각 · CSS · JS, 칸반 tablet_kanban_body.html 과 같다),
      [불량] 칩 · 최근 불량 = 작업 시트 JS — 문서 리스너를 달므로 data-foms-run-once(셸 교체로 온 새 판은 그 파일이 foms:erp-shell-fragment-swapped 로 묶는다). #}
   {% include 'partials/shared/foms_reason_sheet.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">
-  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124i" defer data-foms-run-once="prod-sheet-page"></script>
+  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124k" defer data-foms-run-once="prod-sheet-page"></script>
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   {% endif %}{% if step_panel_omitted %}{# 터치인데 좁은 창(세로)이라 판을 뺐다 — 가로로 돌리면 화면을 다시 받는다(wide_surface_omitted_marker 계약) #}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if write_omitted and tab == 'steps' %}{# 쿠키 없는 첫 요청이라 [끝]을 뺐다 — 터치 기기면 다시 받는다(write_omitted_marker.html) #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
 </div>

@@ -353,10 +353,10 @@ def test_part_account_cannot_write_order_steps(client):
     resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     body = resp.get_json()
     assert resp.status_code == 403 and body["data"]["code"] == "PART_ACCOUNT_USE_CARDS"
-    assert body["error"] == "공정은 도면 카드에서 작업해요"
+    assert body["error"] == "공정은 도면에서 작업해요"
     assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
     got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
-    assert got["locked"] is True and got["locked_note"] == "공정은 도면 카드에서 작업해요"
+    assert got["locked"] is True and got["locked_note"] == "공정은 도면에서 작업해요"
 
 
 # CS 직원은 2026-11-21 부터 생산을 보기만 한다(설계서 production-pc-viewer §13 결정 2) — 대조군은 파트 없는 생산 매니저로 바꿨다.
@@ -398,7 +398,7 @@ def test_sheet_step_buttons_read_only_for_part_account(client, url):
     assert len(buttons) == 4 and all(not b.has_attr("disabled") and b.get("aria-disabled") == "true" and "is-locked" in b["class"]
                                      for b in buttons)
     note = soup.select("[data-foms-sheet-steps-locked]")
-    assert len(note) == 1 and note[0].get_text(strip=True) == "공정은 도면 카드에서 작업해요"
+    assert len(note) == 1 and note[0].get_text(strip=True) == "공정은 도면에서 작업해요"
     assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 그대로
 
 

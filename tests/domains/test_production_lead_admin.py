@@ -220,7 +220,9 @@ def test_unfill_chains_last_and_freezes_the_same_condition():
     assert module.FILL_WHERE == _migration().FILL_WHERE  # prodlead_01 채우기 조건과 글자 그대로(그 행만 되돌린다)
     from alembic.config import Config
     from alembic.script import ScriptDirectory
-    assert ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini"))).get_heads() == ["prodlead_02"]
+    script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
+    heads = script.get_heads()  # 뒤 마이그레이션(prodpart_02_holders · …)이 이 위에 이어도 머리는 하나
+    assert len(heads) == 1 and "prodlead_02" in {r.revision for r in script.iterate_revisions(heads[0], "base")}
 
 
 def test_fresh_chain_ends_with_no_automatic_lead_and_hand_set_leads_outside_the_condition_stay():

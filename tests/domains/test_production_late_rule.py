@@ -13,6 +13,7 @@ import pytest
 
 from foms.services.common.business_calendar import business_days_between
 from foms.services.production.late_rule import LATE_THRESHOLDS, late_spot, production_late_level, production_late_view
+from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
 
 MON = datetime.date(2026, 11, 23)
 _KEYS = ("cut", "edge", "assemble", "inspect")
@@ -74,11 +75,14 @@ def test_공휴일도_빠진다_성탄절() -> None:
 def test_지난_시공일은_자리와_상관없이_늦음_제작_완료만_뺀다() -> None:
     past = _d(20)
     for row in (_row("도면 기다림", past, view="wait", run=False), _row("제작 대기", past, run=False),
-                _row("검수 중", past, done=3), _row("검수 끝", past, done=4)):
+                _row("검수 중", past, done=3), _row(PRODUCTION_FINISHED_STAGE, past, done=4)):
         assert production_late_level(row, MON) == "late", row["home_stage"]
     assert production_late_level(_row("제작 완료", past, done=4, view="done"), MON) is None
-    # 검수 끝(모든 공정 끝)은 앞날이면 색 없음 — 남은 일은 [제작 완료] 누르기뿐
-    assert production_late_level(_row("검수 끝", _d(24), done=4), MON) is None
+    # 검수 완료(모든 공정 완료 — 옛 '검수 끝')는 앞날이면 색 없음 — 남은 일은 [제작 완료] 누르기뿐
+    assert PRODUCTION_FINISHED_STAGE == "검수 완료"
+    assert production_late_level(_row(PRODUCTION_FINISHED_STAGE, _d(24), done=4), MON) is None
+    # 대조 — 견주는 글자는 상수 하나: 옛 글자 '검수 끝'은 이제 모르는 자리라 지난 시공일이어도 늦음이 아니다
+    assert production_late_level(_row("검수 끝", _d(20), done=4), MON) is None
 
 
 def test_보류는_멈춘_공정의_자리() -> None:

@@ -3,9 +3,11 @@
 부르는 쪽(``foms/web/production/home.py``)이 그날 만들 것 주문의 표시 줄을 한 번 읽어 넘긴다(파트 계정은 판이 읽은 줄을
 다시 쓴다). 칸 하나의 값:
 
-* 완료(카드) = 마지막으로 완료한 사람 + "외 n"(다른 완료한 사람 수). 완료(손 체크 · 카드 안 쓴 파트) = 체크한 사람.
-* 하는 중 · 담당 있음 = 담당 중 맡은 때 이른 사람 + "외 n". 담당이 바뀐 장이 있으면 바꿔 맡은 사람 + "바뀜"("외 n" 대신).
-  밤을 넘긴 담당은 ``old``(호박 글자 — "어제부터" 글은 ``aria`` · 마우스 글에만).
+* 완료(카드) = 마지막으로 완료한 사람 + "외 n"(다른 완료한 사람 수 — 같이 작업한 사람도 센다). 완료(손 체크 · 카드 안 쓴 파트) =
+  체크한 사람.
+* 하는 중 · 작업 중 = 작업하는 사람 중 시작한 때 이른 사람 + "외 n"(같이 작업하는 사람도 센다 — "이시영 외 2", 2026-11-25
+  multi-holder §8-2 29). 담당이 바뀐 장이 있으면 바꿔 맡은 사람 + "바뀜"("외 n" 대신). 밤을 넘긴 담당은 ``old``(호박 글자 —
+  "어제부터" 글은 ``aria`` · 마우스 글에만). 숨은 글 · 마우스 글은 "김재단 작업 중"(§8-2 23 — "담당 미정"은 그대로).
 * 담당 없음 = "미정". 카드를 쓴 파트가 아직 미완료면 칸 이름이 "재단 3/5", 그 파트가 첫 미완 공정이면 단계 칸 둘째 줄
   "2장 미완료"(``row['part_miss']``).
 
@@ -19,6 +21,7 @@ import datetime
 from typing import Any, Iterable, Optional
 
 from foms.services.datetime_kst import format_datetime_kst
+from foms.services.production import mark_crew as mc
 from foms.services.production.part_constants import MARK_STATE_NEED, PRODUCTION_PART_LABELS
 from foms.services.production.part_progress import current_keys, marks_by_part, part_progress
 
@@ -66,21 +69,35 @@ def handed_text(from_name: Optional[str], at: Optional[datetime.datetime], today
     return f"{head} · {day.month}/{day.day}"
 
 
-def _names(rows: Iterable[Any], attr: str) -> list[str]:
+def _names_of(people: Iterable[tuple[Any, str]]) -> list[str]:
     seen: list[str] = []
-    for row in rows:
-        name = str(getattr(row, attr, None) or "").strip()
+    for _at, name in people:
         if name and name not in seen:
             seen.append(name)
     return seen
 
 
+def _finishers(rows: Iterable[Any]) -> list[str]:
+    """완료한 사람 이름 — 늦게 완료한 차례(같이 작업한 줄은 사람마다, 사람 없는 완료는 줄의 완료한 사람)."""
+    floor = datetime.datetime.min
+    stamped: list[tuple[datetime.datetime, str]] = []
+    for row in rows:
+        crew = mc.crew_of(row)
+        people = [(mc.from_iso(m.get("done_at")), str(m.get("done_name") or "").strip()) for m in crew if mc.is_done(m)]
+        if not people:
+            people = [(getattr(row, "done_at", None), str(getattr(row, "done_by_name", None) or "").strip())]
+        stamped += [(at or floor, name) for at, name in people if name]
+    out: list[str] = []
+    for _at, name in reversed(sorted(stamped, key=lambda pair: pair[0])):
+        if name not in out:
+            out.append(name)
+    return out
+
+
 def _done_cell(keys: list[str], rows: dict[str, Any], progress: dict[str, Any], step: dict[str, Any]) -> dict[str, Any]:
     """완료 칸 — 카드로 완료면 마지막 완료한 사람 + 외 n, 손 체크면 체크한 사람."""
     if progress["uses_cards"] and progress["total_n"]:
-        finished = [rows[k] for k in keys if k in rows]
-        finished.sort(key=lambda r: (getattr(r, "done_at", None) is not None, getattr(r, "done_at", None)))
-        names = _names(reversed(finished), "done_by_name")
+        names = _finishers(rows[k] for k in keys if k in rows)
         name, others = (names[0] if names else ""), names[1:]
     else:
         name, others = str(step.get("by") or "").strip(), []
@@ -91,17 +108,29 @@ def _done_cell(keys: list[str], rows: dict[str, Any], progress: dict[str, Any], 
             "state": "완료", "extra": extra, "others": others}
 
 
+def _workers(held: list[Any]) -> list[tuple[Optional[datetime.datetime], str]]:
+    """하는 중 줄들의 작업하는 사람(시작한 때, 이름) — 시작한 때 이른 차례(같이 작업하는 사람도 사람마다)."""
+    people: list[tuple[Optional[datetime.datetime], str]] = []
+    for row in held:
+        crew = mc.crew_of(row)
+        pairs = [(mc.from_iso(m.get("at")), str(m.get("name") or "").strip()) for m in crew]
+        people += pairs or [(getattr(row, "picked_at", None), str(getattr(row, "picked_by_name", None) or "").strip())]
+    return sorted(people, key=lambda pair: (pair[0] is None, pair[0] or datetime.datetime.min))
+
+
 def _held_cell(held: list[Any], today: datetime.date) -> dict[str, Any]:
-    """하는 중 칸 — 담당(맡은 때 이른 사람, 담당이 바뀐 장이 있으면 바꿔 맡은 사람) · 외 n · 바뀜 · 밤 넘김."""
+    """하는 중 칸 — 담당(시작한 때 이른 사람, 담당이 바뀐 장이 있으면 바꿔 맡은 사람) · 외 n · 바뀜 · 밤 넘김."""
     held = sorted(held, key=lambda r: (getattr(r, "picked_at", None) is None, getattr(r, "picked_at", None)))
     handed = [r for r in held if getattr(r, "handed_from_name", None)]
     handed.sort(key=lambda r: (getattr(r, "handed_at", None) is not None, getattr(r, "handed_at", None)))
+    workers = _workers(held)
+    lead_at, first = workers[0] if workers else (None, "")
     lead = handed[-1] if handed else held[0]
-    name = str(lead.picked_by_name or "").strip() or "다른 사람"
-    others = [n for n in _names(held, "picked_by_name") if n != name]
-    since = since_text(getattr(lead, "picked_at", None), today)
+    name = (str(lead.picked_by_name or "").strip() if handed else first) or "다른 사람"
+    others = [n for n in _names_of(workers) if n != name]
+    since = since_text(getattr(lead, "picked_at", None) if handed else lead_at, today)
     change = handed_text(lead.handed_from_name, getattr(lead, "handed_at", None), today, with_time=False) if handed else ""
-    extra = [f"담당 {name}"] + [p for p in (change or since,) if p]
+    extra = [f"{name} 작업 중"] + [p for p in (change or since,) if p]
     if others:
         extra.append("함께 하는 사람 " + ", ".join(others))
     return {"kind": "held", "name": name, "tail": "바뀜" if handed else (f"외 {len(others)}" if others else ""),
@@ -143,10 +172,10 @@ def part_holder(sd: Any, marks: list[Any], part: str, step: dict[str, Any], toda
 
 
 def _pc_tip(cell: dict[str, Any], label: str, left: int, partial: bool) -> Optional[str]:
-    """PC 마우스 글 — 카드를 쓴 파트가 아직 미완료일 때만 새 글("재단 3/5 · 2장 미완료 · 담당 김재단"). 그 밖은 지금 글."""
+    """PC 마우스 글 — 카드를 쓴 파트가 아직 미완료일 때만 새 글("재단 3/5 · 2장 미완료 · 김재단 작업 중"). 그 밖은 지금 글."""
     if not partial:
         return None
-    who = f"담당 {cell['name']}" if cell["kind"] == "held" else f"담당 {HOLDER_NONE}"
+    who = f"{cell['name']} 작업 중" if cell["kind"] == "held" else f"담당 {HOLDER_NONE}"
     tip = f"{label} · {left}장 미완료 · {who}"
     if cell.get("change_tip"):
         tip += f" · {cell['change_tip']}"

@@ -13,7 +13,7 @@
 
   if (window.FomsProdStepPanes) { return; }
   var OFFLINE_TEXT = '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.';
-  var GONE_TEXT = '이 주문은 그 사이 다른 공정으로 옮겨졌어요. [다시 받기]를 눌러 주세요.';
+  var GONE_TEXT = '이 주문은 그사이 다른 공정으로 옮겨졌어요. [다시 받기]를 눌러 주세요.';
   var LOAD_TEXT = '판을 받는 중…';
   var PANEL_VIEW = 'panel';
   var PANEL_HEADER = 'X-FOMS-HOME-PANEL';

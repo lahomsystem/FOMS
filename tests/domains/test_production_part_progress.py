@@ -109,7 +109,7 @@ def test_cards_order_blocks_even_without_any_step_on():
     """2026-11-21 '칸을 쓴 주문만 막기'의 고침 — 카드를 쓴 주문은 칸을 하나도 안 켜도 막는다(§18 둘째)."""
     body = complete_block_body(_sd(), [_m("k1", "cut", "DONE")])
     assert body["code"] == "STEPS_INCOMPLETE" and body["missing_steps"][0] == {"key": "cut", "label": "재단"}
-    assert body["message"] == "아직 미완료가 있어요 — 재단 4장 · 엣지 5장 · 조립 5장 · 검수 5장"
+    assert body["message"] == "미완료가 있어요 — 재단 4장 · 엣지 5장 · 조립 5장 · 검수 5장"
     assert body["left"] == {"cut": 4, "edge": 5, "assemble": 5, "inspect": 5}
 
 
@@ -149,7 +149,7 @@ def test_inspect_gate_blocks_until_ready_and_names_holders(action):
     marks = [_m("k1", "edge", "NEED", holder="김민준")]
     gate = inspect_gate(_sd(), marks, "k1", "inspect", action)
     assert gate.code == "INSPECT_NOT_READY" and gate.status == 409
-    assert gate.message == ("아직 검수할 수 없어요. 재단(담당 미정) · 엣지(담당 김민준) · 조립(담당 미정)이 미완료예요. "
+    assert gate.message == ("아직 검수할 수 없어요. 재단(담당 미정) · 엣지(김민준 작업 중) · 조립(담당 미정)이 미완료예요. "
                             "완료되면 검수할 수 있어요.")
     assert gate.extra["left"] == [{"part": "cut", "holder": None}, {"part": "edge", "holder": "김민준"},
                                   {"part": "assemble", "holder": None}]
@@ -175,7 +175,7 @@ def test_step_cell_gate_card_part_with_sheets_left_refuses_with_exact_message():
     marks = [_m(k, "cut", "DONE") for k in KEYS[:3]]  # 사장님 예: 5장 중 3장만 완료
     gate = step_cell_gate(_sd(), marks, "cut", True)
     assert (gate.status, gate.code) == (409, "PART_USES_CARDS")
-    assert gate.message == "도면 2장이 아직 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
+    assert gate.message == "도면 2장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
     assert gate.extra == {"part": "cut", "left": 2, "total": 5}
     assert gate.body() == {"success": False, "data": {"code": "PART_USES_CARDS", "part": "cut", "left": 2, "total": 5},
                            "error": gate.message}

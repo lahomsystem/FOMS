@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any, Iterable, Optional
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.production import mark_crew as _mark_crew
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PART,
     MARK_STATE_BASIC,
@@ -45,7 +46,7 @@ from foms.services.production.steps import (
 #: 검수 앞 파트(§4-7 — 그 장의 이 셋이 완료돼야 검수를 맡는다).
 INSPECT_PREREQ_PARTS: tuple[str, ...] = (PART_CUT, PART_EDGE, PART_ASSEMBLE)
 #: 카드를 쓴 주문의 막힘 글 머리(새 글, §4-3) — 뒤에 "재단 1장 · 검수 3장".
-CARDS_LEFT_MESSAGE = "아직 미완료가 있어요"
+CARDS_LEFT_MESSAGE = "미완료가 있어요"
 #: 카드를 쓴 주문인데 지금 확정 도면이 0장(새 글, §4-3 끝) — 칸이 기준이다.
 NO_DRAWINGS_MESSAGE = "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
 
@@ -188,7 +189,7 @@ def complete_block_body(sd: Any, marks: Iterable[Any]) -> Optional[dict[str, Any
 
     카드를 안 쓴 주문은 지금 글 · 꼴 그대로(:func:`~foms.services.production.steps.production_complete_block_body` 를
     부른다 — "검수까지 끝나야 … (남은 공정: …)"). 카드를 쓴 주문은 같은 꼴 ``{success, code, message, missing_steps}`` 에
-    ``left`` 를 더하고 글은 "아직 미완료가 있어요 — 재단 1장 · 검수 3장", 확정 도면이 0장이면 "도면이 없어요 — …".
+    ``left`` 를 더하고 글은 "미완료가 있어요 — 재단 1장 · 검수 3장", 확정 도면이 0장이면 "도면이 없어요 — …".
 
     Args:
         sd: 주문 ``structured_data``(읽기만).
@@ -215,7 +216,8 @@ def inspect_left(sd: Any, marks: Iterable[Any], key: str) -> list[dict[str, Any]
     카드를 쓴 파트는 그 장의 표시로, 카드를 안 쓴 파트는 공정 칸 체크로 본다(칸이 체크됐으면 모든 장 완료).
 
     Returns:
-        ``[{part, label, holder}]`` — ``holder`` 는 그 장 담당 이름(맡은 사람이 없으면 None = 미정).
+        ``[{part, label, holder}]`` — ``holder`` 는 그 장 작업하는 사람 이름 줄(칸 꼴 — 둘까지 + "외 n", 아무도 없으면
+        None = 미정, multi-holder Q20). 문장 속 "외 n명" 꼴은 부르는 쪽이 표시 줄에서 만든다(``part_mark_gates``).
     """
     marks = list(marks)
     used = cards_used(marks)
@@ -227,8 +229,8 @@ def inspect_left(sd: Any, marks: Iterable[Any], key: str) -> list[dict[str, Any]
         state = str(getattr(row, "state", None) or MARK_STATE_NONE)
         finished = mark_finished(part, state) if part in used else done.get(part, False)
         if not finished:
-            holder = getattr(row, "picked_by_name", None) if state == MARK_STATE_NEED else None
-            out.append({"part": part, "label": PRODUCTION_PART_LABELS[part], "holder": holder or None})
+            people = _mark_crew.names(_mark_crew.crew_of(row)) if state == MARK_STATE_NEED else []
+            out.append({"part": part, "label": PRODUCTION_PART_LABELS[part], "holder": _mark_crew.name_line(people) or None})
     return out
 
 

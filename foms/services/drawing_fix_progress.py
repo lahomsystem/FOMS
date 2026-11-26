@@ -1,11 +1,11 @@
 """도면별 공장 진행 · 보내기 전 경고 글(설계서 2026-11-25 §2-3 · R1 — D2 가 만들고 D3 작업실 상세가 부른다). 순수 계산(쿼리 0).
 
-* 파트마다 상태(:func:`drawing_parts`) — 표시 줄 ``DONE`` → 완료, 재단 ``BASIC`` → 기본, ``NEED`` + 맡은 사람 → 작업 중, 손 처리
+* 파트마다 상태(:func:`drawing_parts`) — 표시 줄 ``DONE`` → 완료, 재단 ``BASIC`` → 기본, ``NEED`` + 작업하는 사람 → 작업 중, 손 처리
   (카드 0장 · 공정 칸 켜짐 — ``drawing_factory.hand_checked_parts``) → 완료(이름 = 칸을 켠 사람), 그 도면 공장이 제작 완료면 남은 파트도
   완료로 본다(``drawing_factory.factory_made`` — 시공 대기 뒤는 모든 공장 완료).
 * "작업이 닿음"(§2-3) = 완료 · 기본 · 작업 중 파트가 하나라도 있거나 그 도면 공장이 제작 완료.
 * 경고 글(§10 '보내기 전 확인 창'): 완료가 있으면 완료 문장 하나(풀이 §11-7), 아니면 작업 중 문장 — 그 아래 진행 줄
-  "도면 2 · 재단 완료 · 엣지 작업 중".
+  "도면 2 · 재단 완료 · 엣지 작업 중". 같이 작업하면 이름은 둘까지 + "외 n"("박엣지 · 최엣지 외 1" — 2026-11-25 multi-holder Q20).
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from foms.services.orders.drawing_fix import (
     request_checked,
     request_left,
 )
+from foms.services.production import mark_crew as mc
 from foms.services.production.part_constants import (
     MARK_STATE_BASIC,
     MARK_STATE_DONE,
@@ -48,7 +49,8 @@ def _step_names(sd: Any) -> dict[str, Optional[str]]:
 
 def drawing_parts(entry: dict[str, Any], rows: dict[str, dict[str, Any]], *, hand_parts: Iterable[str],
                   step_names: dict[str, Optional[str]], made: bool) -> dict[str, dict[str, Any]]:
-    """도면 한 장의 파트마다 ``{state, name}``(``state`` ∈ done · basic · working · none).
+    """도면 한 장의 파트마다 ``{state, name}``(``state`` ∈ done · basic · working · none, ``name`` = 이름 줄 — 같이 작업하면
+    "박엣지 · 최엣지 외 1", 완료는 완료한 사람들).
 
     Args:
         entry: 확정 도면 항목. rows: :func:`~foms.services.production.part_progress.marks_by_part` 값.
@@ -59,17 +61,25 @@ def drawing_parts(entry: dict[str, Any], rows: dict[str, dict[str, Any]], *, han
     for part in PRODUCTION_PART_KEYS:
         row = rows.get(part, {}).get(entry["key"])
         state = getattr(row, "state", None)
+        crew = mc.crew_of(row)
         if state == MARK_STATE_DONE:
-            out[part] = {"state": DONE, "name": row.done_by_name or row.picked_by_name or ""}
+            people = mc.done_names(crew) or _one(row.done_by_name) or mc.names(crew) or _one(row.picked_by_name)
+            out[part] = {"state": DONE, "name": mc.name_line(people)}
         elif state == MARK_STATE_BASIC:
             out[part] = {"state": BASIC, "name": row.done_by_name or ""}
-        elif state == MARK_STATE_NEED and getattr(row, "picked_by_user_id", None) is not None:
-            out[part] = {"state": WORKING, "name": row.picked_by_name or ""}
+        elif state == MARK_STATE_NEED and any(m.get("uid") is not None for m in crew):
+            out[part] = {"state": WORKING, "name": mc.name_line(mc.names(crew) or _one(row.picked_by_name))}
         elif part in hands:
             out[part] = {"state": DONE, "name": step_names.get(part) or "", "hand": True}
         else:
             out[part] = {"state": DONE if made else NONE, "name": ""}
     return out
+
+
+def _one(name: Any) -> list[str]:
+    """이름 하나 → 목록(빈 이름은 빈 목록)."""
+    text = str(name or "").strip()
+    return [text] if text else []
 
 
 def is_worked(parts: dict[str, dict[str, Any]]) -> bool:
@@ -91,8 +101,21 @@ def progress_line(no: int, parts: dict[str, dict[str, Any]]) -> str:
     return " · ".join([f"도면 {no}", *words])
 
 
-def worked_sentence(no: int, parts: dict[str, dict[str, Any]]) -> str:
-    """경고 한 문장(§2-3) — 완료가 있으면 완료 문장, 아니면 작업 중 문장(작업이 안 닿았으면 빈 글)."""
+def working_people(entry: dict[str, Any], rows: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
+    """도면 한 장의 파트마다 작업하는 사람 이름 목록(문장 속 "외 n명" 꼴을 만들 재료 — :func:`worked_sentence`)."""
+    out = {}
+    for part in PRODUCTION_PART_KEYS:
+        row = rows.get(part, {}).get(entry["key"])
+        if row is not None:
+            out[part] = mc.names(mc.crew_of(row)) or _one(getattr(row, "picked_by_name", None))
+    return out
+
+
+def worked_sentence(no: int, parts: dict[str, dict[str, Any]], people: Optional[dict[str, list[str]]] = None) -> str:
+    """경고 한 문장(§2-3) — 완료가 있으면 완료 문장, 아니면 작업 중 문장(작업이 안 닿았으면 빈 글).
+
+    ``people`` = :func:`working_people`(주면 셋 이상을 "박엣지 · 최엣지 외 1명이" — Q20 문장 꼴, 안 주면 칸 이름 그대로).
+    """
     finished = [PRODUCTION_PART_LABELS[p] for p, info in parts.items() if info["state"] in (DONE, BASIC)]
     head = f"도면 {no}{number_topic(no)}"
     if finished:
@@ -100,7 +123,7 @@ def worked_sentence(no: int, parts: dict[str, dict[str, Any]]) -> str:
     working = next(((p, info) for p, info in parts.items() if info["state"] == WORKING), None)
     if working is None:
         return ""
-    who = subject_particle(working[1]["name"])
+    who = subject_particle(mc.name_sentence((people or {}).get(working[0]) or [working[1]["name"]]))  # 문장 꼴 "외 n명"(Q20)
     return f"{head} {who + ' ' if who else ''}{PRODUCTION_PART_LABELS[working[0]]} 작업 중인 도면입니다. {AGAIN}"
 
 
@@ -126,7 +149,7 @@ def worked_warnings(sd: Any, marks: Iterable[Any], changed: Iterable[tuple[int, 
     for no, entry in changed:
         parts = entry_parts(sd, entry, ctx)
         if is_worked(parts):
-            out.append({"no": no, "ident": fix_ident(entry), "text": worked_sentence(no, parts),
+            out.append({"no": no, "ident": fix_ident(entry), "text": worked_sentence(no, parts, working_people(entry, ctx["rows"])),
                         "line": progress_line(no, parts)})
     return out
 

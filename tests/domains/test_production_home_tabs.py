@@ -100,7 +100,7 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     # 첫 화면 = 날짜 탭. 제목 줄: 탭 넷 + 글자 크기 손잡이(①), 옛 "이번 주" 탭 없음
     assert 'data-foms-home-tab="date"' in html and "data-foms-home-date" in html
     assert "data-foms-fs-ctl" in html and ">이번 주<" not in html
-    for label in (">날짜</a>", ">내 공정 <small>1</small></a>", ">바뀐 것 <small>0</small></a>", ">찾기</a>"):
+    for label in (">날짜</a>", ">남은 공정 <small>1</small></a>", ">바뀐 것 <small>0</small></a>", ">찾기</a>"):
         assert label in html, label
     assert "전체 9건" in html  # 머리 숫자 = 실제 총계
     # 띠: 지난 7일(오늘까지) + 내일부터 11일 + 그 뒤 = 13줄, 아래 지난 출고일·출고일 없음 = 단추 15. 오늘 날 줄은 없다
@@ -131,7 +131,7 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     # 띠: 시공 있는 줄마다 막대 밑 도면 글(지난 7일 · 그 뒤 포함, §5-1 · §14 답 2), 시공 없는 줄 · 아래 단추는 글 없음
     assert '<span class="fph-sd__dw is-late">도면 1/2 마감 지남</span>' in first_btn
     recent_btn = html.split('data-foms-home-daybtn="recent"')[1].split("</a>")[0]
-    assert '<span class="fph-sd__dw is-ok">도면 2/2 다 옴</span>' in recent_btn  # 사흘전대기 + 오늘대기
+    assert '<span class="fph-sd__dw is-ok">도면 2/2 다 내려옴</span>' in recent_btn  # 사흘전대기 + 오늘대기
     later_btn = html.split('data-foms-home-daybtn="later"')[1].split("</a>")[0]
     assert '<span class="fph-sd__dw is-calm">도면 0/1</span>' in later_btn
     empty_key = (today + datetime.timedelta(days=4)).isoformat()
@@ -201,7 +201,7 @@ def test_내_공정_탭은_첫_미완_공정으로_줄을_세우고_보류는_�
     # 줄: 재단 칸에 재단차례(단추) + 보류중(단추 없이 보류), 엣지 칸에 엣지차례
     cut_q = html.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0]
     assert "재단차례" in cut_q and "보류중" in cut_q and "엣지차례" not in cut_q
-    assert cut_q.count("data-foms-home-step-done") == 1 and ">재단 끝<" in cut_q and ">보류<" in cut_q
+    assert cut_q.count("data-foms-home-step-done") == 1 and ">재단 완료<" in cut_q and ">보류<" in cut_q  # 옛 [재단 끝](2026-11-25 지휘 판결)
     edge_q = html.split('data-foms-home-stepq="edge"')[1].split('data-foms-home-stepq="assemble"')[0]
     assert "엣지차례" in edge_q and 'data-step-key="edge"' in edge_q
     # 곧 올 것(사용자 11-10 ② 빈 화면 없이): 재단 = 제작 대기, 엣지 = 재단 중(보류는 빼고), 조립 = 엣지 중
@@ -210,9 +210,9 @@ def test_내_공정_탭은_첫_미완_공정으로_줄을_세우고_보류는_�
     assert "곧 올 것 <b>1</b><small>재단 중</small>" in edge_q and "재단차례" in edge_next and "보류중" not in edge_next
     assemble_q = html.split('data-foms-home-stepq="assemble"')[1].split('data-foms-home-stepq="inspect"')[0]
     assert "조립에 와 있는 주문이 없어요." in assemble_q and "엣지차례" in assemble_q.split("fph-q__nextlist")[1]
-    # 줄 밖 숫자: 제작 대기 1 · 검수 끝 1. 도면 주문은 아예 없음
+    # 줄 밖 숫자: 제작 대기 1 · 검수 완료 1. 도면 주문은 아예 없음
     # 가운데 '도면 마감 지난 집'(2026-11-22 §5-4) — 도면중은 시공 8일 뒤라 마감 전
-    assert "제작 대기 <b>1</b>건 · 도면 마감 지난 집 <b>0</b>건 · 검수까지 끝난 것 <b>1</b>건" in html
+    assert "제작 대기 <b>1</b>건 · 도면 마감 지난 주문 <b>0</b>건 · 검수까지 끝난 것 <b>1</b>건" in html
     assert "도면중" not in html
     # 일의 양(판 장수) 글자 없음(D11)
     assert "판 " not in html
@@ -247,7 +247,7 @@ def test_날짜_띠_규칙() -> None:
         _row(7, "2026-11-12", "done", "제작 완료"),
         _row(8, "2026-11-13", "wait", "도면 기다림"),
         _row(9, "2026-11-14", "prod", "조립 중", done=2),
-        _row(10, "2026-11-22", "prod", "검수 끝", done=4),       # 오늘+11 = 띠의 마지막 날
+        _row(10, "2026-11-22", "prod", "검수 완료", done=4),     # 오늘+11 = 띠의 마지막 날(옛 "검수 끝" — K4)
         _row(11, "2026-11-23", "wait", "컨펌 기다림"),           # 그 뒤
         _row(12, None, "wait", "도면 기다림"),
         _row(13, "2026-11-11", "prod", "제작 대기"),             # 오늘 = recent(오늘 날 줄이 없다)
@@ -266,7 +266,7 @@ def test_날짜_띠_규칙() -> None:
     assert [r["id"] for r in thu["make_rows"]] == [5, 4, 3]
     # 막대: 제작 완료 1 · 만드는 중 2 · 제작 대기 1 · 도면 기다림 1 = 20/40/20/20, 이어 붙음
     assert [(s["k"], s["x"], s["w"]) for s in thu["segs"]] == [("f", 0.0, 20.0), ("p", 20.0, 40.0), ("w", 60.0, 20.0), ("x", 80.0, 20.0)]
-    # 검수 끝은 만들 것 줄에 남고(제작 완료를 눌러야 함) 막대는 완료 색
+    # 검수 완료는 만들 것 줄에 남고(제작 완료를 눌러야 함) 막대는 완료 색
     assert by["2026-11-22"]["make"] == 1 and by["2026-11-22"]["segs"][0]["k"] == "f"
     assert by["2026-11-13"]["sub"] == "금 · D-2" and by["2026-11-14"]["sub"] == "토 · D-3" and by["2026-11-14"]["is_weekend"]
     # 지난 7일 = 11/4 ~ 오늘(11/11)까지 — 오늘 출고 주문(13)도 여기
@@ -280,7 +280,7 @@ def test_날짜_띠_규칙() -> None:
     assert thu["arrival"] == {"x": 4, "n": 5, "state": "late", "strip": "도면 4/5 마감 지남", "pane": "도면 4/5 내려옴"}
     # 11/13(금) 출고 = 마감 11/11(수) = 오늘 → 빠듯. 그 뒤 줄 11/23(월) 출고 = 마감 11/19(목) — 여유(남색, 글은 x/n 만)
     assert by["2026-11-13"]["arrival"]["strip"] == "도면 0/1 마감 오늘"
-    assert by["2026-11-14"]["arrival"] == {"x": 1, "n": 1, "state": "ok", "strip": "도면 1/1 다 옴", "pane": "도면 1/1 내려옴"}
+    assert by["2026-11-14"]["arrival"] == {"x": 1, "n": 1, "state": "ok", "strip": "도면 1/1 다 내려옴", "pane": "도면 1/1 내려옴"}
     assert by["later"]["arrival"]["state"] == "calm" and by["later"]["arrival"]["strip"] == "도면 0/1"
     assert by["2026-11-15"]["arrival"] is None and by["none"]["arrival"]["strip"] == "도면 0/1"  # 출고일 없음 = 여유(마감 없음)
     # 기다림 묶음 머리: 하루 장 = 그날 마감, 시공일 없음 장 = 마감 없음 글, 여러 날 장 · 기다림 없는 장 = 없음(칸마다 마감)

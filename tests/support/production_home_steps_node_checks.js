@@ -118,7 +118,7 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   assert.deepStrictEqual(calls.fetch, [stepCall(true)]);
   assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.next}`]);
   const status = $('[data-foms-home-status]');
-  assert.ok(status.classList.contains('is-undo') && status.querySelector('span').textContent === `${want.first_name} ${want.label} 끝`, status.textContent);
+  assert.ok(status.classList.contains('is-undo') && status.querySelector('span').textContent === `${want.first_name} ${want.label} 완료`, status.textContent);
   assert.strictEqual(status.querySelector('[data-foms-step-undo]').textContent, '되돌리기');
   // 4) 새 화면(셸 교체로 이 JS 가 다시 돈다): 되돌리기 띠를 다시 그리고 [끝]은 잠깐(600ms) 잠근다 — 두 번 누름이 다음 주문에 떨어지지 않게
   calls.fetch.length = 0;

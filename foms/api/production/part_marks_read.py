@@ -7,8 +7,10 @@
 * 문: 생산 첫 화면을 볼 수 있는 사람(:func:`can_view_production_home`) + 주문 읽기 범위(:func:`user_can_read_order`).
   협력사 · 켜진 프리랜서는 주문마다 판정이 갈리는 계정이라 이 화면 목록을 받지 않는다(403). 우리 직원은 주문 읽기가
   전역이라, 살아 있는 ERP 주문 · 생산 첫 화면 단계가 아닌 id(지운 주문 · 초안 · ERP 밖 주문 · 없는 id)는 **조용히 뺀다**.
-* 쿼리 1(주문 수와 무관): 표시 줄 ⋈ 주문(기본 키) — ``order_id IN (…)`` 이 유일 제약
-  ``uq_production_part_marks_order_key_part``(앞머리 ``order_id``)를 탄다.
+* 쿼리 1(주문 수와 무관): 주문(기본 키 · ``status`` · ``erp_stage_code`` · ``mutation_version``) ⟕ 표시 줄(``updated_at > since``) —
+  표시 줄 쪽은 유일 제약 ``uq_production_part_marks_order_key_part``(앞머리 ``order_id``)를 탄다. 주문 JSON 은 싣지 않는다.
+* 주문마다 지금 막힘(``blocks`` — 보류 · 도면 고치는 중 · 생산 단계 아님, 비평 C06)은 :func:`~foms.services.production.sync_blocks.cached_blocks`
+  캐시에서(열쇠에 ``mutation_version`` — 버전이 오른 주문 · 수명 5분이 지난 주문만 쿼리 2 로 그 주문 JSON 을 읽는다). 평소 = 쿼리 1.
 * 응답 ``server_time`` = 다음 ``since``(:func:`part_sync_cursor` — 커밋 지연만큼 되감은 서버 시각). 기기 시계는 쓰지 않는다.
 * 읽기라 쓰기 정책 가드 · CSRF 대상이 아니다(GET). 한 태블릿 시간당 120번(§15.6).
 """
@@ -19,6 +21,7 @@ import datetime
 from typing import Any
 
 from flask import g, jsonify, request
+from sqlalchemy import and_
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
@@ -27,7 +30,9 @@ from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.part_access import own_parts
 from foms.services.production.part_board import mine_other, other_part_word, part_sync_cursor
+from foms.services.production.part_card_crew import attach_crew
 from foms.services.production.part_mark_rules import mark_payload
+from foms.services.production.sync_blocks import cached_blocks
 from foms.services.production_home_read_model import PRODUCTION_HOME_STAGE_CODES
 from models import Order, ProductionPartMark
 
@@ -80,23 +85,29 @@ def parse_since(raw: Any) -> datetime.datetime:
             raise ValueError(text)
         value = datetime.datetime.fromisoformat(text)
     except ValueError:
-        raise _BadRequest(400, "BAD_SINCE", "받아 올 기준 시각이 올바르지 않아요. 다시 받아 주세요.") from None
+        raise _BadRequest(400, "BAD_SINCE", "받아 올 기준 시각이 올바르지 않아요. [다시 받기]를 눌러 주세요.") from None
     if value.tzinfo is not None:
         value = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
     return value
 
 
-def fetch_marks_since(db: Any, order_ids: list[int], since: datetime.datetime) -> list[ProductionPartMark]:
-    """그 주문들 표시 줄 중 ``updated_at > since`` 인 줄 — 쿼리 한 번(주문 수와 무관).
+def fetch_sync(db: Any, order_ids: list[int], since: datetime.datetime) -> tuple[list[ProductionPartMark], dict[str, Any]]:
+    """그 주문들 표시 줄 중 ``updated_at > since`` 인 줄 + 주문마다 지금 막힘 — 쿼리 한 번(+ 바뀐 주문이 있을 때만 그 주문 JSON 한 번).
 
-    살아 있는 ERP 주문 · 생산 첫 화면 단계(``PRODUCTION_HOME_STAGE_CODES``, 첫 화면 행 쿼리와 같은 범위)만 남긴다.
+    살아 있는 ERP 주문 · 생산 첫 화면 단계(``PRODUCTION_HOME_STAGE_CODES``, 첫 화면 행 쿼리와 같은 범위)만 남긴다. 주문 ⟕ 표시 줄이라 바뀐
+    표시 줄이 없는 주문도 한 줄로 와서 막힘을 싣는다(보류는 표시 줄을 안 바꾼다).
+
+    Returns:
+        (바뀐 표시 줄 — ``updated_at`` · ``id`` 순, ``{주문 id 글: {all, keys}}``).
     """
-    return (
-        db.query(ProductionPartMark)
-        .join(Order, Order.id == ProductionPartMark.order_id)
+    rows = (
+        db.query(Order.id, Order.mutation_version, Order.status, Order.erp_stage_code, ProductionPartMark)
+        .select_from(Order)
+        .outerjoin(ProductionPartMark, and_(ProductionPartMark.order_id == Order.id,
+                                            ProductionPartMark.order_id.in_(sorted(order_ids)),  # 유일 제약 앞머리를 타게
+                                            ProductionPartMark.updated_at > since))
         .filter(
-            ProductionPartMark.order_id.in_(sorted(order_ids)),
-            ProductionPartMark.updated_at > since,
+            Order.id.in_(sorted(order_ids)),
             Order.active_filter(),
             Order.is_erp_order.is_(True),
             Order.erp_stage_code.in_(list(PRODUCTION_HOME_STAGE_CODES)),
@@ -104,14 +115,22 @@ def fetch_marks_since(db: Any, order_ids: list[int], since: datetime.datetime) -
         .order_by(ProductionPartMark.updated_at.asc(), ProductionPartMark.id.asc())
         .all()
     )
+    marks = [mark for *_head, mark in rows if mark is not None]
+    heads = {int(oid): (version, status, flat_stage) for oid, version, status, flat_stage, _mark in rows}
+
+    def _load(ids: list[int]) -> dict[int, Any]:  # 캐시에 없는 주문만 — 쿼리 2
+        return {int(oid): sd for oid, sd in db.query(Order.id, Order.structured_data).filter(Order.id.in_(sorted(ids))).all()}
+
+    return marks, cached_blocks(heads, _load)
 
 
 def sync_mark_body(row: ProductionPartMark, viewer_id: Any = None, viewer_parts: tuple[str, ...] = ()) -> dict[str, Any]:
     """카드가 쓰는 표시 한 장 — 쓰기 응답과 같은 꼴(``mark_payload``) + 다른 파트 한 줄 낱말(``word`` · ``tone``).
 
     2026-11-23(§7)부터 ``mark_payload`` 가 ``picked_at`` · ``picked_day`` · ``handed_from_name`` · ``handed_at`` 을 더 싣는다
-    (같은 줄에 실려 가므로 쿼리는 그대로 1). 지금 칸의 이름 · 값은 그대로다. 받는 사람(``viewer_id`` · ``viewer_parts`` =
-    :func:`~foms.services.production.part_access.own_parts`)의 파트이고 그 사람이 담당이면 낱말은 "내 담당"(판이 그린 낱말과
+    (같은 줄에 실려 가므로 쿼리는 그대로 1). 2026-11-25(multi-holder §7-1)부터 작업하는 사람 목록 ``holders`` · ``holder_n`` ·
+    ``done_n`` 도 같은 줄에서 싣는다(쿼리 그대로). 지금 칸의 이름 · 값은 그대로다. 받는 사람(``viewer_id`` · ``viewer_parts`` =
+    :func:`~foms.services.production.part_access.own_parts`)의 파트이고 그 사람 몫이 작업 중이면 낱말은 "내 작업"(판이 그린 낱말과
     같은 규칙, 2026-11-23 §4-12 — 이미 읽은 사용자 행, 쿼리 0).
     """
     payload = mark_payload(row)
@@ -123,7 +142,7 @@ def sync_mark_body(row: ProductionPartMark, viewer_id: Any = None, viewer_parts:
 
 @production_part_marks_bp.route("/part-marks", methods=["GET"])
 def api_part_marks_since():
-    """그 주문들의 ``since`` 뒤 바뀐 표시 줄 + 다음 ``since``(``server_time``). 볼 수 없는 사람 403."""
+    """그 주문들의 ``since`` 뒤 바뀐 표시 줄 + 주문마다 지금 막힘(``blocks``) + 다음 ``since``(``server_time``). 볼 수 없는 사람 403."""
     user = getattr(g, "current_user", None)
     if user is None:
         return _fail(401, "AUTH_REQUIRED", "로그인이 필요해요.")
@@ -138,12 +157,13 @@ def api_part_marks_since():
     server_time = part_sync_cursor()  # 읽기 **전** 시각 — 읽는 사이 쓴 줄은 다음 번에 겹쳐 받는다
     db = get_db()
     try:
-        rows = fetch_marks_since(db, order_ids, since)
+        rows, blocks = fetch_sync(db, order_ids, since)
     except SQLAlchemyError:
         db.rollback()
-        return _fail(500, "READ_FAILED", "표시를 받아 오지 못했어요. 잠시 뒤 다시 받아 주세요.")
-    mine = own_parts(user)  # 여러 파트 계정의 "내 담당" 낱말(쿼리 0)
-    response = jsonify({"success": True, "data": {"marks": [sync_mark_body(r, user.id, mine) for r in rows],
-                                                  "server_time": server_time}, "error": None})
+        return _fail(500, "READ_FAILED", "표시를 받아 오지 못했어요. 잠시 뒤 [다시 받기]를 눌러 주세요.")
+    mine = own_parts(user)  # 여러 파트 계정의 "내 작업" 낱말(쿼리 0)
+    # 받는 사람 몫 칸(crew — 이름 줄 · 내 몫, multi-holder M2)은 같은 줄에서(쿼리 0)
+    response = jsonify({"success": True, "data": {"marks": [attach_crew(sync_mark_body(r, user.id, mine), user) for r in rows],
+                                                  "blocks": blocks, "server_time": server_time}, "error": None})
     response.headers["Cache-Control"] = "private, no-store"
     return response, 200

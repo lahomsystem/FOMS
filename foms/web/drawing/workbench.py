@@ -57,6 +57,7 @@ from foms.services.orders.drawing_revision_source import (
     is_customer_request,
     request_rounds,
     revision_source_tag,
+    staff_request_tag,
 )
 from foms.services.notifications.drawing_order_change import (
     _change_parts,
@@ -1261,6 +1262,7 @@ def erp_drawing_workbench_detail(order_id):
             }.get(h_action, h_action or '-'),
             'at_text': _history_event_at_text(h),
             'by_text': h.get('by_user_name') or '-',
+            'by_user_id': h.get('by_user_id'),
             'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
             'target_files': _event_target_files(order_id, h, drawing_files, history_names),
             'files': list(h.get('files') or []) if isinstance(h.get('files'), list) else [],
@@ -1282,6 +1284,12 @@ def erp_drawing_workbench_detail(order_id):
             h['source_tag'] = revision_source_tag(h, request_round_by_index.get(h_index, 0))
     revision_requests = [h for h in history if h.get('action') == 'REQUEST_REVISION']
     revision_requests.reverse()
+    # 직원이 한 요청 줄의 표 "수정 요청 · 영업"(사장님 2026-11-26 — 공장 요청 줄 "수정 요청 · 공장"과 같은 꼴). 요청한 사람 팀을 한 번에 읽는다.
+    _staff_ids = sorted({int(r['by_user_id']) for r in revision_requests if not r.get('source_tag') and str(r.get('by_user_id') or '').isdigit()})
+    _teams = dict(db.query(User.id, User.team).filter(User.id.in_(_staff_ids)).all()) if _staff_ids else {}  # perf-ok: 요청한 사람 id IN 한 번
+    for r in revision_requests:
+        _uid = r.get('by_user_id')
+        r['staff_tag'] = staff_request_tag(r, _teams.get(int(_uid)) if str(_uid or '').isdigit() else None)
     unread_count = 0
     for h in revision_requests:
         review_raw = h.get('review_check')

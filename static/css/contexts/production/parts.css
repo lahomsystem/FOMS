@@ -17,22 +17,15 @@
   --fph-basic-50: #ccedff;
   --fph-basic-300: #7dd3fc;
   --fph-basic-700: #075985;
-  --fph-wait-50: #eeebb2;
-  --fph-wait-300: #d6d38a;
-  --fph-wait-700: #57571f;
+  /* 기다림(--fph-wait-*) · 보류(--fph-hold-*) · 검수 미완료(--fph-pre-*) 토큰은 home.css — 날짜 장 기다림 칸 · 띠 막대 · '내 공정' 보류 ·
+     '내 공정' 도면 칸 막힘도 같은 색(비평 C16 · 2026-11-26 [끝] 자리 막힘) */
   --fph-mid-700: #7c3aed;
   /* 파트 맡기 고침(설계서 2026-11-23-production-self-claim-and-factory2 §8-9 · §10) — 막힌 칸 셋(보류 · 도면 고치는 중 · 검수 미완료),
      맡기 취소(무채색 금지 → 파랑, 기본 단추와 같은 값), 남의 담당 칸 누른 색 · 창 '지금' 줄 바탕, 까닭 말풍선, 아침 칩 테두리.
      어제부터 · 칸 아래 이름 토큰(--fph-old-* · --fph-holder*)은 home.css. 값 · 짝 거리는 test_production_selfclaim_css.py 가 못 박는다. */
-  --fph-hold-50: #fed7aa;
-  --fph-hold-300: #fb923c;
-  --fph-hold-700: #9a3412;
   --fph-revise-50: #fca5a5;
   --fph-revise-300: #ef4444;
   --fph-revise-700: #7f1d1d;
-  --fph-pre-50: #fef08a;
-  --fph-pre-300: #eab308;
-  --fph-pre-700: #713f12;
   --fph-taken-10: #fdf2f8;
   --fph-taken-100: #e6bccd;
   --fph-note-50: #fff7ed;
@@ -139,7 +132,6 @@
 .pp-tag { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-need-700); }
 .pp-tag .is-old { color: var(--fph-old-700); }
 .pp-tag .is-chg { color: var(--fph-taken-700); }
-.pp-tag.is-defect { color: var(--fph-dw-late); }
 .pp-by .pp-tag { flex: 1 1 0; text-align: right; }
 .pp-card .pp-by.has-tag { column-gap: 10px; }
 
@@ -184,7 +176,7 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .pp-why { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 2; margin: 0; padding: 8px 10px; border: 1px solid var(--fph-old-300); border-radius: 9px; background: var(--fph-note-50); color: var(--fph-note-700); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; box-shadow: 0 6px 18px rgba(20, 23, 28, .18); word-break: keep-all; overflow-wrap: anywhere; }
 .pp-why[hidden] { display: none; }
 .foms-prod-home .pp-fin.fph-qr__done { min-height: 72px; background: var(--fph-done-700); border-color: var(--fph-done-700); }
-/* 내 담당 = 한 층 [맡기 취소][엣지 완료](.pp-two.is-mine, 둘 다 56px — 80% 에서 보이는 44.8). 끝 단추는 짝일 때 72 → 56 */
+/* 내 작업 = 한 층 [시작 취소][엣지 완료](.pp-two.is-mine, 둘 다 56px — 80% 에서 보이는 44.8). 끝 단추는 짝일 때 72 → 56 */
 .foms-prod-home .pp-fin.fph-qr__done.is-pair { min-height: 56px; font-size: calc(18px * var(--foms-fs, 1)); }
 .foms-prod-home .pp-fin.fph-qr__done:active { background: var(--fph-done-800); border-color: var(--fph-done-800); }
 .pp-undo-row { justify-content: space-between; gap: 6px; padding: 4px 4px 4px 12px; }
@@ -272,11 +264,34 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .foms-prod-home .pp-modal.is-lost .pp-merr { padding: 8px 12px; border: 1px solid var(--fph-revise-50); border-radius: 9px; background: var(--fph-danger-50); color: var(--fph-dw-late); font-weight: 800; }
 .foms-prod-home .pp-modal .pp-mgo--taken { background: var(--fph-taken-700); border-color: var(--fph-taken-700); }
 .foms-prod-home .pp-modal .pp-mgo--release { background: var(--fph-release-700); border-color: var(--fph-release-700); }
-/* 관리자가 남의 담당 칸을 누르면 [담당 바꾸기] [대신 완료] [맡기 취소] 셋을 한 줄에(맨 아래 줄은 [닫기]만) */
+/* 관리자가 남의 작업 칸을 누르면 [담당 바꾸기 ›] [대신 완료] [{이름} 시작 취소…]를 세 칸씩(맨 아래 줄은 [닫기]만) */
 .foms-prod-home .pp-modal .pp-mchoices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 8px 16px 0; }
 .foms-prod-home .pp-modal .pp-mchoices[hidden] { display: none; }
 /* 창이 열린 동안 뒤 페이지가 굴러가지 않게(P7) */
 body:has(.pp-modal:not([hidden])) { overflow: hidden; }
+
+/* ── 여러 명 같이 작업(설계서 2026-11-25 multi-holder §8-2 6 · 시안 01 B · D · I · 창 3) ──
+   남의 작업 칸 + [같이 작업] 짝: 이름 칸 : 단추 = 1.4 : 1(지금 짝 1 : 1.4 의 반대), 이름 글은 두 줄까지 낱말에서 꺾음("작업 중" · "외 1"은
+   서버가 붙인 칸 없는 띄어쓰기로 안 쪼개짐). 카드 상태 글(완료 · "재단 1/2 완료 · 김재단 작업 중")은 이름이 길면 다음 줄로(잘리지 않게).
+   [담당 바꾸기] 사람 고르기(둘 이상) = 두 칸, 고른 사람은 담당 바꾸기 색(분홍 짙게). 토큰은 새로 안 만든다(무채색 없음). */
+.pp-two.pp-two--join { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+.pp-two--join .pp-held__who b, .pp-held.pp-not-need .pp-held__who b { white-space: normal; word-break: keep-all; line-height: 1.15; }
+.pp-actbox > span.fph-wi.pp-act { white-space: normal; word-break: keep-all; text-align: center; line-height: 1.25; }
+.pp-actbox .pp-undo-row > span { white-space: normal; word-break: keep-all; line-height: 1.25; }
+.foms-prod-home .pp-modal .pp-mchoices.pp-mchoices--who { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.foms-prod-home .pp-modal .pp-mwho { border: 2px solid var(--fph-taken-300); background: var(--fph-surface); color: var(--fph-taken-700); font-size: calc(17px * var(--foms-fs, 1)); }
+.foms-prod-home .pp-modal .pp-mwho.is-on { border: 3px solid var(--fph-taken-700); background: var(--fph-taken-50); color: var(--fph-taken-700); }
+.foms-prod-home .pp-modal .pp-mwho:focus-visible { outline: 3px solid var(--fph-taken-700); outline-offset: 2px; }
+/* 고침 한 판(지휘 2026-11-25): ① 카드의 내 작업 꼬리는 공정 줄 끝이 아니라 제 줄 — 말줄임 없이 낱말에서 꺾어 두 줄까지("내 …"로 줄지 않게).
+   크게 보기 아래 줄(.pp-vbot)은 그대로. ② 거의 같이 [작업 시작] 말풍선 = 그림 칸 아래쪽 안(카드 폭 안 · 어느 단추도 안 덮음), 누르면 닫힘.
+   ③ 반장 고르기 [같이 작업] = 파트 계정 [같이 작업]과 같은 토큰(--fph-brand), 단추 넷이면 2 × 2 */
+.pp-card .pp-by.has-tag { display: flex; width: 100%; }
+.pp-card .pp-by .pp-tag { flex: 1 0 100%; margin-left: 0; overflow: visible; text-overflow: clip; white-space: normal; word-break: keep-all; text-align: left; }
+.pp-card .pp-img { position: relative; }
+.pp-notice { position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 2; margin: 0; padding: 8px 10px; border: 1px solid var(--fph-old-300); border-radius: 9px; background: var(--fph-note-50); color: var(--fph-note-700); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.4; text-align: left; box-shadow: 0 6px 18px rgba(20, 23, 28, .18); word-break: keep-all; overflow-wrap: anywhere; cursor: pointer; }
+.pp-notice[hidden] { display: none; }
+.foms-prod-home .pp-modal .pp-mgo--join { background: var(--fph-brand); border-color: var(--fph-brand); }
+.foms-prod-home .pp-modal .pp-mchoices.pp-mchoices--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* ── 아침 칩(설계서 2026-11-23 §4-9) — 판 머리 줄(.pp-head) 안 "어제부터 내 담당 2장 ›". 누르면 작은 창에 시공일마다 [보기].
    머리 줄 키를 안 키운다(띠 · 카드 첫 화면이 안 밀림, M3). 누름 칸 44px 는 아래 태블릿 덩이 ── */
@@ -314,7 +329,8 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 /* ── [도면 수정 요청](설계서 2026-11-25 §2-4 · N3, 시안 04 ① ②) — 그 공장 도면 위 작은 단추(높이 44) · 창(위 확인 창과 같은 겉틀).
    카드 단추 칸(.pp-actbox) 위 한 줄, 왼쪽 붙임. '작업 필요' 칸(그림 왼쪽 큰 카드)은 남는 칸(5줄) 위쪽에 — 큰 완료 단추는 그 칸 아래쪽 그대로.
    창: 도면 고르기(누른 장 미리 골라짐 · 여러 장, 고른 장 = 남색 바탕) · 사유(꼭 적기 빨강) · 사진 올리기 + 작은 그림. 토큰은 새로 안 만든다. ── */
-.pp-card .pp-req { align-self: flex-start; min-height: 44px; margin: 2px 0; padding: 0 14px; border-color: var(--fph-brand); color: var(--fph-brand-dark); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+/* 할 일 단추([내가 엣지] 등)보다 앞서 눈에 띄지 않게(비평 C15) — 남색 테두리 · 글을 빼고 공용 보조 단추 꼴(회색 테두리 · 회색 글 · 보통 굵기) */
+.pp-card .pp-req { align-self: flex-start; min-height: 44px; margin: 2px 0; padding: 0 14px; color: var(--fph-text2); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; }
 .pp-card .pp-req:hover, .pp-card .pp-req:focus { color: var(--fph-brand-dark); }
 .pp-card .pp-req:active { background: var(--fph-brand-50); }
 .pp-card .pp-req[hidden] { display: none; }
@@ -359,8 +375,27 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
   /* 관리자 공장 고르기(2공장) — 보이는 44px · 이웃 틈 8px */
   .pp-parts--fac .pp-part { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
   .pp-parts--fac { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
-  /* [도면 수정 요청](2026-11-25 N3) — 보이는 44px · 아래 단추 칸과 보이는 8px(카드 틈 3 + 단추 칸 위 4 = 7px 에 모자란 만큼) */
-  .pp-card .pp-req { min-height: calc(44px / var(--foms-ui-zoom, 1)); margin-bottom: max(2px, calc(8px / var(--foms-ui-zoom, 1) - 7px)); }
+  /* [도면 수정 요청](2026-11-25 N3) — 보이는 44px · 아래 할 일 단추와 보이는 12px(카드 틈 3 + 단추 칸 위 4 = 7px 에 모자란 만큼,
+     비평 C15 "할 일 단추와 틈" — 8px 에서 넓힘) */
+  .pp-card .pp-req { min-height: calc(44px / var(--foms-ui-zoom, 1)); margin-bottom: max(5px, calc(12px / var(--foms-ui-zoom, 1) - 7px)); }
   .pp-rq__pick, .foms-prod-home .pp-rq .pp-rq__add { min-height: max(48px, calc(44px / var(--foms-ui-zoom, 1))); }
   .pp-rq__picks { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
 }
+
+/* ── 글자를 키운 판(비평 C04 · C34, 2026-11-26) — 칸 · 글자 · 단추 크기는 그대로, 한 줄에 서는 도면 수와 이름 줄 꺾임만 ──
+   판 칸(날짜 장 컨테이너 fph-pane)이 38rem(1rem = 16px × 글자 배율)보다 좁으면 한 줄에 도면 둘. 1176×626 실측: 판 칸 = 100% 46 ·
+   110% 39.9 · 120% 34.8 · 150% 24.6rem(화면 크기 90% 는 120% 41.6 · 130% 36.8, 80% 는 140% 39.9 · 150% 35.8) — 셋씩이면 120% 부터
+   이름 줄 · 다른 파트 줄이 두 줄로 꺾여 첫 줄 도면 단추가 화면 밑(626px)으로 내려갔다. 판 칸이 30rem 이상(셋씩 · 둘씩 서는 130% 까지)이면
+   이름 줄을 꺾지 않는다(이름만 말줄임, '도면 n/N' 은 같은 줄 — 이름이 4자 넘게 남는 폭) — 이름 길이에 따라 옆 도면과 아래 줄이 22px
+   어긋나던 것(C34). 그보다 좁으면(글자 140% 넘게) 지금처럼 넘치면 '도면 n/N' 이 다음 줄(11-21 '자…' 규칙). 작업 필요 칸(그림 왼쪽 큰
+   도면 한 줄)은 그대로. */
+@media (min-width: 992px) {
+  @container fph-pane (max-width: calc(38rem - 0.02px)) {
+    .pp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @container fph-pane (min-width: 30rem) {
+    .pp-card .pp-ln { flex-wrap: nowrap; }
+  }
+}
+/* [도면 수정 요청] 창 폭은 글자 배율을 따른다(C04 — 640px 고정이라 150% 에서 사진 칸이 첫 화면 밖). 화면 폭(배율로 나눈) − 32px 까지 */
+.foms-prod-home .pp-modal.pp-rq .foms-prod-change-modal__dialog { max-width: min(calc(640px * var(--foms-fs, 1)), calc(100vw / var(--foms-ui-zoom, 1) - 32px)); }

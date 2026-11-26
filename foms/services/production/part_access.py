@@ -39,7 +39,7 @@ VIEW_READONLY = "readonly"
 VIEW_NONE = "none"
 
 #: 파트 계정이 주문 공정 칸을 직접 쓰려 할 때의 글(403 ``PART_ACCOUNT_USE_CARDS`` · 시트 단추 아래 한 줄).
-PART_ACCOUNT_STEPS_MESSAGE = "공정은 도면 카드에서 작업해요"
+PART_ACCOUNT_STEPS_MESSAGE = "공정은 도면에서 작업해요"
 PART_ACCOUNT_STEPS_CODE = "PART_ACCOUNT_USE_CARDS"
 #: 파트도 반장도 아닌 생산팀 계정이 공정 칸을 쓰려 할 때의 글(403 ``LEAD_REQUIRED`` · 시트 단추 아래 한 줄, '승인 때 고친 것' 5).
 LEAD_ONLY_STEPS_MESSAGE = "반장으로 지정된 계정만 작업할 수 있어요."
@@ -175,7 +175,7 @@ def steps_lock(user: Any) -> Optional[StepsLock]:
         user: 사용자 객체(None 허용).
 
     Returns:
-        관리자 · 반장 = None(잠그지 않음). 파트 계정 = ``PART_ACCOUNT_USE_CARDS``("공정은 도면 카드에서 작업해요"). 파트도 반장도 아닌
+        관리자 · 반장 = None(잠그지 않음). 파트 계정 = ``PART_ACCOUNT_USE_CARDS``("공정은 도면에서 작업해요"). 파트도 반장도 아닌
         생산 쓰기 사람 = ``LEAD_REQUIRED``. 생산 쓰기 사람이 아니면 None — 그 사람은 생산 쓰기 문(``can_write_production``)이 막는다
         (지금 그대로).
     """

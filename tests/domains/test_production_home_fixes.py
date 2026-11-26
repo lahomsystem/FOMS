@@ -53,12 +53,12 @@ def test_내_공정_탭_숫자는_공정_줄_합과_같다_보류_run_없음_포
     steps_html = client.get(HOME + "?tab=steps").get_data(as_text=True)
     lane_counts = [int(n) for n in re.findall(r'data-foms-home-steptab="[a-z]+"[^>]*>[^<]+<small>(\d+)</small>', steps_html)]
     assert len(lane_counts) == 4 and sum(lane_counts) == 3  # 재단 = 보류런없음·재단차례, 엣지 = 보류런있음
-    assert f">내 공정 <small>{sum(lane_counts)}</small></a>" in steps_html
+    assert f">남은 공정 <small>{sum(lane_counts)}</small></a>" in steps_html
     cut_q = steps_html.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0].split("fph-q__nextlist")[0]
     assert "보류런없음" in cut_q and "재단차례" in cut_q and "도면보류" not in steps_html
     # 날짜 탭: 도면 단계 보류는 큰 줄이 아니라 도면·컨펌 기다림 칸, 큰 줄 클래스 = 제작 대기 w · 만드는 중/보류 p · 검수 끝 f
     date_html = client.get(HOME).get_data(as_text=True)
-    assert f">내 공정 <small>{sum(lane_counts)}</small></a>" in date_html
+    assert f">남은 공정 <small>{sum(lane_counts)}</small></a>" in date_html
     pane = _pane(date_html, _first_key())
     assert "만들 것 5 · <span class=\"fph-dwst is-late\">도면 5/6 내려옴</span>" in pane and ">도면·컨펌 기다림 1 <small>" in pane
     big = {m.group(2).strip(): m.group(1) for m in re.finditer(
@@ -141,7 +141,7 @@ def test_제목_줄_탭은_보드_없이_찾기로_끝나고_레일_생산이_�
     nav = nav[: nav.index("</nav>")]
     assert "data-foms-home-board" not in nav and "/erp/production/dashboard" not in nav and "navtab--out" not in nav
     assert nav.rstrip().endswith(">찾기</a>")
-    assert "home.css?v=20261125sd" in html
+    assert "home.css?v=20261125sf" in html
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
     tools = html[html.index('class="foms-prod-home__tools"'):]
     tools = tools[: tools.index("</header>")]
@@ -234,7 +234,7 @@ def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에
     only_m = _add_order("PRODUCTION", "담당만", 1, with_run=True, manager="이담당")
     none = _add_order("PRODUCTION", "둘다없음", 1, with_run=True, manager="-")
     _add_order("DRAWING", "도면주문", 1, orderer="작은칸발주", manager="작은칸담당")
-    o, m = '<span class="fph-by is-o"><i>발주</i> {}</span>', '<span class="fph-by is-m"><i>담당</i> {}</span>'
+    o, m = '<span class="fph-by is-o"><i>발주</i> {}</span>', '<span class="fph-by is-m"><i>영업</i> {}</span>'
     want = {both.id: o.format("한샘대리점") + " " + m.format("김영업"), only_o.id: o.format("리바트"), only_m.id: m.format("이담당")}
     date = client.get(HOME).get_data(as_text=True)
     pane = _pane(date, _first_key())
@@ -292,7 +292,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261125sd" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261125sf" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -305,10 +305,10 @@ def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸�
     assert ".foms-prod-page__body { flex: 1 1 auto; height: auto; min-height: 0; }" in block
     assert "- 64px); min-height: 0; }" not in block
     # 제목은 줄 수 있는 유일한 칸(말줄임), 이름 · 번호 · 품목 · 단추는 그대로 마크업에 있다
-    assert ".foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in css
+    assert ".foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fpp-text); }" in css  # 글 색(생산 비평 C05 — 어두운 설정)
     page = (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")
     assert '<h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>' in page
-    assert "sheet.css') }}?v=20261124i" in page
+    assert "sheet.css') }}?v=20261124j" in page
 
 
 def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다() -> None:
@@ -319,7 +319,7 @@ def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다()
     bar = frag.split('<div class="foms-prod-sheet__titlebar">')[1].split("{# ──")[0]
     assert '<div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>' in bar
     body = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
-    assert "css/contexts/production/sheet.css') }}?v=20261124i" in body
+    assert "css/contexts/production/sheet.css') }}?v=20261124j" in body
 
 
 def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채우거나_48px_로_굴린다() -> None:
@@ -367,7 +367,7 @@ def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채�
     assert _pane(626, 1) < _pane(626, 0.9) < _px(1)  # 100% · 90%: 줄 48 그대로 띠 안에서 굴린다
     assert _pane(626, 0.9) < 40 + rows * 48 + 49
     assert _pane(800, 1) >= _px(1)  # 1280×800: 칸을 채운다(줄 49.1px)
-    assert "home.css') }}?v=20261125sd" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261125sf" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_두_줄로_100퍼센트는_그대로() -> None:

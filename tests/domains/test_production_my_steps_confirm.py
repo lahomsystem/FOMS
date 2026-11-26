@@ -34,7 +34,7 @@ NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
 PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow"}
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 CONFIRM_ATTR = re.compile(r'data-foms-sheet-parts="([^"]+)"')
-PARTS_PIN = "foms-production-sheet-parts.js?v=20261125c"
+PARTS_PIN = "foms-production-sheet-parts.js?v=20261125m5"
 REASON_CSS = "css/components/foms-reason-sheet.css?v=20261122t"
 
 
@@ -162,14 +162,20 @@ def test_extra_query_only_for_writers_with_drawn_rows(client, cohort):
     assert _count(client, url) == bare_only  # 보기만(PC [고치기] 끔)은 0개 더함
 
 
-def test_part_that_uses_cards_is_marked_so_the_shared_rule_lets_the_server_decide(client, cohort):
-    drawn, *_ = _seed()
+def test_part_that_uses_cards_shows_left_sheets_instead_of_a_finish_that_is_always_refused(client, cohort):
+    """도면 칸을 쓴 파트의 [끝]은 서버가 늘 409 PART_USES_CARDS — [끝] 자리에 남은 장(비평 C03, 대조군 = 도면 칸을 안 쓴 줄은 [끝] 그대로)."""
+    drawn, bare, *_ = _seed()
     db_session.add(ProductionPartMark(order_id=drawn.id, drawing_key="orders/x/drawing/가짜도면집_0.png", part="cut", state="NEED"))
     db_session.commit()
     login(client)
     set_cookies(client, TABLET)
-    page = get_html(client, HOME + "?tab=steps")
-    assert _data(pane_html(page, drawn.id)) == {"parts": {"cut": {"uses_cards": True}}, "sheets": 3}  # beforeToggle 이 묻지 않고 보낸다
+    page = get_html(client, HOME + f"?tab=steps&order={drawn.id}")  # 막힌 줄은 처음 고른 줄에서 빠진다 — 주소로 고른다
+    pane = pane_html(page, drawn.id)
+    assert "data-foms-step-finish" not in pane and "data-foms-sheet-parts" not in pane
+    assert "<b>재단 0/3 · 3장 미완료</b><span>도면 3장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요.</span>" in pane
+    refused = client.post(f"/api/orders/{drawn.id}/production/steps", json={"key": "cut", "done": True})
+    assert refused.status_code == 409 and refused.get_json()["error"] in pane  # 판 글 = 서버 거절 글 그대로
+    assert f'data-foms-home-step-done data-order-id="{bare.id}"' in _row(page, bare.id)  # 대조군
 
 
 def test_second_factory_lead_gets_the_whole_order_count_like_the_work_sheet(client, cohort):
@@ -193,7 +199,7 @@ def _node(tmp_path, page: str, want: dict) -> None:
     assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
 
 
-WORDS = {"key": "cut", "title": "재단을 작업 완료로 처리할까요?", "text": "이 주문의 도면 3장이 모두 재단 완료로 처리돼요."}
+WORDS = {"key": "cut", "title": "재단 완료할까요?", "text": "이 주문의 도면 3장이 모두 재단 완료로 처리돼요."}
 
 
 def test_node_tablet_panel_asks_once_cancel_posts_nothing_and_double_tap_is_dropped(client, cohort, tmp_path):
@@ -232,7 +238,7 @@ def test_js_contract_and_css_same_values_as_the_work_sheet():
         assert len(src.splitlines()) <= 300
         assert "sp.beforeToggle(btn, btn, true," in src and "btn.hasAttribute('data-foms-sheet-parts')" in src
         assert "document.contains(btn)" in src  # 창이 뜬 사이 단추가 화면에서 빠지면 저장하지 않는다
-        assert "작업 완료로 처리할까요" not in src  # 글은 sheet-parts.js 한 곳
+        assert "완료할까요" not in src  # 글은 sheet-parts.js 한 곳
     assert "document.addEventListener(" not in steps and re.findall(r"'/api/[^']*'", steps) == ["'/api/orders/'"]
     assert "var OPEN_GUARD_MS = 400;" in parts and "if (!S.bound) {" in parts and "S.api.close(" in parts
     assert "btn.getAttribute('data-foms-sheet-step') || btn.getAttribute('data-step-key')" in parts

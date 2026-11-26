@@ -4,7 +4,7 @@
 같은 쿼리 빌더를 쓰되 단계 목록만 도면까지 넓힌다. 금액은 어디에도 싣지 않는다(D7).
 
 - 큰 글자(지금 단계)는 :func:`production_home_stage` — "도면 기다림 / 컨펌 기다림 / 제작 대기 /
-  <공정> 중 / 검수 끝 / 제작 완료 / 보류".
+  <공정> 중 / 검수 완료 / 제작 완료 / 보류"(검수 완료 = :data:`~foms.services.production.steps.PRODUCTION_FINISHED_STAGE`).
 - 날짜 머리줄은 :func:`production_home_day` — "오늘 11/9 (월)", "11/12 (목) · D-3", "시공일 없음".
 - 공정 4칸은 ``structured_data['production']['steps']`` 그대로(API 가 처음 접근 때 만들기 전이면
   4칸 모두 미완으로 그린다). 정의는 ``foms/api/production/orders.py`` 의 ``_PRODUCTION_STEP_DEFS``
@@ -25,6 +25,7 @@ from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
 from foms.services.production.part_card_state import order_block
 from foms.services.production.ship_dates import PAST_DAYS, live_condition, row_due, ship_fields
+from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from foms.services.production_read_model import (
@@ -124,7 +125,7 @@ def production_home_stage(
         for step in steps:
             if not step['done']:
                 return f"{step['label']} 중", '생산', 'prod'
-        return '검수 끝', '생산', 'prod'
+        return PRODUCTION_FINISHED_STAGE, '생산', 'prod'
     if raw_stage in _CONSTRUCTION_STAGES:
         return '제작 완료', '시공 대기', 'done'
     return (raw_stage or '-'), '', 'wait'
@@ -191,7 +192,7 @@ def _by_parts(row: dict[str, Any]) -> list[dict[str, str]]:
     if orderer:
         parts.append({'k': 'o', 'label': '발주', 'name': orderer})
     if manager and manager != '-':
-        parts.append({'k': 'm', 'label': '담당', 'name': manager})
+        parts.append({'k': 'm', 'label': '영업', 'name': manager})
     return parts
 
 
@@ -297,7 +298,7 @@ def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str,
             'product_label': tomb.get('product_label') or '',
             'stage': '주문 취소',
             'day_label': f"취소 {tomb.get('deleted_md')}" if tomb.get('deleted_md') else '취소됨',
-            'alerts': [{'kind': 'cancelled', 'label': '주문 취소', 'detail': '만들고 있었다면 멈춰요'}],
+            'alerts': [{'kind': 'cancelled', 'label': '주문 취소', 'detail': '만들던 것은 멈춰 주세요'}],
         })
     return items
 
@@ -344,7 +345,7 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
             by_key[key]['rows'].append(row)
         elif row.get('home_view') == 'prod' and row.get('home_stage') == '제작 대기':
             waiting_rows.append(row)
-        elif row.get('home_view') == 'prod' and row.get('home_stage') == '검수 끝':
+        elif row.get('home_view') == 'prod' and row.get('home_stage') == PRODUCTION_FINISHED_STAGE:
             finished += 1
     waiting_rows.sort(key=_due_sort_key)
     today = today or get_today_kst()
@@ -363,7 +364,7 @@ def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date
 
 
 def production_home_counts(rows: list[dict[str, Any]], tombstone_count: int = 0) -> dict[str, int]:
-    """탭 숫자 — 전체 / 생산 중(제작 대기~검수 끝·보류) / 내 공정(공정 줄에 선 주문, R1) / 바뀐 것(받은함 장 수 =
+    """탭 숫자 — 전체 / 생산 중(제작 대기~검수 완료·보류) / 내 공정(공정 줄에 선 주문, R1) / 바뀐 것(받은함 장 수 =
     변경 있는 주문 + 묘비, R2)."""
     return {
         'all': len(rows),

@@ -18,6 +18,7 @@ from foms.services.production.drawing_arrival import (
 )
 from foms.services.production.pc_view import attach_pc_rows
 from foms.services.production.ship_dates import PANE_PAST, STRIP_DAYS, pane_slots, row_due
+from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
 from foms.services.production_home_read_model import (
     PRODUCTION_HOME_PAST_DAYS,
     _WEEKDAY_KO,
@@ -33,7 +34,7 @@ _BAR_ORDER = ('f', 'p', 'w', 'x')  # 막대 색 순서: 제작 완료 · 만드�
 
 def _row_bar_kind(row: dict[str, Any]) -> str:
     view = row.get('home_view')
-    if view == 'done' or row.get('home_stage') == '검수 끝' or row.get('fac_done'):  # 내 공장 완료(2공장, §4-14)도 완료 색
+    if view == 'done' or row.get('home_stage') == PRODUCTION_FINISHED_STAGE or row.get('fac_done'):  # 내 공장 완료(2공장, §4-14)도 완료 색
         return 'f'
     if view == 'prod':
         return 'w' if row.get('home_stage') == '제작 대기' else 'p'
@@ -112,7 +113,7 @@ def production_home_days(
     (오늘 포함) 하나에. 띠 = 지난 7일(오늘까지, 한 줄) · **내일부터** ``PRODUCTION_HOME_STRIP_DAYS`` 일 · 그 뒤(한 줄) — 오늘
     출고는 이미 나가고 있어 날 줄이 없다(사장님 2026-11-25). 띠 아래 = 지난 출고일(7일 넘음) · 출고일 없음. 오른쪽은 **그날
     출고 주문만**(설계서 2026-11-22-production-drawing-arrival-upgrade §5-2 — 사장님 "당일 것만"): 도면·컨펌 기다림(작은 칸 +
-    막힌 까닭 · 담당) → 만들 것(제작 대기~검수 끝·보류, 큰 줄) → 제작 완료(작은 칸). ``selected`` 가 없거나 모르는 값이면 내일
+    막힌 까닭 · 담당) → 만들 것(제작 대기~검수 완료·보류, 큰 줄) → 제작 완료(작은 칸). ``selected`` 가 없거나 모르는 값이면 내일
     (내일이 비었으면 일이 있는 가장 가까운 장).
 
     ``focus_order``(주소 ``order=`` · 옛 ``focus_order=`` — 알림 · 검색 · 주문 목록 바로가기, 설계서 2026-11-21-production-pc-viewer

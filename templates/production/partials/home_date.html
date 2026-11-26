@@ -1,11 +1,11 @@
 {# 탭 "날짜"(안 3, 사용자 11-10 "3안으로") — 왼쪽 2주 띠(출고일마다 막대 + 만들 것/전체, 날 줄은 내일부터 — 사장님 2026-11-25
    "출고 일정 = 제작 일정" · "내일 부터", 놓는 규칙 foms/services/production/ship_dates.py) + 오른쪽 고른 날. home.html 이 include.
    시공이 있는 띠 줄은 막대 밑에 도면 글 한 줄(fph-sd__mid · d.arrival — 설계서 2026-11-22-production-drawing-arrival-upgrade §5-1:
-   '도면 5/6 마감 지남' 빨강 · '도면 3/7 마감 내일' 주황 · '도면 5/5 다 옴' 초록 · '도면 0/4' 남색). 줄 높이 · 줄 수 · 아래 단추 둘은 그대로.
+   '도면 5/6 마감 지남' 빨강 · '도면 3/7 마감 내일' 주황 · '도면 5/5 다 내려옴' 초록 · '도면 0/4' 남색). 줄 높이 · 줄 수 · 아래 단추 둘은 그대로.
    오른쪽은 고른 날 장 하나만 그린다(home_day_pane.html, 11-14 — 예전 D5 는 15장을 다 보내고 보이기/숨기기만 했다). 다른 날을 누르면
    foms-production-home.js 가 그 날 장만 받아(?view=day&day=) 끼우고, 한 번 받은 날은 기억한다. 날 단추는 진짜 링크다 —
    스크립트가 묶이기 전에 눌러도 그 날 주소로 이동한다(셸 조각 교체 제외 data-foms-erp-no-shell). 막대는 SVG 좌표(인라인 style 없음).
-   만들 것(제작 대기~검수 끝·보류)은 공정 4칸과 큰 줄, 도면·컨펌 기다림과 제작 완료는 작은 칸 — 전체 주문은 다 있다(D10). #}
+   만들 것(제작 대기~검수 완료·보류)은 공정 4칸과 큰 줄, 도면·컨펌 기다림과 제작 완료는 작은 칸 — 전체 주문은 다 있다(D10). #}
 {% from 'production/partials/home_date_macros.html' import home_href %}
 
 <div class="fph-date{% if part_board %} has-parts{% endif %}" data-foms-home-date>
@@ -33,7 +33,7 @@
   </div>
 
   <div class="fph-panes" data-foms-home-panes>
-    <p class="fph-pane__load" data-foms-home-dayload role="status" hidden>그 날을 받는 중이에요…</p>
+    <p class="fph-pane__load" data-foms-home-dayload role="status" hidden>그날을 받는 중이에요…</p>
     <p class="fph-pane__err" data-foms-home-dayerr role="alert" hidden></p>
     {% with d = pane %}{% include ('production/partials/home_pc_day_pane.html' if pc_view else 'production/partials/home_day_pane.html') %}{% endwith %}
   </div>

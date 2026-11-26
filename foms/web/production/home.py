@@ -31,6 +31,7 @@ from foms.services.production.factory_home import attach_factory_rows, attach_fa
 from foms.services.production.factory_scope import home_factory, scene_on
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.home_step_panel import (
+    attach_step_blocks,
     attach_step_confirm,
     attach_step_panels,
     parse_step_order,
@@ -52,6 +53,7 @@ from foms.services.production.part_marks_query import marks_by_order
 from foms.services.production.part_screen import morning_chip, read_screen_marks
 from foms.services.production.pc_view import attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
 from foms.services.production.ship_dates import ship_fields
+from foms.services.production.sync_blocks import DONE_BLOCK
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_home_changes import (
     DONE_ALL_VALUE,
@@ -136,6 +138,8 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
             'me_id': getattr(user, 'id', None),
             # 서버 KST 오늘 — 받아 오기로 고친 카드의 "어제부터" 판정(기기 시계 대신, 설계서 2026-11-23 §4-9)
             'today': (today or get_today_kst()).isoformat(),
+            # 제작 완료 성공 응답 때 그 주문 카드에 그릴 칸(받아 오기의 '생산 단계 아님' 칸과 같은 값 — 비평 C09)
+            'done_block': DONE_BLOCK,
         }
         if full and mode == VIEW_PART and tab == 'date':
             chip = morning_chip(db, user, tuple(p['key'] for p in board['parts']), full_rows_of(days),
@@ -230,23 +234,26 @@ def _step_panel_screen(tab: str, surface: bool, queues: dict | None) -> dict:
     }
 
 
-def _attach_step_confirm(db, queues: dict | None, flags: dict) -> None:
+def _attach_step_confirm(db, queues: dict | None, flags: dict, user) -> None:
     """'내 공정' [<공정> 끝] 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") — [끝]을 그리는 사람(``can_check_steps``)만,
     도면 있는 막히지 않은 줄의 표시 줄을 한 번에 읽는다(+1, 그런 줄이 없으면 0). 묻기를 단추에 실어 두어 누를 때 받기(GET)가 없다 —
     공장 와이파이에서 [끝]이 늦게 먹는 일(11-22 터치 점검)을 만들지 않는다.
 
     같은 표시 줄로 "남은 장이 고치는 도면뿐"인 줄은 [끝] 자리에 "도면 2 고치는 중"(2026-11-25 D1 검토 판결 D). [끝]이 없는 사람도 같은
     줄을 보도록, 도면별로 막힌 장이 있는 줄이 있을 때만 그 줄들의 표시 줄을 읽는다(그런 줄이 없으면 0 — 지금 쿼리 그대로).
+    [끝]을 그리는 사람에게는 먼저 장이 모두 남의 공장인 줄을 "2공장 작업"으로 막는다(비평 C02 — 공정 API 와 같은 공장 문, 쿼리 0).
     """
     if queues is None:
         return
     confirm = bool(flags.get('can_check_steps'))
+    if confirm:
+        attach_step_blocks(queues, user)
     ids = step_confirm_ids(queues, fix_only=not confirm)
     if ids:
         attach_step_confirm(queues, marks_by_order(db, ids), confirm=confirm)
 
 
-def _step_panel_response(db, tab: str, surface: bool, rows: list, flags: dict):
+def _step_panel_response(db, tab: str, surface: bool, rows: list, flags: dict, user):
     """'내 공정' 판 하나 조각(``view=panel``) — 문 · 권한은 한 화면을 다 그릴 때와 같다(읽기만, 새 쓰기 길 없음).
 
     문 = 판이 있는 화면(``_step_panel_screen`` 과 같은 '내 공정' 탭 + 터치 v2 + 넓은 창). 파트 계정은 탭이 날짜로 돌아가(D50)
@@ -256,7 +263,7 @@ def _step_panel_response(db, tab: str, surface: bool, rows: list, flags: dict):
     door = tab == 'steps' and surface and wants_wide_viewport_surfaces()
     order = parse_step_order(request.args.get('order')) if door else None
     queues = production_home_step_queues(rows) if door else None
-    _attach_step_confirm(db, queues, flags)  # [끝] 확인 창 자료(+1, 판 하나 조각도 다 그릴 때와 같은 단추)
+    _attach_step_confirm(db, queues, flags, user)  # [끝] 확인 창 자료(+1, 판 하나 조각도 다 그릴 때와 같은 단추)
     panel = step_panel_for(queues, request.args.get('step') or '', order) if door else None
     if panel is None:
         abort(404)
@@ -316,7 +323,7 @@ def erp_production_home():
     if flags['pc_view']:
         attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
     if request.args.get('view') == PANEL_VIEW:
-        return _step_panel_response(db, tab, surface, rows, flags)  # '내 공정' 판 하나(누른 줄) — 행 읽기 뒤 [끝] 확인 창 자료만 +1
+        return _step_panel_response(db, tab, surface, rows, flags, user)  # '내 공정' 판 하나(누른 줄) — 행 읽기 뒤 [끝] 확인 창 자료만 +1
     scene = _factory_scene(user, rows, flags['pc_view'])  # 2공장 칸(켜졌을 때만) — 날짜 묶기 전에 단다
     past_hidden = stats['past_hidden']
     # 띠 숫자는 모든 날을 같은 행에서 센다(쿼리 없음). 그리는 장은 고른 날 하나뿐 — 나머지 날은 누를 때 조각으로(11-14).
@@ -353,7 +360,7 @@ def erp_production_home():
     if tab == 'all':
         production_home_attach_change_by(db, rows)
     queues = production_home_step_queues(rows, today) if tab == 'steps' else None
-    _attach_step_confirm(db, queues, flags)  # '내 공정' [끝] 확인 창 자료(도면 있는 줄만 묻는다, 2026-11-25)
+    _attach_step_confirm(db, queues, flags, user)  # '내 공정' [끝] 확인 창 자료(도면 있는 줄만 묻는다, 2026-11-25)
     # 셸 조각(레일 · 아래 메뉴에서 온 view=fragment): 몸통 + 이 화면 CSS · 스크립트(다른 탭 조각과 같은 꼴, 11-14).
     template_name = ('production/partials/home_fragment.html' if wants_erp_shell_tab_body(request)
                      else 'production/home.html')

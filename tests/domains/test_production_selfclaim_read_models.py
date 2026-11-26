@@ -60,8 +60,8 @@ def test_칸_아래_이름_다섯_꼴() -> None:
              _m("k0", "edge", "NEED", "김민준", T, handed="박엣지", hat=T), _m("k1", "edge", "NEED", "최가은", T)]
     cut = part_holder(sd, marks, "cut", {"by": ""}, TODAY)
     assert (cut["kind"], cut["name"], cut["tail"], cut["old"], cut["label"]) == ("held", "최재단", "", True, "재단 3/5")
-    assert cut["aria"] == "재단 3/5 · 2장 미완료 · 담당 최재단 · 어제부터"  # 태블릿 글 — 시각 없음
-    assert cut["tip"] == "재단 3/5 · 2장 미완료 · 담당 최재단"  # PC 마우스 글(카드 부분일 때만 새 글)
+    assert cut["aria"] == "재단 3/5 · 2장 미완료 · 최재단 작업 중 · 어제부터"  # 태블릿 글 — 시각 없음
+    assert cut["tip"] == "재단 3/5 · 2장 미완료 · 최재단 작업 중"  # PC 마우스 글(카드 부분일 때만 새 글)
     edge = part_holder(sd, marks, "edge", {"by": ""}, TODAY)
     assert (edge["kind"], edge["name"], edge["tail"], edge["old"]) == ("held", "김민준", "바뀜", False)  # 바뀜이 외 n 보다 앞
     assert "박엣지에서 바뀜" in edge["aria"] and "14:20" not in edge["aria"] and "함께 하는 사람 최가은" in edge["aria"]
@@ -160,9 +160,9 @@ def test_손_체크한_파트는_모든_장_완료_막힘_까닭은_서버_글(a
     assert c["hand"]["why"] == "박반장이 작업 시트에서 재단 칸을 작업 완료 처리했어요. 다시 해야 하면 박반장에게 말해 주세요."
     assert pane["counts"]["unseen"] == 1 and pane["counts"]["done"] == 0  # 미정 · 내가 완료에서 빠짐(§4-2 판 숫자)
     assert _card(_pane(admin), "손체크집", 1)["in_done"] is True  # 관리자 '완료' 에는 셈
-    # 엣지 판에서 재단 낱말 = 끝(손 체크 = 모든 장 완료)
+    # 엣지 판에서 재단 낱말 = 완료(손 체크 = 모든 장 완료, '끝' → '완료' multi-holder K4)
     edge_card = _card(_pane(_user("최엣지", "edge")), "손체크집", 0)
-    assert edge_card["others"][0]["word"] == "끝" and edge_card["hand_parts"] == ["cut"]
+    assert edge_card["others"][0]["word"] == "완료" and edge_card["hand_parts"] == ["cut"]
     assert hand.id
 
 
@@ -196,7 +196,7 @@ def test_내_담당_한_층_꼬리_남의_담당_둘째_줄_첫_카드(app) -> N
     _mark(order, 1, "edge", "NEED", park, handed="최가은")
     pane = _pane(me)
     mine, other = _card(pane, "한빛", 0), _card(pane, "한빛", 1)
-    assert mine["mine_row"] and mine["tag"] == {"old": "어제부터", "chg": "", "aria": "내 담당 · 어제부터"}
+    assert mine["mine_row"] and mine["tag"] == {"crew": "", "old": "어제부터", "chg": "", "aria": "내 작업 · 어제부터"}
     assert mine["picked_by_user_id"] == me.id and mine["picked_day"] and mine["picked_at"]
     assert not other["mine_row"] and other["tag"] is None and other["held_note"].startswith("최가은에서 바뀜 ")
     assert _card(pane, "새집", 0)["first_card"] is True and mine["first_card"] is False  # 회차 없는 집 = 첫 카드(§4-8)
@@ -230,7 +230,7 @@ def test_기록_글은_새_기록만_새_글() -> None:
         == "엣지 담당을 박엣지에서 김민준으로 바꿨습니다"
     assert generate_change_description("PRODUCTION_PART_MARKED", "", "", "", {"part": "cut", "action": "release",
                                                                                "holder_name": "박재단"}) \
-        == "재단 맡기를 취소했습니다 (박재단 담당)"
+        == "재단 작업 시작을 취소했습니다 (박재단)"
     assert generate_change_description("PRODUCTION_STEP_CHECKED", "", "", "", {"key": "cut", "done": True, "via": "sheet"}) \
         == "재단 칸을 손으로 작업 완료 처리했습니다"  # 작업 시트 · '내 공정' [끝] · PC [고치기] 모두 같은 길 — 자리 말 없음
     # 대조군: 지금 기록(맡기 · 옛 칸 체크)은 지금 글 그대로

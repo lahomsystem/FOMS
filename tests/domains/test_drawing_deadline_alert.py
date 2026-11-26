@@ -201,7 +201,7 @@ def test_글의_까닭은_화면과_같은_함수(people, monkeypatch):
     nobody = make_order("나가짜", "2026-11-25", status="PENDING")
     sales_check = _order(people, status="TRANSFERRED")
     run(at("2026-11-23", 8, 2))
-    assert "지금: 담당 없음 · 영업 이가짜" in rows(nobody)[0].message
+    assert "지금: 도면 담당 없음 · 영업 이가짜" in rows(nobody)[0].message
     assert "지금: 영업 확인 기다림 · 도면 장가짜 · 영업 이가짜" in rows(sales_check)[0].message
 
 
