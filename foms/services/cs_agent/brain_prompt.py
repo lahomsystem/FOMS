@@ -47,7 +47,7 @@ __all__ = [
     "PRICES", "PURPOSES", "PURPOSE_DRAFT", "PURPOSE_INTENT", "RESERVE_OVERHEAD_TOKENS", "ROLE_MANAGER", "ROLE_STORE",
     "ROLE_USER",
     "SERVER_FALLBACK_MODELS", "SPEAKERS", "DraftRequest", "DraftResult", "OutputError", "Price", "Tokens",
-    "answer_text", "evidence_choices", "fallback_served", "instructions", "intent_choices", "knowledge_text",
+    "answer_text", "cache_marked", "evidence_choices", "fallback_served", "instructions", "intent_choices", "knowledge_text",
     "output_schema", "read_output", "render_conversation", "system_blocks", "task_text", "usage_cost",
     "worst_case_cost",
 ]
@@ -228,6 +228,15 @@ def knowledge_text(knowledge: ApprovedKnowledge) -> str:
     return "\n".join(lines)
 
 
+def cache_marked(blocks: list[dict[str, Any]], cache_ttl: Optional[str]) -> list[dict[str, Any]]:
+    """마지막 블록에만 ``cache_ttl``(1h · 5m) 길이로 캐시 표시를 달아 돌려준다(``None`` 이면 그대로 — 밤 배우기도 같이 쓴다)."""
+    if cache_ttl is not None and cache_ttl not in CACHE_TTLS:
+        raise ValueError("cache_ttl 은 1h · 5m 가운데 하나다")
+    if cache_ttl is not None:
+        blocks[-1]["cache_control"] = {"type": "ephemeral", "ttl": cache_ttl}
+    return blocks
+
+
 def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Optional[str],
                   length: int = LENGTH_DEFAULT, photos: bool = False) -> list[dict[str, Any]]:
     """``system`` 칸 — [지시문, 승인 지식(교훈 포함)]. ``cache_ttl``(1h · 5m)이면 마지막 블록에만 그 길이로 캐시 표시를 단다.
@@ -235,15 +244,10 @@ def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Option
     표시는 바뀌지 않는 앞부분 끝에 하나만 단다 — 시각 · 상담 id · 손님 글은 ``messages`` (뒷부분, :func:`task_text`)에만 있다.
     ``None`` 이면(캐시 방침이 끔이거나 운영 시간 밖) 표시 없이 보낸다.
     """
-    if cache_ttl is not None and cache_ttl not in CACHE_TTLS:
-        raise ValueError("cache_ttl 은 1h · 5m 가운데 하나다")
-    blocks: list[dict[str, Any]] = [
+    return cache_marked([
         {"type": "text", "text": instructions(brand, length, photos, knowledge)},
         {"type": "text", "text": knowledge_text(knowledge)},
-    ]
-    if cache_ttl is not None:
-        blocks[-1]["cache_control"] = {"type": "ephemeral", "ttl": cache_ttl}
-    return blocks
+    ], cache_ttl)
 
 
 def output_schema(knowledge: ApprovedKnowledge) -> dict[str, Any]:
