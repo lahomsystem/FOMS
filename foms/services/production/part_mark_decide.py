@@ -340,7 +340,7 @@ def decide_mark(snapshot: MarkSnapshot, *, action: str, seen: str, actor_id: int
     action, seen, late = mc.late_join(action, seen, snapshot.state, crew, actor_id)
     if action != ACTION_CHECK and snapshot.seen_key != seen:
         if action == ACTION_JOIN and snapshot.state == MARK_STATE_DONE:
-            return _refuse(JOIN_DONE, JOIN_DONE_MESSAGE, action=action)
+            return _refuse(JOIN_DONE, JOIN_DONE_MESSAGE.format(label=label), action=action)
         message = new_action_conflict_message(snapshot) if action in NEW_ACTIONS else conflict_message(snapshot, action)
         return MarkDecision(DECISION_CONFLICT, message=message, action=action)
     if (seen_by is not SEEN_BY_UNSET and seen == "need" and action not in (ACTION_JOIN, ACTION_CHECK)

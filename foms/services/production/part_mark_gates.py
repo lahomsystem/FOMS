@@ -60,7 +60,7 @@ HOLD_MESSAGE = "보류된 주문이라 지금은 못 눌러요. 보류가 풀리
 REVISING_MESSAGE = "도면을 고치는 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
 #: 카드를 쓴 파트의 공정 칸 체크(승인 때 고친 것 2 — 글자 그대로, 숫자 = 남은 장).
 PART_USES_CARDS_MESSAGE = "도면 {left}장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
-STEP_SET_BY_CARDS_MESSAGE = "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
+STEP_SET_BY_CARDS_MESSAGE = "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [{label} 완료 취소]를 눌러 주세요."
 
 #: 보류 · 도면 고치는 중에도 되는 누름(§4-6 '되는 것' — 시작 취소 · 완료 취소 · 반장의 남의 시작 취소, multi-holder §7-3 5).
 ALLOWED_WHILE_BLOCKED: tuple[str, ...] = (ACTION_RELEASE, ACTION_UNDO, ACTION_REMOVE)
@@ -253,7 +253,7 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
         return Gate(409, PART_USES_CARDS, PART_USES_CARDS_MESSAGE.format(left=left),
                     {"part": part, "left": left, "total": progress["total_n"]})
     if not done and not left:
-        return Gate(409, STEP_SET_BY_CARDS, STEP_SET_BY_CARDS_MESSAGE, {"part": part})
+        return Gate(409, STEP_SET_BY_CARDS, STEP_SET_BY_CARDS_MESSAGE.format(label=PRODUCTION_PART_LABELS[part]), {"part": part})
     return None
 
 
