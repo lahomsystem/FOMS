@@ -52,6 +52,36 @@
     if (closeBtn) closeBtn.click();
   }
 
+  // 묻기 — 작업 시트(section.foms-prod-page) · 생산 첫 화면([data-foms-prod-home]) 단추는 앱 창(작업 시트 공정 칸과 같은 창 ·
+  // foms-production-sheet-parts.js confirm, 사장님 2026-11-27 "앱 창으로 바꾸기"): 제목 = q.title, 본문 = q.note, [닫기] [q.yes].
+  // 그 밖(옆 시트 · 옛 칸반 · 출고)과 창 조각이 없는 화면은 지금 기본 창(q.plain — 지금 글 그대로). [닫기] · Esc · 바깥 = 아무 것도 안 함.
+  // 앱 창: 떠 있는 창 위 누름 · 저장 중 누름은 버리고, 저장하는 동안 단추를 잠근다(go 가 돌려준 약속이 끝나면 푼다).
+  var APP_CONFIRM_SCOPE = "section.foms-prod-page, [data-foms-prod-home]";
+  function ask(btn, q, go) {
+    var sp = window.FomsSheetParts;
+    var box = document.querySelector("[data-foms-sheet-confirm]");
+    var app = !!(btn && btn.closest && btn.closest(APP_CONFIRM_SCOPE) && box && sp && typeof sp.confirm === "function");
+    if (!app) {
+      if (window.confirm(q.plain)) go();
+      return;
+    }
+    if ((btn.disabled && !q.again) || !box.hidden) return; // again = 저장 응답 뒤 다시 묻기(보류 중) — 그때는 단추가 아직 잠겨 있다
+    sp.confirm({
+      title: q.title,
+      body: q.note || "",
+      yes: q.yes,
+      no: "닫기",
+      opener: btn,
+      go: function () {
+        btn.disabled = true;
+        var unlock = function () {
+          btn.disabled = false;
+        };
+        Promise.resolve(go()).then(unlock, unlock);
+      },
+    });
+  }
+
   // HOLD_ACTIVE 재시도 confirm 문구(사유 있으면 병기).
   function holdConfirmText(hold) {
     var msg = "보류 중인 주문이에요";
@@ -59,17 +89,25 @@
     return msg + "\n보류를 해제하고 진행할까요?";
   }
 
-  // 생산 전이(시작/완료) 공용 — confirm 게이트 후 POST. 서버가 stage 전제조건을 강제
-  // (409 INVALID_STAGE). 에러는 message 키(error 아님). 성공 시 시트 닫고 새로고침.
-  function productionTransition(orderId, path, confirmMsg) {
-    if (!orderId) return;
-    if (!window.confirm(confirmMsg)) return;
-    submitTransition(orderId, path, {});
+  // 같은 글의 앱 창 꼴 — 제목 = 묻는 글, 본문 = "보류 중인 주문이에요 (사유: …)".
+  function holdAsk(hold) {
+    var note = "보류 중인 주문이에요";
+    if (hold && hold.reason) note += " (사유: " + hold.reason + ")";
+    return { title: "보류를 해제하고 진행할까요?", note: note, yes: "보류 해제하고 진행", plain: holdConfirmText(hold), again: true };
   }
 
-  // 전이 POST. 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
-  function submitTransition(orderId, path, body) {
-    fetch("/api/orders/" + encodeURIComponent(orderId) + path, {
+  // 생산 전이(시작/완료) 공용 — 묻고(ask) 나서 POST. 서버가 stage 전제조건을 강제
+  // (409 INVALID_STAGE). 에러는 message 키(error 아님). 성공 시 시트 닫고 새로고침.
+  function productionTransition(orderId, path, q, btn) {
+    if (!orderId) return;
+    ask(btn, q, function () {
+      return submitTransition(orderId, path, {}, btn);
+    });
+  }
+
+  // 전이 POST. 409 HOLD_ACTIVE(보류 중) 면 해제를 묻고(ask) {release_hold:true} 로 1회 재시도.
+  function submitTransition(orderId, path, body, btn) {
+    return fetch("/api/orders/" + encodeURIComponent(orderId) + path, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -89,13 +127,13 @@
       .then(function (result) {
         var data = result.data;
         if (result.status === 409 && data.code === "HOLD_ACTIVE" && !body.release_hold) {
-          if (window.confirm(holdConfirmText(data.hold))) {
+          ask(btn, holdAsk(data.hold), function () {
             // 재시도 시 기존 body(예: rework reason) 유지 + release_hold 부가.
             var retry = {};
             for (var k in body) if (body.hasOwnProperty(k)) retry[k] = body[k];
             retry.release_hold = true;
-            submitTransition(orderId, path, retry);
-          }
+            return submitTransition(orderId, path, retry, btn);
+          });
           return;
         }
         if (data.success) {
@@ -136,33 +174,36 @@
   }
 
   // 생산 시작 — 제작대기(고객컨펌) → 제작중 전이.
-  function productionStart(orderId) {
+  function productionStart(orderId, btn) {
     productionTransition(
       orderId,
       "/production/start",
-      "제작을 시작할까요?"
+      { title: "제작을 시작할까요?", yes: "제작 시작", plain: "제작을 시작할까요?" },
+      btn
     );
   }
 
   // 시공일이 둘 이상인 주문만 서버가 카드 · 시트 뿌리에 한 줄(data-production-split-note)을 실어 준다.
+  // 앱 창은 그 한 줄을 본문에, 기본 창은 지금처럼 빈 줄 하나 띄워 붙인다.
   function productionSplitNote(orderId) {
     var src = document.querySelector('[data-production-split-note][data-order-id="' + orderId + '"]');
-    var note = src ? (src.getAttribute("data-production-split-note") || "") : "";
-    return note ? "\n\n" + note : "";
+    return src ? (src.getAttribute("data-production-split-note") || "") : "";
   }
 
   // 생산 완료 — 제작중 → 제작완료/시공대기 전이(기존 워크플로 엔드포인트 재사용).
-  function productionComplete(orderId) {
+  function productionComplete(orderId, btn) {
+    var note = productionSplitNote(orderId);
     productionTransition(
       orderId,
       "/production/complete",
-      "제작을 완료할까요?" + productionSplitNote(orderId)
+      { title: "제작을 완료할까요?", note: note, yes: "제작 완료", plain: "제작을 완료할까요?" + (note ? "\n\n" + note : "") },
+      btn
     );
   }
 
   // 사유 입력 공용 바텀시트(static/js/foms/foms-reason-sheet.js)로 사유를 받아 전이한다.
   // window.prompt 는 쓰지 않는다 — 모바일·태블릿·v3 세 화면이 같은 시트를 쓴다.
-  function openReasonSheetAndSubmit(orderId, path, opts) {
+  function openReasonSheetAndSubmit(orderId, path, opts, btn) {
     if (!orderId) return;
     if (!window.FomsReasonSheet) {
       window.alert("사유 입력 창을 불러오지 못했어요. 새로고침한 뒤 다시 시도해 주세요.");
@@ -174,7 +215,7 @@
       reasons: null,
       detailLabel: opts.detailLabel,
       onSubmit: function (reason, detail) {
-        submitTransition(orderId, path, { reason: detail });
+        submitTransition(orderId, path, { reason: detail }, btn);
       },
     });
     setReasonCloseText(opts.cancelLabel);
@@ -189,31 +230,33 @@
 
   // 수정 제작 — 제작완료 → 제작중 되돌림. 사유는 공용 시트에서 받는다(빈 값 허용).
   // HOLD_ACTIVE 재시도는 submitTransition 이 body(reason)를 유지한 채 처리한다.
-  function productionRework(orderId) {
+  function productionRework(orderId, btn) {
     openReasonSheetAndSubmit(orderId, "/production/rework", {
       title: "수정 제작으로 되돌리기",
       actionLabel: "수정 제작",
       detailLabel: "수정 제작 사유 (선택)",
-    });
+    }, btn);
   }
 
   // 제작 취소 — 제작중 → 제작대기 되돌림(시트 전용, 의도적 마찰). 사유는 공용 시트에서 받는다.
   // 후진 전이라 서버 보류 게이트 없음(HOLD_ACTIVE 분기 무발동, 무해).
-  function productionCancel(orderId) {
+  function productionCancel(orderId, btn) {
     openReasonSheetAndSubmit(orderId, "/production/cancel", {
       title: "제작을 취소하고 제작대기로 되돌릴까요?",
       actionLabel: "제작 시작 취소",
       cancelLabel: "닫기",
       detailLabel: "제작 취소 사유 (선택)",
-    });
+    }, btn);
   }
 
-  // 완료 취소 — 제작완료 → 제작중 되돌림(시트 전용, 의도적 마찰). confirm 만(사유 없음).
+  // 완료 취소 — 제작완료 → 제작중 되돌림(시트 전용, 의도적 마찰). 묻기만(사유 없음).
   // 재제작 완료였으면 서버가 rework 를 다시 활성으로 복원한다. 후진 전이라 보류 게이트 없음.
-  function productionUncomplete(orderId) {
+  function productionUncomplete(orderId, btn) {
     if (!orderId) return;
-    if (!window.confirm("완료를 취소하고 제작중으로 되돌릴까요?")) return;
-    submitTransition(orderId, "/production/uncomplete", {});
+    var text = "완료를 취소하고 제작중으로 되돌릴까요?";
+    ask(btn, { title: text, yes: "완료 취소", plain: text }, function () {
+      return submitTransition(orderId, "/production/uncomplete", {}, btn);
+    });
   }
 
   // 생산 보류 토글 — canonical HOLD_ORDER/RELEASE_HOLD 전이(STATE-OVERLAY-01). 버튼의
@@ -244,18 +287,20 @@
       setReasonCloseText();
       return;
     }
-    // 해제 confirm — 서버 렌더 사유(data-hold-reason)를 병기(있을 때만).
+    // 해제 묻기 — 서버 렌더 사유(data-hold-reason)를 병기(있을 때만 — 앱 창은 본문 줄).
     var heldReason = btn ? (btn.getAttribute("data-hold-reason") || "").trim() : "";
+    var why = heldReason ? "(사유: " + heldReason + ")" : "";
     var releaseMsg = "보류를 해제할까요?";
-    if (heldReason) releaseMsg += " (사유: " + heldReason + ")";
-    if (!window.confirm(releaseMsg)) return;
-    submitProductionHold(orderId, false, "");
+    if (heldReason) releaseMsg += " " + why;
+    ask(btn, { title: "보류를 해제할까요?", note: why, yes: "보류 해제", plain: releaseMsg }, function () {
+      return submitProductionHold(orderId, false, "");
+    });
   }
 
   // 보류 토글 요청 본체. 성공 시 시트를 닫고 새로고침해 카드/시트 배지를 재조회한다.
   // 에러 키 = error/message(전이 409 는 message).
   function submitProductionHold(orderId, active, reason) {
-    fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/hold", {
+    return fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/hold", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -775,27 +820,27 @@
     }
     if (action === "production-start") {
       ev.preventDefault();
-      productionStart(orderId);
+      productionStart(orderId, actionBtn);
       return;
     }
     if (action === "production-complete") {
       ev.preventDefault();
-      productionComplete(orderId);
+      productionComplete(orderId, actionBtn);
       return;
     }
     if (action === "production-rework") {
       ev.preventDefault();
-      productionRework(orderId);
+      productionRework(orderId, actionBtn);
       return;
     }
     if (action === "production-cancel") {
       ev.preventDefault();
-      productionCancel(orderId);
+      productionCancel(orderId, actionBtn);
       return;
     }
     if (action === "production-uncomplete") {
       ev.preventDefault();
-      productionUncomplete(orderId);
+      productionUncomplete(orderId, actionBtn);
       return;
     }
     if (action === "production-hold") {

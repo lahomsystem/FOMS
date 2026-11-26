@@ -238,13 +238,14 @@ def test_big_button_default_dialog_texts_match_production_buttons():
     js = _read(ROOT / "static/js/foms/tablet-domain-sheets.js")
     assert '"오류: " + (data.message || "처리 실패")' not in js and js.count('"처리하지 못했어요"') == 4
     assert 'window.alert(data.message || "처리하지 못했어요");' in js
-    assert '"제작을 시작할까요?"' in js and '"제작을 완료할까요?" + productionSplitNote(orderId)' in js
+    assert '"제작을 시작할까요?"' in js and r'plain: "제작을 완료할까요?" + (note ? "\n\n" + note : "")' in js  # 기본 창 글 그대로(11-27 앱 창은 본문 줄)
+    assert "var note = productionSplitNote(orderId);" in js
     assert 'var msg = "보류 중인 주문이에요";' in js
     assert js.count("사유 입력 창을 불러오지 못했어요. 새로고침한 뒤 다시 시도해 주세요.") == 2
     assert "시작하시겠습니까" not in js and "완료하시겠습니까" not in js and "불러오지 못했습니다" not in js
     assert 'window.alert("오류: " + (data.message || "저장 실패"));' in js  # 출고 저장 글은 그대로
     entry = _read(ROOT / "static/js/shipment/shipment-entry.js")
-    assert "tablet-domain-sheets.js?v=20261126c" in entry
+    assert "tablet-domain-sheets.js?v=20261127a" in entry
 
 
 def _py_strings(path: Path) -> str:

@@ -475,7 +475,7 @@ def test_파트_맡기_P1_새_누름_칸은_보이는_44_이웃_틈_8_지금_칸
         for sel in selectors.split(","):
             if "foms-prod-home__tab" in sel:
                 assert sel.strip().startswith(".pp-tabs "), sel
-    # 반장 손 체크 확인 창(작업 시트 · 옆 시트) — 단추 보이는 44 · 틈 8
+    # 반장 손 체크 확인 창(작업 시트 · 옆 시트) — 단추 보이는 48(2026-11-27 작업 시트 생산 단추도 이 창 — 단추 48px 이상) · 틈 8
     sheet = _tablet_text("psheet")
-    assert f"min-height: {TAP}" in _decl(sheet, ".fpp-confirm .foms-reason-sheet__actions > .foms-btn")
+    assert "min-height: calc(48px / var(--foms-ui-zoom, 1))" in _decl(sheet, ".fpp-confirm .foms-reason-sheet__actions > .foms-btn")
     assert f"gap: max(8px, {GAP})" in _decl(sheet, ".fpp-confirm .foms-reason-sheet__actions")

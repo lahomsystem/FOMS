@@ -6,7 +6,7 @@
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261124j">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261127a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% if pc_view %}
 {# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261124j">{% endif %}{% if order.factory_sheet %}{# 공장 칩(섞인 주문만 — 1공장뿐인 시트는 바이트 그대로) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">{% endif %}
@@ -218,7 +218,7 @@
        태블릿 · 옆 시트는 이 조각이 없다(지금 그대로). 손 체크 확인 창은 아래 시트 것 하나를 같이 쓴다(pc_sheet_confirm=false). #}{% with pc_sheet_confirm = false %}{% include 'production/partials/home_pc_sheet.html' %}{% endwith %}{% endif %}
   </section>
   {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
-  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126c" defer></script>{% endif %}
+  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261127a" defer></script>{% endif %}
   {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}{% include 'production/partials/sheet_step_confirm.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261125a" defer></script>{% endif %}{% if write_omitted %}{# 쿠키 없는 첫 요청이라 단추 줄을 뺐다 — 터치 기기면 다시 받는다 #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
@@ -226,9 +226,9 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261125m5" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261127a" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124l" defer></script>{% if can_act and order.factory_sheet %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261124h" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261127a" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261125m3" defer></script>{% if edit_on %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261125m3" defer></script>{% endif %}{% endif %}{% if edit_toggle %}
 <script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261122t" defer></script>{% endif %}

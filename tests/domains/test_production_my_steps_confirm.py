@@ -34,7 +34,7 @@ NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
 PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow"}
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 CONFIRM_ATTR = re.compile(r'data-foms-sheet-parts="([^"]+)"')
-PARTS_PIN = "foms-production-sheet-parts.js?v=20261125m5"
+PARTS_PIN = "foms-production-sheet-parts.js?v=20261127a"
 REASON_CSS = "css/components/foms-reason-sheet.css?v=20261122t"
 
 
@@ -247,5 +247,5 @@ def test_js_contract_and_css_same_values_as_the_work_sheet():
     sheet = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
     body = "margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5;"
     assert f".foms-prod-home .fpp-confirm-body {{ {body} color: var(--fph-text); word-break: keep-all; }}" in css and body in sheet
-    for rule in ("gap: max(8px, calc(8px / var(--foms-ui-zoom, 1)))", "min-height: calc(44px / var(--foms-ui-zoom, 1))"):
+    for rule in ("gap: max(8px, calc(8px / var(--foms-ui-zoom, 1)))", "min-height: calc(48px / var(--foms-ui-zoom, 1))"):  # 11-27 단추 48px 이상
         assert rule in css.split("/* ── 내 공정 [<공정> 끝] 확인 창", 1)[1].split("/* ──", 1)[0] and rule in sheet

@@ -74,21 +74,30 @@
   function doneText(ex) { // 풀어 쓴 [<공정> 완료] 뒤 알림(판결 B) — 뒤 문장(조사 포함)은 서버 글 ex.tail, 화면은 잇기만
     return '도면 ' + ex.total_n + '장 중 ' + ex.done_n + '장을 ' + ex.part_label + ' 완료로 처리했어요. ' + ex.tail;
   }
-  function ask(label, sheets, opener, go, no, fix) {
+  // 글 + 단추 둘 창 하나 — 공정 칸 손 체크(ask)와 작업 시트 생산 단추(tablet-domain-sheets.js · sheet-factory.js, 사장님 2026-11-27
+  // "앱 창으로 바꾸기")가 같이 쓴다. o = {title, body, yes, no, opener, go, cancel}. 창 조각이 없으면 false(부른 쪽이 지금 길로). 본문이 없으면 숨김
+  function open(o) {
     var box = document.querySelector('[data-foms-sheet-confirm]');
-    if (!box) { go(); return; }
+    if (!box) { return false; }
     dlg.box = box;
-    dlg.yes = go;
-    dlg.no = no || null;
-    dlg.opener = opener;
+    dlg.yes = o.go;
+    dlg.no = o.cancel || null;
+    dlg.opener = o.opener || null;
     dlg.at = Date.now();
-    box.querySelector('[data-foms-sheet-confirm-title]').textContent = label + ' 완료할까요?'; // 누른 단추와 같은 말(사장님 2026-11-26)
-    box.querySelector('[data-foms-sheet-confirm-yes]').textContent = label + ' 완료';
-    box.querySelector('[data-foms-sheet-confirm-body]').textContent = body(label, sheets, fix);
+    box.querySelector('[data-foms-sheet-confirm-title]').textContent = o.title;
+    box.querySelector('[data-foms-sheet-confirm-yes]').textContent = o.yes;
+    var text = box.querySelector('[data-foms-sheet-confirm-body]');
+    text.textContent = o.body || '';
+    text.hidden = !o.body;
+    var no = box.querySelector('[data-foms-sheet-confirm-no].foms-btn');
+    if (no) { no.textContent = o.no || '취소'; }
     box.hidden = false;
     box.setAttribute('aria-hidden', 'false');
-    var no = box.querySelector('[data-foms-sheet-confirm-no].foms-btn');
     if (no) { no.focus(); }
+    return true;
+  }
+  function ask(label, sheets, opener, go, no, fix) { // 제목 = 누른 단추와 같은 말(사장님 2026-11-26)
+    if (!open({ title: label + ' 완료할까요?', yes: label + ' 완료', body: body(label, sheets, fix), opener: opener, go: go, cancel: no })) { go(); }
   }
   function beforeToggle(page, btn, done, go, no) {
     if (!done) { go(); return; }
@@ -251,6 +260,7 @@
     });
   }
   // renderLog: PC 도면 목록 창(foms-production-pc-sheet.js, 2026-11-24)이 바뀐 기록을 작업 시트와 같은 글로 그린다
+  // confirm: 작업 시트 · 생산 첫 화면의 [제작 시작] · [제작 완료] · [완료 취소] · [보류 해제] · 공장 단추 확인(위 open)
   window.FomsSheetParts = { beforeToggle: beforeToggle, refused: refused, render: render, why: why, showWhy: showWhy, renderLog: renderLog,
-    doneText: doneText };
+    doneText: doneText, confirm: open };
 })();

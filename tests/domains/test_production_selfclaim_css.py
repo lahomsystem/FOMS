@@ -22,14 +22,14 @@ CSS_DIR = ROOT / "static/css/contexts/production"
 #: 날짜 띠 출고일 — 작은 칸 상차 · 희망일 표가 이름 뒤로 줄을 넘기는 has-ship(사장님 2026-11-25)이 또 한 번 올렸다.
 #: 2026-11-26 생산 비평 갈래 나(대비 · 색 통일 · 글자 배율 · 치우기)가 네 파일을 모두 한 번 더 올렸다(아래 셋 같이).
 #: 같은 날 '내 공정' [끝] 자리 막힘 둘(도면 칸 · 남의 공장)의 꼴이 home.css · parts.css(토큰 옮김) · pc.css 를 또 올렸다.
-PIN = "20261127b"
+PIN = "20261127c"
 #: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다 — 2026-11-25 D4 [도면 수정 요청] 단추 · 창이
 #: 한 번 더, 여러 명 같이 작업 M2(2026-11-25 multi-holder — [같이 작업] 짝 1.4 : 1 · 이름 두 줄 · 사람 고르기)가 또 한 번 올렸다.
 PARTS_PIN = "20261126g"
 #: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 · 셋째 판)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
 PC_PIN = "20261124j"
 #: 작업 시트 sheet.css(sheet.html · tablet_kanban_body.html 같은 핀) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
-SHEET_PIN = "20261124j"
+SHEET_PIN = "20261127a"
 
 
 def _css(name: str) -> str:
