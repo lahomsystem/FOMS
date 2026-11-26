@@ -103,7 +103,7 @@ def test_pc_window_rows_are_one_piece_per_person(client, cohort) -> None:
     _login(client, boss)
     d = _sheet(client, oid)
     rows = d["rows"]
-    assert [r["word"] for r in rows] == ["재단 완료", "재단 1/2 완료", "작업 필요", "안 봄", "재단 완료"]
+    assert [r["word"] for r in rows] == ["재단 완료", "재단 1/2 완료", "작업 중", "안 봄", "재단 완료"]
     assert [r["note"] for r in rows] == [None, "김재단 작업 중", None, None, None]
     assert [r["act"] for r in rows] == ["uncheck", "check", "check", "check", "uncheck"]
     assert _like(rows[0]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단", "완료 김재단"])  # 모두 보임 — 사람마다

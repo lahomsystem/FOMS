@@ -75,7 +75,7 @@ def state_word(part: str, state: str, hand: Optional[dict[str, Any]], crew: Any 
     if hand:
         return str(hand["text"])
     if state in ("need", "done", "basic"):
-        return state_words(part, state.upper(), crew)
+        return state_words(part, state.upper(), crew).replace("작업 필요", "작업 중")  # 화면만 '작업 중'(감사 글은 그대로, 11-26 나)
     return other_part_word(part, "none")["word"]
 
 

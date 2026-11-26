@@ -182,7 +182,7 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     assert d["notice"] == "도면 3장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."  # 거절 글 그대로(승인 때 고친 것 2)
     rows = d["rows"]
     assert [r["label"] for r in rows] == [f"도면 {i}/5" for i in range(1, 6)]
-    assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 필요", "안 봄", "안 봄"]  # 옛 "재단 끝"(K4)
+    assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 중", "안 봄", "안 봄"]  # 옛 "재단 끝"(K4)
     assert [r["act"] for r in rows] == ["uncheck", "uncheck", "check", "check", "check"]
     # 줄 글 = 사람마다 "작업 시작 …" · "완료 …"(옛 한 명짜리 줄 — 요약 칸에서 푼 목록, K6)
     assert rows[0]["lines"] == ["작업 시작 김재단 · 11/24 08:10", "완료 김재단 · 11/24 09:16"]

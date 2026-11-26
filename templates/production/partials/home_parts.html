@@ -26,7 +26,7 @@
 {% macro pp_act(c, pb, is_cut) %}
 {#- 이름 줄 = 서버 c.crew(part_card_crew.crew_view — "이시영 · 김재단 외 1"), 반만 완료 = "재단 1/2 완료"(도면 한 장 자리만, Q11) -#}
 {%- set cr = c.crew or {} -%}
-{%- set head = cr.head or ('다른 사람 작업 중' if pb.mine else '작업 필요') -%}
+{%- set head = cr.head or ('다른 사람 작업 중' if pb.mine else '작업 중') -%}
 {%- set half = (pb.part_label ~ ' ' ~ cr.d ~ '/' ~ cr.n ~ ' 완료') if cr.d else '' -%}
 {%- set can_undo = pb.writable and (c.done_by_me or not pb.mine) -%}
 {%- if c.state == 'hand' -%}
