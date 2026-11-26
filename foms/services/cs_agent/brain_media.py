@@ -7,7 +7,9 @@
   :data:`IMAGE_TOKEN_CAP`(높은 해상도 모델 — 공식 vision 문서 2026-11-02 열람: 긴 변 2,576px · 4,784 토큰). 머리를 못 읽으면
   상한으로 센다.
 - PDF(``document`` 블록 · base64): 쪽마다 글 토큰 :data:`PDF_TEXT_TOKENS_PER_PAGE`(공식 PDF 문서 '쪽마다 1,500 ~ 3,000' 의 위
-  끝) + 쪽 그림 한 장 상한. 쪽 수를 못 세면 :data:`PDF_UNKNOWN_PAGES` 쪽으로 센다(넉넉한 쪽).
+  끝) + 쪽 그림 한 장 상한. 쪽 수는 날 바이트에서 센 것과 묶음을 풀어 센 것(:func:`.image_pdf.scan_pdf` — 보내기 전 준비와 같은
+  셈) 가운데 큰 값이다. 쪽 나무가 눌린 묶음 속에만 있는 PDF 를 날 바이트로만 세면 0 이라 100쪽으로 잡혀, 예약 한 번이 하루
+  상한보다 커졌다(운영 11-26 — 밤 배우기가 그 묶음에서 멈춤). 둘 다 못 세면 :data:`PDF_UNKNOWN_PAGES` 쪽(넉넉한 쪽).
 """
 
 from __future__ import annotations
@@ -19,10 +21,10 @@ import io
 import math
 from typing import Any, Mapping
 
-from foms.services.cs_agent.image_pdf import page_count
+from foms.services.cs_agent.image_pdf import page_count, scan_pdf
 
 __all__ = [
-    "IMAGE_TOKEN_CAP", "PATCH_PX", "PDF_TEXT_TOKENS_PER_PAGE", "PDF_UNKNOWN_PAGES", "image_tokens", "media_tokens",
+    "IMAGE_TOKEN_CAP", "PATCH_PX", "PDF_TEXT_TOKENS_PER_PAGE", "PDF_UNKNOWN_PAGES", "image_tokens", "media_tokens", "pdf_tokens",
 ]
 
 PATCH_PX = 28
@@ -63,8 +65,12 @@ def _block_tokens(block: Mapping[str, Any]) -> int:
     raw = _decoded(block.get("source", {}).get("data"))
     if block.get("type") == "image":
         return image_tokens(*_image_size(raw))
-    pages = page_count(raw) or PDF_UNKNOWN_PAGES
-    return pages * (PDF_TEXT_TOKENS_PER_PAGE + IMAGE_TOKEN_CAP)
+    return pdf_tokens(max(page_count(raw), scan_pdf(raw).pages))
+
+
+def pdf_tokens(pages: int) -> int:
+    """PDF 한 개의 토큰 어림 — 쪽마다 글 + 쪽 그림 한 장 상한. 쪽 수를 모르면(0 이하) :data:`PDF_UNKNOWN_PAGES` 쪽."""
+    return (pages if pages > 0 else PDF_UNKNOWN_PAGES) * (PDF_TEXT_TOKENS_PER_PAGE + IMAGE_TOKEN_CAP)
 
 
 def media_tokens(params: Mapping[str, Any]) -> tuple[dict[str, Any], int]:
