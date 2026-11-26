@@ -223,7 +223,8 @@ def test_핀은_싣는_곳마다_같다() -> None:
         assert f"foms-production-sheet-parts.js') }}}}?v={PIN}" in read(rel), rel
         assert f"css/contexts/production/sheet.css') }}}}?v={PIN}" in read(rel), rel
     assert f"foms-production-sheet-factory.js') }}}}?v={PIN}" in read("templates/production/sheet.html")
-    assert f"css/contexts/production/home.css') }}}}?v={PIN}" in read("templates/production/partials/home_styles.html")
+    # home.css 는 같은 날 날짜 줄 이름 한 줄 고침과 겹쳐 핀을 한 번 더 올렸다(합칠 때 c)
+    assert "css/contexts/production/home.css') }}?v=20261127c" in read("templates/production/partials/home_styles.html")
 
 
 def test_창_제목은_글자_크기를_따르고_단추는_48px_이상() -> None:
