@@ -318,8 +318,12 @@ def test_E_띠_글과_상차_희망일_표_보통_주문은_그대로(client) ->
     assert strip.startswith(' aria-label="출고일 2주">') and '<div class="fph-strip__h">출고일 2주<small>만들 것 / 전체</small>' in strip
     assert re.search(r'data-foms-home-daybtn="past"[^>]*>지난 출고일 0건</a>', strip)
     assert re.search(r'data-foms-home-daybtn="none"[^>]*>출고일 없음 1건</a>', strip)
-    head = re.search(r'<span class="foms-prod-home__date">(.*?)</span>', html).group(1)
-    assert head.endswith(" · 전체 7건")  # 주문 수는 한 번(두날가짜는 장 둘)
+    assert 'class="foms-prod-home__date"' not in html  # 태블릿은 날짜 · 전체 건수 글이 없다(사장님 2026-11-26)
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    pc_html = client.get(HOME).get_data(as_text=True)
+    client.delete_cookie("foms_ptr", domain="localhost")
+    head = re.search(r'<span class="foms-prod-home__date">(.*?)</span>', pc_html).group(1)
+    assert head.endswith(" · 전체 7건")  # PC 는 그대로 — 주문 수는 한 번(두날가짜는 장 둘)
     # 지방 + 상차 예정일 → 상차 날 장, 줄 = 진짜 시공일 표 + 같은 모양 '상차 M/D'(이름 칸 바로 뒤 — 이름을 더 줄이지 않는다)
     load = _row_html(_pane(client.get(HOME + f"?day={_iso(2)}&view=day").get_data(as_text=True), _iso(2)),
                      orders["load"].id)

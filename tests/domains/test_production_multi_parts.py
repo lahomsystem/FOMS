@@ -453,7 +453,7 @@ def test_part_account_title_stays_on_every_tab_and_readonly_keeps_plain(client, 
 
 
 def test_named_title_screens_drop_the_date_and_total_text(client, cohort):
-    """제목에 이름이 붙는 화면(파트 계정 · 반장)은 제목 옆 "11월 26일 (목) · 전체 n건"을 뺀다(사장님 2026-11-26) — 그 밖은 그대로."""
+    """태블릿은 누구든(파트 계정 · 반장 · 관리자 · 그 밖) 제목 옆 "11월 26일 (목) · 전체 n건"을 뺀다(사장님 2026-11-26) — PC 는 그대로."""
     _order("한빛", _files("dt", 1))
 
     def bar(html: str) -> str:
@@ -466,4 +466,7 @@ def test_named_title_screens_drop_the_date_and_total_text(client, cohort):
             assert "foms-prod-home__me" in head and "전체 " not in head and "건</span>" not in head, (who, tab)
     _tablet(client, _user("최보기"))
     plain = bar(_get(client, HOME))
-    assert ">생산</h1>" in plain and re.search(r" · 전체 \d+건</span>", plain)
+    assert ">생산</h1>" in plain and "전체 " not in plain and "건</span>" not in plain
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    pc = bar(_get(client, HOME))
+    assert ">생산</h1>" in pc and re.search(r" · 전체 \d+건</span>", pc)
