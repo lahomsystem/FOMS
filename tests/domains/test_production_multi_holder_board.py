@@ -321,7 +321,7 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     assert w1["note"].startswith("이시영 · 김재단이 ") and w1["note"].endswith("같이 작업하면 모두 [재단 완료]를 눌러야 완료돼요.")
     assert [c["body"] for c in calls] == [remove] and out[4]["sent"] == 1
     after = out[5]["card"]  # 남은 사람(이시영)이 모두 완료 = 저절로 완료(Q6) — 상태 줄은 한 명 완료 때와 같은 지금 글
-    assert after["state"] == "done" and after["act"][0]["text"] == "재단 완료 · 이시영" and out[4]["status"] == "저장했어요"
+    assert after["state"] == "done" and after["act"][0]["text"] == "재단 완료 · 이시영" and out[4]["status"] == "김재단 시작 취소했어요"
 
 
 def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_path) -> None:

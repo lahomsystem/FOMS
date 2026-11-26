@@ -192,7 +192,7 @@ def _by_parts(row: dict[str, Any]) -> list[dict[str, str]]:
     if orderer:
         parts.append({'k': 'o', 'label': '발주', 'name': orderer})
     if manager and manager != '-':
-        parts.append({'k': 'm', 'label': '담당', 'name': manager})
+        parts.append({'k': 'm', 'label': '영업', 'name': manager})
     return parts
 
 

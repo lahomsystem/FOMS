@@ -244,7 +244,7 @@
       {% endif %}
     {% elif order.stage == '제작중' %}
       <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--ghost"
-              data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 취소</button>
+              data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 시작 취소</button>
       {# 검수까지(공정 4칸 모두) 끝나기 전엔 회색 · 누를 수 없음 — 전체 화면 시트 · 서버 제작 완료 API 와 같은 규칙(11-21).
          판정 = 뷰 모델 complete_ready(production_complete_ready 한 함수). 위 공정 칸을 누르면 foms-production-sheet-page.js 가
          공정 API 응답의 complete_ready 로 바로 바꾼다(단추는 공정 루트 밖이라 .foms-prod-sheet 안에서 찾는다). #}

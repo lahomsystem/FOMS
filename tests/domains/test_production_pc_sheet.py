@@ -205,7 +205,7 @@ def test_제작_회차_없는_주문은_창_머리_한_줄_태블릿과_같은_�
     me = _login(client, _user("반장"))
     me_id = me.id
     d = _get(client, oid, "cut").get_json()["data"]
-    assert d["has_run"] is False and d["start_note"] == "이 집 첫 도면이라 제작 시작도 같이 돼요." and d["me"] == me_id
+    assert d["has_run"] is False and d["start_note"] == "이 주문 첫 도면이라 제작 시작도 같이 돼요." and d["me"] == me_id
     modal = (ROOT / "static/js/production/foms-production-parts-modal.js").read_text(encoding="utf-8")
     assert "'" + d["start_note"] + "'" in modal  # 태블릿 도면 판 창의 지금 글과 하나(새 글 없음)
 

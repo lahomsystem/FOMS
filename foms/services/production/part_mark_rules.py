@@ -68,9 +68,9 @@ DECISION_FORBIDDEN = "forbidden"
 #: 그 밖 거절(409 ``JOIN_DONE`` · ``RELEASE_AFTER_DONE`` · ``TARGET_DONE`` · ``TARGET_GONE``, 400 ``TARGET_REQUIRED``).
 DECISION_REFUSE = "refuse"
 
-STALE_MESSAGE = "그사이 다른 사람이 바꿨어요. 다시 받아 주세요."
+STALE_MESSAGE = "그사이 다른 사람이 바꿨어요. [다시 받기]를 눌러 주세요."
 #: 새 누름(시작 취소 · 담당 바꾸기)의 경합 글(§9 '경합').
-NEW_STALE_MESSAGE = "그사이 담당이 바뀌었어요. 위 [다시 받기]를 눌러 주세요."
+NEW_STALE_MESSAGE = "그사이 담당이 바뀌었어요. [다시 받기]를 눌러 주세요."
 RELEASED_MESSAGE = "그사이 시작이 취소됐어요. 지금은 담당 미정이에요."
 RELEASE_NOT_HOLDER_MESSAGE = "내가 시작한 도면만 시작을 취소할 수 있어요. 직접 하려면 [담당 바꾸기]를 눌러 주세요."
 JOIN_DONE_MESSAGE = "이미 완료된 도면이에요. 다시 해야 하면 완료한 사람이 [되돌리기]를 먼저 눌러 주세요."
@@ -282,7 +282,7 @@ def undo_not_mine_message(line: str) -> str:
 def target_gone_message(name: str) -> str:
     """고른 사람이 그사이 빠졌을 때(409 ``TARGET_GONE``)."""
     who = (name or "").strip() or "그 사람"
-    return f"그사이 {who}의 시작이 취소됐어요. 다시 받아 주세요."
+    return f"그사이 {who}의 시작이 취소됐어요. [다시 받기]를 눌러 주세요."
 
 
 def default_crew(row: Any, action: str, target: str, *, actor_id: Optional[int], actor_name: Optional[str],

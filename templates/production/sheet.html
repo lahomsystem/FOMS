@@ -191,7 +191,7 @@
             <span class="foms-prod-page__muted" data-tablet-sheet-muted>고객 컨펌 전</span>
             {% endif %}
           {% elif order.stage == '제작중' %}
-            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 취소</button>
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 시작 취소</button>
             {# 검수까지(공정 4칸 모두) 끝나기 전엔 회색 · 누를 수 없음(설계서 §12.2 · 시안 안 2). 서버 제작 완료 API 도 같은 규칙으로
                막는다(11-21) — 판정은 뷰 모델 complete_ready = production_complete_ready(sd) 한 함수. 공정을 체크하면
                foms-production-sheet-page.js 가 공정 API 응답의 complete_ready(같은 함수)로 바로 파랗게 바꾼다.
@@ -217,7 +217,7 @@
        태블릿 · 옆 시트는 이 조각이 없다(지금 그대로). 손 체크 확인 창은 아래 시트 것 하나를 같이 쓴다(pc_sheet_confirm=false). #}{% with pc_sheet_confirm = false %}{% include 'production/partials/home_pc_sheet.html' %}{% endwith %}{% endif %}
   </section>
   {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
-  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>{% endif %}
+  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126a" defer></script>{% endif %}
   {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}{% include 'production/partials/sheet_step_confirm.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261125a" defer></script>{% endif %}{% if write_omitted %}{# 쿠키 없는 첫 요청이라 단추 줄을 뺐다 — 터치 기기면 다시 받는다 #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
@@ -226,7 +226,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261125m5" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124j" defer></script>{% if can_act and order.factory_sheet %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124k" defer></script>{% if can_act and order.factory_sheet %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261124h" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261125m3" defer></script>{% if edit_on %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261125m3" defer></script>{% endif %}{% endif %}{% if edit_toggle %}

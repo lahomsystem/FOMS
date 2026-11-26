@@ -268,7 +268,7 @@ def test_drawing_not_current_and_not_in_production(client):
     gone = client.post(ONE, json={"order_id": order.id, "drawing_key": "m0/old.png", "part": "cut", "action": "take",
                                   "seen": "none"})
     assert gone.status_code == 409 and _code(gone) == "DRAWING_NOT_CURRENT"
-    assert gone.get_json()["error"] == "도면이 바뀌었어요. 다시 받아 주세요."
+    assert gone.get_json()["error"] == "도면이 바뀌었어요. [다시 받기]를 눌러 주세요."
     waiting = _order(stage="CONFIRM")
     resp = _one(client, waiting, 0, "cut", "take", "none")
     assert resp.status_code == 409 and _code(resp) == "NOT_IN_PRODUCTION"

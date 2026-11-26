@@ -206,9 +206,9 @@
     });
     var skipped = data.skipped || [];
     skipped.forEach(function (s) { findCard(s.order_id, s.drawing_key).forEach(function (c) { applyMark(c, s.mark); }); });
-    var text = changed + '장 기본으로 했어요';
-    if (skipped.length === 1) { text += ' · 1장은 ' + (skipped[0].error || '그사이 다른 사람이 바꿨어요'); }
-    if (skipped.length > 1) { text += ' · ' + skipped.length + '장은 그사이 다른 사람이 바꿨어요'; }
+    var text = changed ? changed + '장 기본으로 했어요' : ''; // 0장이면 안 띄운다(사장님 2026-11-26)
+    if (skipped.length === 1) { text += (text ? ' · ' : '') + '1장은 ' + (skipped[0].error || '그사이 다른 사람이 바꿨어요'); }
+    if (skipped.length > 1) { text += (text ? ' · ' : '') + skipped.length + '장은 그사이 다른 사람이 바꿨어요'; }
     return { text: text, bad: skipped.length > 0 };
   }
   function started(data) { // 첫 카드 = 제작 시작(§4-8) — 그 집 카드의 첫 카드 표지를 뗀다
@@ -223,7 +223,7 @@
     if (result.ok && body.success === true) {
       var finished = p.action === 'complete' || (p.action === 'factory' && data.final);
       var done = p.action === 'bulk' ? bulkDone(data) : { text: finished ? '제작 완료했어요 — 시공 대기로 넘어갔어요'
-        : p.action === 'factory' ? p.run + '했어요' : '저장했어요', bad: false };
+        : (p.action === 'factory' || /(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : '저장했어요', bad: false }; // 누른 단추 말 그대로
       if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
       done.text += asks ? '' : started(data);

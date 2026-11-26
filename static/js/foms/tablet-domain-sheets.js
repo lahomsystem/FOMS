@@ -177,6 +177,14 @@
         submitTransition(orderId, path, { reason: detail });
       },
     });
+    setReasonCloseText(opts.cancelLabel);
+  }
+
+  // 사유 시트 왼쪽 단추 글 — 기본 "취소". 실행 단추에 '취소'가 드는 [제작 시작 취소]만 "닫기"(사장님 2026-11-26 — '취소'가 둘).
+  // 공용 시트(foms-reason-sheet.js)는 안 바꾸고, 이 파일이 열 때마다 다시 정한다.
+  function setReasonCloseText(text) {
+    var btn = document.querySelector("[data-foms-reason-close].foms-btn");
+    if (btn) btn.textContent = text || "취소";
   }
 
   // 수정 제작 — 제작완료 → 제작중 되돌림. 사유는 공용 시트에서 받는다(빈 값 허용).
@@ -194,7 +202,8 @@
   function productionCancel(orderId) {
     openReasonSheetAndSubmit(orderId, "/production/cancel", {
       title: "제작을 취소하고 제작대기로 되돌릴까요?",
-      actionLabel: "제작 취소",
+      actionLabel: "제작 시작 취소",
+      cancelLabel: "닫기",
       detailLabel: "제작 취소 사유 (선택)",
     });
   }
@@ -232,6 +241,7 @@
           submitProductionHold(orderId, true, detail);
         },
       });
+      setReasonCloseText();
       return;
     }
     // 해제 confirm — 서버 렌더 사유(data-hold-reason)를 병기(있을 때만).

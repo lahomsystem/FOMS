@@ -120,7 +120,7 @@
       return res.json().catch(function () { return null; }).then(function (data) {
         var ok = !!data && res.ok && data.success !== false;
         return { ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data || {},
-          message: (data && (data.error || data.message)) || ('HTTP ' + res.status) };
+          message: (data && (data.error || data.message)) || (res.status === 409 ? '다른 사람이 먼저 바꿨어요. [다시 받기]를 눌러 주세요.' : '') };
       });
     }).catch(function () { return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT }; });
   }
@@ -159,7 +159,7 @@
       .then(function (result) {
         if (!result.ok) {
           btn.disabled = false;
-          setStatus(result.kind === 'network' || result.status === 0 ? OFFLINE_TEXT : ('오류: ' + (result.message || '처리하지 못했어요')), true);
+          setStatus(result.kind === 'network' || result.status === 0 ? OFFLINE_TEXT : (result.message || '처리하지 못했어요'), true);
           return;
         }
         var ex = ((result.data || {}).data || {}).expanded; // 막힌 도면을 빼고 처리됨(판결 B) — 알림 글 · 줄은 그 자리 그대로

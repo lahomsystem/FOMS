@@ -35,7 +35,7 @@ _URGENCY = {LATE: 0, SOON: 1, CALM: 2}
 BLOCKER_LABELS: dict[str, str] = {
     'sales_check': '영업 확인 기다림',
     'customer': '고객 컨펌 기다림',
-    'no_owner': '담당 없음',
+    'no_owner': '도면 담당 없음',
     'fixing': '도면 고치는 중',
     'drawing': '도면 그리는 중',
 }

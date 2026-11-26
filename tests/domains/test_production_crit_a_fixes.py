@@ -86,7 +86,7 @@ def test_steps_api_refuses_an_order_whose_sheets_are_all_in_the_other_factory(cl
         refused = check_step(client, only2.id, "cut", done)
         body = refused.get_json()
         assert refused.status_code == 403 and code(refused) == "OTHER_FACTORY" and body["data"]["factory"] == 2
-        assert body["error"] == ELSEWHERE_WHY + " 위 [다시 받기]를 눌러 주세요."  # 도면 칸 남의 공장 거절과 같은 글
+        assert body["error"] == ELSEWHERE_WHY + " [다시 받기]를 눌러 주세요."  # 도면 칸 남의 공장 거절과 같은 글
     assert fresh(only2.id).structured_data["production"]["steps"][0]["done"] is False  # 쓰기 0
     # 누르기 전에 — 공정 GET(바텀시트) · 작업 시트 공정 칸도 같은 판정으로 읽기 전용 + 남의 공장 카드 글
     got = client.get(f"/api/orders/{only2.id}/production/steps").get_json()["data"]

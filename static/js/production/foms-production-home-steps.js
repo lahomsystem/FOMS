@@ -41,7 +41,7 @@
   // 카드를 쓴 파트의 [끝]은 서버가 남은 장을 세어 막는다(409 PART_USES_CARDS, 설계서 2026-11-23 §4-2) — 그 글은 서버 글 그대로
   function failText(result) {
     return !result || result.kind === 'network' || result.kind === 'timeout' || result.status === 0 ? OFFLINE_TEXT
-      : result.status === 409 && result.message ? result.message : ('오류: ' + (result.message || '처리하지 못했어요'));
+      : (result.message || '처리하지 못했어요'); // 서버 글 그대로('오류:' 머리 · 숫자 없음 — 사장님 2026-11-26)
   }
   var statusBox = root.querySelector('[data-foms-home-status]');
   function setStatus(text, bad) {
@@ -119,7 +119,7 @@
       return res.json().catch(function () { return null; }).then(function (data) {
         var ok = !!data && res.ok && data.success !== false;
         return { ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data || {},
-          message: (data && (data.error || data.message)) || ('HTTP ' + res.status) };
+          message: (data && (data.error || data.message)) || (res.status === 409 ? '다른 사람이 먼저 바꿨어요. [다시 받기]를 눌러 주세요.' : '') };
       });
     }).catch(function () { return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT }; });
   }

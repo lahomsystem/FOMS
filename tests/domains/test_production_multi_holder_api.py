@@ -244,7 +244,7 @@ def test_remove_is_lead_only_and_names_both(client):
     assert gone.status_code == 200 and gone.get_json()["data"]["changed"] is False  # 같은 사람이 다시 보냄
     login(client, make_user("반장둘", lead=True))
     late = mark(client, order, 0, "cut", "remove", "need", target_user_id=kim.id)
-    assert (code(late), late.get_json()["error"]) == ("TARGET_GONE", "그사이 김재단의 시작이 취소됐어요. 다시 받아 주세요.")
+    assert (code(late), late.get_json()["error"]) == ("TARGET_GONE", "그사이 김재단의 시작이 취소됐어요. [다시 받기]를 눌러 주세요.")
 
 
 # --------------------------------------------------------------------------- #

@@ -39,8 +39,8 @@ from tests.support.production_steps_seed import mark_order_inspected
 URL = "/api/orders/{oid}/production/drawing-request"
 PHOTO = "/api/orders/{oid}/production/drawing-request/photo"
 FORBIDDEN = "도면 수정 요청은 반장이나 그 도면 파트 담당만 할 수 있어요."
-OTHER1 = "1공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
-OTHER2 = "2공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
+OTHER1 = "1공장에서 작업하는 도면이에요. [다시 받기]를 눌러 주세요."
+OTHER2 = "2공장에서 작업하는 도면이에요. [다시 받기]를 눌러 주세요."
 
 
 class FakeStorage:
@@ -157,7 +157,7 @@ def test_only_production_stage_orders(client, sent, who, stage):
     login(client, who.lead)
     res = _post(client, seed.id, [0], seed=seed)
     assert res.status_code == 409 and code(res) == "INVALID_STAGE"
-    assert res.get_json()["error"] == "생산 단계 주문이 아니에요. 다시 받아 주세요." and _requests(seed.id) == []
+    assert res.get_json()["error"] == "생산 단계 주문이 아니에요. [다시 받기]를 눌러 주세요." and _requests(seed.id) == []
 
 
 # --- 몸(§4-2) --------------------------------------------------------------------

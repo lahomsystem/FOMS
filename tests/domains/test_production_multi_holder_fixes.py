@@ -6,7 +6,7 @@
 2. 멱등(``changed:false``)은 다시 보낸 같은 요청만 — 목록 밖 반장이 그 줄에 마지막으로 쓴 사람이어도 대상 없는 [되돌리기] · 옛 화면의 남의
    장 [시작 취소]는 실제로 일한다.
 3. Q23 "두 사람 완료를 모두 되돌리기" — 반장 · 관리자의 대상 없는 [되돌리기]는 자기가 같이 작업자여도 완료한 사람 모두.
-4. 되돌리기 경합 글 = 지금 글 "그사이 다른 사람이 바꿨어요. 다시 받아 주세요."(누른 본인 이름 · '시작' 글이 아니다).
+4. 되돌리기 경합 글 = 지금 글 "그사이 다른 사람이 바꿨어요. [다시 받기]를 눌러 주세요."(누른 본인 이름 · '시작' 글이 아니다).
 6. 바뀐 도면 칸 글은 칸 꼴 "외 n"(문장 꼴 "외 n명" 아님), 전 판 이름은 목록에서.
 7. 공장 옮김 막힘 — "재단 1/2 완료" 줄은 '이미 완료한 장' 글(완료 누른 사람만 이름), 시작 취소 부탁은 아직 완료 안 누른 사람만.
 
@@ -38,7 +38,7 @@ from tests.support.production_part_claim_seed import HISTORY, ONE, code, events,
 ROOT = Path(__file__).resolve().parents[2]
 CHECK = ROOT / "tests/support/production_multi_holder_node_checks.js"
 CUT_ADMIN = HOME_NONE + "&tab=parts&part=cut"
-STALE = "그사이 다른 사람이 바꿨어요. 다시 받아 주세요."
+STALE = "그사이 다른 사람이 바꿨어요. [다시 받기]를 눌러 주세요."
 UNDO_ROW = ('<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>재단 1/2 완료</span><button type="button" '
             'class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>')
 
@@ -190,7 +190,7 @@ def test_lead_half_done_card_has_own_undo_row_and_js_sends_check_and_self_target
     w = two["out"][0]["modal"]  # 반장 칸 [재단 완료] = 같은 확인 창 글(지금 글)
     assert (w["title"], w["line"], w["run"]["text"]) == ("재단 완료로 바꿀까요?", "작업 필요 → 재단 완료 · 박반장", "재단 완료")
     assert [c["body"] for c in two["calls"]] == [check]  # [대신 완료] = check 한 요청
-    assert two["out"][3]["status"] == "저장했어요" and two["out"][4]["card"]["state"] == "done"
+    assert two["out"][3]["status"] == "대신 완료했어요" and two["out"][4]["card"]["state"] == "done"
 
 
 # --------------------------------------------------------------------------- #

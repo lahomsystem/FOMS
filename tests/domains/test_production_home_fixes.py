@@ -234,7 +234,7 @@ def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에
     only_m = _add_order("PRODUCTION", "담당만", 1, with_run=True, manager="이담당")
     none = _add_order("PRODUCTION", "둘다없음", 1, with_run=True, manager="-")
     _add_order("DRAWING", "도면주문", 1, orderer="작은칸발주", manager="작은칸담당")
-    o, m = '<span class="fph-by is-o"><i>발주</i> {}</span>', '<span class="fph-by is-m"><i>담당</i> {}</span>'
+    o, m = '<span class="fph-by is-o"><i>발주</i> {}</span>', '<span class="fph-by is-m"><i>영업</i> {}</span>'
     want = {both.id: o.format("한샘대리점") + " " + m.format("김영업"), only_o.id: o.format("리바트"), only_m.id: m.format("이담당")}
     date = client.get(HOME).get_data(as_text=True)
     pane = _pane(date, _first_key())
