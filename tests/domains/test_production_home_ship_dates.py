@@ -324,11 +324,13 @@ def test_E_띠_글과_상차_희망일_표_보통_주문은_그대로(client) ->
     client.delete_cookie("foms_ptr", domain="localhost")
     head = re.search(r'<span class="foms-prod-home__date">(.*?)</span>', pc_html).group(1)
     assert head.endswith(" · 전체 7건")  # PC 는 그대로 — 주문 수는 한 번(두날가짜는 장 둘)
-    # 지방 + 상차 예정일 → 상차 날 장, 줄 = 진짜 시공일 표 + 같은 모양 '상차 M/D'(이름 칸 바로 뒤 — 이름을 더 줄이지 않는다)
+    # 지방 + 상차 예정일 → 상차 날 장, 줄 = 진짜 시공일 표 + 같은 모양 '상차 M/D'(이름 칸 바로 뒤 — 이름을 더 줄이지 않는다).
+    # 남은 날은 상차일로 세어 상차 표 뒤에(사장님 2026-11-27 "상차일 기준으로 바꾸기") — 시공일 표는 날만
     load = _row_html(_pane(client.get(HOME + f"?day={_iso(2)}&view=day").get_data(as_text=True), _iso(2)),
                      orders["load"].id)
-    assert re.search(r'<span class="fph-due" data-foms-home-due><i>시공</i><b>[^<]+</b><small>D-6</small></span></span>'
-                     rf'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(2)}</b></span>', load)
+    build6 = home_read_model.production_home_day(get_today_kst() + datetime.timedelta(days=6), get_today_kst())["label"]
+    assert (f'<span class="fph-due" data-foms-home-due><i>시공</i><b>{build6}</b></span></span>'
+            f'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(2)}</b><small>D-2</small></span>') in load
     # 희망일만 있는 협력사 주문 → 희망일 장(기다림 칸), 시공일 없음 표 + '희망일 M/D'
     wish = _row_html(_pane(client.get(HOME + f"?day={_iso(7)}&view=day").get_data(as_text=True), _iso(7)),
                      orders["wish"].id)

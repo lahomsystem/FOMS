@@ -14,15 +14,19 @@
    이름 칸 안에 두면 긴 이름(b)이 먼저 말줄임으로 줄고 시공일은 안 줄어든다(flex-shrink 0, home.css .fph-due).
    상차 예정일 · 협력사 희망일로 놓인 주문(r.ship_mark, 사장님 2026-11-25)은 바로 뒤에 같은 모양 '상차 12/1' · '희망일 12/3'(fph_ship) —
    시공일 표는 그대로. 날짜 장 큰 줄(fph_row) · 작은 칸(fph_chip · fph_wait) · 찾기 줄(home_all)은 이름 칸 밖(이름 뒤 · 줄이 넘어가는
-   자리)에 두어 이름을 더 줄이지 않는다(ship=False + fph_ship). #}
+   자리)에 두어 이름을 더 줄이지 않는다(ship=False + fph_ship).
+   상차 예정일로 놓인 주문(r.ship_mark.sub, 사장님 2026-11-27 "상차일 기준으로 바꾸기")은 남은 날 글(오늘 · 내일 · D-n · n일 지남)과
+   그 색(is-today · is-past)을 상차일로 세어 상차 표 뒤에 붙이고, 시공일 표는 날만('시공 11/30 (월) · 상차 11/27 내일').
+   sub=False 자리(작은 칸 · 바뀐 것)는 시공일 표처럼 오늘 · 내일만 — D-n · n일 지남은 뺀다. 희망일 표 · 보통 주문은 그대로. #}
 {% macro fph_due(r, sub=True, ship=True) -%}
-{%- set _lb = r.day_label or '시공일 없음' -%}
+{%- set _ld = r.ship_mark.sub if r.ship_mark and r.ship_mark.sub else '' -%}
+{%- set _lb = (r.ship_mark.build_md if _ld and r.ship_mark.build_md else r.day_label) or '시공일 없음' -%}
 {%- set _none = _lb == '시공일 없음' -%}
-<span class="fph-due{% if r.day_is_today %} is-today{% elif _none %} is-none{% elif r.day_sub and r.day_sub.endswith('지남') %} is-past{% endif %}" data-foms-home-due>{% if not _none %}<i>시공</i>{% endif %}<b>{{ _lb }}</b>{% if sub and r.day_sub %}<small>{{ r.day_sub }}</small>{% endif %}</span>
-{%- if ship %}{{ fph_ship(r) }}{% endif %}
+<span class="fph-due{% if _ld %}{% if _none %} is-none{% endif %}{% elif r.day_is_today %} is-today{% elif _none %} is-none{% elif r.day_sub and r.day_sub.endswith('지남') %} is-past{% endif %}" data-foms-home-due>{% if not _none %}<i>시공</i>{% endif %}<b>{{ _lb }}</b>{% if sub and r.day_sub and not _ld %}<small>{{ r.day_sub }}</small>{% endif %}</span>
+{%- if ship %}{{ fph_ship(r, sub) }}{% endif %}
 {%- endmacro %}
-{% macro fph_ship(r) -%}
-{%- if r.ship_mark %}<span class="fph-due" data-foms-home-ship><i>{{ r.ship_mark.k }}</i><b>{{ r.ship_mark.md }}</b></span>{% endif -%}
+{% macro fph_ship(r, sub=True) -%}
+{%- if r.ship_mark %}{% set _w = r.ship_mark.sub or '' %}<span class="fph-due{% if r.ship_mark.state %} is-{{ r.ship_mark.state }}{% endif %}" data-foms-home-ship><i>{{ r.ship_mark.k }}</i><b>{{ r.ship_mark.md }}</b>{% if _w and (sub or _w in ('오늘', '내일')) %}<small>{{ _w }}</small>{% endif %}</span>{% endif -%}
 {%- endmacro %}
 {# 공정 칸 아래 이름 한 줄(설계서 2026-11-23 §4-10 B8 · B12) — h = foms/services/production/part_holders.part_holder.
    완료 = 완료한 사람(파랑) · 하는 중 = 담당(밤 넘김 호박) · 없음 = '미정'(회색 글). 이름 b 만 말줄임, 꼬리 span(외 n · 바뀜)은 안 줄임.
@@ -50,7 +54,7 @@
 {# 작은 칸(제작 완료 · 파트 '도면 없음') — 시공일이 맨 앞이라 칸이 좁아도 안 잘린다. tail = 번호 뒤 글(없으면 품목 · 단계).
    상차 · 희망일 표는 이름 뒤(has-ship = 줄을 넘긴다) — 칸 하나에 표 둘이 앞에 서면 이름이 한 글자로 줄었다(태블릿 1176 실측, 2026-11-25). #}
 {% macro fph_chip(r, done, extra='', tail=None) %}
-<a class="fph-wi{% if done %} is-done{% endif %}{% if r.ship_mark %} has-ship{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false, ship=False) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ tail if tail is not none else (r.v3_product_label or r.home_stage) }}</small>{{ fph_ship(r) }}</a>
+<a class="fph-wi{% if done %} is-done{% endif %}{% if r.ship_mark %} has-ship{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false, ship=False) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ tail if tail is not none else (r.v3_product_label or r.home_stage) }}</small>{{ fph_ship(r, false) }}</a>
 {% endmacro %}
 {# 안 내려온 주문의 막힌 까닭 한 줄(설계서 2026-11-22-production-drawing-arrival-upgrade §4-4 · §4-5) — '도면 고치는 중 · 도면 장미래 · 영업 이하늘'.
    '담당 없음' 만 빨강(is-none). deadline=True(여러 날 장의 칸)면 앞에 '마감 M/D'(마감 상태 색). 값 = drawing_arrival.attach_drawing_arrival.
@@ -61,7 +65,7 @@
 {%- endmacro %}
 {# 기다림 칸(도면·컨펌 기다림) = 작은 칸 + 둘째 줄 막힌 까닭 · 도면 담당 · 영업 담당(§5-2). 날짜 탭 장 · 파트 판이 같이 쓴다. #}
 {% macro fph_wait(r, deadline=False, extra='') %}
-<a class="fph-wi has-why{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false, ship=False) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ r.v3_product_label or r.home_stage }}</small>{{ fph_ship(r) }}<span class="fph-wi__why">{{ fph_why(r, deadline) }}</span></a>
+<a class="fph-wi has-why{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false, ship=False) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ r.v3_product_label or r.home_stage }}</small>{{ fph_ship(r, false) }}<span class="fph-wi__why">{{ fph_why(r, deadline) }}</span></a>
 {% endmacro %}
 {# 기다림 묶음 머리 앞 마감 글(h = 장의 wait_head: 하루 장 '마감 11/23 (월) 지났어요' 빨강 · 빠듯 주황 · 그 밖 색 없음, 시공일 없음 장 '시공일이 없어 마감이 없어요').
    여러 날 장은 h 가 없어 아무것도 안 그린다(칸마다 마감). 뒤에 ' · ' 를 붙인다. #}

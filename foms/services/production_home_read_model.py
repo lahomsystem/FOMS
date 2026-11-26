@@ -24,7 +24,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
 from foms.services.production.part_card_state import order_block
-from foms.services.production.ship_dates import PAST_DAYS, live_condition, row_due, ship_fields
+from foms.services.production.ship_dates import PAST_DAYS, SHIP_LOAD, live_condition, row_due, ship_fields
 from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
@@ -148,15 +148,28 @@ def production_home_day(construction_date: Any, today: datetime.date) -> dict[st
     day = _parse_date(construction_date)
     if day is None:
         return {'key': 'none', 'label': '시공일 없음', 'sub': '', 'is_today': False}
-    md = f"{day.month}/{day.day} ({_WEEKDAY_KO[day.weekday()]})"
+    md, word = f"{day.month}/{day.day} ({_WEEKDAY_KO[day.weekday()]})", _day_count(day, today)
+    if word in ('오늘', '내일'):
+        return {'key': day.isoformat(), 'label': f"{word} {md}", 'sub': '', 'is_today': word == '오늘'}
+    return {'key': day.isoformat(), 'label': md, 'sub': word, 'is_today': False}
+
+
+def _day_count(day: datetime.date, today: datetime.date) -> str:
+    """남은 날 글(달력 날) — '오늘' · '내일' · 'D-n' · 'n일 지남'. 시공일 표(:func:`production_home_day`) · 상차일 표가 같이 쓴다."""
     delta = (day - today).days
-    if delta == 0:
-        return {'key': day.isoformat(), 'label': f"오늘 {md}", 'sub': '', 'is_today': True}
-    if delta == 1:
-        return {'key': day.isoformat(), 'label': f"내일 {md}", 'sub': '', 'is_today': False}
-    if delta < 0:
-        return {'key': day.isoformat(), 'label': md, 'sub': f"{-delta}일 지남", 'is_today': False}
-    return {'key': day.isoformat(), 'label': md, 'sub': f"D-{delta}", 'is_today': False}
+    if delta in (0, 1):
+        return '오늘' if delta == 0 else '내일'
+    return f"D-{delta}" if delta > 0 else f"{-delta}일 지남"
+
+
+def _load_mark(mark: dict[str, Any], load: datetime.date, build: Any, today: datetime.date) -> dict[str, Any]:
+    """상차 예정일로 놓인 주문(``ship_kind`` '상차')의 상차일 표 — 남은 날을 상차일로 센다(사장님 2026-11-27 "상차일 기준으로
+    바꾸기": '시공 11/30 (월) · 상차 11/27 내일'). ``sub`` = 남은 날 글, ``state`` = 표 색('today' · 'past' · ''),
+    ``build_md`` = 남은 날을 뺀 시공일 표 글(시공일이 없으면 ''). 행의 ``day_label`` · ``day_sub`` 는 그대로(PC · '내 공정' 줄)."""
+    word, head = _day_count(load, today), production_home_day(build, today)
+    state = 'today' if word == '오늘' else ('past' if word.endswith('지남') else '')
+    build_md = '' if head['key'] == 'none' else head['label'].removeprefix('오늘 ').removeprefix('내일 ')
+    return {**mark, 'sub': word, 'state': state, 'build_md': build_md}
 
 
 def _change_line(alerts: list[dict[str, Any]], by: str = '') -> str:
@@ -423,6 +436,8 @@ def build_production_home(
         order = by_id[row['id']]
         row['construction_date'] = order.erp_construction_date
         row.update(ship_fields(order, today))
+        if row['ship_kind'] == SHIP_LOAD and row['ship_mark']:  # 상차 주문은 남은 날을 상차일로(사장님 2026-11-27)
+            row['ship_mark'] = _load_mark(row['ship_mark'], row['ship_due'], row['build_day'], today)
         sd = row.get('structured_data') or {}
         raw_stage = row.get('raw_stage')
         has_run = row['id'] in run_ids
