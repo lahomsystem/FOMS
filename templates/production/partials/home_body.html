@@ -9,8 +9,8 @@
   <section class="foms-prod-home{% if step_panel %} fph-has-sp{% endif %}{% if pc_view %} is-pc{% if edit_on %} is-editing{% endif %}{% endif %}" data-foms-prod-home data-foms-home-tab="{{ tab }}">
     <header class="foms-prod-home__bar">
       <h1 class="foms-prod-home__title">{% if part_title %}{{ part_title[0] }} <span class="foms-prod-home__me">{{ part_title[1] }}</span>{% else %}생산{% endif %}</h1>
-      {# 제목에 이름이 붙는 화면(파트 계정 · 반장, 태블릿)은 날짜 · 전체 건수 글을 빼고 공장 표만(사장님 2026-11-26 — 제목이 길어져 표가 잘림) #}
-      {% if part_title %}{% if factory_now %}<span class="foms-prod-home__date"><b class="fph-fac-now">{{ factory_now | factory_chips }}</b></span>{% endif %}
+      {# 태블릿은 누구든(파트 계정 · 반장 · 관리자) 날짜 · 전체 건수 글을 빼고 공장 표만(사장님 2026-11-26 — 큰 글자에서 잘림). PC 는 그대로 #}
+      {% if not pc_view %}{% if factory_now %}<span class="foms-prod-home__date"><b class="fph-fac-now">{{ factory_now | factory_chips }}</b></span>{% endif %}
       {% else %}<span class="foms-prod-home__date">{% if factory_now %}<b class="fph-fac-now">{{ factory_now | factory_chips }}</b> · {% endif %}{{ today_label }} · 전체 {{ total }}건</span>{% endif %}
       <nav class="foms-prod-home__nav" aria-label="화면">
         {# 위 탭 = 날짜 · 내 공정 · 바뀐 것 · 찾기(시안 안 3, 11-21 사용자 ②). '도면 카드' 화면(?tab=parts)은 날짜 장 제목 옆
