@@ -154,7 +154,7 @@ def test_second_factory_account_sees_the_reverse(client, cohort):
     html = _html(client)
     own = re.findall(r'data-pp-card data-order-id="%d" data-key="([^"]+)"' % seed.id, html)
     assert own == list(seed.keys[3:]) and f'<h3 class="pp-otherg">{F1} 작업 3장</h3>' in html
-    assert f'<b class="fph-fac-now">{F2}</b> · ' in html  # 위 줄 공장 글(한 공장 계정)
+    assert f'<span class="foms-prod-home__date"><b class="fph-fac-now">{F2}</b></span>' in html  # 위 줄 공장 표만(이름 붙는 제목 — 날짜 · 건수 글 뺌, 2026-11-26)
 
 
 def test_admin_gets_factory_picker_only_when_second_factory_exists(client, cohort):
