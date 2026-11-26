@@ -1938,3 +1938,8 @@
 - 확인 창 글(C18): **"\"재단 완료할까요?\" [재단 완료] (Recommended)"** — 제목 `<공정> 완료할까요?` · 단추 `[<공정> 완료]`. 같은 창을 작업 시트 · '내 공정' · PC [모두 완료 처리]가 같이 써서 셋 다 같은 글이 된다(창이 하나라 따로 둘 수 없음). 본문 "이 주문의 도면 n장이 모두 재단 완료로 처리돼요."는 그대로.
 - 다음 일 질문에는 답 대신 물으심: "이 세션이 너무 오래돼서 새 세션 창에서 이어가는 게 나은지, 컴팩트하면서 이 세션에서 하는 게 나은지" — 내 답은 대화에.
 - 반영: sheet-parts.js(제목 · 단추 글, 안 쓰게 된 토씨 함수 뺌, 핀 `m5` 넷) · `sheet_step_confirm.html` · `sync_blocks.py` · 시험 다섯 파일. `python -m pytest tests/domains -k production` = `1987 passed`. → `safe_push`(smoke_push94).
+
+## 사장님 답 셋 스테이징 올림 (11-26)
+
+- `safe_push`(smoke_push94): `21905 passed, 831 skipped` / `174 passed, 27 skipped` / `PUSHED 395cc0fe6`. CI 지켜보기는 깃허브 연결 끊김으로 못 끝내 내가 다시 봄: `gh run list` 395cc0fe 넷(perf-gate · Harness CI · PostgreSQL Lane · FOMS CI) 모두 success / `[일치] staging: 395cc0fe 배포됨 status=SUCCESS` / 운영 `363d7082` 그대로.
+- 사장님 "계속" — 남은 글 네 개씩 여쭘.
