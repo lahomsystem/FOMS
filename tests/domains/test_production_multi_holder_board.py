@@ -310,7 +310,7 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     out, calls = res["out"], res["calls"]
     w2 = out[0]["modal"]  # 창 2 — 바꿀 사람이 하나(김재단)면 [담당 바꾸기]는 지금처럼 바로(› 없음) · 반장은 아직 작업자가 아니라 [같이 작업]
     assert (w2["title"], w2["note"], w2["line"], w2["close"]) == (
-        "이시영 · 김재단 작업 중인 도면이에요", "재단 1/2 완료 — 이시영 완료 · 김재단 작업 중", "이시영 · 김재단 작업 중", "닫기")
+        "이시영 · 김재단 작업 중", "재단 1/2 완료 — 이시영 완료 · 김재단 작업 중", "", "닫기")  # 제목 한 줄(사장님 2026-11-26) — 한 명만 완료한 줄은 남긴다
     assert [(c["text"], c["choice"], c["target"], c["next"]) for c in w2["choices"]] == [
         ("담당 바꾸기", "takeover", str(p.kim.id), False), ("대신 완료", "check", None, False), ("같이 작업", "join", None, True),
         ("김재단 시작 취소", "remove", str(p.kim.id), False)]

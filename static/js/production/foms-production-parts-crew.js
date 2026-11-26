@@ -136,8 +136,8 @@
       var choices = swap.concat([['check', '대신 완료', 'done']], join, left.map(function (p) { // [대신 완료] = check(자기 몫 포함 남은 사람 모두)
         return ['remove', p.name + ' 시작 취소', 'release', p.uid];
       }));
-      return { title: cr.who + ' 작업 중인 도면이에요', line: cr.who + ' 작업 중', run: '', tone: 'taken', choices: choices,
-        note: cr.d ? half(cr) + ' — ' + cr.done + ' 완료 · ' + cr.left + ' 작업 중' : (M.heldSince ? M.heldSince(card) : '') };
+      return { title: cr.d || !M.heldTitle ? cr.who + ' 작업 중' : M.heldTitle(card, cr.who), line: '', run: '', tone: 'taken', choices: choices,
+        note: cr.d ? half(cr) + ' — ' + cr.done + ' 완료 · ' + cr.left + ' 작업 중' : '' }; // 한 명만 완료한 도면은 그 줄만 남긴다(다른 정보)
     }
     if (action === 'done' && cr.me === 'held' && cr.others_left) { // 내 [재단 완료] — 남이 아직(재단 1/2 완료로)
       return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' ' + (cr.d + 1) + '/' + cr.n + ' 완료 · ' + NAME,

@@ -48,7 +48,8 @@ def test_reload_instruction_is_one_sentence_on_board_refusals():
 
 def test_toast_says_what_was_pressed_and_stays_quiet_for_zero():
     parts = _read(JS / "foms-production-parts.js")
-    assert "/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : '저장했어요'" in parts
+    assert "/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : (SAID[p.run] || '저장했어요')" in parts
+    assert "'같이 작업': '같이 작업 시작했어요', '기본으로': '기본으로 했어요', '되돌리기': '되돌렸어요', '담당 바꾸기': '담당 바꿨어요'" in parts
     assert "var text = changed ? changed + '장 기본으로 했어요' : '';" in parts
 
 
@@ -83,3 +84,28 @@ def test_owner_words_for_people_orders_dialogs_and_defect():
 def test_top_tab_is_named_for_what_it_counts():
     body = _read(TPL / "partials" / "home_body.html")
     assert ">남은 공정 <" in body and ">내 공정 <" not in body  # 반장 혼자 할 일이 아니라 공장 전체의 남은 공정
+
+
+def test_change_tag_names_what_changed():
+    from foms.services.production.change_tag import change_tag  # noqa: PLC0415
+
+    assert change_tag([{"kind": "construction_date"}]) == "시공일 바뀜"
+    assert change_tag([{"kind": "drawing"}]) == "도면 바뀜" and change_tag([{"kind": "factory"}]) == "공장 바뀜"
+    assert change_tag([{"kind": "construction_date"}, {"kind": "drawing"}]) == "시공일 외 1건 바뀜"
+    assert change_tag([{"kind": "drawing"}, {"kind": "drawing"}, {"kind": "factory"}]) == "도면 외 2건 바뀜"
+    assert change_tag([{"kind": "something_new"}]) == "바뀜" and change_tag([]) == "" and change_tag(None) == ""
+    parts = _read(TPL / "partials" / "home_parts.html")
+    tag = "<em class=\"pp-chg\">{{ c.chg_text or '바뀜' }}</em>"
+    # 표는 시공일 줄에(이름 줄에 두면 긴 표가 손님 이름을 한 글자로 밀어냈다 — 실화면 2026-11-26). 전체 도면 칸 · 작업 필요 칸
+    assert parts.count('<div class="pp-duerow">{{ fph_due(c) }}{% if c.has_changes %}' + tag + '{% endif %}</div>') == 2 and parts.count(tag) == 2
+
+
+def test_lead_picker_title_is_one_line_and_short_notices():
+    modal = _read(JS / "foms-production-parts-modal.js")
+    assert "return names + ' ' + (at ? at + '부터 ' : '') + '작업 중';" in modal
+    assert "title: heldTitle(card, holder), line: '', run: ''" in modal
+    crew = _read(JS / "foms-production-parts-crew.js")
+    assert "title: cr.d || !M.heldTitle ? cr.who + ' 작업 중' : M.heldTitle(card, cr.who), line: ''" in crew
+    assert "alert.hidden = !line;" in _read(JS / "foms-production-parts.js")  # 빈 띠를 안 남긴다
+    assert "{{ pp.hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요." in _read(TPL / "partials" / "home_parts.html")
+    assert "'detail': '만들던 것은 멈춰 주세요'" in _read(ROOT / "foms" / "services" / "production_home_read_model.py")

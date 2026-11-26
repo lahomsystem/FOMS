@@ -49,6 +49,7 @@ from foms.services.production.part_card_crew import card_crew
 from foms.services.production.part_card_state import claim_notes, hand_cell, inspect_block, order_block, sort_rank
 from foms.services.production.part_mark_notes import actor_name
 from foms.services.production.part_mark_rules import MarkSnapshot, mark_payload
+from foms.services.production.change_tag import change_tag
 from foms.services.production_dashboard_display import _production_spec_display
 from models import ProductionPartMark
 
@@ -312,7 +313,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
     extra = _card_state(row, entry, snap, ctx)
     item_label, item_spec = card_item_text(row.get("structured_data") or {}, entry, row)
     return {
-        "order_id": order_id, "customer_name": row.get("customer_name") or "-", "has_changes": bool(row.get("has_changes")),
+        "order_id": order_id, "customer_name": row.get("customer_name") or "-", "has_changes": bool(row.get("has_changes")), "chg_text": change_tag(row.get("home_alerts")),
         # 시공일 표(home_date_macros.fph_due) — 행이 이미 가진 값 그대로(새 읽기 없음, 사용자 11-21 "아주 중요한 정보")
         "day_label": row.get("day_label") or "", "day_sub": row.get("day_sub") or "", "day_is_today": bool(row.get("day_is_today")),
         "ship_mark": row.get("ship_mark"),  # 상차 · 희망일 표(사장님 2026-11-25) — 시공일 표 옆

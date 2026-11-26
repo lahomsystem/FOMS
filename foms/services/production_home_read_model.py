@@ -298,7 +298,7 @@ def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str,
             'product_label': tomb.get('product_label') or '',
             'stage': '주문 취소',
             'day_label': f"취소 {tomb.get('deleted_md')}" if tomb.get('deleted_md') else '취소됨',
-            'alerts': [{'kind': 'cancelled', 'label': '주문 취소', 'detail': '만들고 있었다면 멈춰요'}],
+            'alerts': [{'kind': 'cancelled', 'label': '주문 취소', 'detail': '만들던 것은 멈춰 주세요'}],
         })
     return items
 
