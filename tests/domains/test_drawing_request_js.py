@@ -28,7 +28,7 @@ from tests.support.production_part_claim_seed import login
 ROOT = Path(__file__).resolve().parents[2]
 BOARD_CHECK = ROOT / "tests/support/production_drawing_request_node_checks.js"
 WB_CHECK = ROOT / "tests/support/workbench_factory_request_node_checks.js"
-REVISING = "도면을 고치는 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
+REVISING = "도면 수정 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def test_board_request_dialog_end_to_end(client, cohort, tmp_path):
     assert out["picks"] == [["도면 1", "false"], ["도면 2", "true"], ["도면 3", "false"]]   # 누른 장 미리 · 자기 공장 장만
     assert out["noNote"] == "사유를 적어 주세요." and out["noPick"] == "수정할 도면을 골라 주세요." and out["callsBeforePick"] == 0
     assert out["tooMany"] == "사진은 3장까지 올릴 수 있어요." and out["sendDisabledWhileUploading"] is True
-    assert out["tooBig"] == "사진이 너무 큽니다. 크기를 줄여 올려 주세요." and out["thumbsAfterBig"] == 0   # 413 = 지금 글, 창은 안 죽음
+    assert out["tooBig"] == "사진이 너무 커요. 크기를 줄여 올려 주세요." and out["thumbsAfterBig"] == 0   # 413 = 지금 글, 창은 안 죽음
     assert out["thumbs"] == 2 and len(out["uploadCalls"]) == 2
     assert out["refused"] == refused["error"] and out["stillOpen"] is True
     assert out["offline"] == "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요."

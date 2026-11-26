@@ -179,7 +179,7 @@ def test_글_아침_저녁_늦음(people, monkeypatch):
     run(at("2026-11-23", 18, 1))
     run(at("2026-11-24", 8, 1))
     got = [(n.title, n.message) for n in rows(oid) if n.target_user_id == people["sales"]]
-    now = "도면 고치는 중 · 도면 장가짜 · 영업 이가짜"
+    now = "도면 수정 중 · 도면 장가짜 · 영업 이가짜"
     assert got == [
         ("오늘 도면 마감이에요", f"#{oid} 김가짜 · 붙박이장 — 11/25 (수) 시공이라 오늘(11/23 월)까지 도면이 생산으로 내려와야 해요. 지금: {now}"),
         ("도면 마감 — 아직 안 내려왔어요", f"저녁 6시인데 #{oid} 김가짜 도면이 아직 생산으로 안 내려왔어요. 지금: {now}. 오늘 안에 넘겨 주세요."),

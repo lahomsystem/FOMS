@@ -264,10 +264,13 @@ def test_production_screen_says_drawing_fix_in_progress_like_the_sheet_badge():
     fix = _py_strings(svc / "orders" / "drawing_fix.py")
     gate = _py_strings(svc / "orders" / "confirm_drawing_gate.py")
     alerts = _py_strings(svc / "production_change_alerts.py")
+    gates = _py_strings(svc / "production" / "part_mark_gates.py")
+    arrival = _py_strings(svc / "production" / "drawing_arrival.py")
     assert "도면 수정 중" in card.splitlines()
     assert " 수정 중" in fix.splitlines() and " 수정 중이라 빼요." in fix.splitlines() and " 수정 중이라 뺐어요." in fix.splitlines()
     assert "도면 수정 중이라 아직 제작을 시작할 수 없어요. 영업 담당(" in gate
     assert "도면 수정 중" in alerts.splitlines()
     steps = re.sub(r"\{#.*?#\}", "", _read(TPL / "partials" / "home_steps.html"), flags=re.S)  # Jinja 주석 뺌
-    for src in (card, fix, gate, alerts, steps):
+    assert "도면 수정 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요." in gates.splitlines() and "도면 수정 중" in arrival.splitlines()
+    for src in (card, fix, gate, alerts, steps, gates, arrival):
         assert "고치는 중" not in src

@@ -203,7 +203,7 @@ def test_hold_and_revision_block_cards_but_allow_release_and_undo(client):
     db_session.commit()
     revising = mark(client, order, 2, "cut", "take", "none")
     assert code(revising) == "DRAWING_REVISING"
-    assert revising.get_json()["error"] == "도면을 고치는 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
+    assert revising.get_json()["error"] == "도면 수정 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
 
 
 # --------------------------------------------------------------------------- #
@@ -226,9 +226,9 @@ def test_first_card_starts_production_once(client):
     assert current_runs(order.id) == 1 and fresh(order.id).mutation_version == version + 1
     started = events(order.id, "PRODUCTION_STARTED")
     assert len(started) == 1 and started[0].payload["via"] == "part_marks" and started[0].payload["run_started"] is True
-    assert fresh(order.id).structured_data["workflow"]["history"][-1]["note"] == "제작 시작 (도면 카드 첫 맡기)"
+    assert fresh(order.id).structured_data["workflow"]["history"][-1]["note"] == "제작 시작 (도면 작업 시작)"
     audit = db_session.query(SecurityLog).filter_by(action="PRODUCTION_STARTED", target_id=order.id).one()
-    assert "도면 카드 첫 맡기" in audit.message and audit.detail["via"] == "part_marks"
+    assert "도면 작업 시작" in audit.message and audit.detail["via"] == "part_marks"
     second, n_take = _count(lambda: mark(client, order, 1, "cut", "take", "none"))
     assert second.get_json()["data"]["run_started"] is False and n_take <= TAKE_CAP, n_take
     assert current_runs(order.id) == 1 and fresh(order.id).mutation_version == version + 1  # 회차 · 버전 그대로

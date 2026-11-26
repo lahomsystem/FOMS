@@ -58,7 +58,7 @@ def test_담당_계정이_꺼졌으면_닿는_담당이_없어_도면팀_관리�
     oid = make_order("다가짜", "2026-11-25", assignees=((world["draw_off"], "꺼진도면"),))
     run(at(MON, 8, 2))
     assert _sent_to(world, oid) == ["admin", "draw", "draw2", "sales"]
-    assert "지금: 도면 고치는 중 · 도면 꺼진도면 · 영업 이가짜" in rows(oid)[0].message  # 글은 화면 그대로
+    assert "지금: 도면 수정 중 · 도면 꺼진도면 · 영업 이가짜" in rows(oid)[0].message  # 글은 화면 그대로
 
 
 def test_영업_쪽은_도면_전달_알림과_같은_규칙(world, monkeypatch):
