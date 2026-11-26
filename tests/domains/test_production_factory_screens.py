@@ -136,7 +136,7 @@ def test_board_puts_own_factory_first_and_other_factory_behind(client, cohort):
     own = re.findall(r'data-pp-card data-order-id="%d" data-key="([^"]+)"' % seed.id, html)
     other = re.findall(r'data-pp-elsewhere data-order-id="%d" data-key="([^"]+)"' % seed.id, html)
     assert own == list(seed.keys[:3]) and other == list(seed.keys[3:])
-    assert html.index("data-pp-card ") < html.index(f'<h3 class="pp-otherg">{F2} 작업 2장</h3>') < html.index("data-pp-elsewhere ")
+    assert html.index("data-pp-card ") < html.index(f'<h3 class="pp-otherg">{F2} 작업 2장 <span class="pp-fold__go" aria-hidden="true">›</span></h3></summary>') < html.index("data-pp-elsewhere ")
     assert html.count(CHIP_CSS) == 1  # 2공장 그림이 켜진 화면만 칩 모양을 싣는다
     assert 'data-pp-count="all">3<' in html  # 칸 숫자는 내 공장 카드만
     block = html[html.index('<section class="pp-elsewhere"'):html.index("</section>", html.index('<section class="pp-elsewhere"'))]
@@ -153,7 +153,7 @@ def test_second_factory_account_sees_the_reverse(client, cohort):
     set_cookies(client, TABLET)
     html = _html(client)
     own = re.findall(r'data-pp-card data-order-id="%d" data-key="([^"]+)"' % seed.id, html)
-    assert own == list(seed.keys[3:]) and f'<h3 class="pp-otherg">{F1} 작업 3장</h3>' in html
+    assert own == list(seed.keys[3:]) and f'<h3 class="pp-otherg">{F1} 작업 3장 <span class="pp-fold__go" aria-hidden="true">›</span></h3></summary>' in html
     assert f'<span class="foms-prod-home__date"><b class="fph-fac-now">{F2}</b></span>' in html  # 위 줄 공장 표만(이름 붙는 제목 — 날짜 · 건수 글 뺌, 2026-11-26)
 
 
