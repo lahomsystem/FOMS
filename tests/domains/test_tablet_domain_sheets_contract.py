@@ -34,7 +34,7 @@ CORE_MEDIA_QUERY = (
 )
 # ADMIN-OVERRIDE-01: tablet-domain-sheets.js 에 관리자 강제 진행 재시도가 들어가
 # 자산 핀을 올렸다. 핀 고정 계약은 새 핀을 따라간다(안 바꾼 자산의 핀은 안 올린다).
-SCRIPT_CACHEBUSTER = "?v=20261126a"  # 11-21: [제작 완료] 확인 글에 시공일 둘 이상 한 줄(설계서 2026-11-20 5.3)
+SCRIPT_CACHEBUSTER = "?v=20261126b"  # 11-26: 큰 단추 기본 창 글을 생산 단추 글에 맞춤(제작을 시작할까요? 등)
 
 
 def _read(rel: str) -> str:
@@ -76,8 +76,8 @@ def test_domain_sheets_js_wires_production_start_with_confirm() -> None:
     js = _read(DOMAIN_SHEETS_JS)
     assert "production-start" in js  # 시트 액션 위임 분기
     assert "/production/start" in js  # 기존 엔드포인트 재사용
-    assert "제작을 시작하시겠습니까" in js  # 시작 confirm
-    assert "제작을 완료하시겠습니까" in js  # 완료 confirm
+    assert "제작을 시작할까요?" in js  # 시작 confirm
+    assert "제작을 완료할까요?" in js  # 완료 confirm
 
 
 def test_domain_sheets_js_wires_production_cancel_and_uncomplete() -> None:
