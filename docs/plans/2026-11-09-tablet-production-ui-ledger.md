@@ -2032,3 +2032,13 @@
 - `safe_push`(smoke_push98): `21935 passed, 831 skipped` / `174 passed, 27 skipped` / `PUSHED 99700357a`.
 - 내 커밋의 FOMS CI 는 다른 창이 바로 뒤에 올려 'cancelled'(검증 아님)로 끝남 → 내 커밋을 품은 뒤 커밋 `92b9bfeb` 의 CI 를 기다려 확인: FOMS CI · Harness CI · PostgreSQL Lane 모두 success.
 - 운영은 다른 창의 승격으로 계속 바뀌는 중(#920 · #922) — 이 세션 것은 #919 까지.
+
+## 운영 올림 #923 (11-26, 사장님 "운영 반영 하고 이어서 가자")
+
+- 고른 것: `74bdd030e..origin/deploy` 중 이 세션 커밋 27개(문서만인 커밋 · 다른 창의 cs · settlement 커밋 제외) — 목록 `scratchpad/promo_list4.txt`. 운영 바탕 워크트리 `c:/tmp/foms-promo4`(가지 `promo/own-multiholder-crit`)에 한 커밋씩 얹음 — 코드 충돌 0(문서 · 인벤토리만 자동).
+- 맞춰 봄: 이 세션이 건드린 문서 밖 파일 158개 중 156개가 스테이징과 같음. 다른 둘(`layout_head.html` · `tests/conftest.py`)은 다른 창의 아직 안 올린 줄만 다르고 내 줄은 들어 있음.
+- 가지 확인: `APP_OK` · alembic head `prodpart_02_holders` 하나 · 생산 · 도면 · 출고 · 태블릿 · 패킹 `5226 passed` · 계약 · 하네스 · 보안 `1957 passed` · 인벤토리 넷 0(`audit_coverage` 는 운영에 이미 있는 다른 창의 `sales_commission.py` 줄 밀림 — 손 안 댐).
+- PR #923: 검사 넷(harness · perf-gate · pg-lane · test) pass → `MERGEABLE CLEAN` → merge → 운영 머리 `5a541eadc`.
+- 배포: `[일치] production: 5a541ead 배포됨 status=SUCCESS`.
+- 운영 DB 읽기 전용 확인(모음 값만): alembic `prodpart_02_holders` · `production_part_marks.holders` 칸 있음 · 기존 표시 줄 25개 그대로(`holders` 빈 값 — 옛 줄은 지금 칸으로 읽음).
+- 운영 화면 확인(계정 사용)은 아직 안 함 — 사장님 말씀 때.
