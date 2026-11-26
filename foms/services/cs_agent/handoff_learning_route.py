@@ -15,7 +15,8 @@
 - ``same`` · ``decided`` · ``not_rule`` → 넣지 않는다(``same`` · ``decided_before`` · ``not_rule``).
 - ``adds`` → 그 항목 글 끝에 더한 문장만 붙여 고친다(새 항목 없음 — ``placed_added``). 대상이 고칠 수 있는 항목(라홈 사실 · 정책
   · 글 전체가 보임)이고 붙인 글이 :data:`.handoff_learning_gates.MAX_TEXT` 자 안이고 붙일 문장이 가림 · 한자 · 숫자 관문을 지날
-  때만 — 아니면 ``new`` 처럼 넣는다.
+  때만 — 아니면 ``new`` 처럼 넣는다. 대상이 유형만 고칠 수 없는 항목(가격 규칙 · 규격 · 용어)이면 새 지식을 만들지 않고 그
+  항목 고침 제안을 올린다(``placed_proposed`` — 사람 승인 · 바로 반영 없음, :mod:`.handoff_learning_propose`).
 - ``new`` → 새 지식(사실 · 정책 — ``placed_new``). 숫자는 근거 직원 답 · 회사 지식에 있어야 한다(다른 말은 여기서 처음 본다 —
   아니면 ``numbers``).
 - ``contradicts`` → 그 항목 엇갈림 카드(``conflict_card``) — 글 첫 줄에 어긋나는 두 구절(:data:`.handoff_learning_gates.CLASH_HEAD`).
@@ -66,6 +67,7 @@ from foms.services.cs_agent.handoff_learning_place import (
     ADDS, CONTRADICTS, DECIDED, NOT_RULE, REPEAT, SAME, UNAVAILABLE, UNKNOWN, Placement, learned_vector, place,
 )
 from foms.services.cs_agent.handoff_learning_prompt import DIFFERS, REASON_WORDS, updatable, whole_shown
+from foms.services.cs_agent.handoff_learning_propose import PROPOSED, Proposal, human_only, propose_added
 from foms.services.cs_agent.send import SEND_BRAND
 
 logger = logging.getLogger(__name__)
@@ -109,10 +111,11 @@ def _similar_cards(session: Any, text: str) -> list[int]:
 
 def _adds(session: Any, raw: dict[str, Any], card: dict[str, Any], verdict: Placement, *, known: str,
           replies: dict[str, list[str]], approved: Sequence[str]) -> Optional[tuple[Optional[str], Any]]:
-    """``adds`` — 붙일 수 있으면 (막힌 까닭, 고치기 넣는 함수), 붙일 수 없으면(모듈 설명) ``None``(새 지식으로)."""
+    """``adds`` — 붙일 수 있으면 (막힌 까닭, 고치기 넣는 함수), 유형만 못 고치는 대상이면 고침 제안
+    (:class:`.handoff_learning_propose.Proposal`), 그 밖에 붙일 수 없으면(모듈 설명) ``None``(새 지식으로)."""
     target = current_object(session, verdict.target)
-    if target is None or not updatable(target) or not whole_shown(target):
-        return None
+    if target is None or not updatable(target) or not whole_shown(target):  # 유형만 못 고치면 고침 제안(사람 승인), 그 밖은 None
+        return propose_added(session, target, card, verdict.added, known=known, replies=replies)
     joined = f"{(target.text or '').rstrip()} {verdict.added}"
     allowed = f"{known}\n{target.text or ''}"  # 지금 그 항목 글의 숫자는 이미 지식이다
     gates = text_gates([verdict.added], "")
@@ -157,8 +160,8 @@ def _settle(session: Any, verdict: Placement, said: Said, *, raw: dict[str, Any]
     merged = _similar_cards(session, text) if pointing else []
     if verdict.verdict == ADDS:
         added = _adds(session, raw, card, verdict, known=known, replies=replies, approved=approved)
-        if added is not None:
-            return added[0], added[1], merged, done_as or "placed_added", None
+        if added is not None:  # 고침 제안 갈래(:class:`.handoff_learning_propose.Proposal`)는 따로 센다
+            return added[0], added[1], merged, PROPOSED if isinstance(added, Proposal) else done_as or "placed_added", None
     if not numbers:
         return "numbers", None, [], None, None
     code, make = _filer(session, {**raw, "op": "create"}, **card, approved=approved, skip_gates=SKIP)
@@ -242,6 +245,7 @@ def after_filed(session: Any, change: Any, *, waited: Optional[int], merged: Seq
     if row is not None:  # 기다리던 말이 지식(제안)으로 올라갔다
         held.finish(session, row, held.PROMOTED)
         session.commit()
+    auto = None if human_only(change) else auto  # 사실 · 정책 밖 유형의 고침 제안은 사람이 승인한다
     extra = "applied" if auto is not None else None
     extra = apply_now(session, change, auto, now) or extra
     if extra == "applied":  # 같은 말을 모아 둔 앞 카드는 이 고침 · 새 지식 · 더함에 합쳐졌다

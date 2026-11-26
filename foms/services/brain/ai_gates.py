@@ -37,7 +37,7 @@ from foms.services.brain.constants import (
 )
 from foms.services.brain.embeddings import HELD_SCOPES, account_like, nearest
 from foms.services.brain.eval_set import stored_questions
-from foms.services.brain.labels import aliases_of, norm
+from foms.services.brain.labels import aliases_of, norm, pref_of
 from foms.services.brain.read import effective_clauses
 from foms.services.brain.scope import SYSTEM
 from foms.services.brain.store import current_object
@@ -192,6 +192,15 @@ def _placeable(row: Any) -> bool:
 WORD_ROWS, WORD_QUERY_CHARS, WORD_VECTOR_POOL = 5000, 2000, 20
 
 
+def word_text(row: Any) -> str:
+    """낱말 찾기에 주는 항목 글 — 이름 · 한글 이름 · 다른 이름(숨은 이름 포함 — 찾기 전용 이름표) · 글(설계서 2026-11-26 4.1 —
+    이름표로만 맞는 항목도 후보에 들게). 겹친 이름은 한 번만, 이름표가 없는 항목은 예전과 같은 낱말(이름 + 글). 이름표가 바뀌면
+    새 판이라 낱말 기억(:func:`.word_search.item_tokens` — 키 · 판)이 다시 나눈다."""
+    name = row.name or ""
+    parts = [name, pref_of(name, row.payload), *aliases_of(row.payload), row.text or ""]
+    return " ".join(dict.fromkeys(p for p in parts if p))
+
+
 def _word_ranked(session: Any, *, key: Optional[str], texts: list[str], today: datetime.date, brand: Optional[str],
                  limit: int, vector: Optional[list[float]]) -> list[Any]:
     """낱말(BM25 — :mod:`.word_search`) 순과 뜻(벡터) 순을 번갈아 고른 후보 줄(낱말 먼저 · 설계서 2026-11-23 5.2 — 운영 실측
@@ -205,7 +214,7 @@ def _word_ranked(session: Any, *, key: Optional[str], texts: list[str], today: d
         BrainObject.item_type.not_in(sorted(STUB_TYPES))).order_by(BrainObject.item_key).limit(WORD_ROWS)).scalars()
     pool = {row.item_key: row for row in rows
             if row.item_key != key and same_brand(brand, row.brand) and _placeable(row)}
-    words = word_search.rank(query, [(k, f"{row.name or ''} {row.text or ''}") for k, row in pool.items()],
+    words = word_search.rank(query, [(k, word_text(row)) for k, row in pool.items()],
                              limit=limit * 3, versions={k: row.version for k, row in pool.items()})
     meant: list[str] = []
     if vector is not None:
