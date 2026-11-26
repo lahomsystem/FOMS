@@ -7,9 +7,9 @@
    — 뒤 파일이 앞 파일의 window.* 를 쓴다. #}
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-viewer.js') }}?v=20261125v" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-claim.js') }}?v=20261125t" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-modal.js') }}?v=20261125u" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-crew.js') }}?v=20261125t" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261125w" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-modal.js') }}?v=20261125v" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-crew.js') }}?v=20261125u" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261125x" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-sync.js') }}?v=20261125u" defer></script>
 {% if part_board.can_request %}{# [도면 수정 요청] 창(설계서 2026-11-25 N3) — 관리자 · 반장 · 파트 계정만(창이 있는 사람) #}<script src="{{ url_for('static', filename='js/production/foms-production-drawing-request.js') }}?v=20261125r" defer></script>{% endif %}
 {% endif %}{% if pc_view and tab in ('date', 'all') %}{# PC 공정 칸 → 도면 목록 창(2026-11-24): 바뀐 기록 글 · 손 체크 확인 창은 작업 시트와 같은 파일(sheet-parts),

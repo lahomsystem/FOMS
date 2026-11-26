@@ -62,6 +62,10 @@
     var at = claim.sinceAt ? claim.sinceAt(iso || (card ? attr(card, 'data-picked-at') : '')) : '';
     return holder ? holder + ' ' + (at ? at + '부터 ' : '') + '작업 중인 도면이에요.' : '';
   }
+  function heldTitle(card, names) { // 반장 고르기 창 제목 한 줄 "박엣지 08:10부터 작업 중"(사장님 2026-11-26 — 같은 말 세 번이던 것)
+    var at = claim.sinceAt ? claim.sinceAt(card ? attr(card, 'data-picked-at') : '') : '';
+    return names + ' ' + (at ? at + '부터 ' : '') + '작업 중';
+  }
   function newPlan(action, card) {
     var holder = who(card) || '다른 사람';
     var mine = attr(card, 'data-picked-me') === '1';
@@ -74,7 +78,7 @@
         run: '담당 바꾸기', tone: 'taken',
         note: heldSince(card) + (attr(card, 'data-picked-name') ? ' 바꾸기 전에 ' + holder + '에게 말해 주세요.' : '') };
     }
-    return { title: holder + ' 작업 중인 도면이에요', line: holder + ' 작업 중', run: '', tone: 'taken', note: heldSince(card),
+    return { title: heldTitle(card, holder), line: '', run: '', tone: 'taken',
       choices: [['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done'], ['release', '시작 취소', 'release']] };
   }
   // 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12)이 남이 작업 중이거나 완료한 장을 누를 때 한 줄 더(D55, §8-2 14 · 34)
@@ -126,7 +130,7 @@
       b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
     });
     var label = modal.querySelector('.foms-prod-change-modal__alert-label');
-    if (label) { label.textContent = btn.getAttribute('data-pp-line') || ''; }
+    if (label) { label.textContent = btn.getAttribute('data-pp-line') || ''; label.parentNode.hidden = !label.textContent; }
     runBtn().removeAttribute('aria-disabled');
   }
   function fill(p, items, body) {
@@ -248,5 +252,5 @@
   });
 
   window.FomsPartsModal = { plan: plan, bulkPlan: bulkPlan, ownerNote: ownerNote, firstLine: firstLine, open: open, close: close,
-    busy: busy, error: error, lost: lost, nowLine: nowLine, complete: complete, pick: pick, heldSince: heldSince, toward: toward };
+    busy: busy, error: error, lost: lost, nowLine: nowLine, complete: complete, pick: pick, heldSince: heldSince, heldTitle: heldTitle, toward: toward };
 })();

@@ -495,5 +495,5 @@ def test_replaced_drawing_line_and_cap_notice(client, cohort, monkeypatch):
     assert 'data-pp-count="unseen">3<' in block  # 새 판은 안 봄부터
     monkeypatch.setattr("foms.services.production.part_board.PART_BOARD_CARD_CAP", 2)
     block = _parts_block(_first_pane(_get(client, HOME)))
-    assert block.count("data-pp-card ") == 2 and "더 있는 1장은 안 보여요" in block
+    assert block.count("data-pp-card ") == 2 and "1장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요." in block
     assert 'data-pp-count="all">3<' in block  # 숫자는 캡과 무관하게 모두 센다

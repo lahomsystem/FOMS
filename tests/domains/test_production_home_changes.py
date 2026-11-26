@@ -291,7 +291,7 @@ def test_보기_모델_순수_규칙() -> None:
     assert view["count"] == 2 and [it["kind"] for it in view["inbox"]] == ["change", "cancelled"]
     assert [it["id"] for it in view["done"]] == [9, 8, 7, 6, 5, 4] and view["done_more"] == 4
     assert view["inbox"][0]["alerts"][0]["m"] == "사외부 · 어제 10:00"
-    assert view["inbox"][1]["alerts"][0]["m"] == "만들고 있었다면 멈춰요"  # 묘비: 사람 · 시각 기록 없음 → 안내만
+    assert view["inbox"][1]["alerts"][0]["m"] == "만들던 것은 멈춰 주세요"  # 묘비: 사람 · 시각 기록 없음 → 안내만
     assert "m" not in rows[10]["home_alerts"][0]  # 원래 행 사전은 건드리지 않는다
     assert view["done"][0]["ack_by"] == "" and view["done"][0]["ack_when"] == "11/20 10:09"
 

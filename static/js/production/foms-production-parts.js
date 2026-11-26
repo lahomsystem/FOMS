@@ -57,7 +57,7 @@
     body.appendChild(el('span', 'foms-prod-change-modal__alert-detail', (card.querySelector('.pp-item') || {}).textContent || ''));
     var alert = el('div', 'foms-prod-change-modal__alert pp-al--' + tone);
     alert.appendChild(el('span', 'foms-prod-change-modal__alert-label', line));
-    body.appendChild(alert);
+    body.appendChild(alert); alert.hidden = !line; // 줄 글이 없으면(반장 고르기 창) 빈 띠를 안 남긴다
     li.appendChild(pic);
     li.appendChild(body);
     return li;
@@ -65,7 +65,7 @@
   function openModal(action, cards, opener) {
     if (!cards.length) { return; }
     var p = action === 'bulk' ? M.bulkPlan(cards) : M.plan(action, cards[0]);
-    var note = action === 'bulk' || p.note ? (p.note || '') : M.ownerNote(cards[0]);
+    var note = action === 'bulk' || action === 'held' || p.note ? (p.note || '') : M.ownerNote(cards[0]); // 고르기 창은 제목이 이미 말한다
     p.note = note;
     p.body = M.firstLine(action, cards);
     pending = { action: action === 'held' ? '' : action, cards: cards, busy: false, run: p.run, locked: !!p.locked, target: p.target };
@@ -159,6 +159,7 @@
   }
   // 주문 막힘 칸(서버 sync_blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 글은 서버 글) → 카드 단추 칸 · 칸 숫자. 받아 오기 · 제작 완료 응답(C06 · C09)
   var BLOCK_ATTR = { kind: 'data-pp-block', text: 'data-pp-block-text', why: 'data-pp-block-why', code: 'data-pp-block-code' };
+  var SAID = { '같이 작업': '같이 작업 시작했어요', '기본으로': '기본으로 했어요', '되돌리기': '되돌렸어요', '담당 바꾸기': '담당 바꿨어요' };
   var STOP_CODES = ['HOLD_ACTIVE', 'DRAWING_REVISING', 'NOT_IN_PRODUCTION']; // 이 거절이면 그 주문 카드를 바로 다시 받는다
   function setBlock(card, b) {
     var keys = Object.keys(BLOCK_ATTR);
@@ -223,7 +224,7 @@
     if (result.ok && body.success === true) {
       var finished = p.action === 'complete' || (p.action === 'factory' && data.final);
       var done = p.action === 'bulk' ? bulkDone(data) : { text: finished ? '제작 완료했어요 — 시공 대기로 넘어갔어요'
-        : (p.action === 'factory' || /(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : '저장했어요', bad: false }; // 누른 단추 말 그대로
+        : (p.action === 'factory' || /(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : (SAID[p.run] || '저장했어요'), bad: false }; // 누른 단추 말 그대로
       if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
       done.text += asks ? '' : started(data);
