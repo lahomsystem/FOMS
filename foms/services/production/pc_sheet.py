@@ -51,7 +51,7 @@ ACT_CHECK = "check"
 ACT_UNCHECK = "uncheck"
 #: 제작 회차가 없는 주문(첫 도면을 체크하면 제작 시작도 같이 됨, 설계서 §4-8)의 창 머리 한 줄 — 태블릿 도면 판 확인 창의 지금 글
 #: (foms-production-parts-modal.js firstLine)과 같은 글 하나로 쓴다(새 글 안 만듦).
-START_NOTE = "이 집 첫 도면이라 제작 시작도 같이 돼요."
+START_NOTE = "이 주문 첫 도면이라 제작 시작도 같이 돼요."
 #: [완료 취소]가 시작 취소까지 잇는 문턱 — 같은 사람이 시작한 뒤 이 안에 완료했으면 PC [완료 처리](빈 장 = 시작 + 완료)의 흔적으로 본다(셋째 판 4).
 UNDO_RELEASE_WINDOW = datetime.timedelta(minutes=2)
 

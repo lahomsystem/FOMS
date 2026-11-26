@@ -88,9 +88,9 @@ def test_줄_글_x_n_과_가장_급한_상태() -> None:
     ({"drawing_status": "TRANSFERRED", "drawing_assignees": [{"id": 7, "name": "장미래"}]}, "sales_check", "영업 확인 기다림"),
     ({"drawing_status": "CONFIRMED"}, "customer", "고객 컨펌 기다림"),
     ({"drawing_status": "DONE", "drawing_assignees": [{"id": 7, "name": "장미래"}]}, "customer", "고객 컨펌 기다림"),
-    ({"drawing_status": "RETURNED"}, "no_owner", "담당 없음"),  # 고치는 중이라도 담당이 없으면 담당 없음
-    ({"drawing_status": "PENDING"}, "no_owner", "담당 없음"),
-    ({}, "no_owner", "담당 없음"),
+    ({"drawing_status": "RETURNED"}, "no_owner", "도면 담당 없음"),  # 고치는 중이라도 담당이 없으면 도면 담당 없음
+    ({"drawing_status": "PENDING"}, "no_owner", "도면 담당 없음"),
+    ({}, "no_owner", "도면 담당 없음"),
     ({"drawing_status": "RETURNED", "drawing_assignees": [{"id": 7, "name": "장미래"}]}, "fixing", "도면 고치는 중"),
     ({"drawing_status": "PENDING", "drawing_assignees": [{"id": 7, "name": "장미래"}]}, "drawing", "도면 그리는 중"),
     ({"drawing_assignees": [{"id": 7, "name": "장미래"}]}, "drawing", "도면 그리는 중"),  # 빈 값
@@ -107,9 +107,9 @@ def test_단계는_까닭을_바꾸지_않는다() -> None:
     stage_drawing = {"workflow": {"stage": "DRAWING"}, "drawing_status": "CONFIRMED"}
     stage_confirm = {"workflow": {"stage": "CONFIRM"}, "drawing_status": "PENDING"}
     assert da.drawing_blocker(stage_drawing)["label"] == "고객 컨펌 기다림"
-    assert da.drawing_blocker(stage_confirm)["label"] == "담당 없음"
+    assert da.drawing_blocker(stage_confirm)["label"] == "도면 담당 없음"
     assert da.drawing_blocker({**stage_confirm, "drawing_assignees": [{"name": "장미래"}]})["label"] == "도면 그리는 중"
-    assert da.drawing_blocker(None)["label"] == "담당 없음"
+    assert da.drawing_blocker(None)["label"] == "도면 담당 없음"
 
 
 def test_담당_이름_대체와_빈_값() -> None:
@@ -171,4 +171,4 @@ def test_여러_시공일_주문은_가장_가까운_남은_출고일_기준(cli
     row = next(r for r in rows if r["customer_name"] == "여러날집")
     assert row["dw_deadline"] == da.drawing_deadline(earlier) != da.drawing_deadline(flat)
     assert row["ship_days"] == [earlier, flat] and row["ship_due"] == earlier
-    assert row["dw_blocker"]["label"] == "담당 없음"
+    assert row["dw_blocker"]["label"] == "도면 담당 없음"

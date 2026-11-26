@@ -92,7 +92,7 @@
   }
   function firstLine(action, cards) {
     var first = cards.some(function (c) { return attr(c, 'data-pp-first') === '1'; });
-    return first && (action === 'take' || action === 'basic' || action === 'bulk') ? '이 집 첫 도면이라 제작 시작도 같이 돼요.' : '';
+    return first && (action === 'take' || action === 'basic' || action === 'bulk') ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : '';
   }
 
   // ── 창 그리기 ──
@@ -145,7 +145,7 @@
     run.textContent = p.run || '';
     run.hidden = !p.run;
     if (p.locked) { run.setAttribute('aria-disabled', 'true'); } else { run.removeAttribute('aria-disabled'); }
-    q('[data-pp-modal-close]').textContent = p.closeText || (p.run ? '취소' : '닫기');
+    q('[data-pp-modal-close]').textContent = p.closeText || '닫기'; // 확인 창도 [닫기](사장님 2026-11-26 — '취소'가 둘이던 것)
     renderChoices(p.choices, p.who);
     modal.classList.toggle('is-many', items.length > 1);
   }

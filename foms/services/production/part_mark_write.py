@@ -90,8 +90,8 @@ PART_MARK_EVENT = "PRODUCTION_PART_MARKED"
 STEP_SYNC_POLICY_ID = "PRODUCTION_STEP_CHECK"
 #: 첫 카드로 제작이 시작되는 누름(§4-8 — 작업 시작 · 기본 · 담당 바꾸기 · 일괄 기본 + 같이 작업 · PC [완료 처리], multi-holder §5).
 STARTING_ACTIONS: tuple[str, ...] = (ACTION_TAKE, ACTION_BASIC, ACTION_TAKEOVER, ACTION_JOIN, ACTION_CHECK)
-NOT_CURRENT_MESSAGE = "도면이 바뀌었어요. 다시 받아 주세요."
-NOT_IN_PRODUCTION_MESSAGE = "생산 단계 주문이 아니에요. 다시 받아 주세요."
+NOT_CURRENT_MESSAGE = "도면이 바뀌었어요. [다시 받기]를 눌러 주세요."
+NOT_IN_PRODUCTION_MESSAGE = "생산 단계 주문이 아니에요. [다시 받기]를 눌러 주세요."
 NOT_FOUND_MESSAGE = "주문을 찾을 수 없어요."
 
 

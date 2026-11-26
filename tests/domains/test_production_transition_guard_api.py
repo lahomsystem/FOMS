@@ -897,7 +897,7 @@ def test_sheet_production_shows_cancel_ghost_button(app):
     """제작중 시트 → '제작 취소' ghost 버튼(production-cancel) + '생산 완료' primary."""
     html = _render_sheet(app, stage="제작중")
     assert 'data-tablet-sheet-action="production-cancel"' in html
-    assert "제작 취소" in html
+    assert ">제작 시작 취소</button>" in html
     assert "foms-prod-sheet__btn--ghost" in html
     assert 'data-tablet-sheet-action="production-complete"' in html
 

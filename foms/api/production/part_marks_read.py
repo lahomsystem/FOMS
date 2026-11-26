@@ -85,7 +85,7 @@ def parse_since(raw: Any) -> datetime.datetime:
             raise ValueError(text)
         value = datetime.datetime.fromisoformat(text)
     except ValueError:
-        raise _BadRequest(400, "BAD_SINCE", "받아 올 기준 시각이 올바르지 않아요. 다시 받아 주세요.") from None
+        raise _BadRequest(400, "BAD_SINCE", "받아 올 기준 시각이 올바르지 않아요. [다시 받기]를 눌러 주세요.") from None
     if value.tzinfo is not None:
         value = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
     return value
@@ -160,7 +160,7 @@ def api_part_marks_since():
         rows, blocks = fetch_sync(db, order_ids, since)
     except SQLAlchemyError:
         db.rollback()
-        return _fail(500, "READ_FAILED", "표시를 받아 오지 못했어요. 잠시 뒤 다시 받아 주세요.")
+        return _fail(500, "READ_FAILED", "표시를 받아 오지 못했어요. 잠시 뒤 [다시 받기]를 눌러 주세요.")
     mine = own_parts(user)  # 여러 파트 계정의 "내 작업" 낱말(쿼리 0)
     # 받는 사람 몫 칸(crew — 이름 줄 · 내 몫, multi-holder M2)은 같은 줄에서(쿼리 0)
     response = jsonify({"success": True, "data": {"marks": [attach_crew(sync_mark_body(r, user.id, mine), user) for r in rows],

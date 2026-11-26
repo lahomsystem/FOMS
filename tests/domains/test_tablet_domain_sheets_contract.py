@@ -34,7 +34,7 @@ CORE_MEDIA_QUERY = (
 )
 # ADMIN-OVERRIDE-01: tablet-domain-sheets.js 에 관리자 강제 진행 재시도가 들어가
 # 자산 핀을 올렸다. 핀 고정 계약은 새 핀을 따라간다(안 바꾼 자산의 핀은 안 올린다).
-SCRIPT_CACHEBUSTER = "?v=20261121b"  # 11-21: [제작 완료] 확인 글에 시공일 둘 이상 한 줄(설계서 2026-11-20 5.3)
+SCRIPT_CACHEBUSTER = "?v=20261126a"  # 11-21: [제작 완료] 확인 글에 시공일 둘 이상 한 줄(설계서 2026-11-20 5.3)
 
 
 def _read(rel: str) -> str:

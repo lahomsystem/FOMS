@@ -66,7 +66,7 @@
 <div class="fph-parts" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
-    {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
+    {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}건</small>{% endif %}</h2>
     {% if part_morning %}{# 아침 칩(설계서 2026-11-23 §4-9) — 밤 넘긴 내 작업(multi-holder §8-2 11). 누르면 시공일마다 [보기](그 날 장).
        여러 파트 계정은 내 파트 전부를 세고 줄마다 파트 이름 · [보기]는 그 파트 판(§4-12) #}
     <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 작업" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ home_href(None, dd.part or pb.url_part, dd.key) }}" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
@@ -85,7 +85,7 @@
     {% endif %}
     <div class="foms-prod-home__tabs pp-tabs" role="group" aria-label="칸">
       <button type="button" class="foms-prod-home__tab is-on" data-pp-view="all" aria-pressed="true">전체 도면 <small data-pp-count="all">{{ pp.counts.all }}</small></button>
-      <button type="button" class="foms-prod-home__tab" data-pp-view="need" aria-pressed="false">작업 필요 <small data-pp-count="need">{{ pp.counts.need }}</small></button>
+      <button type="button" class="foms-prod-home__tab" data-pp-view="need" aria-pressed="false">{{ '내 작업' if pb.mine else '작업 필요' }} <small data-pp-count="need">{{ pp.counts.need }}</small></button>
       <button type="button" class="foms-prod-home__tab" data-pp-view="done" aria-pressed="false">완료 <small data-pp-count="done">{{ pp.counts.done }}</small></button>
     </div>
   </div>
@@ -147,7 +147,7 @@
     </section>
     {% endif %}
     {% if pp.done_count %}
-    <h3 class="fph-pane__g">제작 완료 {{ pp.done_count }} <small>파트 일이 끝난 집</small></h3>
+    <h3 class="fph-pane__g">제작 완료 {{ pp.done_count }} <small>파트 일이 끝난 주문</small></h3>
     <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true, 'pp-donechip', (r.fac_done | factory_chips) if r.fac_done else none) }}{% endfor %}</div>
     {% endif %}
   </div>

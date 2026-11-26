@@ -26,7 +26,8 @@
   function toArr(list) { return [].slice.call(list || []); }
 
   var cfg = safeJsonParse(holder.getAttribute('data-foms-parts-config'), {}) || {};
-  var EMPTY_TEXT = { need: '작업 필요 도면이 없어요.', done: '완료한 도면이 없어요.' };
+  var needTab = document.querySelector('[data-pp-view="need"]'); // 칸 이름 = 템플릿 글(파트 계정 '내 작업', 반장 · 보기만 '작업 필요')
+  var EMPTY_TEXT = { need: ((needTab && needTab.firstChild && String(needTab.firstChild.textContent || '').trim()) || '작업 필요') + ' 도면이 없어요.', done: '완료한 도면이 없어요.' };
   var BROKEN_TEXT = '그림을 못 불러왔어요';
 
   // ── 그림을 못 받을 때: 그림을 숨기고 그 자리에 글(카드 · 크게 보기 같은 글, 인라인 오류 속성 없음) ──

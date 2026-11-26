@@ -40,7 +40,7 @@ F1 = '<em class="foms-fac foms-fac--1">1공장</em>'
 F2 = '<em class="foms-fac foms-fac--2">2공장</em>'
 CHIP_CSS = "css/components/foms-factory-chip.css?v="
 
-MSG2 = "2공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
+MSG2 = "2공장에서 작업하는 도면이에요. [다시 받기]를 눌러 주세요."
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def test_second_factory_lead_is_blocked_on_first_factory_sheet_and_admin_writes_
     boss2 = factory_user("강반장", factory=2, lead=True)
     login(client, boss2)
     res = mark(client, seed, 0, "edge", "take", "none")
-    assert res.status_code == 403 and res.get_json()["error"] == "1공장에서 작업하는 도면이에요. 위 [다시 받기]를 눌러 주세요."
+    assert res.status_code == 403 and res.get_json()["error"] == "1공장에서 작업하는 도면이에요. [다시 받기]를 눌러 주세요."
     assert mark(client, seed, 2, "edge", "take", "none").status_code == 200
     admin = factory_user("정관리", role="ADMIN", team="CS")
     login(client, admin)

@@ -37,7 +37,7 @@ def other_factory_note(factory: Any) -> str:
 
 def other_factory_message(factory: Any) -> str:
     """쓰기 API 거절 글(403 ``OTHER_FACTORY``) — 카드 글 + 다시 받기 안내(늦은 화면은 옮겨진 장을 아직 내 것으로 그린다)."""
-    return f"{other_factory_note(factory)} 위 [다시 받기]를 눌러 주세요."
+    return f"{other_factory_note(factory)} [다시 받기]를 눌러 주세요."
 
 
 def factory_gate(user: Any, sd: Any, entry: dict[str, Any], *, action: str, row: Any = None) -> Optional[Gate]:

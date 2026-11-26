@@ -9,7 +9,7 @@
    'n일 지남'(날짜 탭 시공일 표 is-past 와 같은 색). 줄 순서 · 오른쪽 판 · [끝] · 곧 올 것은 그대로.
    [끝] 자리 막힘 r.step_block(보류 · 도면 고치는 중과 같은 자리 · 꼴, home_step_panel.py): 장이 모두 남의 공장인 주문 "2공장 작업"(비평 C02 —
    줄 끝, 누름 없음) · 그 파트가 도면 칸을 쓴 주문 "재단 3/5 · 2장 미완료"(비평 C03 — 누르면 그 주문 도면 판 ?tab=parts&part=&order=). #}{% from 'production/partials/home_date_macros.html' import home_href %}
-{% set _on = step_pin or (queues.queues[0].key if queues.queues else '') %}{% set _note %}<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 도면 마감 지난 집 <b>{{ queues.deadline_missed }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>{% endset %}<div class="fph-steptabs" role="tablist" aria-label="공정"{% if step_pin %} data-foms-home-step-pin="{{ step_pin }}"{% endif %}{% if step_panel %} data-foms-step-base="{{ home_href('steps') }}"{% endif %}>
+{% set _on = step_pin or (queues.queues[0].key if queues.queues else '') %}{% set _note %}<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 도면 마감 지난 주문 <b>{{ queues.deadline_missed }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>{% endset %}<div class="fph-steptabs" role="tablist" aria-label="공정"{% if step_pin %} data-foms-home-step-pin="{{ step_pin }}"{% endif %}{% if step_panel %} data-foms-step-base="{{ home_href('steps') }}"{% endif %}>
   {% for q in queues.queues %}
   <button type="button" class="fph-steptab{% if q.key == _on %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if q.key == _on else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
   {% endfor %}

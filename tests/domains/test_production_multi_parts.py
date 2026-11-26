@@ -335,7 +335,7 @@ def test_two_part_account_head_picks_parts_keeps_day_and_titles_both(client, coh
     assert 'data-pp-act="take">작업 시작<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
     edge = _pane(_get(client, HOME + "?part=edge"))
     assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">작업 시작<' in edge
-    assert "pp-bulk" not in edge and "출고 1건 · 도면 나온 1집" in edge  # 엣지 판 머리 글(날짜 묶음 말 = 출고, 사장님 2026-11-25)
+    assert "pp-bulk" not in edge and "출고 1건 · 도면 나온 1건" in edge  # 엣지 판 머리 글(날짜 묶음 말 = 출고, 사장님 2026-11-25)
     assert 'data-pp-pick="cut" aria-current="page">' in _pane(_get(client, HOME + "?part=inspect"))  # 내 파트 밖 → 첫 파트
 
 

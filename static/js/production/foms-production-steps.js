@@ -36,7 +36,7 @@
         var ok = res.ok && data.success !== false;
         return {
           ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data,
-          message: (data && (data.error || data.message)) || ('HTTP ' + res.status)
+          message: (data && (data.error || data.message)) || (res.status === 409 ? '다른 사람이 먼저 바꿨어요. [다시 받기]를 눌러 주세요.' : '')
         };
       });
     }).catch(function () {
@@ -183,7 +183,7 @@
       });
       var data = await res.json();
       if (!res.ok || !data.success) {
-        setError((data && (data.error || data.message)) || ('HTTP ' + res.status));
+        setError((data && (data.error || data.message)) || (res.status === 409 ? '다른 사람이 먼저 바꿨어요. [다시 받기]를 눌러 주세요.' : ''));
         return;
       }
       renderSteps(data.data || {});
