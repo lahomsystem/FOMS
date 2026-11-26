@@ -136,7 +136,11 @@ def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지
     _add_order("CONFIRM", "옛날컨펌", -2)  # 시공일 지남 → 안 셈
     _add_order("DRAWING", "여유도면", 12)  # 마감 전 → 안 셈
     html = client.get(HOME + "?tab=steps").get_data(as_text=True)
-    assert "제작 대기 <b>0</b>건 · 도면 마감 지난 주문 <b>1</b>건 · 검수까지 끝난 것 <b>0</b>건" in html
+    assert "fph-stepnote" not in html  # 태블릿 안내 줄은 뺐다(사장님 2026-11-26) — 도면 마감 지난 집 수는 PC 안내 줄이 그대로 보여 준다
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    pc = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
+    assert "제작 대기 <b>0</b>건 · 도면 마감 지난 주문 <b>1</b>건 · 검수까지 끝난 것 <b>0</b>건" in pc
     edge = html.split('data-foms-home-stepq="edge"')[1].split('data-foms-home-stepq="assemble"')[0]
     row = edge.split(f'data-foms-home-qrow="{old.id}"')[1].split("</div>\n  ")[0]
     assert '<span class="fph-qr__due is-past">시공<b>' in row and "<small>3일 지남</small></span>" in row
