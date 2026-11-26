@@ -36,7 +36,7 @@ BLOCKER_LABELS: dict[str, str] = {
     'sales_check': '영업 확인 기다림',
     'customer': '고객 컨펌 기다림',
     'no_owner': '도면 담당 없음',
-    'fixing': '도면 고치는 중',
+    'fixing': '도면 수정 중',
     'drawing': '도면 그리는 중',
 }
 _WEEKDAY_KO = '월화수목금토일'

@@ -66,11 +66,11 @@ def test_PC_장은_태블릿과_같은_순서_기다림_줄에_까닭_한_줄_�
     assert '<span class="fph-dwst is-late">도면 2/3 내려옴</span>' in pane
     assert '<small><span class="is-late">마감 ' in pane and "지났어요</span> · 도면이 오면 아래로 내려가요</small>" in pane
     row = pane.split(f'data-foms-home-dayrow="{late.id}"', 1)[1].split('<div class="fpc-r', 1)[0]
-    assert '<span class="fpc-why"><b>도면 고치는 중</b> · <span>도면 장가짜</span> · <span>영업 이가짜</span></span>' in row
+    assert '<span class="fpc-why"><b>도면 수정 중</b> · <span>도면 장가짜</span> · <span>영업 이가짜</span></span>' in row
     head = pane.split(f'data-foms-home-dayrow="{late.id}"', 1)[0].rsplit("<div ", 1)[1]
     assert "fpc-r--mini is-late" in head  # 내일 시공 = 마감(어제 이전) 지남
     # 상태 칸은 마감 대비 늦음만, 까닭은 ③ 칸에 한 번(사장님 "같은 말은 한 번", 2026-11-22 §7 고침)
-    assert re.search(r"<small>늦음 — 도면 마감 \d+일 지남</small>", row) and row.count("도면 고치는 중") == 1
+    assert re.search(r"<small>늦음 — 도면 마감 \d+일 지남</small>", row) and row.count("도면 수정 중") == 1
     # 마감이 아직 먼 기다림 줄은 색 없음(옛 W ≤ 5 표라면 빠듯이었다)
     calm = _wait_order("나여유", 10, drawing_assignees=[{"id": 1, "name": "장가짜"}])
     far = (get_today_kst() + datetime.timedelta(days=10)).isoformat()
@@ -234,7 +234,7 @@ def test_작업_시트_안_내려온_주문은_도면_칸에_까닭_담당_마�
     fix, sales, nobody, made = fix.id, sales.id, nobody.id, made.id  # 요청마다 세션이 닫혀 객체가 떨어진다 — 번호만 쓴다
     body = client.get(f"/erp/production/sheet/{fix}").get_data(as_text=True)
     box = body.split('class="foms-prod-page__nodwg is-wait" data-foms-sheet-dwwait>')[1].split("</div>")[0]
-    assert box.startswith('<b>도면이 아직 안 내려왔어요</b><span>도면 고치는 중 · 도면 장가짜 · 영업 이가짜</span><span class="is-late">마감 ')
+    assert box.startswith('<b>도면이 아직 안 내려왔어요</b><span>도면 수정 중 · 도면 장가짜 · 영업 이가짜</span><span class="is-late">마감 ')
     assert "지났어요</span>" in box and "<small>" not in box and "알림 보냄" not in body
     assert "도면 전달본이 아직 없어요." not in body
     body = client.get(f"/erp/production/sheet/{sales}").get_data(as_text=True)
