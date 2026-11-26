@@ -194,6 +194,13 @@
         var btn = n.closest('[data-pp-act="bulk"]');
         if (btn && !left) { btn.hidden = true; }
       });
+      var text = pane.querySelector('[data-pp-unseen-text]'); // '안 본 도면 N장'도 같은 기준(사장님 2026-11-26)
+      if (text) {
+        var look = Math.max(0, Number(text.getAttribute('data-pp-unseen-text') || 0) - 1);
+        text.setAttribute('data-pp-unseen-text', String(look));
+        text.textContent = look ? '안 본 도면 ' : '안 본 도면 없어요';
+        if (look) { text.appendChild(document.createElement('b')).textContent = String(look); text.appendChild(document.createTextNode('장')); }
+      }
     });
   }
   // 보낸 도면은 이제 막혔다 — 같은 주문 다른 카드 창 고르기에서도 빼고(서버 409 REQUEST_BLOCKED 와 같은 판정), 제 장이 빠진 카드 단추는 숨긴다

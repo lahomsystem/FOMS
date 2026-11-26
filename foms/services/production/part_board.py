@@ -344,7 +344,7 @@ def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
         "all": len(cards),
         "need": sum(1 for c in cards if c["in_need"]),
         "done": sum(1 for c in cards if c["in_done"]),
-        "unseen": sum(1 for c in cards if c["state"] == "none"),
+        "unseen": bulk_count(cards),  # '안 본 도면 N장' = [남은 N장 모두 기본] 숫자(막힌 장 뺌, 사장님 2026-11-26)
     }
 
 

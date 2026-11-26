@@ -185,13 +185,13 @@ def test_남은_N장_모두_기본은_막힌_안_본_장을_빼고_창_목록과
     _order("보류한집", 3, hold=True)
     _login(client, me)
     html = _get(client, HOME)
-    assert '<span class="pp-unseen" data-pp-unseen-text="5">안 본 도면 <b>5</b>장</span>' in html  # 안 본 도면 글은 모두(지금 글)
+    assert '<span class="pp-unseen" data-pp-unseen-text="2">안 본 도면 <b>2</b>장</span>' in html  # 글도 막힌 장 뺌(사장님 2026-11-26 — 두 숫자 같게)
     assert '<span>남은 <span data-pp-count="unseen">2</span>장 모두 기본</span>' in html  # 단추 = 막히지 않은 2장
     bulk = re.search(r'<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"[^>]*>', html).group(0)
     assert "hidden" not in bulk
     parts = (JS / "foms-production-parts.js").read_text(encoding="utf-8")
     assert "function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block'); }" in parts
-    assert "unseen: bulkable(card) ? 1 : 0, look: st === 'none' ? 1 : 0" in parts  # 단추 숫자 · 글 숫자 따로
+    assert "unseen: bulkable(card) ? 1 : 0, look: bulkable(card) ? 1 : 0" in parts  # 단추 숫자 · 글 숫자 같은 기준
     assert "openModal('bulk', board.cardsOf(pane).filter(bulkable), btn);" in parts  # 창 목록 = 단추 숫자 기준
 
 
@@ -202,7 +202,7 @@ def test_모두_막힌_날은_모두_기본_단추가_숨는다(client, cohort) 
     html = _get(client, HOME)
     bulk = re.search(r'<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"[^>]*>', html).group(0)
     assert bulk.endswith(" hidden>") and '<span data-pp-count="unseen">0</span>' in html
-    assert "안 본 도면 <b>2</b>장" in html
+    assert '<span class="pp-unseen" data-pp-unseen-text="0">안 본 도면 없어요</span>' in html  # 모두 막힘 = 0장
 
 
 def test_관리자_남의_담당은_고르기_창_단추_지금_완료_단추_그대로_읽기_전용은_지금_꼴(client, cohort) -> None:
@@ -293,7 +293,7 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     assert order == sorted(order)
     # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다 — 검토 고침(11-25 [대신 완료] =
     # check · 반장 자기 몫 되돌리기 줄)이 modal · crew · parts 를 한 번 더 · 비평 C06 · C09(11-26 주문 막힘 칸)가 claim · parts · sync 를, 검토 고침(걸린 카드 건너뛰기)이 parts · sync 를 한 번 더
-    for name, pin in (("parts", "20261126b"), ("parts-claim", "20261126a"), ("parts-modal", "20261126c"),
+    for name, pin in (("parts", "20261126d"), ("parts-claim", "20261126a"), ("parts-modal", "20261126c"),
                       ("parts-crew", "20261126c"), ("parts-sync", "20261125u")):
         assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v={pin}\" defer", tpl)) == 1, name
 

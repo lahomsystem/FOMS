@@ -82,12 +82,12 @@
   }
 
   // ── 카드 · 칸 숫자 고치기(그 자리에서) ──
-  // unseen = [남은 N장 모두 기본] 숫자(막힌 안 본 장은 뺀다 — 창 목록 bulkCards 와 같은 기준), look = '안 본 도면 N장' 글(모두)
+  // unseen = [남은 N장 모두 기본] 숫자(막힌 안 본 장은 뺀다 — 창 목록 bulkCards 와 같은 기준), look = '안 본 도면 N장' 글(같은 기준, 11-26)
   function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block'); }
   function membership(card) {
     var st = attr(card, 'data-state');
     return { need: attr(card, 'data-in-need') === '1' ? 1 : 0, done: attr(card, 'data-in-done') === '1' ? 1 : 0,
-      unseen: bulkable(card) ? 1 : 0, look: st === 'none' ? 1 : 0 };
+      unseen: bulkable(card) ? 1 : 0, look: bulkable(card) ? 1 : 0 };
   }
   function bumpCounts(pane, before, after) {
     ['need', 'done', 'unseen'].forEach(function (k) {

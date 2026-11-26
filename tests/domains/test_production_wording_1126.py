@@ -203,3 +203,14 @@ def test_confirm_and_pc_state_words_say_working_but_audit_keeps_need():
         assert "'작업 필요" not in text and "작업 필요 · '" not in text and "→ 작업 필요 · '" not in text  # 따옴표 안 글(주석은 그대로)
     assert '.replace("작업 필요", "작업 중")' in _read(ROOT / "foms/services/production/pc_sheet.py")
     assert 'else "작업 필요"' in _read(ROOT / "foms/services/production/part_mark_notes.py")  # 감사 낱말은 그대로
+
+
+def test_unseen_text_and_bulk_button_count_the_same_cards():
+    """사장님 2026-11-26 다 "두 숫자를 같게" — '안 본 도면 N장'도 막힌(보류 · 도면 고치는 중) 장을 빼고 센다(서버 · JS 둘 다)."""
+    board = _read(ROOT / "foms/services/production/part_board.py")
+    assert '"unseen": bulk_count(cards),' in board
+    assert 'return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block"))' in board
+    assert "unseen: bulkable(card) ? 1 : 0, look: bulkable(card) ? 1 : 0" in _read(JS / "foms-production-parts.js")
+    req = _read(JS / "foms-production-drawing-request.js")
+    assert "var look = Math.max(0, Number(text.getAttribute('data-pp-unseen-text') || 0) - 1);" in req
+    assert "text.textContent = look ? '안 본 도면 ' : '안 본 도면 없어요';" in req
