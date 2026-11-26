@@ -182,8 +182,9 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .pp-undo-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pp-undo { flex-shrink: 0; min-height: 48px; padding: 0 12px; border: 1px solid var(--fph-line2); background: var(--fph-surface); font-size: calc(15px * var(--foms-fs, 1)); }
 /* 칸 단추에 따라 같은 카드가 다른 단추를 보인다(보이기/숨기기만) — 작업 필요 칸 = 큰 [완료], 완료 칸 = [되돌리기] */
+/* [완료 취소] 줄(pp-only-done)은 '전체 도면' · '완료' 칸 둘 다(2026-11-26 결정 C56) — 그 두 칸은 같은 줄이 대신해 글 칸(pp-not-done)을 숨긴다 */
 .pp-grid:not(.is-need) .pp-only-need, .pp-grid.is-need .pp-not-need,
-.pp-grid:not(.is-done) .pp-only-done, .pp-grid.is-done .pp-not-done { display: none; }
+.pp-grid.is-need .pp-only-done, .pp-grid:not(.is-need) .pp-not-done { display: none; }
 /* 작업 필요 칸 — 그림을 왼쪽에 크게(자르면서 치수를 읽는 칸, 시안 f61) */
 .pp-grid.is-need { grid-template-columns: minmax(0, 1fr); }
 .pp-grid.is-need .pp-card { display: grid; grid-template-columns: 56% minmax(0, 1fr); grid-template-rows: repeat(4, min-content) 1fr; column-gap: 14px; padding: 9px; }
