@@ -103,6 +103,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "handoff_learn_enabled": False, "handoff_learn_cases": 20,
         "edit_learn_enabled": False,  # 초안이 나간 상담도 배우기(사장님 11-11 고친 답 · 11-19 직접 답도) — 처음 끔
         "learn_auto_enabled": False,  # 배운 것 바로 반영(사장님 11-19 — 승인 없이, 나중에 보고 고침 · 지움) — 처음 끔
+        "handoff_learn_cache_enabled": False,  # 밤 배우기 지식 목록 아껴 보내기(설계 글 11-26 6절) — 처음 끔
         "handoff_memo_enabled": False,  # 넘김 메모(AI 가 초안을 안 쓴 까닭 — 직원에게) — 처음 끔(예전 기록만 그대로)
         "handoff_buttons_enabled": False,  # 넘김 메모 [배우기] · [흘리기] 단추(사장님 11-11) — 처음 끔
         # 바꿔 묻기 대응(온톨로지 — 사장님 11-11) — 세 칸 모두 처음 끔 · 주문 확인해 답하기(온톨로지 5.6 — 11-12) 처음 끔

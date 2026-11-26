@@ -55,6 +55,7 @@ from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.drafting import SKIP_CHECK, SKIP_HANDOFF
 from foms.services.cs_agent.full_conversation import MIN_CASE_CHARS, case_limit, read_talk, talk_on, talk_text
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD, EDIT_LEARN_FIELD, HANDOFF_LEARN_FIELD
+from foms.services.cs_agent.handoff_learning_cache import night_lists
 from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, open_cards, seen_proposals
 from foms.services.cs_agent.handoff_learning_onto import file_ontology
 from foms.services.cs_agent.handoff_learning_photos import BatchPhotos, batch_photos
@@ -384,16 +385,19 @@ def _known(session: Any) -> str:
 def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], used: list[int], *, cfg: Any,
              now: datetime.datetime, client: Any, counts: dict[str, Any], tier: str, images: Sequence[Any] = ()) -> None:
     """두뇌 → 읽음 표 → 관문 → 제안 길 · 바로 반영(모듈 설명 3 · 4)."""
-    rows = knowledge_rows(session)
+    rows, onto_rows = knowledge_rows(session), onto_prompt.knowledge_rows(session)
     knowledge, approved = knowledge_lines(rows), [row.text for row in rows if row.text]
-    ontology = onto_prompt.knowledge_lines(onto_prompt.knowledge_rows(session))
+    ontology = onto_prompt.knowledge_lines(onto_rows)
     pending = pending_lines([(label, text) for status, _key, label, text in seen_proposals(session)
                              if status == CHANGE_OPEN][:MAX_PENDING])
     model, effort = model_for(tier)
+    differs = differs_lines(open_cards(session))
+    frozen = night_lists(session, cfg, day_id(now), rows, onto_rows)  # 아껴 보내기 — 끄면 None(요청 꼴 예전 그대로)
     params = build_params(blocks, knowledge, pending, model=model, cfg=cfg, ontology=ontology,
-                          differs=differs_lines(open_cards(session)), effort=effort, images=images)
+                          differs=differs, effort=effort, images=images, frozen=frozen)
     session.commit()
     called = call_learning(session, params, cfg=cfg, now=now, timeout_s=TIMEOUT_S, client=client)
+    counts.update(cache_read=called.tokens.cache_read, cache_write=called.tokens.cache_write)
     if not complete(called.response):  # 출력 상한에 끊김 · 거절 — 읽음으로 적지 않는다(안이 통째로 사라지지 않게)
         counts["halted"] = "incomplete"
         return
@@ -440,7 +444,8 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     counts: dict[str, Any] = {"day": day, "tier": tier, "left": len(pool) - len(cases), "cases": len(cases),
                               "talks": len(talks), "mask_dropped": 0, "sent": 0, "proposed": 0, "filed": 0, "applied": 0,
                               "cards": 0, "fixed": 0, "new": 0, "added": 0, "same": 0, "decided": 0, "not_rule": 0,
-                              "held": 0, "promoted": 0, "blocked": {}, "halted": None, "photos": 0, "photo_skipped": {}}
+                              "held": 0, "promoted": 0, "blocked": {}, "halted": None, "photos": 0, "photo_skipped": {},
+                              "cache_read": 0, "cache_write": 0}  # 캐시 읽은 · 쓴 토큰(아껴 보내기 — 끄면 0)
     try:
         _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts, tier=tier, pics=pics)
     except Exception:  # 뜻밖의 오류 — 그 밤을 닫고 잠금을 푼 뒤 그대로 올린다(학습 몫이 길 이름 · 예외 종류만 적는다)
@@ -459,11 +464,11 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     release(session)
     logger.info("[CS 넘김 학습] day=%s tier=%s left=%d cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d "
                 "applied=%d cards=%d fixed=%d new=%d added=%d same=%d decided=%d not_rule=%d held=%d promoted=%d "
-                "blocked=%s halted=%s photos=%d photo_skipped=%s", day, tier, counts["left"], counts["cases"],
-                counts["talks"], counts["mask_dropped"], counts["sent"], counts["proposed"], counts["filed"],
+                "blocked=%s halted=%s photos=%d photo_skipped=%s cache_read=%d cache_write=%d", day, tier, counts["left"],
+                counts["cases"], counts["talks"], counts["mask_dropped"], counts["sent"], counts["proposed"], counts["filed"],
                 counts["applied"], counts["cards"], counts["fixed"], counts["new"], counts["added"], counts["same"],
                 counts["decided"], counts["not_rule"], counts["held"], counts["promoted"], counts["blocked"],
-                counts["halted"], counts["photos"], counts["photo_skipped"])
+                counts["halted"], counts["photos"], counts["photo_skipped"], counts["cache_read"], counts["cache_write"])
     return counts
 
 

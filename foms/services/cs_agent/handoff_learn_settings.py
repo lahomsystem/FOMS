@@ -12,13 +12,15 @@ from __future__ import annotations
 
 from foms.services.cs_agent.settings_field import KIND_BOOL, KIND_INT, Field
 
-__all__ = ["AUTO_FIELD", "CASES_FIELD", "EDIT_LEARN_FIELD", "GROUP_HANDOFF_LEARN", "HANDOFF_LEARN_FIELD",
+__all__ = ["AUTO_FIELD", "CACHE_FIELD", "CASES_FIELD", "EDIT_LEARN_FIELD", "GROUP_HANDOFF_LEARN", "HANDOFF_LEARN_FIELD",
            "HANDOFF_LEARN_FIELDS"]
 
 GROUP_HANDOFF_LEARN = "넘긴 상담 배우기 → 회사 지식 제안"
 HANDOFF_LEARN_FIELD, CASES_FIELD = "handoff_learn_enabled", "handoff_learn_cases"
 EDIT_LEARN_FIELD = "edit_learn_enabled"
 AUTO_FIELD = "learn_auto_enabled"
+#: 밤 배우기 지식 목록 아껴 보내기(설계 글 2026-11-26 6절 — :mod:`.handoff_learning_cache`). 처음 끔 — 끄면 요청 꼴이 예전 그대로.
+CACHE_FIELD = "handoff_learn_cache_enabled"
 
 HANDOFF_LEARN_FIELDS: tuple[Field, ...] = (
     Field(HANDOFF_LEARN_FIELD, "넘긴 상담 배우기", KIND_BOOL, False, GROUP_HANDOFF_LEARN,
@@ -35,4 +37,7 @@ HANDOFF_LEARN_FIELDS: tuple[Field, ...] = (
           help="켜면 배운 것을 승인 없이 그 밤에 회사 지식에 넣어요. 넣은 것은 회사 지식 'AI 가 배운 것'에서 보고 고치거나 "
                "지울 수 있어요. 지금 지식과 다른 말은 덮어쓰지 않고 '승인 대기'에 따로 모아요. 한 손님에게만 말한 금액 · "
                "날짜와 개인정보는 안 넣어요"),
+    Field(CACHE_FIELD, "밤 배우기 지식 목록 아껴 보내기", KIND_BOOL, False, GROUP_HANDOFF_LEARN,
+          help="켜면 회사 지식 목록을 그 밤 첫 번에 맡겨 두고, 한 시간 안에 다시 부르면 맡겨 둔 목록을 훨씬 싼 값으로 다시 써요. "
+               "그 밤에 새로 들어가거나 바뀐 지식은 따로 붙여 보내요. 맡기는 첫 번(모델마다 한 번)은 보통의 2배 값이에요"),
 )

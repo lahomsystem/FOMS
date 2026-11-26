@@ -61,7 +61,7 @@
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
     "foms/services/cs_agent/drafting.py:341",
-    "foms/services/cs_agent/handoff_learning.py:446",
+    "foms/services/cs_agent/handoff_learning.py:451",
     "foms/services/cs_agent/handoff_memo.py:207",
     "foms/services/cs_agent/handoff_send.py:248",
     "foms/services/cs_agent/rewrite.py:117",
@@ -3734,7 +3734,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_learning.py",
-      "lineno": 446,
+      "lineno": 451,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3743,7 +3743,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_learning_photos.py",
-      "lineno": 225,
+      "lineno": 228,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3752,7 +3752,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_learning_photos.py",
-      "lineno": 304,
+      "lineno": 307,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
