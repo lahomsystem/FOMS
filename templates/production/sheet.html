@@ -25,7 +25,7 @@
       <h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>
       {% if pc_sheet_due %}<span class="foms-prod-page__due fpc-sheet-due is-{{ pc_sheet_due.state }}" data-foms-pc-due>시공 {{ pc_sheet_due.md }}{% if pc_sheet_due.rel %} · <b>{{ pc_sheet_due.rel }}</b>{% endif %}{% if pc_sheet_due.more %} · 외 {{ pc_sheet_due.more }}{% endif %}{% if pc_sheet_due.mark %} · {{ pc_sheet_due.mark.k }} {{ pc_sheet_due.mark.md }}{% endif %}</span>{% else %}<span class="foms-prod-page__due">시공 {{ order.construction_label }}</span>{% endif %}
       {% if order.hold_active %}<span class="foms-prod-page__badge foms-prod-page__badge--hold">보류</span>{% endif %}
-      {% if order.rework_active %}<span class="foms-prod-page__badge foms-prod-page__badge--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>{% endif %}
+      {% if order.rework_active %}<span class="foms-prod-page__badge foms-prod-page__badge--rework">수정 제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>{% endif %}
       {% if order.drawing_badge %}<span class="foms-prod-page__badge foms-prod-page__badge--drawing" title="{{ order.drawing_badge.title }}">{{ order.drawing_badge.label }}</span>{% endif %}
       <span class="foms-prod-page__sp"></span>{% if pc_view %}{% include 'production/partials/home_pc_tools.html' %}{% endif %}
       {# 알림 종 — 생산 화면에서는 레일 종이 숨어서 여기로 온다(가로 태블릿만, 11-21 사용자 ③) #}
@@ -127,7 +127,7 @@
         <p class="foms-prod-page__callout foms-prod-page__callout--hold">보류 · <strong>{{ order.hold_reason }}</strong></p>
         {% endif %}
         {% if order.rework_active and order.rework_reason %}
-        <p class="foms-prod-page__callout foms-prod-page__callout--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %} 사유 <strong>{{ order.rework_reason }}</strong></p>
+        <p class="foms-prod-page__callout foms-prod-page__callout--rework">수정 제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %} 사유 <strong>{{ order.rework_reason }}</strong></p>
         {% endif %}
         {% if order.production_start_blocked %}
         <p class="foms-gate-blocked-reason" data-production-start-blocked>{{ order.production_start_block_reason }}</p>
@@ -217,7 +217,7 @@
        태블릿 · 옆 시트는 이 조각이 없다(지금 그대로). 손 체크 확인 창은 아래 시트 것 하나를 같이 쓴다(pc_sheet_confirm=false). #}{% with pc_sheet_confirm = false %}{% include 'production/partials/home_pc_sheet.html' %}{% endwith %}{% endif %}
   </section>
   {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
-  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126a" defer></script>{% endif %}
+  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126b" defer></script>{% endif %}
   {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}{% include 'production/partials/sheet_step_confirm.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261125a" defer></script>{% endif %}{% if write_omitted %}{# 쿠키 없는 첫 요청이라 단추 줄을 뺐다 — 터치 기기면 다시 받는다 #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}

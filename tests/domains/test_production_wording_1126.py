@@ -221,3 +221,11 @@ def test_other_part_words_are_mijeong_and_working():
     board = _read(ROOT / "foms/services/production/part_board.py")
     assert '_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "작업 중", "none": "미정"}' in board
     assert '_OTHER_WORDS = {"done": "완료", "need": "작업 중", "none": "미정"}' in board
+
+
+def test_new_sheet_says_edit_make_not_remake():
+    """사장님 2026-11-26 나 — 새 작업 시트(sheet.html)의 배지 · 사유 줄은 "수정 제작"."""
+    sheet = _read(TPL / "sheet.html")
+    assert ">수정 제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>" in sheet
+    assert ">수정 제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %} 사유 <strong>" in sheet
+    assert "재제작{% if" not in sheet
