@@ -78,11 +78,29 @@
     if (none) { none.hidden = shown > 0 || jobs.length === 0; }
     syncCtl();
   }
+  // 찾던 글은 주소(?tab=all&q=김)에 담아 둔다 — 주문을 열었다 뒤로 오면 같은 글 · 같은 목록으로 다시 거른다(2026-11-26, 고른 날과 같은 방식)
+  function keepSearchUrl(raw) {
+    try {
+      var u = new URL(window.location.href);
+      if (raw) { u.searchParams.set('q', raw); } else { u.searchParams.delete('q'); }
+      var href = u.pathname + u.search + u.hash;
+      window.history.replaceState(window.history.state, '', href);
+      var shell = window.FOMS_ERP_SHELL;
+      if (shell && typeof shell.syncRenderedUrl === 'function') { shell.syncRenderedUrl(); }
+      var reload = root.querySelector('[data-foms-home-reload]');
+      if (reload) { reload.setAttribute('href', href); }
+    } catch (e) { /* 주소를 못 바꿔도 화면은 그대로 */ }
+  }
   if (search) {
     search.addEventListener('input', function () {
       term = (search.value || '').trim().toLowerCase();
       apply();
+      keepSearchUrl((search.value || '').trim().slice(0, 80));
     });
+    try {
+      var saved = (new URL(window.location.href).searchParams.get('q') || '').trim().slice(0, 80);
+      if (saved) { search.value = saved; term = saved.toLowerCase(); apply(); }
+    } catch (e) { /* 주소를 못 읽으면 빈 칸 그대로 */ }
   }
 
   // ── 날짜(안 3): 띠는 제목 줄 바로 아래에 붙는다 — 제목 줄 높이를 재서 CSS 변수로(줄이 접혀도 안 겹치게) ──
