@@ -30,7 +30,7 @@
 {%- set half = (pb.part_label ~ ' ' ~ cr.d ~ '/' ~ cr.n ~ ' 완료') if cr.d else '' -%}
 {%- set can_undo = pb.writable and (c.done_by_me or not pb.mine) -%}
 {%- if c.state == 'hand' -%}
-<button type="button" class="fph-wi pp-act pp-st-done pp-hand" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.hand.why }}"><span>{{ c.hand.text }}</span><small>작업 시트</small></button>
+<button type="button" class="fph-wi pp-act pp-st-done pp-hand" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.hand.why }}"><span>{{ c.hand.text }}</span><small>작업 시트에서 완료</small></button>
 {%- elif c.state == 'none' -%}
   {%- if pb.writable and c.block -%}{{ pp_block(c) }}
   {%- elif pb.writable and is_cut -%}

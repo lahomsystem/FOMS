@@ -326,7 +326,7 @@ def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> 
     db_session.commit()
     html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
     scroll = html.split('class="foms-prod-page__side-scroll"', 1)[1].split('class="foms-prod-page__foot"', 1)[0]
-    marks = ['aria-label="공정"', 'aria-label="변경 알림"', "보류 사유 <strong>자재 기다림</strong>",
+    marks = ['aria-label="공정"', 'aria-label="변경 알림"', "보류 · <strong>자재 기다림</strong>",
              'aria-label="만들 것"', 'aria-label="특이사항"', 'aria-label="고객"']
     pos = [scroll.find(m) for m in marks]
     assert -1 not in pos, dict(zip(marks, pos))

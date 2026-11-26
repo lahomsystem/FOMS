@@ -33,7 +33,6 @@
   --fph-old-line: #c2410c;
   --fph-release-700: var(--fph-basic-700);
 }
-.foms-prod-home__me { margin-left: 4px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 600; color: var(--fph-text2); }
 
 /* ── 문: 카드 판은 태블릿 가로에서만, 지금 장은 그때만 숨김(파트 계정) ── */
 .fph-parts { display: none; }

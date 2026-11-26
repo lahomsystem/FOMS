@@ -7,7 +7,7 @@
 * 줄 = 확정 도면 한 장(:func:`resolve_final_drawing_files` 순서 — 도면 판 카드 · 작업 시트와 같은 번호).
 * 상태 낱말(2026-11-25 multi-holder §8-2 37 · §8-1): 재단 "안 봄" · 그 밖 "아직" · "작업 필요" · 같이 작업 중 일부 완료 "재단 1/2 완료"
   (+ 작은 글 "김재단 작업 중" — 아직인 사람 모두, Q10 "PC 도면별 창은 모두") · 모두 완료 "재단 완료"(옛 "재단 끝", K4) · "기본" · 손 체크
-  "재단 완료 · 박반장" + "작업 시트". "1/2 완료" 낱말은 감사 글과 같은 함수(``part_mark_notes.state_words``) 하나. 막힘 글 · 안내 글은 서버
+  "재단 완료 · 박반장" + "작업 시트에서 완료". "1/2 완료" 낱말은 감사 글과 같은 함수(``part_mark_notes.state_words``) 하나. 막힘 글 · 안내 글은 서버
   판정 함수의 글 그대로(:mod:`~foms.services.production.part_card_state` · :mod:`~foms.services.production.part_mark_gates`).
 * 줄 글(``lines``)은 서버가 사람마다 만든다(K6) — 작업하는 사람마다 "작업 시작 이시영 · 11/25 08:10", 그 사람 몫을 완료했으면 바로 뒤에
   "완료 이시영 · 11/25 11:30"(대신 완료면 누른 반장 이름). 사람 없는 줄은 지금 글 그대로("담당 미정" — K2 · 기본 · 풀어 쓴 완료 · 손 체크는
@@ -149,7 +149,7 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
 
     Returns:
         ``{key, no, of, label, item, image, filename, view_url, state, word, note, lines, handed, block, act, seen,
-        undo_releases}`` — ``lines`` = 줄 글(사람마다), ``note`` = 상태 칸 아래 작은 글("작업 시트" · "김재단 작업 중"),
+        undo_releases}`` — ``lines`` = 줄 글(사람마다), ``note`` = 상태 칸 아래 작은 글("작업 시트에서 완료" · "김재단 작업 중"),
         ``block`` 은 ``{kind, text, why}``(보류 · 도면 고치는 중 · 검수 전) 또는 None. 막힌 미완료 장은 ``act`` 가 None(단추 없음 —
         막힌 표시만). ``seen`` = 화면이 본 상태([완료 처리] · [완료 취소]가 그대로 보낸다).
     """
@@ -169,7 +169,7 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
         "item": f"{name or '품목 없음'}{f' · {spec}' if spec else ''}",
         "image": is_part_thumb_image(entry), "filename": entry.get("filename") or "", "view_url": entry.get("view_url") or "",
         "state": state, "word": state_word(part, state, hand, snap.crew),
-        "note": "작업 시트" if state == "hand" else pending_note(state, snap.crew),
+        "note": "작업 시트에서 완료" if state == "hand" else pending_note(state, snap.crew),
         **_lines(state, snap, row, hand, ctx["step_at"]),
         "block": {k: block[k] for k in ("kind", "text", "why")} if block else None,
         "act": act, "seen": snap.seen_key, "undo_releases": undo_releases(state, snap, ctx["viewer_id"]),

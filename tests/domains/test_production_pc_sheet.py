@@ -3,7 +3,7 @@
 * 칸: 확정 도면 1장 이상인 줄의 PC 공정 칸만 누름 칸(role=button · data-foms-pc-sheet) — 모양 · 글 · 쿼리 수는 그대로, 도면 0장 줄 ·
   태블릿 출력은 하나도 안 바뀐다(음성 대조).
 * 창 자료 ``GET /api/production/part-sheet``: 상태 글(안 봄 · 아직 · 작업 필요 · 재단 완료(옛 재단 끝 — 2026-11-25 K4) · 기본 · 손 체크
-  "재단 완료 · 박반장" + "작업 시트") · 줄 글(사람마다 "작업 시작 …" · "완료 …" — K6) · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절
+  "재단 완료 · 박반장" + "작업 시트에서 완료") · 줄 글(사람마다 "작업 시작 …" · "완료 …" — K6) · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절
   글 그대로) · [모두 완료 처리] 조건 ·
   쓰기 가능(관리자 · 반장) · 그 줄 공정 칸 HTML(첫 화면과 같은 매크로 — 바이트까지 같음). 쿼리 3(+ 로그인 사용자).
 * 쓰기는 있는 길만(part-marks · 공정 API) — 창 JS 가 부르는 대로([완료 처리] = check 한 요청, [완료 취소] = undo(→ 시작 취소), 공정 칸 켜기)
@@ -237,7 +237,7 @@ def test_손_체크_파트는_도면_판_손_체크_글과_통째_해제(client,
     _login(client, _user("반장"))
     d = _get(client, order, "cut").get_json()["data"]
     assert d["hand_off"] is True and d["all"] is False and d["hand"] == "재단 완료 · 박반장"
-    assert {(r["word"], r["note"], r["act"]) for r in d["rows"]} == {("재단 완료 · 박반장", "작업 시트", None)}
+    assert {(r["word"], r["note"], r["act"]) for r in d["rows"]} == {("재단 완료 · 박반장", "작업 시트에서 완료", None)}
     assert d["rows"][0]["lines"] == ["완료 박반장 · 11/24 10:20"] and d["can_write"] is True
 
 

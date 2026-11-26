@@ -124,7 +124,7 @@
         {% endif %}
 
         {% if order.hold_active and order.hold_reason %}
-        <p class="foms-prod-page__callout foms-prod-page__callout--hold">보류 사유 <strong>{{ order.hold_reason }}</strong></p>
+        <p class="foms-prod-page__callout foms-prod-page__callout--hold">보류 · <strong>{{ order.hold_reason }}</strong></p>
         {% endif %}
         {% if order.rework_active and order.rework_reason %}
         <p class="foms-prod-page__callout foms-prod-page__callout--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %} 사유 <strong>{{ order.rework_reason }}</strong></p>

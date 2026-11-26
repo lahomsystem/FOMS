@@ -1,7 +1,7 @@
 """생산 첫 화면 '내 공정' 탭 오른쪽 판 — 설계서 ``docs/specs/2026-11-21-production-my-steps-panel_SPEC.md``.
 
 사용자 결정(2026-11-21) "추천안(반반)대로 만들기": 목업 ``tablet-production-my-steps-panel.html`` ③ 그대로 — 줄 칸 : 판 = 50:50,
-엣지 줄 없음, 줄 [끝]은 판으로, 빈 칸 대신 그림, 보류 주문은 [끝] 자리에 '보류 중 · 사유', 판 [<공정> 끝]만 확인 창.
+엣지 줄 없음, 줄 [끝]은 판으로, 빈 칸 대신 그림, 보류 주문은 [끝] 자리에 '보류 · 사유', 판 [<공정> 끝]만 확인 창.
 
 ① 판 자료 순수 함수(앞 공정 · 다음 공정 · 색 · 그림 640/원본/파일/없음 · 다음 손님 · 고른 줄)
 ② 문: 태블릿 가로(모바일 v2 + 터치 + 넓은 창)만, 파트 계정 · PC · 폰 · 레거시는 판 0개, 판 없는 화면 출력은 지금 그대로
@@ -325,7 +325,7 @@ def test_보류_판은_끝_자리에_보류_중_사유_보류_해제(client, coh
     html = get_html(client, HOME + f"?tab=steps&order={c.id}")
     pane = pane_html(html, c.id)
     assert "data-foms-step-finish" not in pane
-    assert ">보류 중</b><span>보류 사유 · 고객 연락 기다림</span>" in pane
+    assert ">보류 · 고객 연락 기다림</b></div>" in pane
     hold = re.search(r'<button[^>]*data-tablet-sheet-action="production-hold"[^>]*>.*?</button>', pane).group(0)
     assert 'class="fph-sp__act is-on"' in hold and 'data-hold-active="1"' in hold and 'data-hold-reason="고객 연락 기다림"' in hold
     assert hold.endswith(">보류 해제</button>")
@@ -408,7 +408,7 @@ def test_판_하나_조각은_다_그릴_때와_같은_판이고_다음_손님�
     # 마지막 줄 = 다음 손님 없음 · 보류 줄 = [끝] 자리에 보류 글
     assert "fph-sp__next" not in pane_html(get_html(client, panel_url("cut", d.id)), d.id)
     held = get_html(client, panel_url("cut", c.id))
-    assert "data-foms-step-finish" not in held and ">보류 중</b>" in held
+    assert "data-foms-step-finish" not in held and ">보류 · 고객 연락 기다림</b>" in held and "보류 중" not in held
 
 
 def test_판_하나_조각_문_밖_파트_계정_다른_공정_없는_번호는_404(client, cohort, monkeypatch) -> None:

@@ -141,3 +141,29 @@ def test_undo_button_is_named_after_its_done_button():
     modal = _read(JS / "foms-production-parts-modal.js")
     assert "title: LABEL + ' 완료를 취소할까요?'" in modal and "run: LABEL + ' 완료 취소', tone: 'need'" in modal
     assert "title: '안 봄으로 되돌릴까요?', line: '기본 → 안 봄', run: '되돌리기'" in modal  # 기본 되돌리기는 안 여쭌 것 — 그대로
+
+
+def test_hold_reason_reads_the_same_on_every_screen():
+    """사장님 2026-11-26 — 보류 사유는 "보류 · 자재 기다림" 한 꼴(도면 칸 · 남은 공정 판 · 작업 시트 · PC 줄). 해제 확인 창은 그대로."""
+    panel = _read(TPL / "partials" / "home_step_panel.html")
+    assert "보류{% if p.hold_reason %} · {{ p.hold_reason }}{% endif %}</b></div>" in panel and "보류 사유" not in panel
+    assert "보류 · <strong>{{ order.hold_reason }}</strong>" in _read(TPL / "sheet.html")
+    pc = _read(TPL / "partials" / "home_pc_macros.html")
+    assert pc.count("보류{% if r.pc_hold_reason %} · {{ r.pc_hold_reason }}{% endif %}") == 2 and "보류 중" not in pc
+    css = _read(ROOT / "static/css/contexts/production/home.css")
+    assert ".fph-sp__hold b svg { flex: none; }" in css and "word-break: keep-all; overflow-wrap: anywhere; }" in css  # 긴 사유 두 줄
+
+
+def test_sheet_done_cell_says_where_it_was_done():
+    assert "<small>작업 시트에서 완료</small>" in _read(TPL / "partials" / "home_parts.html")
+    assert "el('small', '', '작업 시트에서 완료')" in _read(JS / "foms-production-parts-claim.js")
+    assert '"note": "작업 시트에서 완료" if state == "hand"' in _read(ROOT / "foms/services/production/pc_sheet.py")
+
+
+def test_title_name_style_lives_in_the_always_loaded_stylesheet():
+    """제목의 이름(파트 계정 · 반장)은 어느 탭이든 — parts.css 는 도면 판에서만 실리므로 꾸밈은 home.css."""
+    assert ".foms-prod-home__me {" in _read(ROOT / "static/css/contexts/production/home.css")
+    assert ".foms-prod-home__me" not in _read(ROOT / "static/css/contexts/production/parts.css")
+    home = _read(ROOT / "foms/web/production/home.py")
+    assert "'part_title': _home_title(mode, user, board, name) if surface else None," in home
+    assert "return ('반장', name) if mode == VIEW_SUB else None" in home
