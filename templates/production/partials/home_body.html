@@ -50,7 +50,7 @@
 {% endif %}  </section>
   {% if (tab == 'changes' and can_ack) or (step_panel and can_act) %}
   {# [확인했어요] = 옆 시트·묘비와 같은 change-ack 배선 · '내 공정' 판의 [보류](tablet-domain-sheets.js, 이 화면은 기기 무관) #}
-  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126b" defer></script>
   {% endif %}{% if step_panel and can_act %}
   {# '내 공정' 판(설계서 2026-11-21-production-my-steps-panel §3-5): [보류] 사유 창 = 공용 사유 시트 세트(조각 · CSS · JS, 칸반 tablet_kanban_body.html 과 같다),
      [불량] 칩 · 최근 불량 = 작업 시트 JS — 문서 리스너를 달므로 data-foms-run-once(셸 교체로 온 새 판은 그 파일이 foms:erp-shell-fragment-swapped 로 묶는다). #}

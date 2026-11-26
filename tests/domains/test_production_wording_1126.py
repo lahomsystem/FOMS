@@ -229,3 +229,17 @@ def test_new_sheet_says_edit_make_not_remake():
     assert ">수정 제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>" in sheet
     assert ">수정 제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %} 사유 <strong>" in sheet
     assert "재제작{% if" not in sheet
+
+
+def test_big_button_default_dialog_texts_match_production_buttons():
+    """사장님 2026-11-26 다 — 큰 단추 인터넷 기본 창 글: 실패 알림은 서버 글만, 묻는 글은 해요체. 출고 저장 글은 그대로."""
+    js = _read(ROOT / "static/js/foms/tablet-domain-sheets.js")
+    assert '"오류: " + (data.message || "처리 실패")' not in js and js.count('"처리하지 못했어요"') == 4
+    assert 'window.alert(data.message || "처리하지 못했어요");' in js
+    assert '"제작을 시작할까요?"' in js and '"제작을 완료할까요?" + productionSplitNote(orderId)' in js
+    assert 'var msg = "보류 중인 주문이에요";' in js
+    assert js.count("사유 입력 창을 불러오지 못했어요. 새로고침한 뒤 다시 시도해 주세요.") == 2
+    assert "시작하시겠습니까" not in js and "완료하시겠습니까" not in js and "불러오지 못했습니다" not in js
+    assert 'window.alert("오류: " + (data.message || "저장 실패"));' in js  # 출고 저장 글은 그대로
+    entry = _read(ROOT / "static/js/shipment/shipment-entry.js")
+    assert "tablet-domain-sheets.js?v=20261126b" in entry

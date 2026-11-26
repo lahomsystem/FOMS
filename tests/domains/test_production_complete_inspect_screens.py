@@ -37,7 +37,7 @@ def test_거절_글이_엉뚱한_연결_끊김_글로_덮이지_않는다() -> N
     sheets = _read("static/js/foms/tablet-domain-sheets.js")
     i = sheets.index("function submitTransition(")
     body = sheets[i:sheets.index("function productionStart(", i)]
-    assert 'window.alert("오류: " + (failed.message || failed.error || "처리 실패"));' in body
+    assert 'window.alert(failed.message || failed.error || "처리하지 못했어요");' in body
     assert body.index("연결이 끊겼어요") > body.index(".catch(function (err)")
     kanban = _read("static/js/foms/tablet-production-kanban.js")
     assert 'window.alert("오류: " + (failed.message || failed.error || result.message));' in kanban

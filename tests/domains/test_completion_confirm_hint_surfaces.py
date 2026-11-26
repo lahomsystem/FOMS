@@ -258,7 +258,7 @@ def test_production_confirm_builders_append_the_split_note(rel):
     assert '[data-production-split-note][data-order-id="' in src
     assert "function productionSplitNote(orderId)" in src
     assert "productionSplitNote(orderId)" in src.replace("function productionSplitNote(orderId)", "")
-    assert "제작을 완료하시겠습니까" in src
+    assert ("제작을 완료할까요?" if rel.endswith("tablet-domain-sheets.js") else "제작을 완료하시겠습니까") in src  # 11-26 큰 단추 글만 맞춤
 
 
 def test_production_split_note_is_only_added_to_complete_action():

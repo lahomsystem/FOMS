@@ -54,7 +54,7 @@
 
   // HOLD_ACTIVE 재시도 confirm 문구(사유 있으면 병기).
   function holdConfirmText(hold) {
-    var msg = "보류 중인 주문입니다";
+    var msg = "보류 중인 주문이에요";
     if (hold && hold.reason) msg += " (사유: " + hold.reason + ")";
     return msg + "\n보류를 해제하고 진행할까요?";
   }
@@ -107,7 +107,7 @@
         // 보류는 위에서 자기해제 경로로 빠지므로 여기 오지 않는다.
         var ctl = window.FomsAdminOverride;
         if (!ctl || typeof ctl.retry !== "function") {
-          window.alert("오류: " + (data.message || "처리 실패"));
+          window.alert(data.message || "처리하지 못했어요");
           return;
         }
         return ctl
@@ -126,7 +126,7 @@
               return;
             }
             var failed = (again && again.data) || data;
-            window.alert("오류: " + (failed.message || failed.error || "처리 실패"));
+            window.alert(failed.message || failed.error || "처리하지 못했어요");
           });
       })
       .catch(function (err) {
@@ -140,7 +140,7 @@
     productionTransition(
       orderId,
       "/production/start",
-      "제작을 시작하시겠습니까? (상태가 제작중으로 변경됩니다)"
+      "제작을 시작할까요?"
     );
   }
 
@@ -156,7 +156,7 @@
     productionTransition(
       orderId,
       "/production/complete",
-      "제작을 완료하시겠습니까? (상태가 제작완료로 변경됩니다)" + productionSplitNote(orderId)
+      "제작을 완료할까요?" + productionSplitNote(orderId)
     );
   }
 
@@ -165,7 +165,7 @@
   function openReasonSheetAndSubmit(orderId, path, opts) {
     if (!orderId) return;
     if (!window.FomsReasonSheet) {
-      window.alert("사유 입력 창을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.");
+      window.alert("사유 입력 창을 불러오지 못했어요. 새로고침한 뒤 다시 시도해 주세요.");
       return;
     }
     window.FomsReasonSheet.open({
@@ -229,7 +229,7 @@
       // 보류 사유도 공용 시트에서 받는다(window.prompt 금지). 시트는 비동기라 제출
       // 콜백에서 같은 요청을 이어 보낸다.
       if (!window.FomsReasonSheet) {
-        window.alert("사유 입력 창을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.");
+        window.alert("사유 입력 창을 불러오지 못했어요. 새로고침한 뒤 다시 시도해 주세요.");
         return;
       }
       window.FomsReasonSheet.open({
@@ -271,7 +271,7 @@
           closeSheet();
           window.location.reload();
         } else {
-          window.alert("오류: " + ((data && (data.error || data.message)) || "처리 실패"));
+          window.alert((data && (data.error || data.message)) || "처리하지 못했어요");
         }
       })
       .catch(function (err) {
@@ -300,7 +300,7 @@
         if (data && data.success) {
           window.location.reload();
         } else {
-          window.alert("오류: " + ((data && (data.error || data.message)) || "처리 실패"));
+          window.alert((data && (data.error || data.message)) || "처리하지 못했어요");
         }
       })
       .catch(function (err) {
