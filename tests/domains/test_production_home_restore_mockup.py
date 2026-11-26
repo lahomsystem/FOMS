@@ -59,7 +59,7 @@ def test_태블릿_위_탭은_넷이고_도면_카드_보드가_없다_파트_�
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     for url in (HOME, HOME + "?tab=steps", HOME + "?tab=changes", HOME + "?tab=all"):
         html = _get(client, url)
-        assert _tabs(html) == ["날짜", "내 공정", "바뀐 것", "찾기"], url
+        assert _tabs(html) == ["날짜", "남은 공정", "바뀐 것", "찾기"], url
         assert "data-foms-home-partstab" not in html and "data-foms-home-board" not in html and f'href="{BOARD}"' not in _nav(html)
     _login(client, _user("김재단", part="cut"))  # 파트 계정은 '내 공정' 이 원래 없다(D50) — 셋
     assert _tabs(_get(client, HOME)) == ["날짜", "바뀐 것", "찾기"]

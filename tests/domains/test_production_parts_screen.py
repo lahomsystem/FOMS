@@ -145,7 +145,7 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
     assert "pp-wait" in block and "오하람" in block and f"#{ids['wait']}" in block
     # 위 줄 = 파트 이름 + 내 이름, '내 공정' 탭 없음(D50)
     assert '<h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">김재단</span></h1>' in html
-    assert ">내 공정 <small>" not in html
+    assert ">남은 공정 <small>" not in html
     # 확인 창 하나 · id 겹침 0 · 금액 0
     assert html.count('id="foms-part-confirm-modal"') == 1
     ids_all = re.findall(r'\sid="([^"]+)"', html)
@@ -185,11 +185,11 @@ def test_part_account_steps_tab_hidden_and_redirected_on_any_device(client, coho
     for ptr in ("coarse", "fine"):
         _login(client, me, ptr=ptr)
         html = _get(client, HOME + "?tab=steps")
-        assert 'data-foms-home-tab="date"' in html and ">내 공정 <small>" not in html
+        assert 'data-foms-home-tab="date"' in html and ">남은 공정 <small>" not in html
     # 대조군: 파트 없는 생산 계정은 '내 공정' 탭 그대로
     _login(client, _user("생산사람"))
     html = _get(client, HOME + "?tab=steps")
-    assert 'data-foms-home-tab="steps"' in html and ">내 공정 <small>" in html
+    assert 'data-foms-home-tab="steps"' in html and ">남은 공정 <small>" in html
 
 
 def test_part_account_on_mouse_device_gets_no_cards(client, cohort):
@@ -279,7 +279,7 @@ def test_date_tab_html_equals_before_except_parts_link(client, cohort, monkeypat
     monkeypatch.setattr("foms.web.production.home.part_view_mode", lambda user: "none")
     before = _normalize(_get(client, HOME))
     assert now.replace(tab_line.group(0), "") == before
-    assert ">내 공정 <small>" in now and "fph-pane__now" not in now and "parts.css" not in now
+    assert ">남은 공정 <small>" in now and "fph-pane__now" not in now and "parts.css" not in now
 
 
 # --------------------------------------------------------------------------- #

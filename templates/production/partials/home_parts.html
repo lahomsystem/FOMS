@@ -85,7 +85,7 @@
     {% endif %}
     <div class="foms-prod-home__tabs pp-tabs" role="group" aria-label="칸">
       <button type="button" class="foms-prod-home__tab is-on" data-pp-view="all" aria-pressed="true">전체 도면 <small data-pp-count="all">{{ pp.counts.all }}</small></button>
-      <button type="button" class="foms-prod-home__tab" data-pp-view="need" aria-pressed="false">{{ '내 작업' if pb.mine else '작업 필요' }} <small data-pp-count="need">{{ pp.counts.need }}</small></button>
+      <button type="button" class="foms-prod-home__tab" data-pp-view="need" aria-pressed="false">{{ '내 작업' if pb.mine else '작업 중' }} <small data-pp-count="need">{{ pp.counts.need }}</small></button>
       <button type="button" class="foms-prod-home__tab" data-pp-view="done" aria-pressed="false">완료 <small data-pp-count="done">{{ pp.counts.done }}</small></button>
     </div>
   </div>

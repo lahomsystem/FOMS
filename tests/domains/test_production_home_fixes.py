@@ -53,12 +53,12 @@ def test_내_공정_탭_숫자는_공정_줄_합과_같다_보류_run_없음_포
     steps_html = client.get(HOME + "?tab=steps").get_data(as_text=True)
     lane_counts = [int(n) for n in re.findall(r'data-foms-home-steptab="[a-z]+"[^>]*>[^<]+<small>(\d+)</small>', steps_html)]
     assert len(lane_counts) == 4 and sum(lane_counts) == 3  # 재단 = 보류런없음·재단차례, 엣지 = 보류런있음
-    assert f">내 공정 <small>{sum(lane_counts)}</small></a>" in steps_html
+    assert f">남은 공정 <small>{sum(lane_counts)}</small></a>" in steps_html
     cut_q = steps_html.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0].split("fph-q__nextlist")[0]
     assert "보류런없음" in cut_q and "재단차례" in cut_q and "도면보류" not in steps_html
     # 날짜 탭: 도면 단계 보류는 큰 줄이 아니라 도면·컨펌 기다림 칸, 큰 줄 클래스 = 제작 대기 w · 만드는 중/보류 p · 검수 끝 f
     date_html = client.get(HOME).get_data(as_text=True)
-    assert f">내 공정 <small>{sum(lane_counts)}</small></a>" in date_html
+    assert f">남은 공정 <small>{sum(lane_counts)}</small></a>" in date_html
     pane = _pane(date_html, _first_key())
     assert "만들 것 5 · <span class=\"fph-dwst is-late\">도면 5/6 내려옴</span>" in pane and ">도면·컨펌 기다림 1 <small>" in pane
     big = {m.group(2).strip(): m.group(1) for m in re.finditer(
