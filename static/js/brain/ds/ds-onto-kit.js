@@ -223,7 +223,8 @@
                                            sc.change ? tag(sc.change, 'success', { extra: 'f-push' }) : null] }),
       el('progress', { cls: 'fb-onto-progress', attrs: { max: Math.max(sc.total, 1), value: sc.covered,
                                                          'aria-label': sc.total + '개 중 ' + sc.covered + '개 통과' } }),
-      el('span', { cls: 'f-help', text: '질문에 필요한 종류 · 연결이 있는 수예요. 내용이 맞는지는 평가 단계에서 재요.' })] }));
+      el('span', { cls: 'f-help', text: '질문에 필요한 종류 · 연결이 있는 수예요' + ov.linkedText(summary.cq) +
+                                        '. 내용이 맞는지는 평가 단계에서 재요.' })] }));
     if (summary.erp) {
       box.appendChild(el('div', { cls: 'f-callout f-callout-primary', attrs: { 'data-onto-erp-note': '1' }, children: [
         icon('data-lineage'), el('div', { cls: 'f-small', children: [

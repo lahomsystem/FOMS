@@ -30,10 +30,12 @@ from foms.services.brain.constants import (
 )
 from foms.services.brain.display import LAYER_LABELS, LINK_DISPLAY, TYPE_DISPLAY, TYPE_GROUPS
 from foms.services.brain.ontology_cqs import CQS, ERP_NEED_TYPES, ERP_NEEDS
+from foms.services.brain.quality import linked_share
 from foms.services.brain.read import visible_clauses
 from foms.services.brain.schemas import CHOICE_LABELS, TYPE_SCHEMAS
 from foms.services.brain.scope import Viewer
 from foms.services.brain.store import is_current
+from foms.services.brain.usage import usage_total
 from foms.services.erp_actions.registry import ACTIONS as ERP_ACTIONS
 from foms.services.erp_actions.registry import MODE_HUMAN, MODE_LINK, ActionSpec, level_label
 from foms.services.erp_ontology.objects import OBJECT_TYPES, ORDER_PROPS, get_type, masked_props
@@ -143,8 +145,11 @@ def erp_ready_needs() -> frozenset[str]:
 
 
 def _coverage(counts: dict[str, int], link_totals: dict[str, int],
-              erp_have: frozenset[str] = frozenset()) -> dict[str, Any]:
-    """능력 질문마다 필요한 종류 · 연결이 하나라도 있나. ERP 재료는 ``erp_have`` 에 든 것만 '있음'(처음 값 — 없음)."""
+              erp_have: frozenset[str] = frozenset(), linked_pct: Optional[int] = None) -> dict[str, Any]:
+    """능력 질문마다 필요한 종류 · 연결이 하나라도 있나. ERP 재료는 ``erp_have`` 에 든 것만 '있음'(처음 값 — 없음).
+
+    ``linked_pct`` = 살아 있는 지식 가운데 실제로 이어진 비율(:func:`.quality.linked_share` — 백분율, 셀 것이 없으면 ``None``).
+    '채움'은 그 종류가 어딘가에 하나라도 있나만 보므로 옆에 같이 싣는다(설계서 2026-11-26 온톨로지 잇기 3.1)."""
     rows = []
     for cq in CQS:
         needs = [{"type": n, "label": ERP_NEEDS.get(n) or TYPE_DISPLAY.get(n, (n,))[0], "erp": n in ERP_NEEDS,
@@ -153,7 +158,7 @@ def _coverage(counts: dict[str, int], link_totals: dict[str, int],
         rows.append({"id": cq.cq_id, "domain": cq.domain, "question": cq.question, "basis": cq.basis,
                      "needs": needs, "links": links, "covered": all(x["have"] for x in (*needs, *links))})
     covered = sum(1 for row in rows if row["covered"])
-    return {"rows": rows, "covered": covered, "total": len(rows)}
+    return {"rows": rows, "covered": covered, "total": len(rows), "linked_pct": linked_pct}
 
 
 def _erp_action_row(spec: ActionSpec) -> dict[str, Any]:
@@ -197,10 +202,12 @@ def ontology_summary(session: Any, viewer: Viewer, *, today: datetime.date, erp:
                       "from": compress_types([t for t in (*TYPES, *EXTERNAL_TYPES) if t in starts]),
                       "to": compress_types([t for t in (*TYPES, *EXTERNAL_TYPES) if t in ends]),
                       "count": link_totals.get(kind, 0), "open": bool(starts)})
-    out = {"groups": groups, "links": links, "actions": _actions(), "cq": _coverage(counts, link_totals),
+    linked_pct = linked_share(session, viewer, today=today)["pct"]
+    out = {"groups": groups, "links": links, "actions": _actions(),
+           "cq": _coverage(counts, link_totals, linked_pct=linked_pct),
            "total": sum(counts.values()), "group_labels": {key: label for key, label, _t in TYPE_GROUPS}}
     if erp:  # 켜기 전 점수를 같이 적는다(시험지를 쉽게 만든 것이 아니라 재료가 생긴 것 — 설계서 3.8)
-        cq = _coverage(counts, link_totals, erp_ready_needs())
+        cq = _coverage(counts, link_totals, erp_ready_needs(), linked_pct)
         cq["covered_before"] = out["cq"]["covered"]
         out.update(cq=cq, erp=_erp_summary(cq["rows"]))
     return out
@@ -257,7 +264,7 @@ def ontology_type(session: Any, viewer: Viewer, item_type: str, *, today: dateti
         return None
     rows = list(session.execute(select(BrainObject).where(BrainObject.item_type == item_type,
                                                           *visible_clauses(viewer, today))
-                                .order_by(BrainObject.usage_count.desc(), BrainObject.item_key)
+                                .order_by(usage_total(BrainObject).desc(), BrainObject.item_key)
                                 .limit(_SCAN_CAP)).scalars())
     per_link = _link_counts(session, viewer, today)
     counts = _counts(session, viewer, today)
