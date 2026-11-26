@@ -26,6 +26,7 @@ from foms.persistence.brain.models import BrainLink, BrainObject
 from foms.services.brain.constants import BRAND_COMMON, SCOPE_ALL, STATUS_ACTIVE
 from foms.services.brain.labels import MIN_LABEL, aliases_of, norm, pref_of
 from foms.services.brain.store import in_force, is_current
+from foms.services.brain.usage import usage_total
 
 __all__ = ["ITEM_TYPES", "MAX_ITEMS", "MAX_RULES", "OntoHit", "OntoRule", "RULE_TYPES", "find_items", "hits_for",
            "doc_id_of", "hits_from", "matches", "visible"]
@@ -116,13 +117,14 @@ def doc_id_of(payload: Any) -> str:
 
 def _rules(session: Any, keys: Sequence[str], brand: str, day: datetime.date) -> dict[str, list[OntoRule]]:
     """물건 키마다 들어오는 ``applies_to`` 규칙(쓰인 횟수 많은 순 · 물건당 :data:`MAX_RULES`)."""
+    used = usage_total(BrainObject).label("usage")  # 판 줄 옛 값 + 따로 센 합(같은 select 안 상관 부분 질의)
     rows = session.execute(
         select(BrainLink.to_key, BrainObject.item_key, BrainObject.item_type, BrainObject.name, BrainObject.payload,
-               BrainObject.usage_count)
+               used)
         .join(BrainObject, BrainObject.item_key == BrainLink.from_key)
         .where(is_current(BrainLink), BrainLink.kind == "applies_to", BrainLink.to_key.in_(list(keys)),
                BrainObject.item_type.in_(RULE_TYPES), *visible(BrainObject, brand, day))
-        .order_by(BrainObject.usage_count.desc(), BrainObject.item_key)).all()
+        .order_by(used.desc(), BrainObject.item_key)).all()
     out: dict[str, list[OntoRule]] = {key: [] for key in keys}
     for to_key, key, item_type, name, payload, usage in rows:
         if len(out[to_key]) < MAX_RULES:

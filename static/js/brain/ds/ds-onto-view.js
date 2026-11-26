@@ -139,6 +139,12 @@
              change: before === null ? '' : 'ERP 재료를 세기 전 ' + before + ' → 지금 ' + c.covered };
   }
 
+  /** 점수 줄에 붙일 한 마디 — ' · 이어진 지식 38%'(살아 있는 지식 가운데 잇기가 있는 비율). 값이 없으면 빈 글. */
+  function linkedText(cq) {
+    var pct = cq ? cq.linked_pct : null;
+    return pct === undefined || pct === null || isNaN(Number(pct)) ? '' : ' · 이어진 지식 ' + Number(pct) + '%';
+  }
+
   /** 아직 못 푸는 질문 — 앞 n 개 {id, question, missing: [{label, erp}], erpFix} + 모두 수. */
   function fails(cq, n) {
     var rows = ((cq && cq.rows) || []).filter(function (row) { return !row.covered; });
@@ -169,8 +175,8 @@
   var api = { pickFromQuery: pickFromQuery, pickQuery: pickQuery, defaultPick: defaultPick, navModel: navModel,
               matches: matches, typeSub: typeSub, rangeText: rangeText, requiredText: requiredText,
               cardinalityText: cardinalityText, endsText: endsText, erpMeta: erpMeta, accessTone: accessTone,
-              levelTone: levelTone, whereIcon: whereIcon, score: score, fails: fails, fillable: fillable, fillHref: fillHref,
-              DATATYPES: DATATYPES, BASIS: BASIS, STAGES: STAGES };
+              levelTone: levelTone, whereIcon: whereIcon, score: score, linkedText: linkedText, fails: fails,
+              fillable: fillable, fillHref: fillHref, DATATYPES: DATATYPES, BASIS: BASIS, STAGES: STAGES };
   root.FOMS_DS_ONTO_VIEW = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

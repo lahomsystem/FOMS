@@ -174,6 +174,10 @@ def test_score_change_and_left_questions_from_the_api(summaries):
     not_covered = [r for r in cq["rows"] if not r["covered"]]
     assert left["total"] == len(not_covered) and [r["id"] for r in left["rows"]] == [r["id"] for r in not_covered[:5]]
     assert all(row["missing"] for row in left["rows"])
+    pct = summaries["off"]["cq"]["linked_pct"]  # 점수 줄 글에 한 마디(설계서 2026-11-26 온톨로지 잇기 3.1)
+    assert _node("[v.linkedText(data), v.linkedText({linked_pct: null}), v.linkedText(null)]", summaries["off"]["cq"]) == [
+        f" · 이어진 지식 {pct}%" if pct is not None else "", "", ""]
+    assert _node("v.linkedText({linked_pct: 38})") == " · 이어진 지식 38%"
 
 
 @NODE

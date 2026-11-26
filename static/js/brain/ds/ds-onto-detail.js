@@ -219,7 +219,8 @@
               })))];
     }
     return [kit.crumbs([{ text: '온톨로지', kind: 'home' }, { text: '능력 질문' }]),
-            plainHead('능력 질문(시험지)', s.cq.covered + ' / ' + s.cq.total + ' 질문에 필요한 종류 · 연결이 있어요. 내용이 맞는지는 평가 단계에서 재요.'),
+            plainHead('능력 질문(시험지)', s.cq.covered + ' / ' + s.cq.total + ' 질문에 필요한 종류 · 연결이 있어요' +
+                      ov.linkedText(s.cq) + '. 내용이 맞는지는 평가 단계에서 재요.'),
             boxed(cqTable(s.cq, null, ctx.fill))];
   }
 
