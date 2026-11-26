@@ -16,7 +16,7 @@ from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.erp_template_filters import eval_spec_width_mm, item_spec_w300_value
 from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.construction_dates import production_split_note
-from foms.services.orders.drawing_confirm_partial import active_items
+from foms.services.orders.drawing_confirm_partial import active_items, file_item_uids, item_ref
 from foms.services.orders.drawing_factory import has_second_factory, sheet_factory
 from foms.services.orders.drawing_fix import confirm_extras
 from foms.services.production.factory_constants import FACTORY_2, factory_label
@@ -156,6 +156,8 @@ def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
     """
     out: list[dict[str, str]] = []
     mixed = has_second_factory(sd)
+    items = sd.get('items') if isinstance(sd.get('items'), list) else []
+    refs = {item_ref(items, i): it for i, it in enumerate(items) if isinstance(it, dict)}
     for f in resolve_final_drawing_files(sd):
         view = (f.get('view_url') or '').strip()
         if not view:
@@ -167,6 +169,9 @@ def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
             'thumb': _small_drawing_url(f, view),  # 작은 줄만
             'download': (f.get('download_url') or view).strip(),
             'label': name,
+            # 그림 위 제목 = 품목 이름(도면 칸 "도면 1 · 거실장"과 같은 이음 — 사장님 2026-11-26, 파일 이름 · 확장자 대신). 못 이으면 ''.
+            'title': ', '.join(n for n in (str(refs[u].get('product_name') or refs[u].get('name') or '').strip()
+                                           for u in file_item_uids(sd, f) if u in refs) if n),
         }
         if mixed and sheet_factory(sd, f) == FACTORY_2:
             item['fac'] = factory_label(FACTORY_2)
