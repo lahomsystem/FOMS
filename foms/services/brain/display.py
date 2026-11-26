@@ -9,12 +9,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from foms.services.brain.constants import (
     AGENT_WORK_TYPES, BRAND_COMMON, CANON_EXTERNAL_TYPES, COMMON_TYPES, COPY_EXTERNAL_TYPES, CS_TYPES, DRAWING_TYPES,
-    EXT_CALCULATOR, EXT_ERP_STAGE, EXT_FORM, EXT_MACRO, EXT_SCREEN, EXT_SETTING, EXT_STORE, LINK_KINDS,
-    OBSERVATION_TYPES, SCOPE_ADMIN, SCOPE_ALL, SCOPE_PRICE, SCOPE_TEAM_PREFIX, TEAMS, TYPES,
+    EXT_CALCULATOR, EXT_ERP_STAGE, EXT_FORM, EXT_MACRO, EXT_SCREEN, EXT_SETTING, EXT_STORE, EXTERNAL_TYPES, LINK_KINDS,
+    OBSERVATION_TYPES, SCOPE_ADMIN, SCOPE_ALL, SCOPE_PRICE, SCOPE_TEAM_PREFIX, TEAMS, TYPES, link_allowed,
 )
 from foms.services.brain.schemas import CHOICE_LABELS
 from foms.services.orders.team_labels import team_label
@@ -91,7 +91,14 @@ LINK_DISPLAY: dict[str, tuple[str, str, str, str]] = {
     "refines": ("다듬음", "#65a30d", "다듬은 것", "다듬은 배운 점"),
     "broader": ("위 항목", "#6366f1", "위(넓은) 항목", "아래(좁은) 항목"),
     "part_of": ("들어감", "#9333ea", "들어가는 제품 라인", "이 제품의 그림 조각 종류"),
+    "quantity_from": ("수량 표", "#c026d3", "수량을 따르는 표", "이 표로 수량을 세는 가격 규칙"),
 }
+#: (링크 종류, 카드 주인 유형) → (나가는 쪽 이름, 들어오는 쪽 이름) — 한 종류가 시작 유형마다 뜻이 갈릴 때만(:data:`.constants.NARROW_ENDS`).
+#: ``refines`` 는 배운 점 → 상황 · 상용구 · 말투(다듬음, :data:`LINK_DISPLAY`)와 사실 · 정책 → 규칙(자세히 풂 — 2026-11-26 5절)이
+#: 갈린다. 좁힘 덕에 카드 주인 유형 하나로 어느 뜻인지 정해진다.
+_REFINES_RULE = ("자세히 푸는 규칙", "자세히 푼 지식")
+LINK_SIDE_BY_TYPE: dict[tuple[str, str], tuple[str, str]] = {
+    ("refines", t): _REFINES_RULE for t in ("fact", "policy", "price_rule", "spec", "build_rule")}
 
 LAYER_LABELS: dict[str, str] = {"common": "공통 바탕", "cs": "상담", "drawing": "도면", "production": "생산"}
 BRAND_LABELS: dict[str, str] = {"LAHOM": "라홈", "HAUD": "하우드", BRAND_COMMON: "공통"}
@@ -183,6 +190,39 @@ def visibility_label(value: str) -> str:
 def type_label(item_type: str) -> str:
     """유형 → 이름(모르는 유형은 키 그대로)."""
     return TYPE_DISPLAY.get(item_type, (item_type, "", ""))[0]
+
+
+def link_side_label(kind: str, direction: str, item_type: Optional[str] = None) -> str:
+    """카드 연결 묶음 이름 — 그 카드 주인 유형에서 본 나감(``out``) · 들어옴 이름. 갈리는 짝은 :data:`LINK_SIDE_BY_TYPE`."""
+    side = LINK_SIDE_BY_TYPE.get((kind, item_type or ""))
+    if side is None:
+        shown = LINK_DISPLAY.get(kind, (kind, "", kind, kind))
+        side = (shown[2], shown[3])
+    return side[0] if direction == "out" else side[1]
+
+
+def _topic(word: str) -> str:
+    """``'이름'은`` · ``'이름'는`` — 마지막 글자 받침으로(한글이 아니면 '은')."""
+    last = word[-1:]
+    plain = "가" <= last <= "힣" and (ord(last) - ord("가")) % 28 == 0
+    return f"'{word}'" + ("는" if plain else "은")
+
+
+def link_pair_text(source_type: Optional[str], kind: Optional[str]) -> Optional[str]:
+    """허용하지 않는 연결 짝일 때의 한 줄 — 그 시작 유형이 이 종류로 **지금** 이을 수 있는 끝 유형(허용 표 · 좁힘에서 뽑는다).
+
+    이 종류로 이을 끝이 하나도 없으면 그 유형이 쓰는 연결 종류를 적는다. 시작 유형 · 종류를 모르면 ``None``(부르는 쪽 기본 글)."""
+    if source_type not in TYPE_DISPLAY or kind not in LINK_KINDS:
+        return None
+    order = (*TYPES, *EXTERNAL_TYPES)
+    who, kind_name = _topic(type_label(source_type)), LINK_DISPLAY.get(kind, (kind,))[0]
+    ends = [t for t in order if link_allowed(source_type, kind, t)]
+    if ends:
+        return f"{who} '{kind_name}' 연결로 {' · '.join(type_label(t) for t in ends)}에 이을 수 있어요. 이 짝은 아직 못 이어요."
+    usable = [LINK_DISPLAY.get(k, (k,))[0] for k in LINK_KINDS if any(link_allowed(source_type, k, t) for t in order)]
+    if not usable:
+        return f"{who} 아직 어디에도 잇지 않아요."
+    return f"{who} '{kind_name}' 연결을 쓰지 않아요 — {' · '.join(usable)} 연결로 이어 주세요."
 
 
 def display_table() -> dict[str, Any]:

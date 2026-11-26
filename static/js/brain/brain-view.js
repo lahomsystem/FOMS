@@ -160,15 +160,23 @@
     var merged = {};
     var order = [];
     ((map && map.links) || []).forEach(function (link) {
-      var pairs = link.pairs || [];
-      if (!pairs.length) return;
-      var starts = compressEnds(uniq(pairs.map(function (p) { return p[0]; })), groups);
-      var ends = compressEnds(uniq(pairs.map(function (p) { return p[1]; })), groups);
-      starts.forEach(function (s) {
-        ends.forEach(function (d) {
-          var key = s + '>' + d;
-          if (!merged[key]) { merged[key] = { source: s, target: d, kinds: [] }; order.push(key); }
-          if (merged[key].kinds.indexOf(link.kind) < 0) merged[key].kinds.push(link.kind);
+      // 끝 묶음이 같은 시작끼리 줄인다 — 시작 유형마다 끝을 좁힌 종류(NARROW_ENDS)에 없는 짝의 선을 긋지 않게
+      var bySet = {};
+      var setOrder = [];
+      uniq((link.pairs || []).map(function (p) { return p[0]; })).forEach(function (a) {
+        var ends = uniq(link.pairs.filter(function (p) { return p[0] === a; }).map(function (p) { return p[1]; }));
+        var id = ends.join('|');
+        if (!bySet[id]) { bySet[id] = { starts: [], ends: ends }; setOrder.push(id); }
+        bySet[id].starts.push(a);
+      });
+      setOrder.forEach(function (id) {
+        var ends = compressEnds(bySet[id].ends, groups);
+        compressEnds(bySet[id].starts, groups).forEach(function (s) {
+          ends.forEach(function (d) {
+            var key = s + '>' + d;
+            if (!merged[key]) { merged[key] = { source: s, target: d, kinds: [] }; order.push(key); }
+            if (merged[key].kinds.indexOf(link.kind) < 0) merged[key].kinds.push(link.kind);
+          });
         });
       });
     });

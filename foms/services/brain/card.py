@@ -25,7 +25,7 @@ from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.browse import name_order, pref_name
 from foms.services.brain.conflicts import open_conflict_counts
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
-from foms.services.brain.display import agent_label
+from foms.services.brain.display import agent_label, link_side_label
 from foms.services.brain.external import ref_cards
 from foms.services.brain.quality import item_rules, missing_links, retired_targets
 from foms.services.brain.read import current_item, effect_state, item_history
@@ -72,12 +72,17 @@ def _ranked_links(session: Any, viewer: Viewer, key: str, today: datetime.date) 
                            .order_by(ranked.c.kind, ranked.c.direction, ranked.c.rank)).all()
 
 
-def link_groups(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -> list[dict[str, Any]]:
-    """링크 종류 · 방향별 묶음 ``[{"kind", "direction", "count", "items": [...]}]`` — 종류 차례대로."""
+def link_groups(session: Any, viewer: Viewer, key: str, *, today: datetime.date,
+                item_type: Optional[str] = None) -> list[dict[str, Any]]:
+    """링크 종류 · 방향별 묶음 ``[{"kind", "direction", "label", "count", "items": [...]}]`` — 종류 차례대로.
+
+    ``label`` = 카드 주인 유형(``item_type``)에서 본 묶음 이름(:func:`.display.link_side_label` — 한 종류가 시작 유형마다 뜻이
+    갈리는 ``refines`` 같은 것)."""
     groups: dict[tuple[str, str], dict[str, Any]] = {}
     for row in _ranked_links(session, viewer, key, today):
-        entry = groups.setdefault((row.kind, row.direction), {"kind": row.kind, "direction": row.direction,
-                                                              "count": int(row.size), "items": []})
+        entry = groups.setdefault((row.kind, row.direction), {
+            "kind": row.kind, "direction": row.direction, "count": int(row.size), "items": [],
+            "label": link_side_label(row.kind, row.direction, item_type)})
         entry["items"].append({"key": row.key, "name": row.name, "type": row.type, "status": row.status,
                                "stale": bool(row.stale_after and row.stale_after < today),
                                "confidence": row.confidence})
@@ -211,7 +216,7 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
                  "recorded_at": _kst(item.get("recorded_at"))},
         "created_by": actor_label(item.get("created_by"), names),
         "approver": approver_label(item, names), "key_fields": keys, "payload_values": payload_values, "labels": labels,
-        "links": link_groups(session, viewer, key, today=today),
+        "links": link_groups(session, viewer, key, today=today, item_type=item["type"]),
         "external": ref_cards(session, viewer, external_chips(session, key, today), layer=item["layer"]),
         "missing_links": gaps, "link_rules": rules, "warnings": warnings,
         "copies": list(item.get("copies") or []),

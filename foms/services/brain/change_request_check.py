@@ -41,7 +41,7 @@ from foms.services.brain.constants import (
     BRANDS, DOC_TYPES, KEY_RE, LINK_KINDS, OP_LINK_ADD, OP_LINK_REMOVE, SCOPE_ALL, STATUS_ACTIVE, STATUS_RETIRED,
     TYPE_LAYERS, external_type, link_allowed,
 )
-from foms.services.brain.display import FIELD_LABELS, LAYER_LABELS
+from foms.services.brain.display import FIELD_LABELS, LAYER_LABELS, link_pair_text
 from foms.services.brain.errors import BrainError
 from foms.services.brain.gates import hanja_count
 from foms.services.brain.labels import pref_of
@@ -116,11 +116,18 @@ def _line(kind: str, *, key: Optional[str], label: str, why: str, layer: Optiona
             "change_id": None, "plan": plan or {}}
 
 
-def _block(line: dict[str, Any], code: str) -> dict[str, Any]:
-    """줄을 '못 고친 것'으로(까닭 하나 — 먼저 걸린 것)."""
+def _block(line: dict[str, Any], code: str, text: Optional[str] = None) -> dict[str, Any]:
+    """줄을 '못 고친 것'으로(까닭 하나 — 먼저 걸린 것). ``text`` 가 있으면 그 줄에 맞춘 쉬운 말(코드는 그대로)."""
     if line["check"] is None:
         line["check"], line["state"] = check_of(code), STATE_BLOCKED
+        if text:
+            line["check"]["text"] = text
     return line
+
+
+def _pair_block(line: dict[str, Any], source_type: Optional[str], kind: Any) -> dict[str, Any]:
+    """허용하지 않는 연결 짝 — 그 시작 유형이 이 종류로 지금 이을 수 있는 끝을 같이 적는다(:func:`.display.link_pair_text`)."""
+    return _block(line, "link_kind", link_pair_text(source_type, kind if isinstance(kind, str) else None))
 
 
 def _update(session: Any, viewer: Viewer, row_in: Mapping[str, Any]) -> dict[str, Any]:
@@ -259,11 +266,11 @@ def _link(session: Any, viewer: Viewer, row_in: Mapping[str, Any],
     if source_type is None or to_type is None:
         return _block(line, "unknown_key")
     if new is not None:
-        return line if link_allowed(source_type, kind, to_type) else _block(line, "link_kind")
+        return line if link_allowed(source_type, kind, to_type) else _pair_block(line, source_type, kind)
     link = current_link(session, kind, start, end)
     if kind_op == KIND_LINK_ADD:
         if not link_allowed(source_type, kind, to_type):
-            return _block(line, "link_kind")
+            return _pair_block(line, source_type, kind)
         return _block(line, "same") if link is not None else line
     if link is None:
         return _block(line, "missing_link")

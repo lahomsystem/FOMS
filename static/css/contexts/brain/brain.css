@@ -66,6 +66,7 @@
 .brain-link--refines { --brain-link: #65a30d; }
 .brain-link--broader { --brain-link: #6366f1; }
 .brain-link--part_of { --brain-link: #9333ea; }
+.brain-link--quantity_from { --brain-link: #c026d3; }
 
 /* ── 머리 ── */
 .brain-head {
