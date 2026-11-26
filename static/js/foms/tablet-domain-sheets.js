@@ -280,10 +280,37 @@
       });
   }
 
+  // [바뀐 것] 탭(home_changes.html) 한 줄 지우기 — 줄 제거, 탭 · 머리 숫자 1 감소(0 이면 is-hot 빼고 is-zero),
+  // 미확인 줄이 다 비면 서버가 그리는 빈 글을 같은 자리에 둔다. 처리했으면 true.
+  function removeInboxRow(row) {
+    if (!row || !row.parentNode) return false;
+    var box = row.closest(".fph-inbox");
+    if (!box) return false;
+    row.parentNode.removeChild(row);
+    var headRow = box.querySelector(".fph-inbox__h");
+    var head = headRow ? headRow.querySelector("b") : null;
+    var navTab = document.querySelector(".foms-prod-home__navtab[aria-current='page']");
+    var tab = navTab ? navTab.querySelector("small") : null;
+    var left = box.querySelectorAll("[data-foms-home-inbox]").length;
+    [head, tab].forEach(function (el) {
+      if (!el) return;
+      el.textContent = String(left);
+      if (el === head) el.classList.toggle("is-zero", left === 0);
+      else el.classList.toggle("is-hot", left > 0);
+    });
+    if (!left && !box.querySelector(".foms-prod-home__empty")) {
+      var empty = document.createElement("p");
+      empty.className = "foms-prod-home__empty";
+      empty.textContent = "새로 바뀐 것이 없어요.";
+      box.insertBefore(empty, box.querySelector("[data-foms-home-done], .fph-inbox__more"));
+    }
+    return true;
+  }
+
   // 변경 확인(ack) — 묘비 카드/시트의 [변경 확인] 버튼. 생산 진입 후 감지된 변경/취소를
   // 팀 확인으로 해제한다. 성공 시 새로고침으로 read-model(카드 스트립/묘비/카운트)을 재조회.
   // 삭제 주문(묘비)에도 허용되는 전용 엔드포인트. 에러 키 = error(생산 API 패턴).
-  function changeAck(orderId) {
+  function changeAck(orderId, inboxRow) {
     if (!orderId) return;
     fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/change-ack", {
       method: "POST",
@@ -298,7 +325,9 @@
       })
       .then(function (data) {
         if (data && data.success) {
-          window.location.reload();
+          // [바뀐 것] 탭 줄만 그 줄을 지우고 숫자를 줄인다(보던 자리 유지, 사장님 결정 2026-11-26).
+          // 그 밖 화면(작업 시트 · 날짜 탭 줄 · 칸반)은 지금처럼 다시 읽는다.
+          if (!removeInboxRow(inboxRow)) window.location.reload();
         } else {
           window.alert((data && (data.error || data.message)) || "처리하지 못했어요");
         }
@@ -694,7 +723,7 @@
     var ackBtn = target.closest("[data-kanban-action='change-ack']");
     if (ackBtn) {
       ev.preventDefault();
-      changeAck(ackBtn.getAttribute("data-order-id"));
+      changeAck(ackBtn.getAttribute("data-order-id"), ackBtn.closest("[data-foms-home-inbox]"));
       return;
     }
 
