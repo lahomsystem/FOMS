@@ -2026,3 +2026,9 @@
 - 핀: parts `x` · parts-modal `v` · parts-crew `u`.
 - 확인: 생산 시험 `1996 passed` · 새 시험 둘 · 준비물 서버 실화면(반장 창 제목 · 줄 숨김 · 탭 [작업 중 3] · [남은 공정 22] · 표 자리) · 서버 · SQLite 치움.
 - 알아 둘 것: `audit_coverage` 인벤토리가 다른 창의 `sales_commission.py` 줄 밀림(45477cb9e)으로 어긋나 있음 — 내 것이 아니라 손대지 않음.
+
+## 답 넷(다섯째 묶음) 스테이징 올림 (11-26)
+
+- `safe_push`(smoke_push98): `21935 passed, 831 skipped` / `174 passed, 27 skipped` / `PUSHED 99700357a`.
+- 내 커밋의 FOMS CI 는 다른 창이 바로 뒤에 올려 'cancelled'(검증 아님)로 끝남 → 내 커밋을 품은 뒤 커밋 `92b9bfeb` 의 CI 를 기다려 확인: FOMS CI · Harness CI · PostgreSQL Lane 모두 success.
+- 운영은 다른 창의 승격으로 계속 바뀌는 중(#920 · #922) — 이 세션 것은 #919 까지.
