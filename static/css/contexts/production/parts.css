@@ -157,7 +157,7 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .fph-wi.pp-st-hold:hover { color: var(--fph-hold-700); border-color: var(--fph-hold-300); }
 .fph-wi.pp-st-revise:hover { color: var(--fph-revise-700); border-color: var(--fph-revise-300); }
 .fph-wi.pp-st-pre:hover { color: var(--fph-pre-700); border-color: var(--fph-pre-300); }
-.fph-wi.pp-st-hold, .fph-wi.pp-st-revise, .fph-wi.pp-st-pre { white-space: normal; text-align: center; line-height: 1.25; } /* 글자 150% 면 두 줄 */
+.fph-wi.pp-st-hold, .fph-wi.pp-st-revise, .fph-wi.pp-st-pre { white-space: normal; text-align: center; line-height: 1.25; word-break: keep-all; overflow-wrap: anywhere; } /* 글자 150% 면 두 줄 · 낱말 가운데서 안 꺾임(긴 보류 사유) */
 /* 남의 담당 = 분홍 칸 하나가 곧 단추(누르면 담당 바꾸기 창, §8-1): 첫 줄 "담당 박엣지", 둘째 줄 어제부터 · 김민준에서 바뀜 14:20, 오른쪽 › */
 .fph-wi.pp-held { justify-content: space-between; gap: 8px; padding: 4px 12px; line-height: 1.2; }
 .pp-held__who { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
