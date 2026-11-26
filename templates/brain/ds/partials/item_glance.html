@@ -71,7 +71,7 @@
     {%- for group in card.links %}
     {%- set ld = link_display.get(group.kind, (group.kind, '', group.kind, group.kind)) %}
     <div class="f-col f-gap4 brain-link--{{ group.kind }}">
-      <span class="f-row-nw f-gap4"><span class="brain-swatch fb-swatch" aria-hidden="true"></span><span class="f-h6">{{ ld[2] if group.direction == 'out' else ld[3] }}</span><span class="f-small f-muted">{{ group.count }}</span></span>
+      <span class="f-row-nw f-gap4"><span class="brain-swatch fb-swatch" aria-hidden="true"></span><span class="f-h6">{{ group.label or (ld[2] if group.direction == 'out' else ld[3]) }}</span><span class="f-small f-muted">{{ group.count }}</span></span>
       <ul class="f-col f-gap4">
         {%- for other in group['items'] %}
         <li class="f-row-nw f-gap4 fb-link">

@@ -28,7 +28,7 @@ from foms.services.brain.browse import compress_types
 from foms.services.brain.constants import (
     ALLOWED_LINKS, EXTERNAL_TYPES, LINK_KINDS, TYPE_LAYERS, TYPES, cardinality, link_allowed,
 )
-from foms.services.brain.display import LAYER_LABELS, LINK_DISPLAY, TYPE_DISPLAY, TYPE_GROUPS
+from foms.services.brain.display import LAYER_LABELS, LINK_DISPLAY, TYPE_DISPLAY, TYPE_GROUPS, link_side_label
 from foms.services.brain.ontology_cqs import CQS, ERP_NEED_TYPES, ERP_NEEDS
 from foms.services.brain.quality import linked_share
 from foms.services.brain.read import visible_clauses
@@ -63,7 +63,7 @@ LINK_STANDARDS: dict[str, str] = {
     "evidence_of": "^prov:wasDerivedFrom", "caused_by": "foms:causedBy", "fixed_by": "foms:fixedBy",
     "about": "dcterms:subject", "decided_by": "prov:wasGeneratedBy", "at_step": "^schema:step", "uses": "prov:used",
     "answers": "^schema:acceptedAnswer", "refines": "prov:wasRevisionOf", "broader": "skos:broader",
-    "part_of": "schema:isPartOf",
+    "part_of": "schema:isPartOf", "quantity_from": "schema:eligibleQuantity",
 }
 #: 속성 자리 → 표준 속성(없으면 ``foms:<칸>``).
 PROP_STANDARDS: dict[str, str] = {
@@ -238,7 +238,8 @@ def _type_links(item_type: str, per_link: dict[tuple[str, str], int]) -> list[di
     out = []
     for kind in LINK_KINDS:
         starts, ends = ALLOWED_LINKS[kind]
-        label, _color, out_label, in_label = LINK_DISPLAY.get(kind, (kind, "", kind, kind))
+        label = LINK_DISPLAY.get(kind, (kind,))[0]
+        out_label, in_label = link_side_label(kind, "out", item_type), link_side_label(kind, "in", item_type)
         if item_type in starts:
             targets = [t for t in order if t in ends and link_allowed(item_type, kind, t)]
             if targets:

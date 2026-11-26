@@ -14,6 +14,8 @@
 - 7.8 온톨로지 바로잡기(⑤-6 · D115 ~ D126): 공정 단계 유형(``process_step``) · 링크 일곱(``decided_by`` · ``at_step`` ·
   ``uses`` · ``answers`` · ``refines`` · ``broader`` · ``part_of``) · 바깥 자리 다섯(ERP 단계 정본 + 사본 넷) · 근거 종류별 가격
   규칙 연결 개수(:func:`cardinality`) · 값 목록 검사 한 곳(:func:`value_problems`).
+- 2026-11-26 온톨로지 잇기 5절(사장님 11-27 승인): 새 종류 ``quantity_from``(가격 규칙 → 규격 — 하나까지) · ``refines`` ·
+  ``uses`` · 사실 ``applies_to`` 넓힘(시작 유형마다 :data:`NARROW_ENDS` 로 좁힘).
 """
 
 from __future__ import annotations
@@ -148,6 +150,7 @@ LINK_CARDINALITY: dict[tuple[str, str], tuple[int, int | None]] = {
     ("option", "value_from"): (0, 1),  # 옵션 → 계산기 옵션 하나까지
     ("bom_rule", "value_from"): (1, 1),  # 자재표 규칙은 '가리키는 항목'(8절) — 설정 키 꼭 하나
     ("process_step", "value_from"): (0, 1),  # 공정 단계 → ERP 단계 정본 하나까지(7.8 다음 3)
+    ("price_rule", "quantity_from"): (0, 1),  # 가격 규칙 하나의 수량은 표 하나를 따른다(2026-11-26 5절)
     **{(t, "evidence_of"): (1, None) for t in OBSERVATION_TYPES},  # 관찰은 받치는 항목이 하나 이상(외톨이 관찰)
 }
 #: 가격 규칙 근거 종류(``payload.basis`` — 7.8 다음 1 · 사장님 D115) → (최소, 최대, 받는 끝 유형): 계산기 값 · 회사 지식 정본

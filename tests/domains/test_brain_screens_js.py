@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from foms.services.brain.browse import type_map_data
-from foms.services.brain.constants import ALLOWED_LINKS, LINK_KINDS
+from foms.services.brain.constants import ALLOWED_LINKS, LINK_KINDS, link_allowed
 
 ROOT = Path(__file__).resolve().parents[2]
 VIEW = ROOT / "static/js/brain/brain-view.js"
@@ -88,11 +88,24 @@ def test_map_elements_compress_whole_groups_and_merge_parallel_lines():
     # 같은 두 끝의 선은 하나로(필요 · 제외)
     assert edges["e:t:build_rule>t:product_line"]["kinds"] == ["applies_to", "requires", "excludes"]
     assert edges["e:t:build_rule>t:product_line"]["label"] == "적용 · 필요 · 제외"
-    assert edges["e:t:product_line>g:external"]["kinds"] == ["value_from"]
+    # 시작마다 좁힌 끝만 선으로 — 제품 라인 → 계산기 · 설정(ERP 단계는 공정 단계만 — 묶음째 거짓 선 없음)
+    assert edges["e:t:product_line>t:ext_calculator"]["kinds"] == ["value_from"]
+    assert "e:t:product_line>g:external" not in edges and "e:t:product_line>t:ext_erp_stage" not in edges
+    assert edges["e:t:process_step>t:ext_erp_stage"]["kinds"] == ["value_from"]
+    assert "e:t:lesson>t:price_rule" not in edges and edges["e:t:fact>t:price_rule"]["kinds"] == ["refines"]
+    assert edges["e:t:price_rule>t:spec"]["kinds"] == ["quantity_from"]
     kinds = {k for e in edges.values() for k in e["kinds"]}
     # 짝 있는 종류는 모두 그림에(원인 · 고침은 판 3) — 같은 유형끼리(broader)는 자기 자신 선뿐이라 범례에만
     assert kinds == {k for k in LINK_KINDS if ALLOWED_LINKS[k][0]} - {"broader"}
-    assert len(edges) < 75  # 실뭉치 막기 — 짝 그대로면 290 개가 넘는다(7.8 링크 일곱 뒤)
+    # 실뭉치 막기 — 짝 그대로면 300 개가 넘는다. 2026-11-26 5절 넓힘(사실 · 정책 · 가격 규칙 · 규격 끝 좁힘)이 선 열넷을 더하고,
+    # 시작마다 좁힌 끝만 그어 값 정본의 거짓 선을 걷어 89 개(옛 표 · 옛 줄이기 70 개는 거짓 선 다섯이 섞였다)
+    assert len(edges) < 95
+    # 거짓 선 0 — 선의 두 끝을 유형으로 풀면 그 종류의 모든 짝이 허용 표 · 좁힘에 있다
+    members = {"g:" + g["key"]: [t["type"] for t in g["types"]] for g in data["groups"]}
+    for e in edges.values():
+        froms, tos = members.get(e["source"], [e["source"][2:]]), members.get(e["target"], [e["target"][2:]])
+        for kind in e["kinds"]:
+            assert all(link_allowed(a, kind, b) for a in froms for b in tos), (e["id"], kind)
 
 
 @NODE

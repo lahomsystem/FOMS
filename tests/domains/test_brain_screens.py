@@ -17,7 +17,7 @@ from foms.services.brain.browse import (
     TableQuery, TableQueryError, parse_table_query, search_grouped, table_page, type_map, type_map_data,
 )
 from foms.services.brain.card import item_card
-from foms.services.brain.constants import ALLOWED_LINKS, LINK_KINDS, TYPES, link_allowed
+from foms.services.brain.constants import ALLOWED_LINKS, LINK_KINDS, NARROW_ENDS, SAME_TYPE_KINDS, TYPES, link_allowed
 from foms.services.brain.display import TYPE_DISPLAY
 from foms.services.brain.release_view import release_diff, release_page
 from foms.services.brain.scope import viewer_of
@@ -140,7 +140,8 @@ def test_type_map_counts_by_scope_and_lists_every_type_and_link_kind(who):
     for link in admin["links"]:
         starts, ends = ALLOWED_LINKS[link["kind"]]
         assert link["pairs"] == [[a, b] for a, b in link["pairs"] if link_allowed(a, link["kind"], b)]
-        narrowed = link["kind"] in ("value_from", "broader")  # 시작 유형별 좁힘 · 같은 유형끼리는 지도에 선 없음(7.8)
+        # 시작 유형별 좁힘(value_from · 넓힌 refines · uses — 2026-11-26 5절) · 같은 유형끼리는 지도에 선 없음(7.8)
+        narrowed = link["kind"] in SAME_TYPE_KINDS or any(k == link["kind"] for _t, k in NARROW_ENDS)
         assert (len(link["pairs"]) < len(starts) * len(ends)) if narrowed else (
             len(link["pairs"]) == len(starts) * len(ends)), link["kind"]
     evidence = next(link for link in admin["links"] if link["kind"] == "evidence_of")
