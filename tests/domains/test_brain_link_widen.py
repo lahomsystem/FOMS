@@ -3,7 +3,8 @@
 - 되는 짝: 사실 → 제품 · 옵션(적용) · 사실 · 정책 → 규칙(자세히 풂, ``refines``) · 공통 바탕 글 → 용어(``uses``) ·
   가격 규칙 → 규격(수량 표, ``quantity_from``). 안 되는 짝(음성 대조군)은 같은 종류 · 같은 유형 안에서 고른다.
 - 사람 길(제안 → 승인)로 수량 표가 들어가고, 둘째 수량 표는 연결 개수 상한(하나까지)에 걸린다.
-- 바로 반영(사람 없이) 길은 넓힌 종류를 받지 않는다(:data:`.apply.AUTO_LINK_KINDS` 는 그대로) — 대조군: 사실 → 옵션 적용은 받는다.
+- 바로 반영(사람 없이) 길은 수량 표 ``quantity_from`` 을 받지 않는다(:data:`.apply.AUTO_LINK_KINDS` — 7.2 '뻔한 것은 AI가 바로'의 네 종류만) —
+  대조군: 사실 → 옵션 적용 · 자세히 풂 · 낱말 씀은 받는다.
 - 링크 제약(고리 · 맞서는 짝 · 근거 끝)이 새 종류에서 오류 없이 돈다 · 막힐 때 안내 글은 허용 표에서 뽑는다.
 
 합성 지식 · 합성 계정만(손님 글 · 직원 이름 · 금액 · 회사 지식 글 없음 · 네트워크 0).
@@ -63,7 +64,7 @@ def test_old_meanings_are_kept_and_the_new_kind_is_everywhere():
     assert {"quantity_from"} <= set(LINK_DISPLAY) & set(LINK_STANDARDS) & set(c.ALLOWED_LINKS)
     assert c.cardinality("price_rule", "quantity_from") == (0, 1) and len("quantity_from") <= 16  # 잇기 종류 칸 16자
     assert c.value_problems(kind="quantity_from", check=("kind",)) == []
-    assert AUTO_LINK_KINDS == frozenset({"applies_to"})  # 이 목록은 넓힘이 건드리지 않는다
+    assert AUTO_LINK_KINDS == frozenset({"applies_to", "at_step", "uses", "refines"})  # 7.2 — 금액 · 수량 정본 · '같이 안 돼요'는 없다
     # '이을 수 있음 / 틀이 막음' 가름은 허용 표를 그대로 탄다
     assert _can_link("price_rule", "spec") and _can_link("term", "fact") and not _can_link("lesson", "price_rule")
 
@@ -141,10 +142,8 @@ def test_refines_and_uses_go_in_by_a_person_and_the_card_names_follow_the_owner(
     assert phrases[("refines", "out")] == "자세히 푸는 규칙" and ("quantity_from", "out") not in phrases
 
 
-@pytest.mark.parametrize("kind,start,end", [
-    ("quantity_from", "common/w-price", "common/w-table"), ("refines", "common/w-fact", "common/w-price"),
-    ("uses", "common/w-policy", "common/w-term")])
-def test_the_auto_path_refuses_widened_kinds_and_a_person_still_can(world, kind, start, end):
+@pytest.mark.parametrize("kind,start,end", [("quantity_from", "common/w-price", "common/w-table")])
+def test_the_auto_path_refuses_the_quantity_table_and_a_person_still_can(world, kind, start, end):
     with agent_judge():
         change = propose_link(db_session, op="link_add", kind=kind, from_key=start, to_key=end, reason="합성",
                               proposer=Proposer.agent_named(AGENT), evidence=EVIDENCE, now=NOW)
@@ -165,6 +164,17 @@ def test_the_auto_path_takes_fact_applies_to_option(world):
                               evidence=EVIDENCE, now=NOW)
     apply_change(db_session, change.id, actor=None, now=NOW, auto=AutoLearn(world.id))
     assert current_link(db_session, "applies_to", "common/w-fact", "common/w-option") is not None
+
+
+@pytest.mark.parametrize("kind,start,end", [
+    ("refines", "common/w-fact", "common/w-price"), ("uses", "common/w-policy", "common/w-term")])
+def test_the_auto_path_takes_refines_and_uses(world, kind, start, end):
+    """7.2 — 자세히 풂 · 낱말 씀은 바로 반영 목록 종류다(뻔한지 가리는 조건 다섯은 이어 붙이기 걸음이 본다)."""
+    with agent_judge():
+        change = propose_link(db_session, op="link_add", kind=kind, from_key=start, to_key=end, reason="합성",
+                              proposer=Proposer.agent_named(AGENT), evidence=EVIDENCE, now=NOW)
+    apply_change(db_session, change.id, actor=None, now=NOW, auto=AutoLearn(world.id))
+    assert current_link(db_session, kind, start, end) is not None
 
 
 def test_link_rules_run_clean_on_the_new_kinds(world):
