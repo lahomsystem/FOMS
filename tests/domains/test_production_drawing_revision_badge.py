@@ -120,7 +120,7 @@ def test_badge_and_start_block_follow_revision_then_vanish_on_receipt(client, mo
     row = _row(_pc_grid(body), oid)
     assert _BADGE in row and "도면 수정 중" in row
     assert 'data-action="startProduction"' not in row
-    assert _BLOCKED in row and sales.name in row and "도면을 고치는 중" in row
+    assert _BLOCKED in row and sales.name in row and "도면 수정 중이라" in row
     card = _card(_mobile_queue(body), oid)
     assert _BADGE in card and _BLOCKED in card
     assert 'data-action="startProduction"' not in card

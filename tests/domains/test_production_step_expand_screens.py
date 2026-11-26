@@ -136,7 +136,7 @@ def test_node_row_finish_after_expand_shows_the_done_words_keeps_the_row_and_no_
   assert.strictEqual(calls.reload, 0, '줄은 그 자리 — 다시 받기 없음');
   const row = $('[data-foms-home-qrow="{ready}"]');
   assert.ok(!row.querySelector('[data-foms-home-step-done]') && row.classList.contains('is-revise'));
-  assert.strictEqual(row.querySelector('.fph-qr__hold').textContent, '도면 2 고치는 중');
+  assert.strictEqual(row.querySelector('.fph-qr__hold').textContent, '도면 2 수정 중');
   const clock = slow.filter((t) => t.ms === 8000);
   assert.strictEqual(clock.length, 1, '알림 글 시계 = 8초(되돌리기와 같다)');
   clock[0].f();

@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+import ast
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -243,3 +245,29 @@ def test_big_button_default_dialog_texts_match_production_buttons():
     assert 'window.alert("오류: " + (data.message || "저장 실패"));' in js  # 출고 저장 글은 그대로
     entry = _read(ROOT / "static/js/shipment/shipment-entry.js")
     assert "tablet-domain-sheets.js?v=20261126b" in entry
+
+
+def _py_strings(path: Path) -> str:
+    """파이썬 파일의 글자열 상수만(독스트링 · 주석 빼고) — 코드 설명 속 '도면 고치는 중'은 개념 이름이라 남겨도 된다."""
+    tree = ast.parse(_read(path))
+    docs = {id(n.body[0].value) for n in ast.walk(tree)
+            if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.body
+            and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+    return "\n".join(n.value for n in ast.walk(tree)
+                     if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs)
+
+
+def test_production_screen_says_drawing_fix_in_progress_like_the_sheet_badge():
+    """사장님 2026-11-26 "도면 수정 중"으로 — 생산 화면 도면 칸 · 공정 줄 · 제작 시작 막힘 · 바뀐 것 글이 작업 시트 배지와 같은 말."""
+    svc = ROOT / "foms" / "services"
+    card = _py_strings(svc / "production" / "part_card_state.py")
+    fix = _py_strings(svc / "orders" / "drawing_fix.py")
+    gate = _py_strings(svc / "orders" / "confirm_drawing_gate.py")
+    alerts = _py_strings(svc / "production_change_alerts.py")
+    assert "도면 수정 중" in card.splitlines()
+    assert " 수정 중" in fix.splitlines() and " 수정 중이라 빼요." in fix.splitlines() and " 수정 중이라 뺐어요." in fix.splitlines()
+    assert "도면 수정 중이라 아직 제작을 시작할 수 없어요. 영업 담당(" in gate
+    assert "도면 수정 중" in alerts.splitlines()
+    steps = re.sub(r"\{#.*?#\}", "", _read(TPL / "partials" / "home_steps.html"), flags=re.S)  # Jinja 주석 뺌
+    for src in (card, fix, gate, alerts, steps):
+        assert "고치는 중" not in src

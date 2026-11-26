@@ -223,7 +223,7 @@ def confirm_extras(sd: Any) -> dict[str, Any]:
 
 def expanded_words(numbers: list[int]) -> dict[str, str]:
     """풀어 쓴 뒤 화면이 잇는 글 재료 — ``tail`` = "도면 2는 고치는 중이라 뺐어요.", ``hold`` = "도면 2 고치는 중"([끝] 자리)."""
-    return {"tail": f"도면 {numbers_text(numbers)}{number_topic(numbers[-1])} 고치는 중이라 뺐어요.", "hold": fixing_label(numbers)}
+    return {"tail": f"도면 {numbers_text(numbers)}{number_topic(numbers[-1])} 수정 중이라 뺐어요.", "hold": fixing_label(numbers)}
 
 
 def blocked_left_numbers(sd: Any, left_keys: Iterable[str], *, block: Optional[Block] = None) -> list[int]:
@@ -256,12 +256,12 @@ def number_topic(n: int) -> str:
 
 def fixing_label(numbers: Iterable[int]) -> str:
     """도면별 막힘 글 "도면 2 고치는 중" · "도면 2 · 3 고치는 중"(배지 · 공정 줄 · 작업 시트, §10 '공장 막힘(번호)')."""
-    return f"도면 {numbers_text(numbers)} 고치는 중"
+    return f"도면 {numbers_text(numbers)} 수정 중"
 
 
 def skip_tail(numbers: list[int]) -> str:
     """확인 창 본문 뒤 문장 — "도면 2는 고치는 중이라 빼요." · "도면 2 · 3은 고치는 중이라 빼요."."""
-    return f"도면 {numbers_text(numbers)}{number_topic(numbers[-1])} 고치는 중이라 빼요."
+    return f"도면 {numbers_text(numbers)}{number_topic(numbers[-1])} 수정 중이라 빼요."
 
 
 def expand_confirm_body(sheets: int, done: int, part_label: str, numbers: list[int]) -> str:

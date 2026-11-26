@@ -73,7 +73,7 @@ _STAGE_MOVE_EVENT_TYPES = ("STAGE_CHANGED", "STAGE_OVERRIDE", "CUSTOMER_CONFIRME
 SHEET_FACTORY_CHANGE_EVENT = "DRAWING_SHEET_FACTORY_CHANGED"
 #: 도면팀 [수정 시작] · [수정 취소] · 공장 요청 [요청 반려](설계서 2026-11-25 §6 — '바뀐 것' 한 줄). ``drawing_fix_marks`` ·
 #: ``drawing_fix_requests`` 의 이벤트와 같은 값.
-DRAWING_FIX_LINE_LABELS: dict[str, str] = {FIX_STARTED_EVENT: "도면 고치는 중", FIX_STOPPED_EVENT: "도면 수정 취소",
+DRAWING_FIX_LINE_LABELS: dict[str, str] = {FIX_STARTED_EVENT: "도면 수정 중", FIX_STOPPED_EVENT: "도면 수정 취소",
                                            REJECT_EVENT: "도면 수정 요청 반려"}
 _RELEVANT_EVENT_TYPES = (
     "PRODUCTION_CHANGE_ACK",
