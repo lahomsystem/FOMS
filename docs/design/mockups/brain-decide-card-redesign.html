@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>사장님이 정할 것 카드</title>
+<style>
+/* 회사 지식 「③ 사장님이 정해 주실 것」 카드 다시 짜기 시안 — 2026-11-26.
+   사장님 방향: 바뀌는 곳만 보이기 · "그 고객에게만 맞는 말" 답 · 직원이 실제 한 말 보이기 · 기계 말 걷어내기.
+   카드 class 이름은 실제 화면(static/css/contexts/brain/ds/foms-ds.css · brain-ds-inbox.css)과 같게 두었다 — 옮겨 심기 쉽게.
+   보기 글 · 금액은 지어낸 것(금액은 ○ 로 가림). 바깥 글꼴 · 그림 · 스크립트 없음. */
+
+:root{
+  color-scheme:light;
+  --page:#e5e8eb;--bg:#f6f7f9;--surface:#ffffff;--surface-2:#edeff2;--text:#1c2127;--text-muted:#5f6b7c;
+  --divider:rgba(17,20,24,.15);--link:#215db0;--blue:#2d72d2;--blue-ink:#ffffff;--pick-bg:rgba(45,114,210,.10);
+  --del-ink:#ac2f33;--del-bg:rgba(205,66,70,.12);--add-ink:#1c6e42;--add-bg:rgba(35,133,81,.14);
+  --ok-bg:#238551;--ok-ink:#ffffff;--warn-ink:#935610;--warn-bg:rgba(200,118,25,.10);
+  --btn-bg:#f6f7f9;--btn-line:rgba(17,20,24,.2);--off-bg:rgba(211,216,222,.5);--off-ink:rgba(95,107,124,.75);
+  --note-bg:#ffffff;--th:#eef0f6;--mark:#4a55b8;--mark-ink:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --page:#1c2127;--bg:#252a31;--surface:#2f343c;--surface-2:#383e47;--text:#f6f7f9;--text-muted:#abb3bf;
+    --divider:rgba(255,255,255,.2);--link:#8abbff;--blue:#4c90f0;--blue-ink:#111418;--pick-bg:rgba(76,144,240,.18);
+    --del-ink:#fa999c;--del-bg:rgba(231,106,110,.18);--add-ink:#72ca9b;--add-bg:rgba(50,164,103,.20);
+    --ok-bg:#72ca9b;--ok-ink:#111418;--warn-ink:#fbb360;--warn-bg:rgba(236,154,60,.16);
+    --btn-bg:#383e47;--btn-line:rgba(255,255,255,.22);--off-bg:rgba(64,72,84,.6);--off-ink:rgba(197,203,211,.6);
+    --note-bg:#2f343c;--th:#383e47;--mark:#9ea4ff;--mark-ink:#111418;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --page:#1c2127;--bg:#252a31;--surface:#2f343c;--surface-2:#383e47;--text:#f6f7f9;--text-muted:#abb3bf;
+  --divider:rgba(255,255,255,.2);--link:#8abbff;--blue:#4c90f0;--blue-ink:#111418;--pick-bg:rgba(76,144,240,.18);
+  --del-ink:#fa999c;--del-bg:rgba(231,106,110,.18);--add-ink:#72ca9b;--add-bg:rgba(50,164,103,.20);
+  --ok-bg:#72ca9b;--ok-ink:#111418;--warn-ink:#fbb360;--warn-bg:rgba(236,154,60,.16);
+  --btn-bg:#383e47;--btn-line:rgba(255,255,255,.22);--off-bg:rgba(64,72,84,.6);--off-ink:rgba(197,203,211,.6);
+  --note-bg:#2f343c;--th:#383e47;--mark:#9ea4ff;--mark-ink:#111418;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;font-size:16px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
+code{font-family:ui-monospace,Consolas,monospace;font-size:14px;overflow-wrap:anywhere;word-break:break-all}
+
+/* ── 문서 틀 ── */
+.wrap{max-width:1360px;margin:0 auto;padding:24px 16px 64px}
+.wrap > h1{margin:0;font-size:28px;font-weight:800;line-height:1.25}
+.lead{margin:10px 0 0;max-width:86ch;color:var(--text-muted)}
+.lead b{color:var(--text)}
+.quote{margin:14px 0 0;padding:10px 14px;border-left:4px solid var(--mark);background:var(--note-bg);border-radius:0 10px 10px 0;max-width:86ch}
+.toc{margin:14px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px 18px}
+.toc a{color:var(--link);font-weight:700;text-decoration:none}
+.frame{margin-top:44px;scroll-margin-top:12px}
+.frame > h2{margin:0 0 6px;font-size:23px;font-weight:800;line-height:1.3}
+.frame > .idea{margin:0 0 14px;color:var(--text-muted);max-width:90ch}
+.frame > .idea b{color:var(--text)}
+.pair{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+@media (min-width:1080px){.pair{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.col > h3{margin:0 0 8px;font-size:18px;font-weight:800}
+.col > h3 small{font-size:15px;font-weight:600;color:var(--text-muted);margin-left:6px}
+.solo{max-width:720px}
+.marks{margin:10px 0 0;padding:0 0 0 20px;color:var(--text-muted);display:grid;gap:4px}
+.marks b{color:var(--text)}
+
+/* 화면 바탕(실제 승인 대기 가운데 칸) */
+.screen{background:var(--bg);padding:16px;border-radius:10px;box-shadow:0 0 0 1px var(--divider)}
+.screen-sub{margin:0 0 10px;font-size:14px;color:var(--text-muted)}
+
+/* ── 실제 화면과 같은 이름의 class(foms-ds.css · brain-ds-inbox.css) ── */
+.f-card{background:var(--surface);border-radius:2px;box-shadow:0 0 0 1px var(--divider)}
+.f-card-compact{padding:12px 16px}
+.f-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.f-gap4{gap:4px}
+.f-h6{margin:0;font-size:16px;line-height:1.25;font-weight:600}
+.f-strong{font-weight:600}
+.f-small{font-size:14px;line-height:1.35}
+.f-muted{color:var(--text-muted)}
+.f-help{margin:0;font-size:14px;line-height:1.4;color:var(--text-muted)}
+.f-label{font-size:16px;line-height:20px}
+.f-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f-quote{margin:0;padding:10px 12px;border-radius:2px;background:var(--surface-2);white-space:pre-line;line-height:20px}
+.f-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.f-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:30px;padding:5px 10px;border:0;border-radius:2px;font:inherit;font-size:16px;line-height:20px;white-space:nowrap;cursor:pointer;color:var(--text);background:var(--btn-bg);box-shadow:inset 0 0 0 1px var(--btn-line)}
+@media (max-width:600px){.f-btn{max-width:100%;white-space:normal;text-align:left}}
+.f-btn-primary{background:var(--blue);color:var(--blue-ink);box-shadow:none}
+.f-btn-minimal{background:none;box-shadow:none}
+.f-btn-small{min-height:24px;padding:0 7px}
+.f-btn:disabled{background:var(--off-bg);color:var(--off-ink);box-shadow:none;cursor:not-allowed}
+.f-input{display:block;width:100%;padding:8px 10px;border:0;border-radius:2px;background:var(--surface);color:var(--text);font:inherit;font-size:16px;line-height:22px;box-shadow:inset 0 0 0 1px var(--btn-line)}
+textarea.f-input{resize:vertical;min-height:88px}
+.fb-icard{gap:10px}
+.fb-prop{gap:10px;min-width:0}
+.fb-drawer > summary{cursor:pointer;color:var(--link)}
+.fb-drawer[open] > summary{margin-bottom:8px}
+.fb-edit{padding:12px;border-radius:2px;background:var(--surface-2)}
+.fb-change__text{margin:0;padding:10px 12px;border-radius:2px;background:var(--surface);line-height:22px;white-space:pre-wrap;overflow-wrap:anywhere}
+.fb-change__del{color:var(--del-ink);background:var(--del-bg);text-decoration-line:line-through;text-decoration-thickness:2px}
+.fb-change__add{color:var(--add-ink);background:var(--add-bg);font-weight:600;text-decoration-line:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.i-time{display:inline-block;width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 2px currentColor}
+
+/* ── 바꾼 카드에만 쓰는 class(기존 칸의 모양만 바꾼다 — 새 칸 없음) ── */
+/* 질문 줄 아래 한 줄: 카드 글 첫 두 줄(어긋남 — … · 승인된 규칙과 다름)을 사람 말로 */
+.fb-ask{margin:0;color:var(--text)}
+.fb-ask q{quotes:"「" "」";font-weight:600}
+/* 바뀌는 곳 칸: 회사 지식 칸 자리에 하나만. 안 바뀌는 문장은 접힌다 */
+.fb-change__text.is-plain{background:var(--surface-2)}
+.fb-fold{display:block;margin:2px 0}
+.fb-fold > summary{display:inline-flex;align-items:center;gap:6px;min-height:28px;cursor:pointer;color:var(--link);font-size:14px;list-style:none}
+.fb-fold > summary::-webkit-details-marker{display:none}
+.fb-fold > summary::before{content:"…";font-weight:700}
+.fb-fold[open] > summary{display:none}
+.fb-fold > span{color:var(--text-muted)}
+.fb-change__line{display:block}
+/* 자세히 보기 안: 직원이 실제 한 말 */
+.fb-said{margin:0;padding:8px 12px;border-left:3px solid var(--divider);background:var(--surface-2);line-height:22px}
+.fb-said b{font-weight:600}
+.fb-said + .fb-said{margin-top:-4px}
+/* 답 단추: 기존 답 줄(.f-actions)을 고르는 단추 넷으로. 누른 단추는 파란 테두리 */
+.fb-picks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px}
+.fb-pick{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:52px;padding:10px 12px 10px 40px;position:relative;white-space:normal;text-align:left;line-height:1.35}
+.fb-pick::before{content:"";position:absolute;left:12px;top:12px;width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--btn-line);background:var(--surface)}
+.fb-pick[aria-pressed="true"]{background:var(--pick-bg);box-shadow:inset 0 0 0 2px var(--blue)}
+.fb-pick[aria-pressed="true"]::before{box-shadow:inset 0 0 0 5px var(--blue)}
+.fb-pick__name{font-weight:600}
+.fb-pick__what{font-size:14px;color:var(--text-muted)}
+.fb-save-row{padding-top:10px;box-shadow:inset 0 1px 0 var(--divider)}
+.fb-save-row .f-btn-primary{min-width:96px;min-height:40px}
+/* 저장한 뒤: 카드 자리에 한 줄 */
+.fb-closed{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.fb-tag-done{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border-radius:2px;background:var(--ok-bg);color:var(--ok-ink);font-size:14px;font-weight:700}
+.fb-closed__text{flex:1 1 220px;min-width:0}
+@media (max-width:991.98px){
+  .fb-pick{min-height:56px}
+  .fb-save-row .f-btn{min-height:44px}
+  .fb-fold > summary{min-height:36px}
+}
+
+/* ── 아래 표 · 목록 ── */
+.tblw{border:1px solid var(--divider);border-radius:10px;background:var(--note-bg);overflow:hidden}
+table.words{border-collapse:collapse;width:100%;font-size:15px}
+table.words th,table.words td{padding:9px 12px;border-bottom:1px solid var(--divider);text-align:left;vertical-align:top}
+table.words thead th{background:var(--th);font-weight:800}
+table.words tr:last-child > *{border-bottom:0}
+table.words td:nth-child(2){color:var(--text-muted)}
+table.words td:nth-child(3){font-weight:600}
+table.words td:nth-child(4){white-space:nowrap;color:var(--text-muted)}
+@media (max-width:720px){
+  table.words thead{display:none}
+  table.words,table.words tbody,table.words tr,table.words td{display:block;width:100%}
+  table.words tr{border-bottom:1px solid var(--divider);padding:6px 0}
+  table.words td{border:0;padding:3px 12px}
+  table.words td::before{content:attr(data-k);display:block;font-size:13px;font-weight:700;color:var(--text-muted)}
+  table.words td:nth-child(4){white-space:normal}
+}
+.fix{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:8px 22px}
+.fix li{display:flex;gap:10px;align-items:flex-start;color:var(--text-muted)}
+.fix li b{color:var(--text)}
+.num{flex-shrink:0;min-width:34px;height:26px;padding:0 6px;border-radius:13px;background:var(--mark);color:var(--mark-ink);font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.lv{flex-shrink:0;font-size:13px;font-weight:800;padding:1px 7px;border-radius:2px;margin-top:2px}
+.lv.done{background:var(--add-bg);color:var(--add-ink)}
+.lv.part{background:var(--warn-bg);color:var(--warn-ink)}
+.lv.no{background:var(--del-bg);color:var(--del-ink)}
+.server{margin:0;padding:14px 18px 14px 36px;background:var(--note-bg);border:1px solid var(--divider);border-radius:10px;display:grid;gap:8px;color:var(--text-muted)}
+.server b{color:var(--text)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>③ 사장님이 정할 것 — 카드 다시 짜기 시안</h1>
+  <p class="lead">회사 지식 승인 대기의 ③ 카드 한 장을 다시 그렸습니다. <b>기존 칸의 차례 · 글 · 보이는 양만 바꿨고</b>, 새 칩 · 요약 상자 · 그림은 없습니다. 보기 사례는 「깊이 줄임 추가비」 — 회사 지식은 통 당 값, 직원은 한 고객에게 통 수를 곱한 합계를 말한 경우입니다. 금액은 ○ 로 가렸고 이름 · 글은 지어낸 것입니다.</p>
+  <p class="quote">사장님 방향(글자 그대로): 카드 화면 다시 짜기 — 바뀌는 곳만 보이기 · "그 손님에게만 맞는 말" 답 · 직원이 실제 한 말 보이기 · 기계 말 걷어내기. 덧붙여 확정: 답은 한 번에 저장 · 사장님이 고쳐 적은 글이 그대로 지식이 됨 · 일어나지 않는 말은 뺌.</p>
+  <ul class="toc">
+    <li><a href="#s1">1. 지금 카드 · 바꾼 카드</a></li>
+    <li><a href="#s2">2. 지식을 고치는 중</a></li>
+    <li><a href="#s3">3. 그 고객에게만 맞는 말</a></li>
+    <li><a href="#s4">4. 저장한 뒤</a></li>
+    <li><a href="#s5">5. 글 바꿈 표</a></li>
+    <li><a href="#s6">6. 비평 번호별 풀이</a></li>
+    <li><a href="#s7">7. 서버가 새로 할 것</a></li>
+  </ul>
+
+  <!-- ───────────────────────── 1 ───────────────────────── -->
+  <section class="frame" id="s1">
+    <h2>1. 지금 카드 · 바꾼 카드 (처음 열었을 때)</h2>
+    <p class="idea">왼쪽은 <b>지금 코드가 그리는 그대로</b>입니다(<code>ds-inbox-question.js</code> build · 글도 지금 글). 「바깥 글이 맞아요」를 누르면 열리는 칸은 지금 코드(<code>outsideDraft</code> · <code>textDiff</code>)를 이 보기 글로 실제로 돌린 결과를 옮겼습니다. 오른쪽은 바꾼 카드를 처음 연 모습입니다.</p>
+    <div class="pair">
+      <div class="col">
+        <h3>지금 카드 <small>코드 그대로</small></h3>
+        <div class="screen">
+          <ol class="f-col">
+            <li class="f-card f-card-compact f-col fb-icard">
+              <div class="f-col fb-prop">
+                <span class="f-strong">깊이 줄임 추가비 ○○만원 안내</span>
+                <p class="f-h6">어느 쪽이 맞아요?</p>
+                <div class="f-col f-gap4">
+                  <span class="f-h6">바깥 글</span>
+                  <p class="f-quote">어긋남 — 회사 지식 「공임비가 통 당 ○만원」 ↔ 직원 「추가비는 ○○만원」
+승인된 규칙과 다름
+붙박이장 깊이는 설치 자리에 맞춰 줄일 수 있어요. 깊이 줄임은 규격맞춤제작으로 들어가고, 추가비는 ○○만원이에요. 줄이는 깊이가 달라도 통 당 금액은 같아요. 실측 때 설치 자리 깊이를 재서 정해요.</p>
+                </div>
+                <div class="f-col f-gap4">
+                  <span class="f-h6">회사 지식 「깊이 줄임 추가비」</span>
+                  <p class="f-quote">붙박이장 깊이는 설치 자리에 맞춰 줄일 수 있어요. 깊이 줄임은 규격맞춤제작으로 들어가고, 공임비가 통 당 ○만원이에요. 통이 여럿이면 통 수만큼 더해져요. 줄이는 깊이가 달라도 통 당 금액은 같아요. 실측 때 설치 자리 깊이를 재서 정해요.</p>
+                </div>
+                <div class="f-actions">
+                  <button class="f-btn" type="button">회사 지식이 맞아요 (바깥 글은 고칠 일로)</button>
+                  <button class="f-btn" type="button">바깥 글이 맞아요 (지식 고치기)</button>
+                  <button class="f-btn" type="button">둘 다 맞아요 (경우 적기)</button>
+                  <button class="f-btn f-btn-minimal" type="button"><span class="i-time" aria-hidden="true"></span>나중에</button>
+                </div>
+                <details class="fb-drawer">
+                  <summary class="f-small">(시안 설명) 「바깥 글이 맞아요」를 누르면 열리는 칸</summary>
+                  <div class="f-col fb-edit">
+                    <label class="f-field"><span class="f-label">새 글 — AI · 직원이 이 글로 안내해요</span>
+                      <textarea class="f-input" rows="3">통이 여럿이면 통 수만큼 더해져요. 붙박이장 깊이는 설치 자리에 맞춰 줄일 수 있어요. 깊이 줄임은 규격맞춤제작으로 들어가고, 추가비는 ○○만원이에요. 줄이는 깊이가 달라도 통 당 금액은 같아요. 실측 때 설치 자리 깊이를 재서 정해요.</textarea></label>
+                    <div class="f-col f-gap4">
+                      <span class="f-label">바뀌는 곳 — 빨간 줄 그은 글은 빠지고, 초록 밑줄 글이 들어가요</span>
+                      <p class="fb-change__text"><ins class="fb-change__add">통이 여럿이면 통 수만큼 더해져요. </ins><span>붙박이장 깊이는 설치 자리에 맞춰 줄일 수 있어요. 깊이 줄임은 규격맞춤제작으로 들어가고, </span><del class="fb-change__del">공임비가 통 당 ○만원이에요. 통이 여럿이면 통 수만큼 더해져요.</del><ins class="fb-change__add">추가비는 ○○만원이에요.</ins><span> 줄이는 깊이가 달라도 통 당 금액은 같아요. 실측 때 설치 자리 깊이를 재서 정해요.</span></p>
+                    </div>
+                    <div class="f-actions"><button class="f-btn f-btn-primary" type="button">이 글로 바꾸기</button></div>
+                  </div>
+                </details>
+              </div>
+            </li>
+          </ol>
+        </div>
+        <ul class="marks">
+          <li><b>같은 긴 문단 둘</b>을 놓고 다른 곳을 사장님이 찾아야 합니다(P3).</li>
+          <li>글 칸 첫 두 줄이 <b>기계 표시 줄</b>입니다(P2).</li>
+          <li>미리 채운 글이 안 고친 문장(「통이 여럿이면…」)을 <b>맨 앞으로 옮겨</b> 같은 말이 두 번 들어갑니다 — 지금 코드로 돌린 결과(P5 · S7).</li>
+          <li>「바깥 글은 고칠 일로」는 실제로 일어나지 않습니다(S2). 맞는 답(그 고객에게만)이 없습니다(P4).</li>
+        </ul>
+      </div>
+
+      <div class="col">
+        <h3>바꾼 카드 <small>상태 1 · 처음 열었을 때</small></h3>
+        <div class="screen">
+          <ol class="f-col">
+            <li class="f-card f-card-compact f-col fb-icard">
+              <div class="f-col fb-prop">
+                <span class="f-strong">깊이 줄임 추가비</span>
+                <p class="f-h6">어느 쪽이 맞아요?</p>
+                <p class="fb-ask">회사 지식은 <q>공임비가 통 당 ○만원</q>, 직원은 <q>추가비는 ○○만원</q>이라고 안내했어요.</p>
+                <div class="f-col f-gap4">
+                  <span class="f-label">직원 말대로 고치면 — 빨간 줄은 빠지는 글, 초록 밑줄은 AI가 직원 말을 정리해 넣는 글이에요</span>
+                  <div class="fb-change__text">
+                    <details class="fb-fold"><summary>안 바뀌는 앞 글 1문장</summary><span>붙박이장 깊이는 설치 자리에 맞춰 줄일 수 있어요. </span></details>
+                    <span class="fb-change__line"><span>깊이 줄임은 규격맞춤제작으로 들어가고, </span><del class="fb-change__del">공임비가 통 당 ○만원이에요. 통이 여럿이면 통 수만큼 더해져요.</del> <ins class="fb-change__add">추가비는 ○○만원이에요.</ins></span>
+                    <details class="fb-fold"><summary>안 바뀌는 뒤 글 2문장</summary><span>줄이는 깊이가 달라도 통 당 금액은 같아요. 실측 때 설치 자리 깊이를 재서 정해요.</span></details>
+                  </div>
+                </div>
+                <details class="fb-drawer">
+                  <summary class="f-small">자세히 보기</summary>
+                  <div class="f-col">
+                    <span class="f-h6">직원이 실제 한 말 (개인정보는 가렸어요)</span>
+                    <p class="fb-said"><b>고객</b> 깊이를 조금 줄일 수 있을까요? 추가 비용은 얼마나 들어요?</p>
+                    <p class="fb-said"><b>직원</b> 네 고객님, 세 통 모두 깊이 줄임 들어가면 추가비 ○○만원 나와요.</p>
+                    <p class="f-small f-muted">고객 1분에게서 들은 말이에요 · 11월 26일 상담</p>
+                    <p class="f-small">AI가 다르다고 본 이유: 회사 지식은 통 당 금액인데, 직원은 금액 하나만 말했어요.</p>
+                  </div>
+                </details>
+                <div class="fb-picks" role="group" aria-label="답 고르기">
+                  <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">회사 지식이 맞아요</span><span class="fb-pick__what">지식은 그대로 두고 이 질문만 닫아요.</span></button>
+                  <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">그 고객에게만 맞는 말이에요</span><span class="fb-pick__what">지식은 그대로예요. AI가 이 말을 회사 규칙으로 배우지 않게 남겨요.</span></button>
+                  <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">직원 말이 맞아요 — 지식을 고쳐요</span><span class="fb-pick__what">고칠 문장이 열려요. 저장하면 고친 글 그대로 회사 지식이 돼요.</span></button>
+                  <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">둘 다 맞아요 — 경우를 나눠 적어요</span><span class="fb-pick__what">어떤 경우에 어떻게 안내하는지 한 줄 적으면 지식 끝에 붙어요.</span></button>
+                </div>
+                <div class="f-actions fb-save-row">
+                  <button class="f-btn f-btn-primary" type="button" disabled>저장</button>
+                  <button class="f-btn f-btn-minimal" type="button"><span class="i-time" aria-hidden="true"></span>나중에</button>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+        <ul class="marks">
+          <li>제목은 <b>회사 지식 이름</b>입니다(직원 주장을 사실처럼 쓰지 않게 — P12).</li>
+          <li>기계 표시 두 줄은 화면에서 빠지고, 다른 두 구절은 <b>질문 바로 아래 한 줄</b>로 갔습니다(P2).</li>
+          <li>문단 둘 대신 <b>바뀌는 곳 한 칸</b>. 안 바뀌는 문장은 접혀 있고 누르면 펼쳐집니다(P3).</li>
+          <li>직원 원문 · 고객 수 · AI가 본 이유는 보통 카드와 같은 <b>자세히 보기</b> 안에 있습니다(P6).</li>
+          <li>답을 눌러도 바로 저장되지 않습니다. 고른 단추에 파란 테두리, 저장은 <b>한 번</b>(P9 · S4).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 2 ───────────────────────── -->
+  <section class="frame" id="s2">
+    <h2>2. 「직원 말이 맞아요 — 지식을 고쳐요」를 골라 글을 고치는 중</h2>
+    <p class="idea">고칠 칸에는 <b>바뀌는 문장만</b> 들어 있습니다(직원 말 쪽 글로 미리 채움). 사장님이 적은 글이 그대로 지식이 되고, 나머지 문장은 손대지 않습니다. 위 바뀌는 곳 칸은 이름이 「저장하면 바뀌는 곳」으로 바뀌고, 적는 동안 다시 그려집니다 — 바뀌는 곳 표시는 카드에 하나뿐입니다.</p>
+    <div class="screen solo">
+      <ol class="f-col">
+        <li class="f-card f-card-compact f-col fb-icard">
+          <div class="f-col fb-prop">
+            <span class="f-strong">깊이 줄임 추가비</span>
+            <p class="f-h6">어느 쪽이 맞아요?</p>
+            <p class="fb-ask">회사 지식은 <q>공임비가 통 당 ○만원</q>, 직원은 <q>추가비는 ○○만원</q>이라고 안내했어요.</p>
+            <div class="f-col f-gap4" aria-live="polite">
+              <span class="f-label">저장하면 바뀌는 곳 — 빨간 줄은 빠지는 글, 초록 밑줄은 들어오는 글이에요</span>
+              <div class="fb-change__text">
+                <details class="fb-fold"><summary>안 바뀌는 앞 글 2문장</summary><span>붙박이장 깊이는 설치 자리에 맞춰 줄일 수 있어요. 깊이 줄임은 규격맞춤제작으로 들어가고, 공임비가 통 당 ○만원이에요. </span></details>
+                <span class="fb-change__line"><span>통이 여럿이면 통 </span><del class="fb-change__del">수만큼 더해져요.</del> <ins class="fb-change__add">수를 곱한 합계로 안내해요.</ins></span>
+                <details class="fb-fold"><summary>안 바뀌는 뒤 글 2문장</summary><span>줄이는 깊이가 달라도 통 당 금액은 같아요. 실측 때 설치 자리 깊이를 재서 정해요.</span></details>
+              </div>
+            </div>
+            <details class="fb-drawer">
+              <summary class="f-small">자세히 보기</summary>
+              <p class="f-small f-muted">(1번과 같아요 — 직원이 실제 한 말 · 고객 1분 · AI가 본 이유)</p>
+            </details>
+            <div class="fb-picks" role="group" aria-label="답 고르기">
+              <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">회사 지식이 맞아요</span><span class="fb-pick__what">지식은 그대로 두고 이 질문만 닫아요.</span></button>
+              <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">그 고객에게만 맞는 말이에요</span><span class="fb-pick__what">지식은 그대로예요. AI가 이 말을 회사 규칙으로 배우지 않게 남겨요.</span></button>
+              <button class="f-btn fb-pick" type="button" aria-pressed="true"><span class="fb-pick__name">직원 말이 맞아요 — 지식을 고쳐요</span><span class="fb-pick__what">고칠 문장이 열려요. 저장하면 고친 글 그대로 회사 지식이 돼요.</span></button>
+              <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">둘 다 맞아요 — 경우를 나눠 적어요</span><span class="fb-pick__what">어떤 경우에 어떻게 안내하는지 한 줄 적으면 지식 끝에 붙어요.</span></button>
+            </div>
+            <div class="f-col fb-edit">
+              <label class="f-field"><span class="f-label">고칠 글 — 앞으로 AI와 직원이 이 글대로 안내해요</span>
+                <textarea class="f-input" rows="3">깊이 줄임은 규격맞춤제작으로 들어가고, 공임비가 통 당 ○만원이에요. 통이 여럿이면 통 수를 곱한 합계로 안내해요.</textarea></label>
+              <p class="f-help">바뀌는 문장만 열었어요. 나머지 3문장은 그대로 남아요.</p>
+            </div>
+            <div class="f-actions fb-save-row">
+              <button class="f-btn f-btn-primary" type="button">저장</button>
+              <button class="f-btn f-btn-minimal" type="button"><span class="i-time" aria-hidden="true"></span>나중에</button>
+            </div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <ul class="marks solo">
+      <li>처음 칸에는 직원 쪽 글 「깊이 줄임은 규격맞춤제작으로 들어가고, 추가비는 ○○만원이에요.」가 들어 있었고, 사장님이 위처럼 고쳐 적은 모습입니다.</li>
+      <li>「둘 다 맞아요」를 고르면 같은 자리에 한 줄 칸이 열립니다(칸 이름 「어떤 경우에 어떻게 안내하는지 한 줄로 적어 주세요」). 따로 그리지 않았습니다.</li>
+      <li>저장을 누르면 저장 단추 글이 「저장하는 중…」으로 바뀌고, 실패하면 「저장하지 못했어요 — 아무것도 바뀌지 않았어요. 다시 눌러 주세요.」(한 번에 저장이 있어야 참인 말 — 7번).</li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── 3 ───────────────────────── -->
+  <section class="frame" id="s3">
+    <h2>3. 「그 고객에게만 맞는 말이에요」를 고른 때</h2>
+    <p class="idea">지식이 안 바뀌는 답이라 바뀌는 곳 칸은 <b>빨강 · 초록 없이</b> 지금 지식 글만 보이고, 칸 이름이 「그대로 남아요」로 바뀝니다. 고칠 칸은 열리지 않습니다. 이 사례에서 직원의 ○○만원은 세 통 × 통 당 금액이라, 사장님이 고를 맞는 답이 이것입니다.</p>
+    <div class="screen solo">
+      <ol class="f-col">
+        <li class="f-card f-card-compact f-col fb-icard">
+          <div class="f-col fb-prop">
+            <span class="f-strong">깊이 줄임 추가비</span>
+            <p class="f-h6">어느 쪽이 맞아요?</p>
+            <p class="fb-ask">회사 지식은 <q>공임비가 통 당 ○만원</q>, 직원은 <q>추가비는 ○○만원</q>이라고 안내했어요.</p>
+            <div class="f-col f-gap4">
+              <span class="f-label">회사 지식 「깊이 줄임 추가비」 — 그대로 남아요</span>
+              <div class="fb-change__text is-plain">
+                <details class="fb-fold"><summary>앞 글 1문장</summary><span>붙박이장 깊이는 설치 자리에 맞춰 줄일 수 있어요. </span></details>
+                <span class="fb-change__line">깊이 줄임은 규격맞춤제작으로 들어가고, 공임비가 통 당 ○만원이에요. 통이 여럿이면 통 수만큼 더해져요.</span>
+                <details class="fb-fold"><summary>뒤 글 2문장</summary><span>줄이는 깊이가 달라도 통 당 금액은 같아요. 실측 때 설치 자리 깊이를 재서 정해요.</span></details>
+              </div>
+            </div>
+            <details class="fb-drawer" open>
+              <summary class="f-small">자세히 보기</summary>
+              <div class="f-col">
+                <span class="f-h6">직원이 실제 한 말 (개인정보는 가렸어요)</span>
+                <p class="fb-said"><b>고객</b> 깊이를 조금 줄일 수 있을까요? 추가 비용은 얼마나 들어요?</p>
+                <p class="fb-said"><b>직원</b> 네 고객님, 세 통 모두 깊이 줄임 들어가면 추가비 ○○만원 나와요.</p>
+                <p class="f-small f-muted">고객 1분에게서 들은 말이에요 · 11월 26일 상담</p>
+                <p class="f-small">AI가 다르다고 본 이유: 회사 지식은 통 당 금액인데, 직원은 금액 하나만 말했어요.</p>
+              </div>
+            </details>
+            <div class="fb-picks" role="group" aria-label="답 고르기">
+              <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">회사 지식이 맞아요</span><span class="fb-pick__what">지식은 그대로 두고 이 질문만 닫아요.</span></button>
+              <button class="f-btn fb-pick" type="button" aria-pressed="true"><span class="fb-pick__name">그 고객에게만 맞는 말이에요</span><span class="fb-pick__what">지식은 그대로예요. AI가 이 말을 회사 규칙으로 배우지 않게 남겨요.</span></button>
+              <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">직원 말이 맞아요 — 지식을 고쳐요</span><span class="fb-pick__what">고칠 문장이 열려요. 저장하면 고친 글 그대로 회사 지식이 돼요.</span></button>
+              <button class="f-btn fb-pick" type="button" aria-pressed="false"><span class="fb-pick__name">둘 다 맞아요 — 경우를 나눠 적어요</span><span class="fb-pick__what">어떤 경우에 어떻게 안내하는지 한 줄 적으면 지식 끝에 붙어요.</span></button>
+            </div>
+            <div class="f-actions fb-save-row">
+              <button class="f-btn f-btn-primary" type="button">저장</button>
+              <button class="f-btn f-btn-minimal" type="button"><span class="i-time" aria-hidden="true"></span>나중에</button>
+            </div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <ul class="marks solo">
+      <li>자세히 보기는 사장님이 펼친 모습입니다(처음엔 접혀 있어요). 「세 통 모두」를 보고 합계라는 것을 알 수 있습니다.</li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── 4 ───────────────────────── -->
+  <section class="frame" id="s4">
+    <h2>4. 저장한 뒤</h2>
+    <p class="idea">지금은 카드가 목록에서 사라지고, 화면 맨 위 알림 줄(「정했어요 — 바깥 글이 맞아요.」)과 그 아래 되돌리기 줄(「방금 정한 것 「…」 [되돌리기]」)이 따로 뜹니다. 바꾼 뒤에는 <b>두 줄을 카드 자리 한 줄로 합칩니다</b>. 다음 카드는 바로 아래 이어집니다. 되돌리기 시간은 지금 코드 값(이 화면 · 30분) 그대로 적었습니다.</p>
+    <div class="screen solo">
+      <p class="screen-sub">3번에서 저장했을 때</p>
+      <ol class="f-col">
+        <li class="f-card f-card-compact fb-closed">
+          <span class="fb-tag-done">정했어요</span>
+          <span class="fb-closed__text"><span class="f-strong">깊이 줄임 추가비</span> — 그 고객에게만 맞는 말이에요. 지식은 그대로예요.</span>
+          <button class="f-btn f-btn-small" type="button">되돌리기</button>
+        </li>
+        <li class="f-card f-card-compact f-col fb-icard">
+          <span class="f-strong">ㄱ자 코너장 안쪽 수납</span>
+          <p class="f-h6">어느 쪽이 맞아요?</p>
+          <p class="f-small f-muted">(다음 카드 — 생략)</p>
+        </li>
+      </ol>
+      <p class="f-help">되돌리기는 이 화면에서 30분 동안 할 수 있어요.</p>
+      <p class="screen-sub">2번에서 저장했을 때</p>
+      <ol class="f-col">
+        <li class="f-card f-card-compact fb-closed">
+          <span class="fb-tag-done">정했어요</span>
+          <span class="fb-closed__text"><span class="f-strong">깊이 줄임 추가비</span> — 지식을 고쳤어요. 바뀌기 전 글은 수정 기록에 남아요.</span>
+          <button class="f-btn f-btn-small" type="button">되돌리기</button>
+        </li>
+      </ol>
+    </div>
+    <ul class="marks solo">
+      <li>「정했어요」 표는 초록(무채색 아님). 새 표가 아니라 지금 알림 줄 글을 카드 자리로 옮긴 것입니다.</li>
+      <li>화면을 새로 불러오면 이 줄은 사라집니다(지금처럼 닫힌 카드는 목록에 없음).</li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── 5 ───────────────────────── -->
+  <section class="frame" id="s5">
+    <h2>5. 지금 글 → 바꿀 글 (이 카드에 나오는 글만)</h2>
+    <div class="tblw">
+      <table class="words">
+        <thead><tr><th>자리</th><th>지금 글</th><th>바꿀 글</th><th>번호</th></tr></thead>
+        <tbody>
+          <tr><td data-k="자리">카드 제목</td><td data-k="지금 글">AI가 직원 말에서 지은 이름(예: 깊이 줄임 추가비 ○○만원 안내)</td><td data-k="바꿀 글">회사 지식 이름(깊이 줄임 추가비)</td><td data-k="번호">P12</td></tr>
+          <tr><td data-k="자리">글 칸 첫 두 줄</td><td data-k="지금 글">어긋남 — 회사 지식 「…」 ↔ 직원 「…」 / 승인된 규칙과 다름</td><td data-k="바꿀 글">(질문 아래 한 줄) 회사 지식은 「…」, 직원은 「…」이라고 안내했어요.</td><td data-k="번호">P2</td></tr>
+          <tr><td data-k="자리">칸 이름</td><td data-k="지금 글">바깥 글 / 회사 지식 「…」 (두 칸)</td><td data-k="바꿀 글">직원 말대로 고치면 — 빨간 줄은 빠지는 글, 초록 밑줄은 AI가 직원 말을 정리해 넣는 글이에요 (한 칸)</td><td data-k="번호">P1 · P3</td></tr>
+          <tr><td data-k="자리">칸 이름(고치는 중)</td><td data-k="지금 글">바뀌는 곳 — 빨간 줄 그은 글은 빠지고, 초록 밑줄 글이 들어가요</td><td data-k="바꿀 글">저장하면 바뀌는 곳 — 빨간 줄은 빠지는 글, 초록 밑줄은 들어오는 글이에요</td><td data-k="번호">—</td></tr>
+          <tr><td data-k="자리">칸 이름(지식 그대로인 답)</td><td data-k="지금 글">(없음)</td><td data-k="바꿀 글">회사 지식 「…」 — 그대로 남아요</td><td data-k="번호">P7</td></tr>
+          <tr><td data-k="자리">접힌 글</td><td data-k="지금 글">(없음 — 긴 글 전부)</td><td data-k="바꿀 글">안 바뀌는 앞 글 N문장 / 안 바뀌는 뒤 글 N문장</td><td data-k="번호">P3</td></tr>
+          <tr><td data-k="자리">자세히 보기</td><td data-k="지금 글">(질문 카드엔 없음)</td><td data-k="바꿀 글">직원이 실제 한 말 (개인정보는 가렸어요) · 고객 N분에게서 들은 말이에요 · 날짜 상담 · AI가 다르다고 본 이유: …</td><td data-k="번호">P6</td></tr>
+          <tr><td data-k="자리">답 1</td><td data-k="지금 글">회사 지식이 맞아요 (바깥 글은 고칠 일로)</td><td data-k="바꿀 글">회사 지식이 맞아요 + 지식은 그대로 두고 이 질문만 닫아요.</td><td data-k="번호">P7 · S2</td></tr>
+          <tr><td data-k="자리">답 2</td><td data-k="지금 글">(없음)</td><td data-k="바꿀 글">그 고객에게만 맞는 말이에요 + 지식은 그대로예요. AI가 이 말을 회사 규칙으로 배우지 않게 남겨요.</td><td data-k="번호">P4</td></tr>
+          <tr><td data-k="자리">답 3</td><td data-k="지금 글">바깥 글이 맞아요 (지식 고치기)</td><td data-k="바꿀 글">직원 말이 맞아요 — 지식을 고쳐요 + 고칠 문장이 열려요. 저장하면 고친 글 그대로 회사 지식이 돼요.</td><td data-k="번호">P1</td></tr>
+          <tr><td data-k="자리">답 4</td><td data-k="지금 글">둘 다 맞아요 (경우 적기)</td><td data-k="바꿀 글">둘 다 맞아요 — 경우를 나눠 적어요 + 어떤 경우에 어떻게 안내하는지 한 줄 적으면 지식 끝에 붙어요.</td><td data-k="번호">P7</td></tr>
+          <tr><td data-k="자리">고칠 칸 이름(답 3)</td><td data-k="지금 글">새 글 — AI · 직원이 이 글로 안내해요</td><td data-k="바꿀 글">고칠 글 — 앞으로 AI와 직원이 이 글대로 안내해요</td><td data-k="번호">—</td></tr>
+          <tr><td data-k="자리">고칠 칸 안내(답 3)</td><td data-k="지금 글">지금 글 뒤에 바깥 글을 붙였어요 — 틀린 옛 문장은 지워 주세요.</td><td data-k="바꿀 글">바뀌는 문장만 열었어요. 나머지 N문장은 그대로 남아요.</td><td data-k="번호">P5 · S7</td></tr>
+          <tr><td data-k="자리">고칠 칸 이름(답 4)</td><td data-k="지금 글">손님에게 안내할 문장으로 적어요 — 지식 글 끝에 붙어요</td><td data-k="바꿀 글">어떤 경우에 어떻게 안내하는지 한 줄로 적어 주세요</td><td data-k="번호">—</td></tr>
+          <tr><td data-k="자리">저장 단추</td><td data-k="지금 글">이 글로 바꾸기 / 덧붙이기 / (답 1은 누르면 바로)</td><td data-k="바꿀 글">저장 (하나 — 답을 고르기 전엔 눌리지 않음)</td><td data-k="번호">P9 · S4</td></tr>
+          <tr><td data-k="자리">저장 중</td><td data-k="지금 글">회사 지식을 고치는 중…</td><td data-k="바꿀 글">저장하는 중…</td><td data-k="번호">—</td></tr>
+          <tr><td data-k="자리">저장 실패</td><td data-k="지금 글">하지 못했어요 — 다시 눌러 주세요.</td><td data-k="바꿀 글">저장하지 못했어요 — 아무것도 바뀌지 않았어요. 다시 눌러 주세요.</td><td data-k="번호">S4</td></tr>
+          <tr><td data-k="자리">바뀐 글 없음</td><td data-k="지금 글">바뀐 글이 없어요 — 글을 적어 주세요. / 아직 바뀌는 곳이 없어요.</td><td data-k="바꿀 글">아직 바뀌는 곳이 없어요. (하나로)</td><td data-k="번호">—</td></tr>
+          <tr><td data-k="자리">저장한 뒤</td><td data-k="지금 글">(화면 위) 정했어요 — 바깥 글이 맞아요. / 방금 정한 것 「…」 [되돌리기]</td><td data-k="바꿀 글">(카드 자리) [정했어요] 제목 — 답 이름. 지식은 그대로예요. / 지식을 고쳤어요. 바뀌기 전 글은 수정 기록에 남아요. [되돌리기] + 되돌리기는 이 화면에서 30분 동안 할 수 있어요.</td><td data-k="번호">P9 · S8</td></tr>
+          <tr><td data-k="자리">지식을 못 찾은 카드</td><td data-k="지금 글">다루는 지식을 못 찾아 「회사 지식이 맞아요」만 고를 수 있어요.</td><td data-k="바꿀 글">관련 지식을 찾지 못해 「회사 지식이 맞아요」와 「그 고객에게만 맞는 말이에요」만 고를 수 있어요.</td><td data-k="번호">—</td></tr>
+          <tr><td data-k="자리">나중에</td><td data-k="지금 글">나중에</td><td data-k="바꿀 글">나중에 (그대로)</td><td data-k="번호">P10 못 풂</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 6 ───────────────────────── -->
+  <section class="frame" id="s6">
+    <h2>6. 비평 번호별 — 이 시안이 어떻게 풀었나</h2>
+    <p class="idea">풀음 · 일부 · 못 풂 세 가지로 적었습니다. 근거는 <code>docs/plans/2026-11-26-brain-decide-card-review-findings.md</code>.</p>
+    <ul class="fix">
+      <li><span class="num">P1</span><span class="lv done">풀음</span><span>「바깥 글」이 화면에서 사라짐. 답은 「직원 말이 맞아요」, 초록 글은 「AI가 직원 말을 정리해 넣는 글」이라고 밝힘.</span></li>
+      <li><span class="num">P2</span><span class="lv done">풀음</span><span>기계 두 줄을 보이지 않게 하고, 두 구절은 질문 아래 사람 말 한 줄로. 저장된 표시 줄은 그대로 둠(학습 코드가 씀).</span></li>
+      <li><span class="num">P3</span><span class="lv done">풀음</span><span>문단 둘 → 바뀌는 곳 한 칸, 처음부터 빨강 · 초록. 안 바뀌는 문장은 접힘.</span></li>
+      <li><span class="num">P4</span><span class="lv done">풀음</span><span>답 「그 고객에게만 맞는 말이에요」를 더함(새 답 코드가 필요 — 7번).</span></li>
+      <li><span class="num">P5</span><span class="lv done">풀음</span><span>고칠 칸에 바뀌는 문장만. 나머지 문장은 사장님이 건드릴 수 없으니 몰래 바뀌지 않음.</span></li>
+      <li><span class="num">P6</span><span class="lv done">풀음</span><span>자세히 보기에 직원 원문 · 고객 수 · 날짜 · AI가 본 이유(서버가 실어 줘야 함).</span></li>
+      <li><span class="num">P7</span><span class="lv done">풀음</span><span>답마다 누르면 생기는 일 한 줄. 지금 코드가 하는 일만 적음.</span></li>
+      <li><span class="num">P8</span><span class="lv no">못 풂</span><span>엉뚱한 구절을 짚는 것은 AI 지시문 쪽 일. 다만 직원 원문이 보여 사장님이 틀린 짚음을 알아챌 수는 있음.</span></li>
+      <li><span class="num">P9</span><span class="lv part">일부</span><span>고른 단추 표시 · 저장 한 번 · 되돌리기를 카드 자리로. 되돌리기 30분(화면) ↔ 서버 24시간 차이는 그대로 — 시안은 화면 쪽 참값만 적음.</span></li>
+      <li><span class="num">P10</span><span class="lv no">못 풂</span><span>「나중에」는 여전히 이 탭에서만 기억. 글도 그대로 둠.</span></li>
+      <li><span class="num">P11</span><span class="lv part">일부</span><span>문장 단위로 접어 눈에 덜 띔. 마침표만 다른 것을 바뀜으로 안 치는 규칙은 구현 때 <code>textDiff</code> 에서.</span></li>
+      <li><span class="num">P12</span><span class="lv done">풀음</span><span>제목 = 회사 지식 이름(카드에 이미 있는 <code>about.title</code>).</span></li>
+      <li><span class="num">S1</span><span class="lv no">못 풂</span><span>고객 둘이면 바로 고치는 길이 사장님 답을 건너뛰는 것은 서버 일. 그래서 답 글에 「다시 안 물어요」를 쓰지 않음.</span></li>
+      <li><span class="num">S2</span><span class="lv done">풀음</span><span>「바깥 글은 고칠 일로」 뺌.</span></li>
+      <li><span class="num">S3</span><span class="lv no">못 풂</span><span>계산기를 가리키는 지식에 금액이 들어가는 길은 그리지 않음(이 사례는 사장님이 정한 통 당 금액이 글에 있는 지식). 계산기 지금 값 보이기는 7번에 적음.</span></li>
+      <li><span class="num">S4</span><span class="lv done">풀음</span><span>저장 한 번 — 서버 한 번 부름이 전제(7번). 실패 글 「아무것도 바뀌지 않았어요」도 이것이 있어야 참.</span></li>
+      <li><span class="num">S5</span><span class="lv part">일부</span><span>사장님이 고친 글이 그대로 지식이 됨. 그 글을 다음 밤 배우기에 넘기는 것은 서버 일(7번).</span></li>
+      <li><span class="num">S6</span><span class="lv no">못 풂</span><span>카드가 낡았을 때 알림은 그리지 않음. 보통 카드의 「지식이 바뀌었어요」 경고 칸을 같이 쓰면 됨(서버가 판을 견줘야 함).</span></li>
+      <li><span class="num">S7</span><span class="lv done">풀음</span><span>화면이 문장을 지우거나 옮기는 어림셈(<code>outsideDraft</code>)을 없애고, 바뀌는 문장만 칸에 넣음(서버가 고친 글을 실어 줘야 함).</span></li>
+      <li><span class="num">S8</span><span class="lv part">일부</span><span>되돌리기를 카드 자리로 옮기고 시간을 참값으로 적음. 결정 시간 0 문제 · 고침이 어느 카드에서 왔는지는 서버 일.</span></li>
+      <li><span class="num">S9</span><span class="lv no">못 풂</span><span>「나중에」가 서버에 안 남는 것 · 합쳐져 닫힌 카드를 알리는 곳 없음은 그대로.</span></li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── 7 ───────────────────────── -->
+  <section class="frame" id="s7">
+    <h2>7. 서버가 새로 해야 하는 것 (시안이 전제한 것)</h2>
+    <ol class="server">
+      <li><b>답 한 번에 저장</b> — 새 동작 하나(예 <code>answer_question</code>: 카드 번호 · 답 코드 · 고친 글)를 한 묶음으로: 고침 제안 → 승인 → 카드 닫기. 고침 근거에 카드 번호를 남기고, 화면이 재던 결정 시간을 그대로 실음. 지금은 화면이 세 번 따로 부름(<code>ds-inbox-question.js:129-168</code>).</li>
+      <li><b>새 답 코드</b> 「그 고객에게만 맞는 말」 — <code>constants.py:186</code> <code>ANSWER_CODES</code> 에 더하고, 밤 배우기 판단 재료 말(<code>handoff_learning_place.py:75</code>)에 「한 고객에게만 맞는 말 — 회사 규칙 아님」으로 실음. 거절 이유에 이미 있는 <code>one_customer</code>(「한 손님 일」)를 답 코드로도 쓸지, 새 코드를 만들지 정해야 함. 보통 카드 거절 칩에서 빼는 목록(<code>ds-inbox-card.js:18</code>)도 같이.</li>
+      <li><b>고친 글을 카드에 함께 남김</b> — 밤 배우기가 이미 만드는 「직원 말에 맞게 고친 전체 글」(<code>fixed_text</code>)을 <code>_differs_card</code> 가 버리지 말고 카드에 실음. 화면은 이것과 지금 지식 글을 문장 단위로 견줘 바뀌는 문장만 칸에 넣음.</li>
+      <li><b>직원 원문 읽어 오기</b> — 근거 상담의 가린 직원 답 한두 줄 · 고객 수 · 상담 날짜 · AI가 다르다고 본 이유를 카드 화면 재료(<code>change_view</code>)에 실음(근거 자리 <code>handoff_learning_gates.py:215-219,304</code>).</li>
+      <li><b>두 구절을 따로 내줌</b> — 저장 글 첫 줄(<code>CLASH_HEAD</code> 「어긋남 — 」) · 둘째 줄(<code>DIFFERS_LINE</code>)은 그대로 두고, 화면 재료에서 두 구절을 따로 칸으로 꺼내 주고 본문에서는 두 줄을 뺌.</li>
+      <li><b>사장님 글을 다음 밤에 넘김</b> — 판단 줄에 답 이름뿐 아니라 사장님이 적은 글도 실음(S5). 「다시 안 물어요」류의 약속을 단추에 쓰려면 고객 둘 바로 고침 길도 사장님 답을 먼저 보게 해야 함(S1) — 그전까지 시안은 그 말을 쓰지 않음.</li>
+      <li><b>(있으면 좋음)</b> 카드의 <code>target_version</code> 과 지금 판이 다르면 「지식이 바뀌었어요」 경고(S6) · 계산기를 가리키는 지식이면 계산기 지금 값 보이기(S3).</li>
+    </ol>
+  </section>
+
+  <section class="frame">
+    <h2>확인 못 한 것</h2>
+    <ul class="marks">
+      <li>사장님이 실제로 이 말을 쓰는지(「직원 말」 · 「그 고객에게만」)는 사장님께 확인하지 않았습니다.</li>
+      <li>실제 화면에 붙여 보지 않았습니다. 시안은 실제 class 이름을 빌려 따로 그렸습니다.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
