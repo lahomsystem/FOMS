@@ -16,6 +16,8 @@
 - **앞뒤 대화 창(:func:`talk_window`)**: 전체가 상한을 넘는 상담은 그 사례 손님 글을 가운데 두고 뒤(직원 답 · 손님 반응)는 자 수
   상한의 :data:`AFTER_SHARE` · :data:`AFTER_LINES` 줄까지, 남은 자리는 앞 대화로 채운다. 손님 글 바로 뒤에 :data:`ANCHOR_MARK`
   줄을, 사진이 온 글 뒤에 그 사진 줄을 끼운다. 그 글을 못 찾으면(글 수 상한 밖) ``None`` — 예전 재료(질문 앞 6줄).
+- **아껴 보내기(설계 글 2026-11-26 6절 — 처음 끔)**: 켜면 지시문 + 그 밤 굳힌 회사 지식 · 온톨로지 목록이 ``system`` 두 블록(뒤
+  블록에 1시간 캐시 표시)이고, 사용자 글에는 사진 · 그 밤 새로 들어가거나 바뀐 줄 · 이미 낸 제안 · 다른 말 · 사례만 간다.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ __all__ = [
     "AFTER_LINES", "AFTER_SHARE", "ANCHOR_MARK", "INSTRUCTIONS", "ITEM_TYPES", "LIST_TYPES", "MAX_KNOWLEDGE", "OPS",
     "CHIP_WORDS", "REASON_WORDS", "TALK_HEAD", "TAUGHT_MARK", "build_params", "case_lines", "knowledge_lines", "knowledge_rows", "pending_lines",
     "DIFFERS", "ONTOLOGY_KINDS", "WHOLE_HEAD", "anchor_mark", "complete", "differs_lines", "raw_ontology", "raw_proposals",
-    "talk_window",
+    "FROZEN_HEADS", "TAIL_HEADS", "frozen_text", "talk_window",
     "updatable", "whole_shown",
 ]
 
@@ -284,26 +286,74 @@ def _schema() -> dict[str, Any]:
             "properties": {"proposals": {"type": "array", "items": item}, "ontology": {"type": "array", "items": onto}}}
 
 
+#: 밤 배우기 지식 목록 아껴 보내기(설계 글 2026-11-26 6절 — :mod:`.handoff_learning_cache`) — 굳힌 목록 블록 머리 · 사용자 글의
+#: 그 밤 꼬리 줄 머리. 굳힌 블록 글은 한 밤 동안 글자 하나 안 바뀐다(캐시 앞부분).
+FROZEN_HEADS = ("회사 지식(오늘 밤 배우기를 시작할 때 반영돼 있던 것 — 키는 대괄호 안 · 그 뒤 새로 들어가거나 바뀐 항목은 사용자 "
+                "글의 '오늘 밤 새로 들어가거나 바뀐' 줄이 맞다):",
+                "온톨로지 목록(상황 · 제작 조건 · 제품 · 옵션 — 키는 대괄호 안 · 오늘 밤 배우기를 시작할 때 것):")
+TAIL_HEADS = ("오늘 밤 새로 들어가거나 바뀐 회사 지식(위 목록보다 이 줄이 맞다 — 같은 키면 이 글이 지금 글):",
+              "오늘 밤 새로 들어가거나 바뀐 온톨로지(위 목록보다 이 줄이 맞다 — 같은 키면 이 글이 지금 글):")
+
+
+def frozen_text(knowledge: Sequence[str], ontology: Sequence[str]) -> str:
+    """굳힌 목록 블록 글(``system`` 둘째 블록 — 머리 · 줄 차례 그대로)."""
+    return "\n".join([FROZEN_HEADS[0], *(knowledge or ["(없음)"]), FROZEN_HEADS[1], *(ontology or ["(없음)"])])
+
+
 def build_params(blocks: Sequence[Sequence[str]], knowledge: Sequence[str], pending: Sequence[str], *, model: str,
                  cfg: PanelSettings, ontology: Sequence[str] = (), differs: Sequence[str] = (),
-                 effort: str = "medium", images: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
-    """``beta.messages.create`` 인자 — 학습 모델, 구조화 출력, 도구 · 캐시 표시 없음. ``blocks`` 는 가림 검사를 지난 사례 줄,
+                 effort: str = "medium", images: Sequence[Mapping[str, Any]] = (), frozen: Any = None) -> dict[str, Any]:
+    """``beta.messages.create`` 인자 — 학습 모델, 구조화 출력, 도구 없음. ``blocks`` 는 가림 검사를 지난 사례 줄,
     ``ontology`` 는 온톨로지 목록 줄(상황 · 제작 조건 · 제품 · 옵션 — :func:`.photo_learning_prompt.knowledge_lines`),
     ``differs`` 는 이미 모아 둔 다른 말 줄(:func:`differs_lines`), ``effort`` 는 생각 세기(:func:`.handoff_learning_pick.model_for`),
     ``images`` 는 사례 글 앞에 붙일 사진 블록(``사진 N`` 글 + 그림 · 문서 — :mod:`.handoff_learning_photos`). 없으면 글 블록
-    하나뿐이다(예전과 바이트까지 같다)."""
+    하나뿐이다(예전과 바이트까지 같다).
+
+    ``frozen`` (:class:`.handoff_learning_cache.NightLists` — 그 밤 처음 굳힌 목록 줄)이 있으면 ``system`` 을 [지시문, 굳힌 목록
+    (1시간 캐시 표시 — :func:`.brain_prompt.cache_marked`)] 둘로 하고, 사용자 글에는 지금 목록 가운데 굳힌 목록에 없는 줄(그 밤
+    새로 들어가거나 바뀐 항목)만 싣는다. ``None`` 이면(처음 값) 캐시 표시가 없고 예전과 글자까지 같다."""
+    if frozen is not None:
+        return _cached_params(blocks, knowledge, pending, model=model, cfg=cfg, ontology=ontology, differs=differs,
+                              effort=effort, images=images, frozen=frozen)
     body = ["회사 지식(지금 반영된 것 — 키는 대괄호 안):", *(knowledge or ["(없음)"]),
             "온톨로지 목록(상황 · 제작 조건 · 제품 · 옵션 — 키는 대괄호 안):", *(ontology or ["(없음)"]),
-            "이미 낸 제안(승인 기다림 — 같은 것을 다시 내지 않는다):", *(pending or ["(없음)"]),
+            *_rest(blocks, pending, differs)]
+    return _params(body, model=model, cfg=cfg, effort=effort, images=images,
+                   system=[{"type": "text", "text": INSTRUCTIONS}])
+
+
+def _cached_params(blocks: Sequence[Sequence[str]], knowledge: Sequence[str], pending: Sequence[str], *, model: str,
+                   cfg: PanelSettings, ontology: Sequence[str], differs: Sequence[str], effort: str,
+                   images: Sequence[Mapping[str, Any]], frozen: Any) -> dict[str, Any]:
+    """:func:`build_params` 의 아껴 보내기 꼴 — 지시문 + 굳힌 목록이 캐시 앞부분, 사진 · 꼬리 줄 · 사례는 그 뒤."""
+    seen_knowledge, seen_ontology = set(frozen.knowledge), set(frozen.ontology)
+    body = [TAIL_HEADS[0], *([line for line in knowledge if line not in seen_knowledge] or ["(없음)"]),
+            TAIL_HEADS[1], *([line for line in ontology if line not in seen_ontology] or ["(없음)"]),
+            *_rest(blocks, pending, differs)]
+    system = prompt.cache_marked([{"type": "text", "text": INSTRUCTIONS},
+                                  {"type": "text", "text": frozen_text(frozen.knowledge, frozen.ontology)}],
+                                 prompt.CACHE_TTL_1H)
+    return _params(body, model=model, cfg=cfg, effort=effort, images=images, system=system)
+
+
+def _rest(blocks: Sequence[Sequence[str]], pending: Sequence[str], differs: Sequence[str]) -> list[str]:
+    """목록 뒤 사용자 글 줄 — 이미 낸 제안 · 모아 둔 다른 말 · 사례(두 꼴이 같이 쓴다)."""
+    body = ["이미 낸 제안(승인 기다림 — 같은 것을 다시 내지 않는다):", *(pending or ["(없음)"]),
             "이미 모아 둔 다른 말(키 · 대상 항목 키 · 직원이 한 말 — 같은 말이 또 나오면 repeats 에 그 키):",
             *(differs or ["(없음)"]),
             "직원이 직접 답한 상담 사례(넘김 · 고쳐 보냄 · 초안 안 씀 · 초안 없음 — 가린 글):"]
     for block in blocks:
         body += block
+    return body
+
+
+def _params(body: Sequence[str], *, model: str, cfg: PanelSettings, effort: str, images: Sequence[Mapping[str, Any]],
+            system: list[dict[str, Any]]) -> dict[str, Any]:
+    """요청 인자 — 사진 블록이 사용자 글 앞(캐시 앞부분 ``system`` 뒤라 앞부분에 닿지 않는다), 대체는 그 모델이 받을 때만."""
     params: dict[str, Any] = {
         "model": model, "max_tokens": MAX_TOKENS, "thinking": {"type": "adaptive"},
         "output_config": {"effort": effort, "format": {"type": "json_schema", "schema": _schema()}},
-        "system": [{"type": "text", "text": INSTRUCTIONS}],
+        "system": system,
         "messages": [{"role": "user", "content": [*(dict(block) for block in images),
                                                   {"type": "text", "text": "\n".join(body)}]}],
     }

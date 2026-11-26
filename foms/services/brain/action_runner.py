@@ -18,6 +18,7 @@ from foms.services.brain.decide import (
 from foms.services.brain.errors import BrainPermissionError, BrainShapeError
 from foms.services.brain import learned
 from foms.services.brain.chat_reports import build_conflict_proposal
+from foms.services.brain.question_answer import answer_question
 from foms.services.brain.proposals import (
     Proposer, propose_create, propose_delete, propose_retire, propose_rollback, propose_update,
 )
@@ -107,6 +108,12 @@ def _reopen(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime)
     return {"change_id": change.id}
 
 
+def _answer(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -> dict[str, Any]:
+    return answer_question(session, p["change_id"], actor=actor, code=p["code"], text=p.get("text"),
+                           base_version=p.get("base_version"), money_ok=bool(p.get("money_ok")), view_ms=p.get("view_ms"),
+                           now=now)
+
+
 def _bulk(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -> dict[str, Any]:
     return bulk_apply(session, p["ids"], actor=actor, now=now)
 
@@ -126,8 +133,8 @@ _propose_retire = _propose_end(propose_retire, "propose_retire")
 _propose_delete = _propose_end(propose_delete, "propose_delete")
 #: 실행 길이 있는 액션 이름(:func:`_dispatch` 갈래와 같다 — 시험이 액션 목록과 견준다).
 HANDLED: frozenset[str] = frozenset({"propose_edit", "propose_retire", "propose_delete", "item_rollback", "apply",
-                                     "edit_apply", "reject", "reopen", "bulk_apply", "recheck", "release_rollback",
-                                     "learned_seen", "learned_fix", "learned_undo"})
+                                     "edit_apply", "reject", "reopen", "answer_question", "bulk_apply", "recheck",
+                                     "release_rollback", "learned_seen", "learned_fix", "learned_undo"})
 
 
 def _dispatch(name: str, session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -> dict[str, Any]:
@@ -146,6 +153,8 @@ def _dispatch(name: str, session: Any, actor: Any, p: dict[str, Any], now: datet
         return _reject(session, actor, p, now)
     if name == "reopen":
         return _reopen(session, actor, p, now)
+    if name == "answer_question":
+        return _answer(session, actor, p, now)
     if name == "bulk_apply":
         return _bulk(session, actor, p, now)
     if name == "recheck":

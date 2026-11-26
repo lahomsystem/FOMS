@@ -195,13 +195,15 @@ UNDO = """
   const line = api.q('[data-ds-inbox-undo]');
   const look = () => ({ shown: api.shown(line), text: api.text(line.querySelector('[data-ds-inbox-undo-text]')),
                         status: api.text(api.q('[data-ds-inbox-status]')) });"""
-#: 고침 제안(POST /api/brain/proposals)에 제안 번호를 돌려주는 가짜 fetch — 바탕 가짜는 번호를 주지 않는다.
+#: 한 번에 저장(POST …/answer)이 그 답으로 넣은 고침 번호를 돌려주는 가짜 fetch — 바탕 가짜는 번호를 주지 않는다.
 WITH_IDS = """
   const plain = fetch;
   fetch = async function (url, init) {
     const res = await plain(url, init);
-    if (init && init.method === 'POST' && url === '/api/brain/proposals') {
-      return { status: 200, json: async () => ({ success: true, data: { change_id: 777 } }) };
+    if (init && init.method === 'POST' && /\\/answer$/.test(url)) {
+      const sent = JSON.parse(init.body);
+      return { status: 200, json: async () => ({ success: true,
+        data: { saved: true, change_id: 10, edit: sent.code === 'knowledge_right' ? null : 777 } }) };
     }
     return res;
   };"""

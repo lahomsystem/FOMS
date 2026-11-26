@@ -116,8 +116,9 @@
                                          ov.actionsTable(summary.actions)]);
     if (kind === 'cq') {
       var cq = summary.cq;
-      return show([header('능력 질문(시험지)', cq.covered + ' / ' + cq.total + ' 질문에 필요한 종류 · 연결이 있어요. ' +
-                          '내용이 맞는지는 평가 단계에서 재요.'), ov.cqTable(cq, null)]);
+      var linked = cq.linked_pct === undefined || cq.linked_pct === null ? '' : ' · 이어진 지식 ' + cq.linked_pct + '%';
+      return show([header('능력 질문(시험지)', cq.covered + ' / ' + cq.total + ' 질문에 필요한 종류 · 연결이 있어요' + linked +
+                          '. 내용이 맞는지는 평가 단계에서 재요.'), ov.cqTable(cq, null)]);
     }
   }
 

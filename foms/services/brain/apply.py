@@ -66,6 +66,11 @@ AUTO_PROPOSERS: frozenset[str] = frozenset({"agent:cs_handoff_learning"})
 AUTO_OPS: frozenset[str] = frozenset({OP_CREATE, OP_UPDATE, OP_LINK_ADD})
 #: 바로 반영하지 않는 유형 — 값 규칙 · 사장님 결정 · 기준 답 문구(혼자 발송 재료)는 늘 사람이 넣는다.
 AUTO_HELD_TYPES: frozenset[str] = frozenset({"price_rule", "owner_decision", "template", "conflict", "question"})
+#: 바로 반영으로 더할 수 있는 잇기 종류(설계서 2026-11-26 4.1 · 7.2) — 그 밖 종류(금액 · 수량 정본 · '같이 안 돼요' 같은 것)는 허용
+#: 짝이어도 늘 사람이 잇는다. 처음 값은 지금 학습이 바로 넣는 종류뿐: 넘긴 상담 배우기의 온톨로지 '잇기'(상황 → 제품 · 옵션 —
+#: :func:`foms.services.cs_agent.photo_learning._filer` 의 ``link`` 갈래, :mod:`foms.services.cs_agent.handoff_learning_onto` 가
+#: 바로 반영). 허용 짝 표(:data:`.constants.ALLOWED_LINKS`)와 따로 둔다 — 짝 표는 '이을 수 있나', 이것은 '사람 없이 이어도 되나'.
+AUTO_LINK_KINDS: frozenset[str] = frozenset({"applies_to"})
 
 
 @dataclass(frozen=True)
@@ -271,6 +276,8 @@ def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.
     빼기는 허용 짝을 다시 보지 않는다(짝 표가 바뀐 옛 링크도 끊을 수 있게 — 7.8 다음 5). 더하기는 링크 제약(:mod:`.link_rules`)
     도 다시 보고, ``supersedes`` 면 앞 항목의 유효 끝을 찍는다(:func:`_end_superseded` — 7.8 다음 2)."""
     adding = change.op == OP_LINK_ADD
+    if auto is not None and change.link_kind not in AUTO_LINK_KINDS:  # 잠그기 전에 — 사람 없이 잇는 종류는 정한 것만
+        raise BrainPermissionError("바로 반영은 정한 잇기 종류만 잇는다 — 그 밖 종류는 사람이 잇는다")
     limited = adding and cardinality(source_type(session, change.link_from), change.link_kind)[1] is not None
     # 연결 개수 상한이 있는 짝은 시작 항목 줄을 잠근 뒤 센다 — 같은 때 두 반영이 같은 항목에 더하지 못하게(D105)
     source = current_object(session, change.link_from, lock=limited)
@@ -388,8 +395,8 @@ def apply_change(session: Any, change_id: int, *, actor: Any, now: Optional[date
         detail: 감사 줄에 더할 숫자 · 코드(결정 시간 · 고쳐 넣음 · 다시 확인 같은 측정 — 글 없음).
         action: 이 반영을 부른 액션 이름(:mod:`.actions` — 제안 줄 ``decided_action`` · 감사 줄).
         auto: 배운 것 바로 반영(:class:`AutoLearn`) — 학습 에이전트 제안(:data:`AUTO_PROPOSERS`)의 새로 만들기 · 고치기 · 링크
-            더하기만, 모두가 보는 지식만(:data:`AUTO_HELD_TYPES` 유형은 안 받는다). 권한 확인을 건너뛰고(``actor`` 는 안
-            본다) 결정한 사람 · 사람 승인자 칸을 비운다.
+            더하기만, 모두가 보는 지식만(:data:`AUTO_HELD_TYPES` 유형은 안 받는다), 링크는 :data:`AUTO_LINK_KINDS` 종류만.
+            권한 확인을 건너뛰고(``actor`` 는 안 본다) 결정한 사람 · 사람 승인자 칸을 비운다.
 
     Raises:
         BrainTargetError · BrainPermissionError · BrainShapeError · BrainConflictError · BrainDocSyncError.

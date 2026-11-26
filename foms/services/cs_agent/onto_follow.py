@@ -32,6 +32,7 @@ from foms.persistence.brain.models import BrainLink, BrainObject
 from foms.services.brain.constants import ALLOWED_LINKS
 from foms.services.brain.labels import pref_of
 from foms.services.brain.store import is_current
+from foms.services.brain.usage import usage_total
 from foms.services.cs_agent.brain_prompt import HANDOFF_UNSURE
 from foms.services.cs_agent.onto_find import (
     ITEM_TYPES, MAX_RULES, OntoHit, OntoRule, doc_id_of, hits_from, matches, visible,
@@ -59,13 +60,14 @@ def _linked(session: Any, kind: str, ends: Sequence[str], *, near: Any, far: Any
     다른 쪽도 보기 조건(:func:`.onto_find.visible`)을 지나야 한다 — 은퇴 · 좁은 범위 · 다른 브랜드 끝은 잇지 않는다."""
     if not ends:
         return []
+    used = usage_total(BrainObject).label("usage")  # 판 줄 옛 값 + 따로 센 합(같은 select 안 상관 부분 질의)
     rows = session.execute(
         select(near, BrainObject.item_key, BrainObject.item_type, BrainObject.name, BrainObject.payload,
-               BrainObject.usage_count)
+               used)
         .join(BrainObject, BrainObject.item_key == far)
         .where(is_current(BrainLink), BrainLink.kind == kind, near.in_(list(ends)),
                BrainObject.item_type.in_(list(types)), *visible(BrainObject, brand, day))
-        .order_by(BrainObject.usage_count.desc(), BrainObject.item_key)).all()
+        .order_by(used.desc(), BrainObject.item_key)).all()
     return [(end, OntoRule(key, "" if role else doc_id_of(payload), item_type, pref_of(name, payload) if role else name,
                            int(usage or 0), role))
             for end, key, item_type, name, payload, usage in rows]

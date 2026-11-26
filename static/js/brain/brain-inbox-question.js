@@ -1,9 +1,11 @@
 /**
  * '승인 대기' ③ 사장님이 정해 주실 것 — 질문 카드(HAUD master brain 설계서 7.9 단계 4 · D152). 엇갈림 · 질문 제안 하나를
- * "어느 쪽이 맞아요?" 로 묻고, 답마다 있는 동작만 쓴다(새 쓰기 길 없음):
- *  - 회사 지식이 맞아요 = 그 제안을 '회사 지식이 맞음 — 바깥 글 고칠 일' 까닭으로 닫는다(고칠 일로 남음).
- *  - 바깥 글이 맞아요 = 다루는 지식 글을 사장님이 적은 글로 고치는 제안 → 바로 승인 → 그 제안을 닫는다.
- *  - 둘 다 맞아요 = 경우를 적은 한 줄을 지식 글 끝에 덧붙이는 제안 → 바로 승인 → 그 제안을 닫는다.
+ * "어느 쪽이 맞아요?" 로 묻는다. 답은 **한 번에 저장**(설계서 2026-11-26 온톨로지 잇기 3.2 — POST …/proposals/<id>/answer
+ * 한 번. 서버가 고침 제안 · 반영 · 카드 닫기 · 사장님 글 남기기를 한 트랜잭션에서 한다):
+ *  - 회사 지식이 맞아요 = code 'knowledge_right'(글 없음).
+ *  - 바깥 글이 맞아요 = code 'outside_right' + 사장님이 적은 글(새 지식 글 전체).
+ *  - 둘 다 맞아요 = code 'both_right' + 경우를 적은 한 줄(서버가 지식 글 끝에 붙인다).
+ * 결정 시간(view_ms)은 카드를 보인 때부터 잰다. 금액 알림(saved 거짓)이면 그 한 줄을 보이고 같은 글로 다시 누르면 저장한다.
  * 글은 textContent 만 · 인라인 스타일 없음. '나중에'는 brain-inbox.js 의 data-brain-act="later" 그대로.
  */
 (function () {
@@ -45,7 +47,8 @@
     var view = card.main;
     var about = (view.about || [])[0] || null;
     var li = el('li', { cls: 'brain-icard brain-type--' + card.type, attrs: { 'data-card-id': card.id } });
-    var box = el('div', { cls: 'brain-prop', attrs: { 'data-change-id': view.id } });
+    var box = el('div', { cls: 'brain-prop', attrs: { 'data-change-id': view.id,
+                                                      'data-shown-at': Math.round(window.performance.now()) } });
     var title = card.title || card.name || '';
     box.appendChild(el('p', { cls: 'brain-icard__name', text: title }));
     box.appendChild(el('p', { cls: 'brain-prop__meaning', text: '어느 쪽이 맞아요?' }));
@@ -71,9 +74,15 @@
     return li;
   }
 
-  function newText(kind, box, about) {
+  /** 사장님이 적은 글(앞뒤 빈칸 뺌) — 서버에 보내는 글. */
+  function typedText(kind, box) {
     var input = box.querySelector('[data-brain-answer-text="' + (kind === 'outside-save' ? 'outside' : 'both') + '"]');
-    var value = input ? input.value.trim() : '';
+    return input ? input.value.trim() : '';
+  }
+
+  /** 저장하면 들어갈 지식 글(서버와 같은 셈 — 바뀐 글 없음 확인용). */
+  function newText(kind, box, about) {
+    var value = typedText(kind, box);
     if (!value) return '';
     return kind === 'outside-save' ? value : about.text.replace(/\s+$/, '') + '\n' + value;
   }
@@ -83,7 +92,7 @@
     dom.setStatus(status, text || '하지 못했어요 — 다시 눌러 주세요.', 'error');
   }
 
-  /** 답 하나 — 고칠 글이 있으면 고침 제안 → 승인, 그다음 질문 제안을 그 답의 까닭으로 닫는다. */
+  /** 답 하나 — 서버 동작 하나(answer_question)로 한 번에 저장한다. */
   async function answer(button, deps) {
     var box = button.closest('[data-change-id]');
     var view = box && deps.findView(box.getAttribute('data-change-id'));
@@ -98,25 +107,28 @@
     }
     var about = (view.about || [])[0];
     box.querySelectorAll('[data-brain-answer]').forEach(function (b) { b.disabled = true; });
+    var body = { code: CODES[kind],
+                 view_ms: Math.max(0, Math.round(window.performance.now() - Number(box.getAttribute('data-shown-at') || 0))) };
     if (kind !== 'knowledge') {
       var text = about ? newText(kind, box, about) : '';
       if (!text || text === about.text) {
         fail(box, status, '바뀐 글이 없어요 — 글을 적어 주세요.');
         return;
       }
+      body.text = typedText(kind, box);
+      body.base_version = about.version;
+      if (box.getAttribute('data-brain-money-ok') === body.text) body.money_ok = true;  // 금액 알림을 본 뒤 같은 글로 다시
       dom.setStatus(status, '회사 지식을 고치는 중…');
-      var made = await dom.postJson(deps.urls.proposals, { action: 'propose_edit', key: about.key,
-        base_version: about.version, after: { text: text }, reason: '사장님 답 — ' + SAID[kind] });
-      var applied = made.ok && await dom.postJson(deps.urls.proposals + '/' + made.data.change_id + '/apply',
-        { base_version: about.version, view_ms: 0, confirm: { field: 'text', value: text } });
-      if (!made.ok || !applied.ok) {
-        fail(box, status, made.ok ? applied.error : made.error);
-        return;
-      }
     }
-    var closed = await dom.postJson(deps.urls.proposals + '/' + view.id + '/reject', { code: CODES[kind], view_ms: 0 });
-    if (!closed.ok) {
-      fail(box, status, closed.error);
+    var saved = await dom.postJson(deps.urls.proposals + '/' + view.id + '/answer', body);
+    if (!saved.ok) {
+      fail(box, status, saved.error);
+      return;
+    }
+    if (saved.data && saved.data.saved === false) {  // 금액 알림 — 아무것도 저장하지 않았다. 같은 글로 다시 누르면 저장
+      box.setAttribute('data-brain-money-ok', body.text || '');
+      box.querySelectorAll('[data-brain-answer]').forEach(function (b) { b.disabled = false; });
+      dom.setStatus(status, saved.data.message);
       return;
     }
     await deps.reload();
