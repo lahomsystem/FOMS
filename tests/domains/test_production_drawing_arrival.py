@@ -36,7 +36,7 @@ def test_마감_상태_넷과_금요일의_월요일_마감() -> None:
     assert da.deadline_state(D(2026, 11, 25), tue, all_in=False) == "soon"  # 내일
     assert da.deadline_state(D(2026, 11, 26), tue, all_in=False) == "calm"
     assert da.deadline_state(D(2026, 11, 23), tue, all_in=True) == "ok"  # 다 오면 마감과 상관없이 초록
-    assert da.deadline_state(None, tue, all_in=False) == "calm"  # 시공일 없음 = 다 옴 또는 여유만
+    assert da.deadline_state(None, tue, all_in=False) == "calm"  # 시공일 없음 = 다 내려옴 또는 여유만
     fri = D(2026, 11, 27)
     assert da.deadline_state(D(2026, 11, 30), fri, all_in=False) == "soon"  # 금요일에 월요일 마감 = 빠듯(§14 답 4)
     assert da.deadline_state(D(2026, 12, 1), fri, all_in=False) == "calm"
@@ -69,12 +69,12 @@ def test_줄_글_x_n_과_가장_급한_상태() -> None:
     assert da.arrival_line([_made(1, "2026-11-26"), _wait(2, "2026-11-26")], tue)["strip"] == "도면 1/2 마감 오늘"
     assert da.arrival_line([_wait(2, "2026-11-27")], tue)["strip"] == "도면 0/1 마감 내일"
     assert da.arrival_line([_wait(2, "2026-11-30")], tue)["strip"] == "도면 0/1"
-    assert da.arrival_line([_made(1, "2026-11-25"), _made(2, "2026-11-25", "done")], tue)["strip"] == "도면 2/2 다 옴"
+    assert da.arrival_line([_made(1, "2026-11-25"), _made(2, "2026-11-25", "done")], tue)["strip"] == "도면 2/2 다 내려옴"
     # 여러 날 줄: 주문마다 매겨 가장 급한 것(늦음 > 빠듯 > 여유). 빠듯끼리는 가장 이른 마감의 '언제'
     many = [_wait(1, "2026-12-03"), _wait(2, "2026-11-27"), _wait(3, "2026-11-26"), _made(4, "2026-11-20")]
     assert da.arrival_line(many, tue)["strip"] == "도면 1/4 마감 오늘"
     assert da.arrival_line(many + [_wait(5, "2026-11-25")], tue)["state"] == "late"
-    # 시공일 없음 줄은 마감이 없어 다 옴 또는 여유만
+    # 시공일 없음 줄은 마감이 없어 다 내려옴 또는 여유만
     assert da.arrival_line([_wait(1, None)], tue)["state"] == "calm"
     assert da.arrival_line([_made(1, None)], tue)["state"] == "ok"
     # 붙여 둔 값이 있으면 그것을 쓴다(같은 판정 한 곳)

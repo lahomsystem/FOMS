@@ -83,7 +83,7 @@ def test_PC_장은_태블릿과_같은_순서_기다림_줄에_까닭_한_줄_�
 
 
 def test_7판_CSS_는_목업_덩이_그대로_글자는_배율을_따르고_무채색이_없다() -> None:
-    """§5 '꾸밈': 목업 '7판에서 더한 것' 덩이(색은 토큰) · 새 글자 calc(Npx * var(--foms-fs, 1)) · 상태 색 넷(늦음 · 빠듯 · 다 옴 · 여유)."""
+    """§5 '꾸밈': 목업 '7판에서 더한 것' 덩이(색은 토큰) · 새 글자 calc(Npx * var(--foms-fs, 1)) · 상태 색 넷(늦음 · 빠듯 · 다 내려옴 · 여유)."""
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     block = css.split("/* ── 7판: 도면 내려옴")[1].split("/* ── 내 공정: 곧 올 것")[0]
     for line in (".fph-sd__mid { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }",
