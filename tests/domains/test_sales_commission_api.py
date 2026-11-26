@@ -351,3 +351,31 @@ def test_put_for_order_without_freelancer_returns_null_row(app, world):
     assert resp.status_code == 200
     data = resp.get_json()["data"]
     assert data["row"] is None and data["input"]["version"] == 1
+
+
+def test_get_rows_carry_final_drawings(app, world):
+    """줄마다 확정된 최종 도면 목록이 붙는다 — 요율을 정할 때 옆에서 본다(2026-11-26). 없으면 빈 목록."""
+    import copy
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    order = db_session.get(Order, world["ids"]["manual"])
+    sd = copy.deepcopy(order.structured_data)
+    sd["drawing_current_files"] = [
+        {"key": "orders/fake/drawing-1.png", "filename": "가짜도면1.png"},
+        {"key": "orders/fake/drawing-2.pdf", "filename": "가짜도면2.pdf"},
+    ]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+    client = _client(app, "STAFF", "ACCOUNTING")
+    resp = client.get(f"{ROWS}?user_id={world['fl']}&month={MONTH}&basis=completion")
+    assert resp.status_code == 200, resp.get_json()
+    rows = _rows_by_id(resp.get_json()["data"])
+
+    drawings = rows[world["ids"]["manual"]]["drawings"]
+    assert [d["filename"] for d in drawings] == ["가짜도면1.png", "가짜도면2.pdf"]
+    assert drawings[0]["view_url"] == "/api/files/view/orders/fake/drawing-1.png"
+    assert [d["is_image"] for d in drawings] == [True, False]
+    assert all(row["drawings"] == [] for oid, row in rows.items() if oid != world["ids"]["manual"])

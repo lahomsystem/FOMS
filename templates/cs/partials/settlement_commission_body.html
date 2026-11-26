@@ -55,27 +55,53 @@
     <p class="s-cm-state" data-settlement-cm-loading hidden>불러오는 중이에요.</p>
     <div class="s-empty" data-settlement-cm-empty hidden></div>
 
-    <div class="s-ops-gridwrap s-cm-gridwrap" data-settlement-cm-gridwrap hidden>
-      <table class="s-ops-grid s-cm-grid" id="foms-settle-cm-grid">
-        <thead>
-          <tr>
-            <th scope="col" data-settlement-cm-date-head>시공일</th>
-            {# 실측일 기준일 때만 시공일을 옆에 한 칸 더(11-11 사용자 요청) — commission.js 가 보이고 숨긴다. #}
-            <th scope="col" data-settlement-cm-construction-head hidden>시공일</th>
-            <th scope="col">고객명</th>
-            <th scope="col">품목</th>
-            <th scope="col">거래구분</th>
-            <th scope="col" class="s-ops-num">출고가</th>
-            <th scope="col" class="s-ops-num">시공비</th>
-            <th scope="col" class="s-ops-num">차감</th>
-            <th scope="col" class="s-ops-num">요율</th>
-            <th scope="col" class="s-ops-num">수수료</th>
-            <th scope="col"><span class="visually-hidden">본인 수정</span></th>
-          </tr>
-        </thead>
-        <tbody class="s-cm-total" data-settlement-cm-total></tbody>
-        <tbody data-settlement-cm-rows></tbody>
-      </table>
+    {# 이 달 거래구분마다 수수료 합계 · 비율 셋(건수 · 출고가 · 수수료) — commission-peek.js 가 줄로 센다(2026-11-26). #}
+    <div class="s-cm-mix" data-settlement-cm-mix hidden></div>
+
+    {# 표 + 도면 판. 품목 옆 [도면]을 누르면 판이 열려 표와 나란히 선다(.s-cm-split--open). #}
+    <div class="s-cm-split" data-settlement-cm-split>
+      <div class="s-ops-gridwrap s-cm-gridwrap" data-settlement-cm-gridwrap hidden>
+        <table class="s-ops-grid s-cm-grid" id="foms-settle-cm-grid">
+          <thead>
+            <tr>
+              <th scope="col" data-settlement-cm-date-head>시공일</th>
+              {# 실측일 기준일 때만 시공일을 옆에 한 칸 더(11-11 사용자 요청) — commission.js 가 보이고 숨긴다. #}
+              <th scope="col" data-settlement-cm-construction-head hidden>시공일</th>
+              <th scope="col">고객명</th>
+              <th scope="col">품목</th>
+              <th scope="col" class="s-cm-fold">거래구분</th>
+              <th scope="col" class="s-ops-num">출고가</th>
+              <th scope="col" class="s-ops-num s-cm-fold">시공비</th>
+              <th scope="col" class="s-ops-num s-cm-fold">차감</th>
+              <th scope="col" class="s-ops-num">요율</th>
+              <th scope="col" class="s-ops-num">수수료</th>
+              <th scope="col"><span class="visually-hidden">본인 수정</span></th>
+            </tr>
+          </thead>
+          <tbody class="s-cm-total" data-settlement-cm-total></tbody>
+          <tbody data-settlement-cm-rows></tbody>
+        </table>
+      </div>
+
+      <aside class="s-cm-peek" data-settlement-cm-peek aria-label="도면" hidden>
+        <div class="s-cm-peek-head">
+          <strong class="s-cm-peek-name" data-settlement-cm-peek-name></strong>
+          <span class="s-cm-peek-sub" data-settlement-cm-peek-sub></span>
+          <button type="button" class="s-ops-btn" data-settlement-cm-peek-big>크게</button>
+          <button type="button" class="s-ops-btn" data-settlement-cm-peek-close>닫기</button>
+        </div>
+        <div class="s-cm-peek-sheets" data-settlement-cm-peek-sheets></div>
+        <div class="s-cm-peek-paper" data-settlement-cm-peek-paper></div>
+        <div class="s-cm-peek-decide">
+          <span class="s-cm-kv"><small>출고가</small><b data-settlement-cm-peek-price></b></span>
+          <span class="s-cm-kv"><small>시공비</small><b data-settlement-cm-peek-cost></b></span>
+          <span class="s-cm-kv"><small>요율</small><span data-settlement-cm-peek-rate></span></span>
+          <span class="s-cm-kv"><small>수수료</small><b data-settlement-cm-peek-fee></b></span>
+          <span class="s-ops-spacer"></span>
+          <button type="button" class="s-ops-btn" data-settlement-cm-peek-prev>이전</button>
+          <button type="button" class="s-ops-btn s-ops-btn--primary" data-settlement-cm-peek-next>다음 요율 정할 주문</button>
+        </div>
+      </aside>
     </div>
   </section>
 

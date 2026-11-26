@@ -2,7 +2,8 @@
 
 - ``GET /api/sales-commission/freelancers`` — 탭의 프리랜서 고르기용 켜진 프리랜서 목록.
 - ``GET /api/sales-commission/rows?user_id=&month=YYYY-MM&basis=completion|measurement`` — 줄 · 합계 ·
-  "비슷한 이름" 경고(:func:`foms.services.sales_commission.read_model.commission_rows`).
+  "비슷한 이름" 경고(:func:`foms.services.sales_commission.read_model.commission_rows`). 줄마다 확정된 최종
+  도면 목록 ``drawings`` 가 붙는다(요율 정할 때 옆에서 보기 — 2026-11-26).
 - ``PUT /api/sales-commission/inputs/<order_id>`` ``{install_cost, rate_override_bp, note, version}`` — 시공비 ·
   회계팀 지정 요율 · 메모 저장. 본문에 없는 칸은 그대로 둔다(칸마다 자동 저장). version 이 다르면 409.
 - 달 마감(2단계 T9, :mod:`foms.services.sales_commission.closing`): ``GET /closings?user_id=`` 목록 ·
@@ -45,6 +46,7 @@ from foms.services.sales_commission.read_model import (
     input_payload,
 )
 from foms.services.sales_commission.settings import active_freelancers
+from foms.services.sales_commission.statement_detail import order_details
 from foms.services.settlement_channel_access import is_accounting_or_admin
 from models import Order, SalesCommissionInput, SecurityLog
 
@@ -122,8 +124,21 @@ def api_list_rows():
         db.rollback()
         return _fail(404, "켜진 프리랜서가 아니에요.")
     data = commission_rows(db, user_id, month, basis)
+    _attach_drawings(db, _actor, data.get("rows") or [])
     db.rollback()
     return _ok(data)
+
+
+def _attach_drawings(db: Any, viewer: Any, rows: list[dict[str, Any]]) -> None:
+    """줄마다 확정된 최종 도면 목록(``drawings``)을 붙인다 — 요율을 정할 때 옆에서 보는 용도(읽기만).
+
+    '내 수수료' 화면과 같은 읽기(:func:`statement_detail.order_details`)라 도면 출처 · 열람 판정이 한 벌이다.
+    조회는 줄 수와 무관하게 한 번이다. 도면이 없거나 볼 수 없는 주문은 빈 목록.
+    """
+    details = order_details(db, viewer, [row.get("order_id") for row in rows])
+    for row in rows:
+        detail = details.get(int(row.get("order_id") or 0)) or {}
+        row["drawings"] = detail.get("drawings") or []
 
 
 # --------------------------------------------------------------------------

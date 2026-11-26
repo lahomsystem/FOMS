@@ -3743,7 +3743,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_learning_photos.py",
-      "lineno": 214,
+      "lineno": 225,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3752,7 +3752,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_learning_photos.py",
-      "lineno": 290,
+      "lineno": 304,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

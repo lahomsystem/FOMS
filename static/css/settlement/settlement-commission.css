@@ -135,3 +135,68 @@
 .foms-settle .s-cm-paid { color: var(--s-good); font-weight: 600; }
 .foms-settle .s-cm-closing-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 .foms-settle .s-cm-closing-actions a.s-ops-btn { text-decoration: none; }
+
+/* ── 거래구분 합계(표 위) — 수수료 합 · 비율 셋(2026-11-26) ───────── */
+.foms-settle .s-cm-mix {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--s-line-soft);
+}
+.foms-settle .s-cm-mix-bar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; }
+.foms-settle .s-cm-mix-seg { display: block; flex: 0 0 0; min-width: 4px; }
+.foms-settle .s-cm-mix-cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 16px; }
+.foms-settle .s-cm-mix-cell { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.foms-settle .s-cm-mix-cell small {
+  display: flex; align-items: center; gap: 6px; font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 600;
+}
+.foms-settle .s-cm-mix-cell b { font-size: calc(15px * var(--s-fs, 1)); font-variant-numeric: tabular-nums; }
+.foms-settle .s-cm-mix-sub { font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); }
+.foms-settle .s-cm-mix-sub em { font-style: normal; font-weight: 600; color: var(--s-amber); }
+.foms-settle .s-cm-mix-dot { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.foms-settle .s-cm-mix--LAHOM { background: #2563eb; }
+.foms-settle .s-cm-mix--HAUD { background: #0d9488; }
+.foms-settle .s-cm-mix--PERSONAL { background: #c026d3; }
+.foms-settle .s-cm-mix--MANUAL { background: #d97706; }
+
+/* ── 도면 판 — 품목 옆 [도면]을 누르면 표 오른쪽에 열린다 ─────────── */
+.foms-settle .s-cm-split { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.foms-settle .s-cm-split--open { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+/* 판이 열려 있는 동안 거래구분 · 시공비 · 차감 칸은 접는다(합계 칸 수는 commission-table.js 가 맞춘다). */
+.foms-settle .s-cm-split--open .s-cm-fold { display: none; }
+.foms-settle .s-cm-grid td.s-cm-product { max-width: none; overflow: visible; white-space: nowrap; }
+.foms-settle .s-cm-product-text {
+  display: inline-block; max-width: 230px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
+}
+.foms-settle .s-cm-split--open .s-cm-product-text { max-width: 130px; }
+.foms-settle .s-cm-peek-btn {
+  margin-left: 8px; padding: 1px 8px; border: 1px solid var(--s-ops-blue); border-radius: 6px; cursor: pointer;
+  background: var(--s-surface); color: var(--s-ops-blue); font-family: inherit; font-weight: 700;
+  font-size: calc(11.5px * var(--s-fs, 1)); vertical-align: middle;
+}
+.foms-settle .s-cm-peek-btn:hover,
+.foms-settle .s-cm-row--on .s-cm-peek-btn { background: var(--s-ops-blue); color: #fff; }
+.foms-settle .s-cm-peek-btn:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+.foms-settle .s-cm-grid tr.s-cm-row--on td { background: var(--s-ops-blue-soft); }
+.foms-settle .s-cm-grid tr.s-cm-row--on td:first-child { box-shadow: inset 3px 0 0 var(--s-ops-blue); }
+
+.foms-settle .s-cm-peek { display: flex; flex-direction: column; min-width: 0; border-left: 1px solid var(--s-line); }
+.foms-settle .s-cm-peek-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--s-line-soft);
+}
+.foms-settle .s-cm-peek-name { font-size: calc(14px * var(--s-fs, 1)); white-space: nowrap; }
+.foms-settle .s-cm-peek-sub {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: calc(12px * var(--s-fs, 1)); color: var(--s-muted);
+}
+.foms-settle .s-cm-peek-sheets { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 0; }
+.foms-settle .s-cm-peek-paper { margin: 10px 12px; max-height: 520px; overflow: auto; text-align: center; }
+.foms-settle .s-cm-peek-img {
+  display: block; width: 100%; height: auto; cursor: zoom-in; background: #fff;
+  border: 1px solid var(--s-line); border-radius: 6px;
+}
+.foms-settle .s-cm-peek-none { margin: 24px 0; color: var(--s-faint); font-size: calc(12.5px * var(--s-fs, 1)); }
+.foms-settle .s-cm-peek-decide {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 12px;
+  border-top: 1px solid var(--s-line); background: var(--s-surface-soft);
+}
+.foms-settle .s-cm-kv { display: inline-flex; flex-direction: column; gap: 1px; }
+.foms-settle .s-cm-kv small { font-size: calc(11px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 600; }
+.foms-settle .s-cm-kv b { font-size: calc(13.5px * var(--s-fs, 1)); font-variant-numeric: tabular-nums; }
