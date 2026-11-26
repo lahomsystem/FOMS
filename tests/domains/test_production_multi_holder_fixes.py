@@ -40,7 +40,7 @@ CHECK = ROOT / "tests/support/production_multi_holder_node_checks.js"
 CUT_ADMIN = HOME_NONE + "&tab=parts&part=cut"
 STALE = "그사이 다른 사람이 바꿨어요. [다시 받기]를 눌러 주세요."
 UNDO_ROW = ('<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>재단 1/2 완료</span><button type="button" '
-            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>')
+            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">재단 완료 취소</button></div>')
 
 
 @pytest.fixture
@@ -181,7 +181,7 @@ def test_lead_half_done_card_has_own_undo_row_and_js_sends_check_and_self_target
     assert res["diffs"] == [], res["diffs"]  # 서버 칸 = JS 가 다시 그린 칸(새 줄 · check 단추 포함)
     one = _node(page, {"posts": [undone], "steps": [{"do": "click", "key": order.keys[0], "act": "undo"}, {"do": "run"},
                                                     {"do": "card", "key": order.keys[0]}]})
-    assert (one["out"][0]["modal"]["title"], one["out"][0]["modal"]["line"]) == ("작업 필요로 되돌릴까요?", "재단 1/2 완료 → 작업 필요 · 박반장")
+    assert (one["out"][0]["modal"]["title"], one["out"][0]["modal"]["line"]) == ("재단 완료를 취소할까요?", "재단 1/2 완료 → 작업 필요 · 박반장")
     assert [c["body"] for c in one["calls"]] == [undo]  # 대상 = 본인(자기 몫만 — 판결 3)
     assert one["out"][2]["card"]["picked_me"] == "1" and one["out"][2]["card"]["in_done"] == "0"
     two = _node(page, {"posts": [finished], "steps": [

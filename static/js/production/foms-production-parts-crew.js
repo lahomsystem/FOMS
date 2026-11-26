@@ -66,7 +66,7 @@
   function undoRow(st, text) {
     var row = el('div', 'fph-wi pp-act pp-undo-row pp-st-' + st + ' pp-only-done');
     row.appendChild(el('span', '', text));
-    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', '되돌리기', 'undo'));
+    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', st === 'basic' ? '되돌리기' : LABEL + ' 완료 취소', 'undo')); // 완료 단추와 짝(사장님 2026-11-26)
     return row;
   }
   function render(card, box, o) {
@@ -152,10 +152,10 @@
         note: rest ? '남은 사람이 모두 완료라 도면이 완료돼요.' : '' };
     }
     if (action === 'undo' && st === 'need' && cr.me === 'done') { // 내 몫 되돌리기(재단 1/2 완료 → 작업 필요) — 대상 = 본인(반장도 자기 몫만)
-      return { title: '작업 필요로 되돌릴까요?', line: half(cr) + ' → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need', target: Number(ME) };
+      return { title: LABEL + ' 완료를 취소할까요?', line: half(cr) + ' → 작업 필요 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need', target: Number(ME) };
     }
     if (action === 'undo' && st === 'done' && (cr.me !== 'done' || !MINE)) { // 반장 · 관리자 대신 되돌리기 — 완료만 모두 끄고(자기 몫 포함, Q23) 작업하던 사람은 그대로
-      return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 완료 → ' + cr.who + ' 작업 중', run: '되돌리기', tone: 'need' };
+      return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → ' + cr.who + ' 작업 중', run: LABEL + ' 완료 취소', tone: 'need' };
     }
     return null;
   }

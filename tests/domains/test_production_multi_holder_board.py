@@ -176,7 +176,7 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     assert 'data-in-need="0" data-in-done="1"' in e1 and 'class="pp-card"' in e1
     assert '<span class="fph-wi pp-act pp-st-need pp-not-done">재단 1/2 완료 · 김재단 작업 중</span>' in _act(e1)
     assert ('<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>재단 1/2 완료</span><button type="button" '
-            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>') in _act(e1)
+            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">재단 완료 취소</button></div>') in _act(e1)
     assert 'data-pp-count="need">2<' in lee and 'data-pp-count="done">2<' in lee  # 1/2 완료도 내 '완료' 칸(Q12)
 
     park = _page(client, p.park)
@@ -346,7 +346,7 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
     page.write_text(_page(client, p.lee), encoding="utf-8")
     res = _node(page, {"steps": [{"do": "click", "key": k[2], "act": "undo"}]})
     undo = res["out"][0]["modal"]
-    assert (undo["title"], undo["line"]) == ("작업 필요로 되돌릴까요?", "재단 1/2 완료 → 작업 필요 · 이시영")
+    assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 1/2 완료 → 작업 필요 · 이시영")
 
 
 def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_path) -> None:
@@ -369,7 +369,7 @@ def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_
         {"do": "click", "key": k[3], "act": "undo"}]})
     out, calls = res["out"], res["calls"]
     undo = out[7]["modal"]  # H — 반장 되돌리기 = 완료한 사람 모두 되돌림, 작업하던 사람은 그대로(누른 반장 이름이 아니다)
-    assert (undo["title"], undo["line"]) == ("작업 필요로 되돌릴까요?", "재단 완료 → 이시영 · 김재단 작업 중") and "박반장" not in undo["line"]
+    assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 완료 → 이시영 · 김재단 작업 중") and "박반장" not in undo["line"]
     two = out[0]["modal"]["choices"]
     assert [(c["text"], c["next"]) for c in two][:3] == [("담당 바꾸기 ›", True), ("대신 완료", False), ("같이 작업", True)]
     assert out[1]["sent"] == 0 and out[1]["modal"]["title"] == "누구와 담당을 바꿀까요?"  # 둘 = 고르기 창

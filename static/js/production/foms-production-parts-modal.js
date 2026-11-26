@@ -51,7 +51,7 @@
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
     if (card && attr(card, 'data-state') === 'basic') { return { title: '안 봄으로 되돌릴까요?', line: '기본 → 안 봄', run: '되돌리기', tone: 'unbasic' }; }
-    return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 완료 → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need' };
+    return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 작업 필요 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need' };
   }
   function bulkPlan(cards) {
     return { title: cards.length + '장을 기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: cards.length + '장 기본으로', tone: 'basic' };
