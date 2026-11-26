@@ -119,7 +119,7 @@ def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘�
     assert 'class="fph-wi pp-act pp-st-taken pp-held" data-pp-act="held"' in other and "<b>박엣지 작업\u00a0중</b>" in other
     assert '<div class="pp-two pp-two--join">' in other and 'data-pp-act="join">같이 작업</button></div>' in other  # §8-2 6
     assert "pp-tag" not in other
-    assert "엣지 완료 · 김민준" in _card(html, "한빛", 2) and "되돌리기" in _card(html, "한빛", 2)  # '끝' → '완료'(K4)
+    assert "엣지 완료 · 김민준" in _card(html, "한빛", 2) and "엣지 완료 취소</button>" in _card(html, "한빛", 2)  # '끝' → '완료'(K4)
     assert 'data-pp-act="take">작업 시작</button>' in _card(html, "한빛", 3)  # 네 파트 같은 글(§8-2 1)
     hold = _card(html, "보류집", 0)
     assert '<button type="button" class="fph-wi pp-act pp-st-hold" aria-disabled="true"' in hold and ">보류 · 자재 기다림</button>" in hold
@@ -293,8 +293,8 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     assert order == sorted(order)
     # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다 — 검토 고침(11-25 [대신 완료] =
     # check · 반장 자기 몫 되돌리기 줄)이 modal · crew · parts 를 한 번 더 · 비평 C06 · C09(11-26 주문 막힘 칸)가 claim · parts · sync 를, 검토 고침(걸린 카드 건너뛰기)이 parts · sync 를 한 번 더
-    for name, pin in (("parts", "20261125x"), ("parts-claim", "20261125t"), ("parts-modal", "20261125v"),
-                      ("parts-crew", "20261125u"), ("parts-sync", "20261125u")):
+    for name, pin in (("parts", "20261125x"), ("parts-claim", "20261125t"), ("parts-modal", "20261125w"),
+                      ("parts-crew", "20261125v"), ("parts-sync", "20261125u")):
         assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v={pin}\" defer", tpl)) == 1, name
 
 

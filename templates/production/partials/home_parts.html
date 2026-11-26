@@ -43,13 +43,13 @@
 <div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">시작 취소</button>{% if c.block %}{{ pp_block(c) }}{% else %}<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="done">{{ pb.part_label }} 완료</button>{% endif %}</div>
   {%- elif pb.mine and c.done_by_me -%}{#- 내 몫만 완료(E1) — '완료' 칸 · 되돌리기 줄 "재단 1/2 완료"(Q12) -#}
 <span class="fph-wi pp-act pp-st-need{% if can_undo %} pp-not-done{% endif %}">{{ half }}{% if cr.left %} · {{ cr.left }} 작업 중{% endif %}</span>
-    {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>{%- endif -%}
+    {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ pb.part_label }} 완료 취소</button></div>{%- endif -%}
   {%- elif c.badge == 'taken' -%}
     {%- if c.block -%}{{ pp_block(c) }}{%- else -%}<div class="pp-two pp-two--join">{{ pp_held(c, head, c.held_note) }}<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="join">같이 작업</button></div>{%- endif -%}
   {%- elif pb.writable -%}{#- 반장 · 관리자(G) — 이름 칸(고르기 창) + [재단 완료](= 대신 완료 check — 남은 사람 몫 모두, 같이 작업자면 자기 몫 포함).
      같이 작업해 자기 몫을 완료한 "1/2 완료"면 '완료' 칸에 자기 몫 되돌리기 줄(파트 계정과 같은 자리, 11-25 판결) -#}
 {{ pp_held(c, head, half or c.held_note, ' pp-not-done' if c.done_by_me else '') }}<button type="button" class="fph-qr__done pp-act pp-fin pp-only-need" data-pp-act="check">{{ pb.part_label }} 완료</button>
-    {%- if c.done_by_me -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>{%- endif -%}
+    {%- if c.done_by_me -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ pb.part_label }} 완료 취소</button></div>{%- endif -%}
   {%- else -%}
 <span class="fph-wi pp-act pp-st-need">{{ head }}</span>
   {%- endif -%}
@@ -57,7 +57,7 @@
   {%- set by = (cr.done or c.done_by_name) if c.state == 'done' else c.done_by_name -%}
   {%- set word = ((pb.part_label ~ ' 완료') if c.state == 'done' else '기본') ~ (' · ' ~ by if by else '') -%}
 <span class="fph-wi pp-act pp-st-{{ c.state }}{% if can_undo %} pp-not-done{% endif %}">{{ word }}</span>
-  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>{%- endif -%}
+  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '되돌리기' }}</button></div>{%- endif -%}
 {%- endif -%}
 {% endmacro %}
 {% macro pp_tag(c) -%}

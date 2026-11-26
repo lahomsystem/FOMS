@@ -130,3 +130,14 @@ def test_empty_day_shows_only_none_word():
     strip = _read(TPL / "partials" / "home_date.html")
     assert "{% if d.total or d.show_day %}<b>{{ d.make }}</b><small> / {{ d.total }}</small>{% endif %}</span>" in strip
     assert "(' · 없음' if not d.total and not d.show_day else '')" in strip  # '없음'이 보이는 날 = 숫자를 뺀 날(같은 조건)
+
+
+def test_undo_button_is_named_after_its_done_button():
+    parts = _read(TPL / "partials" / "home_parts.html")
+    assert parts.count('data-pp-act="undo">{{ pb.part_label }} 완료 취소</button>') == 2  # 내 몫만 완료 줄(파트 계정 · 반장)
+    assert "data-pp-act=\"undo\">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '되돌리기' }}</button>" in parts  # 기본은 그대로
+    crew = _read(JS / "foms-production-parts-crew.js")
+    assert "st === 'basic' ? '되돌리기' : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 2
+    modal = _read(JS / "foms-production-parts-modal.js")
+    assert "title: LABEL + ' 완료를 취소할까요?'" in modal and "run: LABEL + ' 완료 취소', tone: 'need'" in modal
+    assert "title: '안 봄으로 되돌릴까요?', line: '기본 → 안 봄', run: '되돌리기'" in modal  # 기본 되돌리기는 안 여쭌 것 — 그대로
