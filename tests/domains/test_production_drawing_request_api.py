@@ -230,7 +230,7 @@ def test_request_blocks_that_drawing_at_once_for_marks_and_complete(client, sent
     login(client, who.lead)
     res = _post(client, seed.id, [1], seed=seed)
     data = res.get_json()["data"]
-    assert data["keys"] == [seed.keys[1]] and data["block"] == {"kind": "revise", "text": "도면 고치는 중", "why": REVISING_MESSAGE}
+    assert data["keys"] == [seed.keys[1]] and data["block"] == {"kind": "revise", "text": "도면 수정 중", "why": REVISING_MESSAGE}
     sd = fresh(seed.id).structured_data
     assert fx.blocked(sd).whole is False and [r["no"] for r in fx.blocked_entries(sd)] == [2]
     login(client, who.part)                                                 # 엣지 파트 계정

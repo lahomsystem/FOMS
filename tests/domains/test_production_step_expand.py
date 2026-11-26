@@ -48,8 +48,8 @@ from tests.support.production_part_claim_seed import check_step, code, events, f
 
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 FIX = {"no": 2, "by_user_id": None, "by_name": "김도면", "at": "2026-11-25T05:10:00Z"}
-ASK = "이 주문의 도면 3장 중 2장이 재단 완료로 처리돼요. 도면 2는 고치는 중이라 빼요."
-DONE = "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."
+ASK = "이 주문의 도면 3장 중 2장이 재단 완료로 처리돼요. 도면 2는 수정 중이라 빼요."
+DONE = "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 수정 중이라 뺐어요."
 
 
 @pytest.fixture
@@ -120,14 +120,14 @@ def test_whole_step_skips_the_blocked_drawing_marks_each_like_a_card_in_one_stat
     boss = make_user("가짜반장", lead=True)
     login(client, boss)
     info = client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]
-    assert info["fix"] == {"done": 2, "numbers": [2], "tail": "도면 2는 고치는 중이라 빼요."} and info["sheets"] == 3
+    assert info["fix"] == {"done": 2, "numbers": [2], "tail": "도면 2는 수정 중이라 빼요."} and info["sheets"] == 3
     assert fx.expand_confirm_body(info["sheets"], info["fix"]["done"], "재단", info["fix"]["numbers"]) == ASK
     version = fresh(seed.id).mutation_version
     res, inserts = _insert_count(lambda: check_step(client, seed.id, "cut", True))
     data = res.get_json()["data"]
     assert res.status_code == 200 and inserts == 1, data  # 장 수와 무관하게 한 문장(N+1 없음)
     assert data["expanded"] == {"part": "cut", "part_label": "재단", "done_n": 2, "total_n": 3, "skipped_numbers": [2],
-                                "tail": "도면 2는 고치는 중이라 뺐어요.", "hold": "도면 2 고치는 중", "note": "도면 2/3 · 1장 미완료"}
+                                "tail": "도면 2는 수정 중이라 뺐어요.", "hold": "도면 2 수정 중", "note": "도면 2/3 · 1장 미완료"}
     assert fx.expand_done_text(3, 2, "재단", [2]) == DONE
     assert data["parts"]["cut"]["uses_cards"] is True and data["parts"]["cut"]["left_n"] == 1
     assert step(seed.id, "cut")["done"] is False and fresh(seed.id).mutation_version == version + 1
@@ -158,7 +158,7 @@ def test_mixed_order_expands_every_factory_so_the_other_lead_is_not_left_out(cli
     _fixing(seed.id, 0)  # 도면 1(1공장) 고치는 중
     login(client, factory_user("일공장반장", lead=True))
     assert client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]["fix"] == {
-        "done": 3, "numbers": [1], "tail": "도면 1은 고치는 중이라 빼요."}
+        "done": 3, "numbers": [1], "tail": "도면 1은 수정 중이라 빼요."}
     res = check_step(client, seed.id, "edge", True)
     assert res.status_code == 200 and res.get_json()["data"]["expanded"]["done_n"] == 3
     assert {k for k, _p in _marks(seed.id)} == set(seed.keys[1:])  # 2공장 장 둘 포함 · 막힌 도면 1만 남음
@@ -283,7 +283,7 @@ def test_stuck_row_stays_in_the_next_steps_incoming(client, cohort):
     page = get_html(client, HOME + "?tab=steps")
     edge = page.split('data-foms-home-stepq="edge"', 1)[1].split('data-foms-home-stepq="', 1)[0]
     assert "가짜끝집" in edge and "가짜통째집" not in edge
-    assert '<span class="fph-qr__hold">도면 2 고치는 중</span>' in _row(page, stuck)  # 그 줄 자체는 [끝] 자리 막힘 그대로
+    assert '<span class="fph-qr__hold">도면 2 수정 중</span>' in _row(page, stuck)  # 그 줄 자체는 [끝] 자리 막힘 그대로
 
 
 # --------------------------------------------------------------------------- #
@@ -313,7 +313,7 @@ def _seed_rows(client) -> tuple[int, int, int]:
 def test_steps_rows_show_fixing_in_the_finish_slot_only_when_nothing_else_is_left(client, cohort):
     stuck, ready, plain = _seed_rows(client)
     home_login(client)  # 반장
-    hold = '<span class="fph-qr__hold">도면 2 고치는 중</span>'
+    hold = '<span class="fph-qr__hold">도면 2 수정 중</span>'
     for cookies in (PHONE, TABLET):
         set_cookies(client, cookies)
         page = get_html(client, HOME + "?tab=steps")
@@ -321,15 +321,15 @@ def test_steps_rows_show_fixing_in_the_finish_slot_only_when_nothing_else_is_lef
         assert f'fph-qr is-revise" data-foms-home-qrow="{stuck}"' in page
         assert _confirm(_row(page, ready))["fix"]["done"] == 2 and "data-foms-home-step-done" in _row(page, ready)
         assert "fix" not in _confirm(_row(page, plain)) and "fph-qr__hold" not in _row(page, plain)  # 대조군
-        assert "fph-qr__holdtag\">도면 2 고치는 중" not in _row(page, ready)  # 남은 장이 있으면 새 표시 없이 [끝]
+        assert "fph-qr__holdtag\">도면 2 수정 중" not in _row(page, ready)  # 남은 장이 있으면 새 표시 없이 [끝]
     pane = get_html(client, f"{HOME}?tab=steps&order={stuck}")
     assert f'<section class="fph-sp is-revise" data-foms-step-pane="{stuck}"' in pane
-    assert f"도면 2 고치는 중</b><span>{REVISING_MESSAGE}</span>" in pane  # 가로 판 = 통째와 같은 멈춤 자리
+    assert f"도면 2 수정 중</b><span>{REVISING_MESSAGE}</span>" in pane  # 가로 판 = 통째와 같은 멈춤 자리
     for k, v in PC.items():
         client.set_cookie(k, v, domain="localhost")
     client.set_cookie(EDIT_COOKIE, str(int(time.time())), domain="localhost", path="/erp/production")
     pc = get_html(client, HOME + "?tab=steps")
-    assert '<span class="fpc-hold">도면 2 고치는 중</span>' in _row(pc, stuck) and "data-foms-home-step-done" not in _row(pc, stuck)
+    assert '<span class="fpc-hold">도면 2 수정 중</span>' in _row(pc, stuck) and "data-foms-home-step-done" not in _row(pc, stuck)
     home_login(client, "가짜보기", lead=False)  # [끝]이 없는 사람도 같은 줄
     set_cookies(client, PHONE)
     view = get_html(client, HOME + "?tab=steps")
@@ -343,6 +343,6 @@ def test_work_sheet_and_my_steps_rows_carry_the_new_body_only_when_blocked(clien
     set_cookies(client, TABLET)
     sheet = get_html(client, f"/erp/production/sheet/{ready}")
     data = _confirm(sheet.split('aria-label="공정"', 1)[1])
-    assert data["fix"] == {"done": 2, "numbers": [2], "tail": "도면 2는 고치는 중이라 빼요."} and data["sheets"] == 3
-    assert ">도면 2 고치는 중<" in sheet  # 작업 시트 배지(통째는 지금 글 "도면 수정 중")
+    assert data["fix"] == {"done": 2, "numbers": [2], "tail": "도면 2는 수정 중이라 빼요."} and data["sheets"] == 3
+    assert ">도면 2 수정 중<" in sheet  # 작업 시트 배지(통째는 지금 글 "도면 수정 중")
     assert "fix" not in _confirm(get_html(client, f"/erp/production/sheet/{plain}").split('aria-label="공정"', 1)[1])

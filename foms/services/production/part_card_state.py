@@ -61,7 +61,7 @@ def order_block(row: dict[str, Any], entry: Optional[dict[str, Any]] = None, *,
         return {"kind": BLOCK_HOLD, "text": f"보류 · {reason}" if reason else "보류", "why": HOLD_MESSAGE,
                 "code": HOLD_ACTIVE}
     if drawing_revision_in_progress(sd) or (entry is not None and entry_blocked(fix if fix is not None else blocked(sd), entry)):
-        return {"kind": BLOCK_REVISE, "text": "도면 고치는 중", "why": REVISING_MESSAGE, "code": DRAWING_REVISING}
+        return {"kind": BLOCK_REVISE, "text": "도면 수정 중", "why": REVISING_MESSAGE, "code": DRAWING_REVISING}
     return None
 
 

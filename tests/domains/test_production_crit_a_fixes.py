@@ -206,7 +206,7 @@ def test_sync_carries_each_orders_block_in_the_same_single_read(client):
     blocks = data["blocks"]
     assert len(data["marks"]) == 2 and blocks[str(free.id)] == {"all": None, "keys": {}}
     assert blocks[str(held.id)]["all"] == {"kind": "hold", "text": "보류 · 자재 기다림", "why": HOLD_MESSAGE, "code": "HOLD_ACTIVE"}
-    assert blocks[str(whole.id)]["all"]["text"] == "도면 고치는 중" and blocks[str(whole.id)]["all"]["why"] == REVISING_MESSAGE
+    assert blocks[str(whole.id)]["all"]["text"] == "도면 수정 중" and blocks[str(whole.id)]["all"]["why"] == REVISING_MESSAGE
     assert blocks[str(part.id)]["all"] is None and list(blocks[str(part.id)]["keys"]) == [part.keys[1]]  # 그 장만
     assert blocks[str(done.id)]["all"] == {"kind": "done", "text": "제작 완료", "why": DONE_WHY,
                                            "code": "NOT_IN_PRODUCTION"}
