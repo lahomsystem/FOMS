@@ -9,7 +9,9 @@
   <section class="foms-prod-home{% if step_panel %} fph-has-sp{% endif %}{% if pc_view %} is-pc{% if edit_on %} is-editing{% endif %}{% endif %}" data-foms-prod-home data-foms-home-tab="{{ tab }}">
     <header class="foms-prod-home__bar">
       <h1 class="foms-prod-home__title">{% if part_title %}{{ part_title[0] }} <span class="foms-prod-home__me">{{ part_title[1] }}</span>{% else %}생산{% endif %}</h1>
-      <span class="foms-prod-home__date">{% if factory_now %}<b class="fph-fac-now">{{ factory_now | factory_chips }}</b> · {% endif %}{{ today_label }} · 전체 {{ total }}건</span>
+      {# 제목에 이름이 붙는 화면(파트 계정 · 반장, 태블릿)은 날짜 · 전체 건수 글을 빼고 공장 표만(사장님 2026-11-26 — 제목이 길어져 표가 잘림) #}
+      {% if part_title %}{% if factory_now %}<span class="foms-prod-home__date"><b class="fph-fac-now">{{ factory_now | factory_chips }}</b></span>{% endif %}
+      {% else %}<span class="foms-prod-home__date">{% if factory_now %}<b class="fph-fac-now">{{ factory_now | factory_chips }}</b> · {% endif %}{{ today_label }} · 전체 {{ total }}건</span>{% endif %}
       <nav class="foms-prod-home__nav" aria-label="화면">
         {# 위 탭 = 날짜 · 내 공정 · 바뀐 것 · 찾기(시안 안 3, 11-21 사용자 ②). '도면 카드' 화면(?tab=parts)은 날짜 장 제목 옆
            [도면 카드로 보기]로 들어가는 날짜 탭의 다른 모습이라 날짜가 켜진다(누르면 예전 탭처럼 날짜 첫 화면으로).

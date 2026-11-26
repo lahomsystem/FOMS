@@ -450,3 +450,20 @@ def test_part_account_title_stays_on_every_tab_and_readonly_keeps_plain(client, 
         assert title in _get(client, HOME + tab), tab
     _tablet(client, _user("최보기"))
     assert '<h1 class="foms-prod-home__title">생산</h1>' in _get(client, HOME + "?tab=all")
+
+
+def test_named_title_screens_drop_the_date_and_total_text(client, cohort):
+    """제목에 이름이 붙는 화면(파트 계정 · 반장)은 제목 옆 "11월 26일 (목) · 전체 n건"을 뺀다(사장님 2026-11-26) — 그 밖은 그대로."""
+    _order("한빛", _files("dt", 1))
+
+    def bar(html: str) -> str:
+        return html.split('<header class="foms-prod-home__bar">', 1)[1].split("<nav", 1)[0]
+
+    for who in (_user("박재단", parts=["cut"]), _user("박반장", lead=True)):
+        _tablet(client, who)
+        for tab in ("", "?tab=all"):
+            head = bar(_get(client, HOME + tab))
+            assert "foms-prod-home__me" in head and "전체 " not in head and "건</span>" not in head, (who, tab)
+    _tablet(client, _user("최보기"))
+    plain = bar(_get(client, HOME))
+    assert ">생산</h1>" in plain and re.search(r" · 전체 \d+건</span>", plain)
