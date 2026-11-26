@@ -25,8 +25,8 @@
 
   var mounts = C.mounts = C.mounts || [];
 
-  /** 조각 5개가 다 실렸는지 — 스왑 재실행 순서가 흔들려도 덜 실린 채 마운트하지 않는다. */
-  function partsReady() { return !!(C.core && C.table && C.edit && C.deduct && C.closing); }
+  /** 조각 6개가 다 실렸는지 — 스왑 재실행 순서가 흔들려도 덜 실린 채 마운트하지 않는다. */
+  function partsReady() { return !!(C.core && C.table && C.edit && C.deduct && C.closing && C.peek); }
 
   function collectEls(root) {
     var q = function (sel) { return root.querySelector(sel); };
@@ -56,6 +56,7 @@
     C.hide(ctx.els.empty, kind !== 'empty');
     C.hide(ctx.els.gridwrap, kind !== 'table');
     if (kind === 'empty') ctx.els.empty.textContent = text || '';
+    C.renderMix(ctx);   // 거래구분 합계는 줄이 있을 때만 보인다
   }
 
   function syncControls(ctx) {
@@ -139,6 +140,7 @@
   }
 
   function reload(ctx) {
+    C.peekClose(ctx);   // 다른 사람 · 달 · 기준의 도면 판을 남기지 않는다
     ctx.state.rows = [];
     C.notice(ctx, '', false);
     syncControls(ctx);
@@ -168,6 +170,7 @@
     C.bindEdit(ctx);
     C.bindDeduct(ctx);
     C.bindClose(ctx);
+    C.bindPeek(ctx);
   }
 
   function watchTabActivation(ctx) {
@@ -202,6 +205,7 @@
       state: {
         freelancers: [], userId: null, month: '', basis: 'completion', rows: [], seq: 0,
         loaded: false, dedOrderId: null, dedBusy: false, closings: [], closingSeq: 0,
+        peekId: null, peekSheet: 0,
       },
     };
     if (!ctx.els.user || !ctx.els.month || !ctx.els.rows) return;
