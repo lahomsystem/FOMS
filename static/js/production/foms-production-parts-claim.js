@@ -218,11 +218,47 @@
     chipBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
+  // ── 연 주문 · 내 작업 표시(2026-11-26 결정 C69 · C71) — 그 칸들에 is-focus 테두리(parts.css), 첫 칸으로 굴림(접힌 남의 공장 묶음이면 펼침) ──
+  function focusCards(cards) {
+    if (!cards.length) { return false; }
+    [].forEach.call(root.querySelectorAll('.pp-card.is-focus'), function (c) { c.classList.remove('is-focus'); });
+    cards.forEach(function (c) { c.classList.add('is-focus'); });
+    var fold = cards[0].closest('[data-pp-fold]');
+    if (fold) { fold.open = true; }
+    cards[0].scrollIntoView({ block: 'center' });
+    return true;
+  }
+  function shownPane(key) {
+    return [].filter.call(root.querySelectorAll(key ? '[data-pp-pane="' + key + '"]' : '[data-pp-pane]') || [], function (p) { return !p.getClientRects || p.getClientRects().length > 0; })[0]; // 보이는 장만
+  }
+  // 아침 칩이 세는 장 = 어제까지 맡아 아직 작업 중인 내 칸(서버 날짜 cfg.today 기준)
+  function oldMine(pane) {
+    return [].filter.call(pane.querySelectorAll('[data-pp-card][data-state="need"][data-picked-me="1"]'), function (c) {
+      var d = dayNum(attr(c, 'data-picked-day'));
+      return d !== null && d < dayNum(TODAY);
+    });
+  }
+  // [보기]: 이미 그 날 · 그 파트 장이면 다시 읽지 않고 굴린다. 다른 날이면 링크 그대로(#pp-mine — 도착해서 아래 arrive 가 같은 표시)
+  function gotoMine(a) {
+    var u = new URL(a.href, window.location.href);
+    var pane = shownPane(u.searchParams.get('day') || '');
+    if (!pane || (u.searchParams.get('part') || cfg.part) !== cfg.part) { return false; }
+    return focusCards(oldMine(pane));
+  }
+  (function arrive() {
+    var pane = window.location && shownPane('');
+    if (!pane) { return; }
+    if (window.location.hash === '#pp-mine' && focusCards(oldMine(pane))) { return; }
+    focusCards([].slice.call(pane.querySelectorAll('.pp-card.is-focus'))); // 주소 order= (템플릿이 붙인 테두리)
+  })();
+
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== 'function') { return; }
     var why = t.closest('[data-pp-why]');
     if (why) { showWhy(why); return; }
+    var go = t.closest('[data-pp-mpop] a');
+    if (go && !e.ctrlKey && !e.metaKey && gotoMine(go)) { e.preventDefault(); setChip(false); return; }
     if (t.closest('[data-pp-mchip]')) { var pop = root.querySelector('[data-pp-mpop]'); setChip(!!pop && pop.hidden); return; }
     if (!t.closest('[data-pp-mpop]')) { setChip(false); }
     if (!t.closest('.pp-why')) { hideWhy(); }

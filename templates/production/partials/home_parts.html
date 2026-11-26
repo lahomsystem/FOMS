@@ -17,6 +17,8 @@
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
 {% set is_cut = pb.part == 'cut' %}
+{#- 알림 · 검색 바로가기로 연 주문(주소 order= · 옛 focus_order=, 2026-11-26 결정 C69) — 그 주문 도면 칸에 is-focus 테두리, 첫 칸으로 굴림(parts-claim.js) -#}
+{% set pp_focus = (request.args.get('order') or request.args.get('focus_order') or '0') | int(0) %}
 {% macro pp_block(c) -%}
 <button type="button" class="fph-wi pp-act pp-st-{{ c.block.kind }}" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.block.why }}">{{ c.block.text }}</button>
 {%- endmacro %}
@@ -69,7 +71,7 @@
     {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}건</small>{% endif %}</h2>
     {% if part_morning %}{# 아침 칩(설계서 2026-11-23 §4-9) — 밤 넘긴 내 작업(multi-holder §8-2 11). 누르면 시공일마다 [보기](그 날 장).
        여러 파트 계정은 내 파트 전부를 세고 줄마다 파트 이름 · [보기]는 그 파트 판(§4-12) #}
-    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 작업" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ home_href(None, dd.part or pb.url_part, dd.key) }}" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
+    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 작업" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ home_href(None, dd.part or pb.url_part, dd.key) }}#pp-mine" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
     {% endif %}
     {% if pb.mode != 'part' %}
     <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('parts', p.key, d.key, factory=pb.url_factory) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
@@ -96,7 +98,7 @@
     {% endif %}
     <div class="pp-grid" data-pp-grid>
       {% for c in pp.cards %}
-      <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic', 'hand') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}"
+      <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic', 'hand') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}{% if pp_focus and c.order_id == pp_focus %} is-focus{% endif %}"
                data-pp-card data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}"
                data-state="{{ c.state }}" data-picked-me="{{ '1' if c.picked_by_me else '0' }}" data-done-me="{{ '1' if c.done_by_me else '0' }}"
                data-picked-name="{{ c.picked_by_name or '' }}" data-done-name="{{ c.done_by_name or '' }}"
@@ -134,7 +136,7 @@
       <summary class="pp-fold__sum"><h3 class="pp-otherg">{{ pp.elsewhere_head | factory_chips }} <span class="pp-fold__go" aria-hidden="true">›</span></h3></summary>
       <div class="pp-grid pp-grid--elsewhere">
         {% for c in pp.elsewhere %}
-        <article class="pp-card is-elsewhere" data-pp-elsewhere data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}" data-factory="{{ c.elsewhere.factory }}">
+        <article class="pp-card is-elsewhere{% if pp_focus and c.order_id == pp_focus %} is-focus{% endif %}" data-pp-elsewhere data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}" data-factory="{{ c.elsewhere.factory }}">
           {% if c.is_image %}<span class="pp-img"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt=""></span>
           {% else %}<span class="pp-img pp-file"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></span>{% endif %}
           <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · 도면 {{ c.no }}/{{ c.of }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">도면 {{ c.no }}/{{ c.of }}</span></a>
