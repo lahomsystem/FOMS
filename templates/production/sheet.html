@@ -45,7 +45,7 @@
         {% set _imgs = order.drawing_files | selectattr('kind', 'equalto', 'image') | list %}
         {% if order.dw_wait and _imgs %}<div class="foms-prod-page__dwband" data-foms-sheet-dwwait>{{ dw_wait_lines(order.dw_wait) }}</div>{% endif %}
         {% if _imgs %}
-        <p class="foms-prod-page__cap" data-foms-sheet-dwg-cap>도면 1 / {{ _imgs | length }} · {{ _imgs[0].label }}</p>
+        <p class="foms-prod-page__cap" data-foms-sheet-dwg-cap>도면 1 / {{ _imgs | length }}{% if _imgs[0].title %} · {{ _imgs[0].title }}{% endif %}</p>
         <button type="button" class="foms-prod-page__main-btn" data-foms-sheet-dwg-open aria-label="도면 크게 보기">
           <img class="foms-prod-page__main" data-foms-sheet-dwg-main src="{{ _imgs[0].view }}" alt="{{ _imgs[0].label }}" decoding="async">
         </button>
@@ -67,7 +67,7 @@
                     data-foms-sheet-dwg-th="{{ _k.i }}"
                     data-foms-erp-attachment-view-url="{{ f.view }}"
                     data-foms-erp-attachment-download-url="{{ f.download }}"
-                    data-foms-erp-attachment-label="{{ f.label }}" aria-label="도면 {{ loop.index }} {{ f.label }}">
+                    data-foms-erp-attachment-label="{{ f.label }}" data-foms-sheet-dwg-title="{{ f.title }}" aria-label="도면 {{ loop.index }} {{ f.title or f.label }}">
               <img src="{{ f.thumb or f.view }}" alt="" loading="lazy" decoding="async"><span>{{ loop.index }}</span>{% if f.fac %}<span class="fpp-fac">{{ f.fac | factory_chips }}</span>{% endif %}
             </button>
             {% set _k.i = _k.i + 1 %}
@@ -226,7 +226,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261125m5" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124k" defer></script>{% if can_act and order.factory_sheet %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124l" defer></script>{% if can_act and order.factory_sheet %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261124h" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261125m3" defer></script>{% if edit_on %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261125m3" defer></script>{% endif %}{% endif %}{% if edit_toggle %}

@@ -109,3 +109,24 @@ def test_lead_picker_title_is_one_line_and_short_notices():
     assert "alert.hidden = !line;" in _read(JS / "foms-production-parts.js")  # 빈 띠를 안 남긴다
     assert "{{ pp.hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요." in _read(TPL / "partials" / "home_parts.html")
     assert "'detail': '만들던 것은 멈춰 주세요'" in _read(ROOT / "foms" / "services" / "production_home_read_model.py")
+
+
+def test_sheet_drawing_caption_uses_item_name_not_file_name(monkeypatch):
+    from foms.services import production_sheet_view as view  # noqa: PLC0415
+
+    files = [{"key": "a", "filename": "가람_도면1.png", "view_url": "/v/a", "item_uids": ["idx:0"]},
+             {"key": "b", "filename": "가람_도면2.png", "view_url": "/v/b"}]
+    monkeypatch.setattr(view, "resolve_final_drawing_files", lambda sd: files)
+    out = view._prod_sheet_drawing_files({"items": [{"product_name": "거실장"}]})
+    assert [(f["label"], f["title"]) for f in out] == [("가람_도면1.png", "거실장"), ("가람_도면2.png", "")]  # 못 이으면 제목 없음
+    sheet = _read(TPL / "sheet.html")
+    assert "도면 1 / {{ _imgs | length }}{% if _imgs[0].title %} · {{ _imgs[0].title }}{% endif %}</p>" in sheet
+    assert 'data-foms-sheet-dwg-title="{{ f.title }}"' in sheet
+    page = _read(JS / "foms-production-sheet-page.js")
+    assert "(title ? ' · ' + title : '')" in page and "(label ? ' · ' + label : '')" not in page
+
+
+def test_empty_day_shows_only_none_word():
+    strip = _read(TPL / "partials" / "home_date.html")
+    assert "{% if d.total or d.show_day %}<b>{{ d.make }}</b><small> / {{ d.total }}</small>{% endif %}</span>" in strip
+    assert "(' · 없음' if not d.total and not d.show_day else '')" in strip  # '없음'이 보이는 날 = 숫자를 뺀 날(같은 조건)
