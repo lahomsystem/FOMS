@@ -244,7 +244,7 @@ def replaced_info(order_id: int, entry: dict[str, Any], current_keys: set[str], 
     snaps = {key: MarkSnapshot.from_row(r) for key, r in latest.items()}
     prev = {key: {"state": s.seen_key, "name": _prev_name(s) or None} for key, s in snaps.items()}
     mine = latest.get(part)
-    label = f"바뀐 도면 · 전 판 {_prev_word(mine)}" if mine is not None else "바뀐 도면"
+    label = f"바뀐 도면 · 전 도면 {_prev_word(mine)}" if mine is not None else "바뀐 도면"
     return {"label": label, "prev": prev}
 
 

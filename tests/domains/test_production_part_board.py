@@ -188,7 +188,7 @@ def test_replaced_drawing_pairs_by_sheet_id_only(app):
     pane = _today(_board(me))
     new_a = _card(pane, "o5/new-a.png")
     assert new_a["state"] == "none"  # 새 판은 안 봄부터
-    assert new_a["replaced"]["label"] == "바뀐 도면 · 전 판 재단 완료(김재단)"
+    assert new_a["replaced"]["label"] == "바뀐 도면 · 전 도면 재단 완료(김재단)"
     assert new_a["replaced"]["prev"] == {"cut": {"state": "done", "name": "김재단"},
                                          "assemble": {"state": "need", "name": "김재단"}}
     assert _card(pane, "o5/direct-new.png")["replaced"] is None
@@ -197,7 +197,7 @@ def test_replaced_drawing_pairs_by_sheet_id_only(app):
     edge_view = _today(_board(_user("최엣지", part="edge")))
     assert _card(edge_view, "o5/new-a.png")["replaced"]["label"] == "바뀐 도면"  # 엣지 옛 진행 없음 — 짝만
     assert _card(_today(_board(_user("이조립", part="assemble"))), "o5/new-a.png")["replaced"]["label"] == \
-        "바뀐 도면 · 전 판 조립 중(김재단)"
+        "바뀐 도면 · 전 도면 조립 중(김재단)"
 
 
 # --------------------------------------------------------------------------- #

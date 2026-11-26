@@ -491,7 +491,7 @@ def test_replaced_drawing_line_and_cap_notice(client, cohort, monkeypatch):
     _mark(order, "oa/old0.png", "cut", "DONE", picked=me, done=me, names=("김재단", "김재단"), sheet_id="oa-s0")
     _login(client, me)
     block = _parts_block(_first_pane(_get(client, HOME)))
-    assert block.count('class="pp-replaced"') == 1 and "바뀐 도면 · 전 판 재단 완료(김재단)" in block
+    assert block.count('class="pp-replaced"') == 1 and "바뀐 도면 · 전 도면 재단 완료(김재단)" in block
     assert 'data-pp-count="unseen">3<' in block  # 새 판은 안 봄부터
     monkeypatch.setattr("foms.services.production.part_board.PART_BOARD_CARD_CAP", 2)
     block = _parts_block(_first_pane(_get(client, HOME)))

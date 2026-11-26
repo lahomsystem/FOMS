@@ -287,15 +287,15 @@ def test_changed_drawing_cell_says_n_others_without_myeong_and_names_from_the_li
     t = mc.to_iso(datetime.datetime(2026, 11, 25, 0, 0))
     three = [mc.member(1, "이시영", t), mc.member(2, "김재단", t), mc.member(3, "박재단", t)]
     info = replaced_info(1, {"key": "new", "sheet_id": "sh"}, {"new"}, {(1, "sh"): [_old_row(5, three)]}, "cut")
-    assert info["label"] == "바뀐 도면 · 전 판 재단 중(이시영 · 김재단 외 1)"  # 칸 글 — "외 1명" 아님
+    assert info["label"] == "바뀐 도면 · 전 도면 재단 중(이시영 · 김재단 외 1)"  # 칸 글 — "외 1명" 아님
     assert info["prev"]["cut"] == {"state": "need", "name": "이시영 · 김재단 외 1"}  # 첫 사람 한 명이 아니라 목록
     two_done = [mc.member(1, "이시영", t, done_at=t, done_uid=1, done_name="이시영"),
                 mc.member(2, "김재단", t, done_at=t, done_uid=9, done_name="박반장")]
     done = replaced_info(1, {"key": "new", "sheet_id": "sh"}, {"new"}, {(1, "sh"): [_old_row(6, two_done)]}, "cut")
-    assert done["label"] == "바뀐 도면 · 전 판 재단 완료(이시영 · 박반장)" and done["prev"]["cut"]["name"] == "이시영 · 박반장"
+    assert done["label"] == "바뀐 도면 · 전 도면 재단 완료(이시영 · 박반장)" and done["prev"]["cut"]["name"] == "이시영 · 박반장"
     one = [mc.member(1, "김재단", t)]  # 대조 — 한 명짜리 줄은 지금 글 그대로
     single = replaced_info(1, {"key": "new", "sheet_id": "sh"}, {"new"}, {(1, "sh"): [_old_row(7, one)]}, "cut")
-    assert single["label"] == "바뀐 도면 · 전 판 재단 중(김재단)" and single["prev"]["cut"]["name"] == "김재단"
+    assert single["label"] == "바뀐 도면 · 전 도면 재단 중(김재단)" and single["prev"]["cut"]["name"] == "김재단"
 
 
 # --------------------------------------------------------------------------- #
