@@ -5,7 +5,7 @@
 * [제작 시작] — ``POST /api/orders/<id>/production/start``(``foms/api/production/orders.py``)가 정책
   ``STATE_PRODUCTION_START`` 의 ``execute_order_mutation`` 안에서 이 모듈을 부른다(보류 해제 · 감사는 그 라우트 몫).
 * **첫 카드 맡기** — 도면 카드 쓰기(take · basic · takeover · 일괄 기본) 뒤 표시가 NONE 이 아닌데 회차가 없으면 같은 tx ·
-  같은 정책으로 연다(``foms/services/production/part_mark_write.py``). 단계 기록 "제작 시작 (도면 카드 첫 맡기)" ·
+  같은 정책으로 연다(``foms/services/production/part_mark_write.py``). 단계 기록 "제작 시작 (도면 작업 시작)" ·
   이벤트 ``PRODUCTION_STARTED`` ``via:'part_marks'`` · 감사 한 줄. 맡기를 취소해도 회차는 그대로다(되돌리기는 [제작 취소]).
   일괄 기본은 주문이 여럿이라 회차 · 이벤트 · 감사 줄을 ``*_values`` 로 모아 표마다 INSERT 한 번(주문 수와 무관)으로 쓴다.
 
@@ -31,7 +31,7 @@ PRODUCTION_START_POLICY_ID = "STATE_PRODUCTION_START"
 STARTED_EVENT = "PRODUCTION_STARTED"
 #: 단계 기록 글 — [제작 시작] 단추 / 첫 카드 맡기.
 START_NOTE = "제작 시작"
-CARD_START_NOTE = "제작 시작 (도면 카드 첫 맡기)"
+CARD_START_NOTE = "제작 시작 (도면 작업 시작)"
 #: 이벤트 · 감사 ``via`` — 카드가 연 회차.
 VIA_PART_MARKS = "part_marks"
 
@@ -131,6 +131,6 @@ def started_event(order_id: int, user_id: Optional[int], *, via: Optional[str] =
 def card_start_audit_values(order: Any, user: Any) -> dict[str, Any]:
     """첫 카드가 연 제작 시작의 감사 한 줄 칸 값([제작 시작] 단추의 감사와 같은 action 이라 같이 찾힌다)."""
     context = order_audit_context(order)
-    message = describe_order_action(order_id=order.id, action=STARTED_EVENT, note="도면 카드 첫 맡기", **context)
+    message = describe_order_action(order_id=order.id, action=STARTED_EVENT, note="도면 작업 시작", **context)
     return {"user_id": getattr(user, "id", None), "action": STARTED_EVENT, "target_type": "order",
             "target_id": int(order.id), "message": message, "detail": {"via": VIA_PART_MARKS, **context}}
