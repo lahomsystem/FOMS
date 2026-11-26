@@ -23,7 +23,7 @@
     pick: '수정할 도면을 골라 주세요.',
     tooMany: '사진은 3장까지 올릴 수 있어요.',
     photoBad: '사진을 다시 올려 주세요.',
-    tooBig: '사진이 너무 큽니다. 크기를 줄여 올려 주세요.', // 지금 글(heic_convert ERR_PIXELS) — 413 받으면
+    tooBig: '사진이 너무 커요. 크기를 줄여 올려 주세요.', // 서버 글(heic_convert ERR_PIXELS 는 다른 화면도 써서 그대로) — 413 받으면
     offline: '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.'
   };
   var state = null;

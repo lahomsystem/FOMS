@@ -292,3 +292,14 @@ def test_card_start_note_says_drawing_work_start():
     run = _py_strings(ROOT / "foms" / "services" / "production" / "start_run.py")
     assert "제작 시작 (도면 작업 시작)" in run.splitlines() and "도면 작업 시작" in run.splitlines()
     assert "첫 맡기" not in run
+
+
+def test_factory_request_notice_uses_the_reject_notice_voice_and_numbers():
+    """사장님 2026-11-26 4 — 접수 알림은 반려 알림과 한 말투("접수됐어요" · "대상: 도면 2 · 3"), 사진 큼 글도 "너무 커요"(핀 20261126f)."""
+    from foms.services.orders.drawing_fix_requests import request_message
+    assert request_message(5801, "정하늘", [2], "높이") == "주문 #5801 (정하늘) 공장 도면 수정 요청이 접수됐어요. 대상: 도면 2. 사유: 높이"
+    assert request_message(5801, "", [2, 3], "높이") == "주문 #5801 공장 도면 수정 요청이 접수됐어요. 대상: 도면 2 · 3. 사유: 높이"
+    req = _read(JS / "foms-production-drawing-request.js")
+    assert "tooBig: '사진이 너무 커요. 크기를 줄여 올려 주세요.'" in req and "너무 큽니다" not in req
+    assert "foms-production-drawing-request.js') }}?v=20261126f" in _read(TPL / "partials" / "home_scripts.html")
+
