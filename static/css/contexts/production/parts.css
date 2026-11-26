@@ -315,6 +315,14 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .pp-otherg { margin: 12px 0 2px; padding-top: 10px; border-top: 2px dashed var(--fph-text3); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text); }
 .pp-otherg:has(.foms-fac--1) { border-top-color: var(--foms-fac1-line); }
 .pp-otherg:has(.foms-fac--2) { border-top-color: var(--foms-fac2-line); }
+/* 남의 공장 묶음은 처음 접힌 한 줄(details, 2026-11-26 결정 ⑦ C57) — 줄 전체가 누름 칸(48px 이상), 펼치면 › 가 아래로 */
+.pp-fold__sum { display: block; list-style: none; cursor: pointer; border-radius: 9px; }
+.pp-fold__sum::-webkit-details-marker { display: none; }
+.pp-fold__sum .pp-otherg { display: flex; align-items: center; gap: 8px; min-height: 48px; }
+.pp-fold__go { margin-left: auto; padding: 0 8px; font-size: calc(22px * var(--foms-fs, 1)); color: var(--fph-text2); transition: transform .15s; }
+.pp-fold[open] .pp-fold__go { transform: rotate(90deg); }
+.pp-fold__sum:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
+.pp-fold > .pp-grid { margin-top: 6px; }
 .pp-card.is-elsewhere { border: 2px dashed var(--fph-text3); padding: 7px 9px 9px; }
 .pp-card.is-elsewhere[data-factory="1"] { border-color: var(--foms-fac1-line); }
 .pp-card.is-elsewhere[data-factory="2"] { border-color: var(--foms-fac2-line); }
