@@ -12,7 +12,8 @@
   (sha256)이 있는데 다시 받은 것과 다르면 싣지 않는다(같은 사진인지 모른다).
 - **직원 그림**: 표 줄이 없다 — 받기 전 거르기 → 받기 → 준비만.
 - **상한**: 상담마다 손님 :data:`CUSTOMER_CAP` · 직원 :data:`STAFF_CAP` 장, 묶음 :data:`BATCH_CAP` 장(손님 사진 먼저 · 새
-  사진부터), 긴 변 :data:`LONG_EDGE`. 같은 지문은 묶음에서 한 번만 싣는다(둘째부터는 표시 줄이 같은 번호를 가리킨다).
+  사진부터), 긴 변 :data:`LONG_EDGE`, 토큰 어림 합 :data:`MEDIA_TOKEN_BUDGET`(넘는 것은 ``media_budget`` 으로 뺀다). 같은
+  지문은 묶음에서 한 번만 싣는다(둘째부터는 표시 줄이 같은 번호를 가리킨다).
 - **표시 줄**: 실은 사진은 ``▶ 사진 N (손님 · 사진 그 자체를 같이 봄) 설명`` · ``▶ 사진 N (직원 · 사진 그 자체를 같이 봄)``,
   못 실은 손님 사진은 설명이 있으면 예전처럼 ``▶ 사진 N (손님) 설명``. N 은 묶음 전체에서 하나뿐인 번호다. 설명은 그림 읽기
   표에서 :data:`SUMMARY_CHARS` 자까지(직원 화면 줄은 그대로).
@@ -37,6 +38,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 
 from sqlalchemy import select
 
+from foms.services.cs_agent.brain_media import image_tokens, pdf_tokens
 from foms.services.cs_agent.full_conversation import _pages, message_cap, talk_on
 from foms.services.cs_agent.image_fetch import FetchError, fetch_bytes
 from foms.services.cs_agent.image_files import FileRef
@@ -49,7 +51,7 @@ from models import CsAgentImageRead
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "BATCH_CAP", "CUSTOMER_CAP", "ENV", "FACE_SKIPS", "LONG_EDGE", "SEEN", "STAFF_CAP", "SUMMARY_CHARS", "BatchPhotos",
+    "BATCH_CAP", "CUSTOMER_CAP", "ENV", "FACE_SKIPS", "LONG_EDGE", "MEDIA_TOKEN_BUDGET", "SEEN", "STAFF_CAP", "SUMMARY_CHARS", "BatchPhotos",
     "batch_photos", "photos_on",
 ]
 
@@ -62,6 +64,9 @@ LONG_EDGE = 1568
 SUMMARY_CHARS = 240
 #: 묶음 하나 받기 시간 상한 · 파일 하나 받기 시간 상한(초).
 FETCH_BUDGET_S, FETCH_TIMEOUT_S = 120.0, 20.0
+#: 묶음 하나에 싣는 사진 · PDF 의 토큰 어림 합 상한(돈 예약과 같은 셈 — :mod:`.brain_media`). 넘는 것은 싣지 않는다 — 사진이
+#: 한 번 부르기의 최악 어림을 하루 상한 가까이 키워 그 묶음에서 밤이 멈추지 않게(운영 11-26).
+MEDIA_TOKEN_BUDGET = 150_000
 SEEN = "사진 그 자체를 같이 봄"
 #: 손님 사진을 다시 받지 않는 그림 읽기 표 건너뜀 까닭(얼굴).
 FACE_SKIPS = frozenset({SKIP_FACE, SKIP_FACE_CHECK})
@@ -170,6 +175,11 @@ def _gather(reader: Any, brand: str, chats: Sequence[str], cfg: Any,
     return out
 
 
+def _tokens(item: Prepared) -> int:
+    """준비된 사진 · PDF 하나의 토큰 어림(돈 예약과 같은 셈)."""
+    return pdf_tokens(item.pages) if item.kind == "document" else image_tokens(item.width, item.height)
+
+
 class _Loader:
     """받기 · 준비 한 묶음 — 상한 · 시간 · 같은 지문을 센다."""
 
@@ -182,6 +192,7 @@ class _Loader:
         self.skipped: Counter[str] = Counter()
         self.per_chat: Counter[tuple[str, bool]] = Counter()
         self.loaded = 0
+        self.tokens = 0
         self.shas: set[str] = set()
 
     def _code(self, pic: _Pic) -> Optional[str]:
@@ -221,7 +232,10 @@ class _Loader:
             elif got.sha256 in self.shas:  # 같은 그림 — 한 번만 싣고 표시 줄이 같은 번호를 가리킨다
                 pic.sha = got.sha256
                 return
+            elif self.tokens + _tokens(got) > MEDIA_TOKEN_BUDGET:
+                code = "media_budget"
             else:
+                self.tokens += _tokens(got)
                 pic.ready, pic.sha = got, got.sha256
                 self.shas.add(got.sha256)
                 self.per_chat[(pic.chat, pic.staff)] += 1
