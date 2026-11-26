@@ -285,3 +285,10 @@ def test_no_pan_word_loading_text_and_replaced_label_say_drawing():
     assert "foms-production-home-steppane.js') }}?v=20261126f" in _read(TPL / "partials" / "home_early.html")
     board = _py_strings(ROOT / "foms" / "services" / "production" / "part_board.py")
     assert "바뀐 도면 · 전 도면 " in board.splitlines() and "전 판" not in board
+
+
+def test_card_start_note_says_drawing_work_start():
+    """사장님 2026-11-26 3 — 첫 도면 카드 맡기로 열린 회차의 단계 기록 · 감사 글: "제작 시작 (도면 작업 시작)"."""
+    run = _py_strings(ROOT / "foms" / "services" / "production" / "start_run.py")
+    assert "제작 시작 (도면 작업 시작)" in run.splitlines() and "도면 작업 시작" in run.splitlines()
+    assert "첫 맡기" not in run
