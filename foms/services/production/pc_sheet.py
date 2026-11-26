@@ -31,9 +31,9 @@ from foms.services.orders.drawing_factory import has_second_factory, sheet_facto
 from foms.services.orders.drawing_fix import blocked
 from foms.services.production import mark_crew as mc
 from foms.services.production.factory_constants import FACTORIES, factory_label
-from foms.services.production.part_board import card_item_text, is_part_thumb_image, other_part_word
+from foms.services.production.part_board import card_item_text, is_part_thumb_image
 from foms.services.production.part_card_state import hand_cell, inspect_block, order_block
-from foms.services.production.part_constants import PART_INSPECT, PRODUCTION_PART_LABELS
+from foms.services.production.part_constants import PART_CUT, PART_INSPECT, PRODUCTION_PART_LABELS
 from foms.services.production.part_holders import HOLDER_NONE
 from foms.services.production.part_mark_gates import PART_USES_CARDS_MESSAGE
 from foms.services.production.part_mark_notes import state_words
@@ -76,7 +76,7 @@ def state_word(part: str, state: str, hand: Optional[dict[str, Any]], crew: Any 
         return str(hand["text"])
     if state in ("need", "done", "basic"):
         return state_words(part, state.upper(), crew).replace("작업 필요", "작업 중")  # 화면만 '작업 중'(감사 글은 그대로, 11-26 나)
-    return other_part_word(part, "none")["word"]
+    return "안 봄" if part == PART_CUT else "아직"  # 이 창 글은 그대로(사장님 2026-11-26 가: 다른 파트 줄 낱말만 "미정")
 
 
 def pending_note(state: str, crew: Any) -> Optional[str]:

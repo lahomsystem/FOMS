@@ -66,8 +66,8 @@ PART_THUMB_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 PART_SYNC_OVERLAP_SECONDS = 15
 
 #: 다른 파트 한 줄 낱말(D51 — 색은 ``tone`` 으로 화면이 고른다). '끝' → '완료'(2026-11-25 multi-holder K4).
-_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "중", "none": "안 봄"}
-_OTHER_WORDS = {"done": "완료", "need": "중", "none": "아직"}
+_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "작업 중", "none": "미정"}
+_OTHER_WORDS = {"done": "완료", "need": "작업 중", "none": "미정"}
 #: 여러 파트 계정(2026-11-23 §4-12 '더함')의 다른 파트 한 줄 — 그 파트도 내 파트이고 내 몫이 작업 중인 장은 "엣지 내 작업"
 #: (multi-holder §8-2 10). 파트 하나인 계정 · 관리자 · 대신에게는 생기지 않는다(다른 파트가 내 파트가 아니다).
 MINE_TONE = "mine"
@@ -86,7 +86,7 @@ def other_part_word(part: str, state_key: str, mine: bool = False) -> dict[str, 
         mine: 그 파트가 보는 사람의 파트이고 담당이 보는 사람인지(여러 파트 계정만 — :func:`mine_other` ).
 
     Returns:
-        ``{part, label, word, tone}`` — 재단은 완료 · 기본 · 중 · 안 봄, 그 밖은 완료 · 중 · 아직(D57: 안 고름 = 아직).
+        ``{part, label, word, tone}`` — 재단은 완료 · 기본 · 작업 중 · 미정, 그 밖은 완료 · 작업 중 · 미정(D57: 안 고름 = 미정).
         ``mine`` 이고 작업 필요(need)이면 "내 작업"(tone ``mine``).
     """
     if mine and state_key == "need":
