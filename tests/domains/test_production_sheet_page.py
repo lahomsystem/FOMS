@@ -309,8 +309,8 @@ def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다()
 
 def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> None:
     """11-21 사용자 결정 — 바닥 단추 줄을 고정해(53d1c5bb6) 굴러가는 칸이 작아졌고, 공정 칸을 켜야 [제작 완료]가
-    풀리므로 공정 4칸 줄을 맨 위로. 마크업 순서 = 읽기 · 키보드 순서(CSS order 아님). 보류 사유는 바뀐 것 다음,
-    특이사항은 만들 것 다음. 옆 시트(tablet_sheet.html)는 그대로(고객 → … → 공정)."""
+    풀리므로 공정 4칸 줄을 위로. 마크업 순서 = 읽기 · 키보드 순서(CSS order 아님). 보류 사유는 공정 바로 위(11-26 사장님
+    결정 — 첫 화면에서 보이게), 바뀐 것 → 만들 것 → 특이사항 → 고객. 옆 시트(tablet_sheet.html)는 그대로(고객 → … → 공정)."""
     from foms.services.datetime_kst import now_utc_naive
     _make_user(client, "sheet_prod_order", "PRODUCTION")
     order = _seed_order()
@@ -326,14 +326,14 @@ def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> 
     db_session.commit()
     html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
     scroll = html.split('class="foms-prod-page__side-scroll"', 1)[1].split('class="foms-prod-page__foot"', 1)[0]
-    marks = ['aria-label="공정"', 'aria-label="변경 알림"', "보류 · <strong>자재 기다림</strong>",
+    marks = ["보류 · <strong>자재 기다림</strong>", 'aria-label="공정"', 'aria-label="변경 알림"',
              'aria-label="만들 것"', 'aria-label="특이사항"', 'aria-label="고객"']
     pos = [scroll.find(m) for m in marks]
     assert -1 not in pos, dict(zip(marks, pos))
     assert pos == sorted(pos), dict(zip(marks, pos))
-    # 공정이 굴러가는 칸의 첫 상자다(앞에 다른 상자 · 안내 줄이 없다)
-    head = scroll[: pos[0]]
-    assert head.count("<section") == 1 and "foms-prod-page__callout" not in head and "<p" not in head
+    # 보류 사유 줄이 굴러가는 칸의 맨 앞이고, 공정이 첫 상자다(그 사이에 다른 상자 · 안내 줄이 없다)
+    head = scroll[: pos[1]].rsplit("<section", 1)[0]  # 공정 상자 여는 글자 앞까지
+    assert head.count("<section") == 0 and head.count("<p") == 1 and "callout--hold" in head
     # 순서는 마크업으로 — CSS order 로 바꾸지 않는다
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
     assert not re.search(r"(?<![\w-])order\s*:", css)
