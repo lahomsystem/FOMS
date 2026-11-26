@@ -197,6 +197,14 @@ def test_the_token_budget_of_a_batch_stops_pictures_from_blowing_up_the_reservat
     assert sorted(got.marks["uc-1"]) == ["a-1", "a-2"]  # 새 사진 둘만
 
 
+def test_the_default_caps_keep_many_picture_requests_inside_the_api_limits():
+    """상한 처음 값 — 묶음 40장(20장을 넘는 요청은 장마다 한 변 3,000px 아래여야 한다 — 긴 변 1,568 이라 걸리지 않는다)이고,
+    40장이 모두 가장 큰 크기여도 토큰 어림 합 상한 안이다(상한이 먼저 사진을 빼지 않게)."""
+    assert (lp.CUSTOMER_CAP, lp.STAFF_CAP, lp.BATCH_CAP) == (12, 8, 40)
+    assert lp.LONG_EDGE < 3000
+    assert lp.BATCH_CAP * lp.image_tokens(lp.LONG_EDGE, lp.LONG_EDGE) <= lp.MEDIA_TOKEN_BUDGET
+
+
 def test_the_same_picture_rides_once_and_every_line_points_at_it(world, monkeypatch):
     store, chan = world
     shared = picture(5)  # 여러 손님에게 보낸 구성표

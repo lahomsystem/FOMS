@@ -57,7 +57,10 @@ __all__ = [
 
 #: 급히 끌 때(WORKER env) — ``0`` 이면 사진을 받지 않는다(설명 줄만 — 예전 그대로).
 ENV = "FOMS_CS_LEARN_PHOTOS"
-CUSTOMER_CAP, STAFF_CAP, BATCH_CAP = 12, 4, 20
+#: 상담마다 손님 사진 · 직원 그림, 묶음마다(사장님 11-26 '지금 바로 늘리기' — 20장 상한으로 못 실은 사진이 실은 사진보다 많았다).
+#: 한 요청에 그림이 20장을 넘으면 장마다 한 변 3,000px 아래여야 한다(공식 vision 문서 2026-11-26 열람 — 요청당 600장 ·
+#: 128MB). 긴 변 :data:`LONG_EDGE` 라 걸리지 않는다.
+CUSTOMER_CAP, STAFF_CAP, BATCH_CAP = 12, 8, 40
 #: 그림 긴 변(낮 그림 읽기는 :data:`.image_prep.LONG_EDGE` 그대로 — 밤 배우기는 사진이 많아 작게).
 LONG_EDGE = 1568
 #: 밤 배우기 사진 줄 설명 자 수(직원 화면 줄 :data:`.image_summaries.LINE_LIMIT` 은 그대로).
