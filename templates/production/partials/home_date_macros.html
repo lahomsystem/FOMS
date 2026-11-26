@@ -48,6 +48,8 @@
   <span class="fph-dr__steps{% if r.part_holders %} has-hd{% endif %}" aria-label="공정">
     {% for s in r.home_steps %}{% set h = r.part_holders[loop.index0] if r.part_holders else none %}<span class="fph-dr__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"{% if h %} title="{{ h.aria }}"{% endif %}><i></i>{{ h.label if h else s.label }}{% if h %}{{ fph_hd(h) }}{% endif %}</span>{% endfor %}
   </span>
+  {% if r.part_holders %}{# 가로 태블릿(공정 칸 아래 이름이 숨는 폭)에서만 CSS 가 보인다 — 칸 아래 이름과 같은 글(h.name · h.tail)을 한 줄로 잇는다(사장님 2026-11-27 "줄 끝에 한 줄로 보이기") #}
+  <span class="fph-dr__hl" aria-hidden="true">{% for s in r.home_steps %}{% set h = r.part_holders[loop.index0] %}{% if not loop.first %} · {% endif %}<span class="fph-hl{% if h.kind == 'done' %} is-done{% elif h.kind == 'none' %} is-none{% elif h.old %} is-old{% endif %}">{{ s.label }} <b>{{ h.name }}</b>{% if h.tail %} {{ h.tail }}{% endif %}</span>{% endfor %}</span>{% endif %}
   <span class="fph-dr__dw{% if r.fac_dw %} is-split{% endif %}">{% if r.fac_dw %}{% for l in r.fac_dw.lines %}<span class="fph-fac{% if l.me %} is-me{% endif %}">{{ l.label | factory_chips }} {{ l.n }}장{% if l.done %} <b class="is-ok">완료</b>{% endif %}</span>{% endfor %}{% else %}{{ r.drawing_label }}{% endif %}</span>
 </a>
 {% endmacro %}

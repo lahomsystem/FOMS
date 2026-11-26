@@ -1,7 +1,7 @@
 {# 생산 첫 화면 CSS — 전체 페이지(home.html)와 셸 조각(home_fragment.html)이 같이 쓴다(?v= 핀 한 곳).
    parts.css = 도면 카드 판(.pp-modal 확인 창 꼴 포함). '내 공정' 판은 확인 창을 뺐다(2026-11-22 — 두 번 누름 + 되돌리기) — 2026-11-25 부터
    도면 있는 주문만 작업 시트와 같은 확인 창(sheet_step_confirm.html · 겉틀 foms-reason-sheet.css, 판 화면은 몸통이 싣는다 · 본문 한 줄은 home.css). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261126a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261127b">
 {% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261126g">
 {% endif %}{% if pc_view %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261124j">
 {% if tab in ('date', 'all') %}{# PC 도면 목록 창 겉틀 = 공용 사유 시트(2026-11-24) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">

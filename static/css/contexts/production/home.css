@@ -577,6 +577,14 @@
 .fph-dr__hd.is-done { color: var(--fph-holder-done); }
 .fph-dr__hd.is-none { color: var(--fph-holder-none); font-weight: 700; }
 .fph-dr__hd.is-old { color: var(--fph-old-700); }
+/* 가로 태블릿 한 줄 이름(11-27) — 칸 아래 이름이 숨는 폭에서만 보인다(아래 덩이). 한 줄 · 넘치면 말줄임, 색은 칸 아래 이름과 같은 토큰 */
+.fph-dr__hl { display: none; }
+.fph-hl { color: var(--fph-holder); }
+.fph-hl b { font-weight: 800; }
+.fph-hl.is-done { color: var(--fph-holder-done); }
+.fph-hl.is-none { color: var(--fph-holder-none); }
+.fph-hl.is-none b { font-weight: 700; }
+.fph-hl.is-old { color: var(--fph-old-700); }
 /* 단계 칸 둘째 줄: 카드 부분 완료 "2장 미완료"(§4-2) — 바뀐 줄(.is-chg)의 빨간 작은 글보다 뒤에 와서 이긴다 */
 .fph-dr .fph-dr__sg small.is-miss { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fph-why); }
 .fph-wg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
@@ -748,6 +756,9 @@
     .fph-dr__hd { display: none; }
     .fph-dr__steps.has-hd { gap: 6px; }
     .fph-dr__steps.has-hd .fph-dr__st { width: auto; }
+    /* 대신 줄 맨 아래에 이름 한 줄(11-27): 이름 칸 · 공정 칸 아래쪽 새 줄, 단계 칸은 그 줄까지 늘린다 */
+    .fph-dr__sg { grid-row: 1 / span 3; }
+    .fph-dr__hl { display: block; grid-column: 2 / -1; min-width: 0; padding: 0 0 6px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   }
 }
 
