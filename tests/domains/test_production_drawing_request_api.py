@@ -294,7 +294,7 @@ def test_push_banner_and_bell_links_open_the_requests_section(app):
                         message="사유: 남기지 않음", is_urgent=False)
     payload = push_sender._build_payload(note, "정하늘")
     assert payload["title"] == "공장 도면 수정 요청 · 정하늘" and "사유" not in payload["body"]
-    assert payload["body"] == "주문 #5801 (정하늘) 공장 도면 수정 요청이 접수되었습니다."
+    assert payload["body"] == "주문 #5801 (정하늘) 공장 도면 수정 요청이 접수됐어요."
     assert payload["data"]["deep_link"] == "/erp/drawing-workbench/5801?tab=requests"
     assert _resolve_notification_deep_link(note, {})["deep_link_url"] == "/erp/drawing-workbench/5801?tab=requests"
     assert "DRAWING_FACTORY_REQUEST" in push_sender._HIGH_URGENCY_TYPES and "DRAWING_FACTORY_REQUEST" in push_sender._DEFAULT_P1_TYPES
