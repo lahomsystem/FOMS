@@ -28,6 +28,10 @@ __all__ = ["CACHE_SIZE", "WordSearchUnavailable", "available", "interleave", "it
 
 #: 남기는 형태소 꼴 — 체언(``N…``) · 용언(``V…``)은 앞 글자로, 어근 · 영문 · 숫자는 그대로(11-23 견주기와 같은 규칙).
 KEEP_HEADS, KEEP_TAGS = ("N", "V"), frozenset({"XR", "SL", "SN"})
+#: 부사로도 읽히는 치수 이름씨 — '깊이 줄임' · '높이 낮춤' 처럼 뒤에 낱말이 바로 붙으면 나누개가 부사(``MAG``)로 읽어 버렸다(설계서
+#: 2026-11-26 4.1). 이 꼴만은 부사로 읽혀도 남긴다 — 다른 부사 · 다른 낱말의 나눔은 그대로다(전 · 후 견주기 시험).
+NOUN_ADVERBS: frozenset[str] = frozenset({"깊이", "높이"})
+ADVERB_TAG = "MAG"
 #: 낱말 기억 상한(항목 판 수) — 지식 항목이 수백 개라 한 밤의 항목이 모두 든다.
 CACHE_SIZE = 4096
 #: 형태소 나누개 읽는 값 — 다중 낱말 사전 · 오타 사전을 읽지 않는다. 11-23 견주기(같은 말 묶음 짝 452개)에서 점수가 같았고
@@ -85,7 +89,8 @@ def available() -> bool:
 
 
 def tokens(text: Optional[str]) -> list[str]:
-    """글 → 뜻 있는 낱말(조사 · 어미 · 부호는 뺀다 · 영문은 소문자). 빈 글은 빈 목록."""
+    """글 → 뜻 있는 낱말(조사 · 어미 · 부호는 뺀다 · 영문은 소문자 · 부사로 읽힌 치수 이름씨 :data:`NOUN_ADVERBS` 는 남긴다).
+    빈 글은 빈 목록."""
     body = (text or "").strip()[:MAX_CHARS]
     if not body:
         return []
@@ -93,7 +98,8 @@ def tokens(text: Optional[str]) -> list[str]:
     try:
         with _LOCK:
             parts = kiwi.tokenize(body)
-        return [str(t.form).lower() for t in parts if t.tag.startswith(KEEP_HEADS) or t.tag in KEEP_TAGS]
+        return [str(t.form).lower() for t in parts if t.tag.startswith(KEEP_HEADS) or t.tag in KEEP_TAGS
+                or (t.tag == ADVERB_TAG and t.form in NOUN_ADVERBS)]
     except Exception as exc:  # 꾸러미 안 오류(코드만 적는다)
         logger.warning("[회사 지식 낱말 찾기] 낱말 나누기 실패 code=tokenize kind=%s", type(exc).__name__)
         raise WordSearchUnavailable("tokenize") from None

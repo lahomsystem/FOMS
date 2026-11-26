@@ -29,16 +29,20 @@ from foms.services.cs_agent.learning_brain import call_learning
 from foms.services.cs_agent.send import SEND_BRAND
 from foms.services.cs_agent.state import KST
 
-__all__ = ["ADDS", "CONTRADICTS", "EFFORT", "MODEL", "UNAVAILABLE", "UNKNOWN", "differs_verdict"]
+__all__ = ["ADDS", "CONTRADICTS", "EFFORT", "MODEL", "PER_UNIT_AMOUNT", "UNAVAILABLE", "UNKNOWN", "differs_verdict"]
 
 ADDS, CONTRADICTS, UNKNOWN, UNAVAILABLE = "adds", "contradicts", "unknown", "unavailable"
 MODEL, EFFORT, MAX_TOKENS, TIMEOUT_S = prompt.MODEL_SONNET, "medium", 4000, 60
 
+#: '○ 당' 값의 배수(설계서 2026-11-26 4.1 — 통 당 값 × 그 고객 통 수로 맞는 합계가 부딪침 카드가 됐다). 아래 부딪침 규칙과 놓을
+#: 자리 판정자의 '규칙 아님'(``not_rule``) 줄이 같은 글을 쓴다.
+PER_UNIT_AMOUNT = "지식의 '○ 당' 값(통 당 · 개 당 · 30cm 당 등)에 수량을 곱해 맞아떨어지는 금액"
 #: 부딪침 · 더함 가르는 규칙(D278) — 놓을 자리 판정자(:mod:`.handoff_learning_place`)도 같은 글을 쓴다.
 CONTRADICTS_RULES = (
     "같은 대상에 다른 값(숫자 · 기간 · 크기 · 금액 · 시간)을 말한다 / 지식이 안 된다 · 하지 않는다고 한 것을 된다 · "
     "한다고 한다(또는 그 반대) / 지식이 정한 조건 · 순서 · 포함 여부를 다르게 말한다 / 지식이 정한 하한 · 상한 밖도 된다고 한다 / "
-    "지식이 닫아 둔 목록(종류 · 옵션)에 없는 것을 된다고 한다 / 지식이 '값은 계산기가 정본'이라고 한 제품 · 옵션에 금액을 적는다")
+    "지식이 닫아 둔 목록(종류 · 옵션)에 없는 것을 된다고 한다 / 지식이 '값은 계산기가 정본'이라고 한 제품 · 옵션에 금액을 적는다. "
+    f"단, {PER_UNIT_AMOUNT}은 부딪침이 아니다(그 고객 한 사람의 수량에 따른 금액이면 규칙이 아닌 말이다)")
 ADDS_RULES = (
     "지식에 없는 내용 · 경우 · 방법 · 응대 절차를 더하거나 더 자세히 푼다 / 지식의 값 · 규칙을 지키면서 하는 방법을 알려 준다"
     "(예: 정한 때까지 다 내되 나눠 결제해도 된다)")
