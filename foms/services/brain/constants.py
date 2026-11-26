@@ -57,6 +57,7 @@ TYPE_LAYERS: dict[str, frozenset[str]] = {
 LINK_KINDS: tuple[str, ...] = (
     "applies_to", "requires", "excludes", "value_from", "copy_in", "supersedes", "evidence_of", "caused_by", "fixed_by",
     "about", "decided_by", "at_step", "uses", "answers", "refines", "broader", "part_of",
+    "quantity_from",  # 이 값의 수량은 저 표(규격)를 따른다 — 새 종류는 이것 하나(설계 글 2026-11-26 5절)
 )
 #: 바깥 자리(brain 항목이 아니라 가리키기만 — 키 머리 → 가짜 유형). **정본 자리**(``value_from`` 의 끝 — 값은 그 자리가 정본)와
 #: **사본 자리**(``copy_in`` 의 끝 — 정본 값을 베껴 둔 바깥 글: 매크로 · 스토어 상세 구획 · 화면 · 양식, 7.8 다음 6).
@@ -83,6 +84,7 @@ EXTERNAL_KEY_PATTERNS: dict[str, re.Pattern[str]] = {
 }
 _RULES_TO_PRODUCTS = frozenset({
     "spec", "build_rule", "policy", "price_rule", "image_read_rule", "drawing_rule", "bom_rule", "situation",
+    "fact",  # 배운 사실도 제품 · 옵션에 '적용'(설계 글 2026-11-26 온톨로지 잇기 5절 — 사장님 11-27 승인)
 })
 #: 링크 종류 → (시작 유형들, 끝 유형들). 설계서 4절 · 8절 · 7.8 글을 짝으로 옮긴 것.
 ALLOWED_LINKS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
@@ -110,9 +112,14 @@ ALLOWED_LINKS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     # 정책 · 사실 · 제작 조건 · 상황 · 기준 답 → 공정 단계(7.8 다음 3 · D117)
     "at_step": (frozenset({"policy", "fact", "build_rule", "situation", "template"}), frozenset({"process_step"})),
     # 상담 · 도면 층 항목 → 쓰는 공통 바탕(규격 · 정책 · 용어 · 제작 조건 — 7.8 다음 5)
-    "uses": (frozenset({*CS_TYPES, *DRAWING_TYPES}), frozenset({"spec", "policy", "term", "build_rule"})),
+    # + 공통 바탕 글(사실 · 정책 · 가격 규칙 · 규격) → 용어만(:data:`NARROW_ENDS` — 2026-11-26 5절 '이 글은 저 낱말을 쓴다')
+    "uses": (frozenset({*CS_TYPES, *DRAWING_TYPES, "fact", "policy", "price_rule", "spec"}),
+             frozenset({"spec", "policy", "term", "build_rule"})),
     "answers": (frozenset({"template"}), frozenset({"situation"})),  # 기준 답 → 상황
-    "refines": (frozenset({"lesson"}), frozenset({"situation", "template", "tone"})),  # 배운 점 → 다듬은 것
+    # 배운 점 → 다듬은 것 + 사실 · 정책 → 그 글이 자세히 푸는 규칙(가격 규칙 · 규격 · 제작 조건 · 정책 — 2026-11-26 5절)
+    "refines": (frozenset({"lesson", "fact", "policy"}),
+                frozenset({"situation", "template", "tone", "price_rule", "spec", "build_rule", "policy"})),
+    "quantity_from": (frozenset({"price_rule"}), frozenset({"spec"})),  # 가격 규칙 → 수량을 정하는 표(규격)
     # 좁은 항목 → 넓은 항목(같은 유형끼리 — SKOS ``broader`` 방향, 고리 금지)
     "broader": (frozenset(IDENTITY_TYPES), frozenset(IDENTITY_TYPES)),
     "part_of": (frozenset({"part_kind"}), frozenset({"product_line"})),  # 그림 조각 종류 → 제품 라인(8절)
@@ -122,6 +129,11 @@ NARROW_ENDS: dict[tuple[str, str], frozenset[str]] = {
     **{(t, "value_from"): frozenset({EXT_CALCULATOR, EXT_SETTING})
        for t in ("product_line", "option", "spec", "price_rule", "bom_rule")},
     ("process_step", "value_from"): frozenset({EXT_ERP_STAGE}),
+    # 넓힌 종류의 뜻이 흐려지지 않게(2026-11-26 5절): 배운 점은 예전 끝만 · 사실 · 정책은 규칙 쪽만 · 공통 바탕 글은 용어만
+    ("lesson", "refines"): frozenset({"situation", "template", "tone"}),
+    ("fact", "refines"): frozenset({"price_rule", "spec", "build_rule", "policy"}),
+    ("policy", "refines"): frozenset({"price_rule", "spec", "build_rule"}),
+    **{(t, "uses"): frozenset({"term"}) for t in ("fact", "policy", "price_rule", "spec")},
 }
 #: 같은 유형끼리만 잇는 종류.
 SAME_TYPE_KINDS: frozenset[str] = frozenset({"broader"})
