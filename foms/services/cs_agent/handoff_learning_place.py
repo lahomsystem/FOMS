@@ -12,8 +12,9 @@
   예전 그대로 글자 + 뜻 섞기.
 - **기다리는 말**(2026-11-23 3절): 부르는 쪽이 넘긴 가까운 기다리는 말(:mod:`.handoff_learning_held` — 회사 지식이 아니다)을 따로
   묶어 보이고, 답 ``repeat``(그 기다리는 말과 같은 말 — 대상은 그 키)을 받는다. 이미 정함 · 부딪침 · 같음이 먼저다.
-- **사장님이 이미 정한 것**: 후보 항목에 대해 :data:`DECIDED_DAYS` 일 안에 답(:data:`ANSWER_WORDS`)으로 닫힌 엇갈림 카드의 말과
-  답을 :data:`MAX_DECIDED` 줄까지.
+- **사장님이 이미 정한 것**: 후보 항목을 다룬, 답(:data:`ANSWER_WORDS`)으로 닫힌 엇갈림 카드를 대상 키로(날짜 창 없이)
+  :data:`MAX_DECIDED` 줄까지 — 사장님이 답과 함께 적은 글이 있으면 그 글, 없으면 그때 직원 말과 답(설계서 2026-11-26 온톨로지
+  잇기 3.2 · 카드 비평 S5).
 - **모델**: :data:`MODEL` · 생각 :data:`EFFORT` · 학습 돈 줄(:func:`.learning_brain.call_learning`). 부딪침 규칙은 다른 말 판정자
   (:data:`.handoff_learning_judge.CONTRADICTS_RULES` — D278)의 글 그대로.
 - **답**(:class:`Placement`): :data:`VERDICTS` 가운데 하나. ``adds`` · ``contradicts`` 의 대상은 후보 키만, ``repeat`` 의 대상은
@@ -40,15 +41,14 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from foms.persistence.brain.models import BrainChange
 from foms.services.brain.ai_gates import JudgeUnavailable, related_items
+from foms.services.brain.answers import answered_about, card_answer
 from foms.services.brain.chat_model import build_params
 from foms.services.brain.chat_settings import read_chat_settings
-from foms.services.brain.constants import ANSWER_CODES, CHANGE_REJECTED, OP_CREATE
 from foms.services.brain.embeddings import account_like, query_vector
 from foms.services.brain.photo_cards import DIFFERS_LINE
 from foms.services.brain.proposals import after_values
 from foms.services.cs_agent import brain_prompt as prompt
 from foms.services.cs_agent.brain_spend import BrainError, BrainNotReady, SpendCapReached
-from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.handoff_learning_judge import ADDS_RULES, CONTRADICTS_RULES, PER_UNIT_AMOUNT
 from foms.services.cs_agent.learning_brain import call_learning
 from foms.services.cs_agent.masking import leak_counts
@@ -69,9 +69,10 @@ VERDICTS: tuple[str, ...] = (SAME, ADDS, NEW, CONTRADICTS, DECIDED, NOT_RULE, RE
 UNKNOWN, UNAVAILABLE = "unknown", "unavailable"
 MODEL, EFFORT, MAX_TOKENS, TIMEOUT_S = prompt.MODEL_SONNET, "medium", 4000, 60
 MAX_CANDIDATES, CANDIDATE_CHARS = 6, 700
-DECIDED_DAYS, MAX_DECIDED, DECIDED_CHARS, DECIDED_SCAN = 30, 5, 200, 300
+MAX_DECIDED, DECIDED_CHARS, DECIDED_SCAN = 5, 200, 300
+OWNER_CHARS = 300  # 판정 줄에 싣는 사장님 글 상한(바깥 글이 맞아요는 지식 글 전체라 직원 말보다 길다)
 MAX_ADDED, MAX_CLASH, MAX_WHY = 300, 60, 300
-#: 엇갈림 카드 답 코드(:data:`foms.services.brain.constants.ANSWER_CODES`) → 판정자에게 보이는 말.
+#: 엇갈림 카드 답 코드(:data:`foms.services.brain.constants.ANSWER_CODES`) → 판정자에게 보이는 말(사장님 글이 없는 줄).
 ANSWER_WORDS: dict[str, str] = {"knowledge_right": "회사 지식이 맞아요", "outside_right": "직원 말이 맞아요(지식을 고침)",
                                 "both_right": "둘 다 맞아요(경우를 적음)"}
 
@@ -141,23 +142,35 @@ def _flat(value: Any) -> str:
     return " ".join(str(value or "").split())
 
 
+def _decided_line(fields: Any, code: str, keys: Sequence[str]) -> Optional[str]:
+    """답으로 닫힌 카드 하나 → 판정 줄. 사장님이 답과 함께 적은 글(:func:`foms.services.brain.answers.card_answer`)이 있으면
+    ``- [대상 키] 사장님이 적은 글: …``(그때 직원 말은 싣지 않는다 — 사장님이 다른 글로 정한 뒤 직원이 옛 말을 또 하면 '이미 정함'이
+    아니라 다른 말로 보이게), 없으면 ``- [대상 키] 그때 직원 말 → 답``. 개인정보 · 계좌 꼴이 있는 줄은 ``None``."""
+    values = after_values(fields)
+    payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
+    answer = card_answer(fields)
+    key = payload.get("target") if payload.get("target") in keys else answer.get("key")
+    owner = _flat(answer.get("text"))[:OWNER_CHARS]
+    said = _flat(str(values.get("text") or "").replace(DIFFERS_LINE, "", 1))[:DECIDED_CHARS]
+    if key not in keys or not (owner or said):
+        return None
+    line = f"- [{key}] 사장님이 적은 글: {owner}" if owner else f"- [{key}] {said} → {ANSWER_WORDS.get(code, code)}"
+    return None if any(leak_counts(line).values()) or account_like(line) else line
+
+
 def decided_lines(session: Any, keys: Sequence[str], now: datetime.datetime) -> list[str]:
-    """후보 항목(``keys``)에 대해 :data:`DECIDED_DAYS` 일 안에 답으로 닫힌 엇갈림 카드 — ``- [대상 키] 카드 글 → 답`` 새 것부터
-    :data:`MAX_DECIDED` 줄(개인정보 · 계좌 꼴이 있는 줄은 뺀다)."""
+    """후보 항목(``keys``)을 다룬, 답으로 닫힌 엇갈림 카드 — **대상 키로** 찾는다(날짜 창 없이 — 같은 지식에 대해 정한 것은 오래돼도
+    실린다, :func:`foms.services.brain.answers.answered_about`). 새 것부터 :data:`MAX_DECIDED` 줄(:func:`_decided_line`). ``now`` 는
+    부르는 쪽 꼴을 지키려 받는다(쓰지 않는다)."""
+    del now
     if not keys:
         return []
-    since = naive_utc(now - datetime.timedelta(days=DECIDED_DAYS))
-    rows = session.execute(select(BrainChange.fields, BrainChange.reject_code).where(
-        BrainChange.item_key.like("conflict/%"), BrainChange.op == OP_CREATE, BrainChange.status == CHANGE_REJECTED,
-        BrainChange.reject_code.in_(ANSWER_CODES), BrainChange.decided_at >= since)
-        .order_by(BrainChange.decided_at.desc(), BrainChange.id.desc()).limit(DECIDED_SCAN))
+    rows = session.execute(select(BrainChange.fields, BrainChange.reject_code).where(answered_about(list(keys)))
+                           .order_by(BrainChange.decided_at.desc(), BrainChange.id.desc()).limit(DECIDED_SCAN))
     out = []
     for fields, code in rows:
-        values = after_values(fields)
-        payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
-        said = _flat(str(values.get("text") or "").replace(DIFFERS_LINE, "", 1))[:DECIDED_CHARS]
-        line = f"- [{payload.get('target')}] {said} → {ANSWER_WORDS.get(code, code)}"
-        if payload.get("target") in keys and said and not any(leak_counts(line).values()) and not account_like(line):
+        line = _decided_line(fields, code, keys)
+        if line is not None:
             out.append(line)
         if len(out) >= MAX_DECIDED:
             break
@@ -172,7 +185,8 @@ def user_text(request: dict[str, Any]) -> str:
             for item in request.get("held") or ()]
     waiting = ["[기다리는 말](회사 지식이 아니다 — 지난 상담 한 곳에서만 들어 모아 둔 말 · 키는 대괄호 안)", *held, ""] if held else []
     return "\n".join(["[회사 지식 후보](키는 대괄호 안 · 이름: 지금 글)", *(items or ["(없음)"]), "",
-                      "[사장님이 이미 정한 것](엇갈림 카드 대상 키 · 그때 직원 말 → 사장님 답)", *(request["decided"] or ["(없음)"]),
+                      "[사장님이 이미 정한 것](엇갈림 카드 대상 키 · 그때 직원 말 → 사장님 답, 사장님이 글을 적었으면 그 글)",
+                      *(request["decided"] or ["(없음)"]),
                       "", *waiting, "[새 말]", f"{request['title']}: {request['text']}", "", "새 말을 회사 지식의 어디에 놓을까?"])
 
 

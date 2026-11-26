@@ -142,7 +142,9 @@ def test_a_clash_the_owner_already_answered_is_not_asked_again(admin):
     assert (counts["decided"], counts["cards"]) == (1, 0) and len(changes()) == 1  # 카드가 다시 생기지 않는다
     (line,) = placer.requests[0]["decided"]
     assert line.startswith(f"- [{TARGET}] ") and line.endswith("→ 회사 지식이 맞아요")
-    assert place.decided_lines(db_session, [TARGET], at(12, 1) + datetime.timedelta(days=31)) == []  # 30일 창 밖
+    # 날짜 창 없이 대상 키로(2026-11-26 3.2) — 같은 지식에 대해 정한 것은 한 달이 지나도 실린다. 다른 키(대조군)는 없음
+    assert place.decided_lines(db_session, [TARGET], at(12, 1) + datetime.timedelta(days=31)) == [line]
+    assert place.decided_lines(db_session, ["lahom/other-synth"], at(12, 1)) == []
 
 
 # ── 빈 설명 칸 · 판정을 못 함 · 바로 고침 ────────────────────────────────
