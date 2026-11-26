@@ -193,7 +193,7 @@ def test_release_rules():
     assert (left.target, left.target_name) == ("DONE", "이시영")  # 남은 사람 모두 완료 = 저절로 완료(Q6)
     after_done = _decide(row, "release", "need", KIM)
     assert (after_done.code, after_done.message) == (
-        "RELEASE_AFTER_DONE", "[재단 완료]를 누른 도면은 시작을 취소할 수 없어요. 먼저 [되돌리기]를 눌러 주세요.")
+        "RELEASE_AFTER_DONE", "[재단 완료]를 누른 도면은 시작을 취소할 수 없어요. 먼저 [재단 완료 취소]를 눌러 주세요.")
     assert _decide(row, "release", "need", PARK).code == "RELEASE_NOT_HOLDER"
     alone = _decide(_row([_m(LEE, "이시영")]), "release", "need", LEE)
     assert (alone.target, alone.crew) == ("NONE", ())

@@ -167,3 +167,15 @@ def test_title_name_style_lives_in_the_always_loaded_stylesheet():
     home = _read(ROOT / "foms/web/production/home.py")
     assert "'part_title': _home_title(mode, user, board, name) if surface else None," in home
     assert "return ('반장', name) if mode == VIEW_SUB else None" in home
+
+
+def test_request_modal_close_and_server_refusals_use_current_button_names():
+    """[도면 수정 요청] 창 왼쪽 단추 = [닫기] · 서버 거절 글 셋은 옛 [되돌리기] 대신 [OO 완료 취소]."""
+    overlays = _read(TPL / "partials" / "home_parts_overlays.html")
+    assert "data-pp-rq-close>닫기</button>" in overlays
+    assert "data-pp-rq-close>취소</button>" not in overlays
+    for name, path in (("JOIN_DONE_MESSAGE", "part_mark_rules.py"), ("RELEASE_AFTER_DONE_MESSAGE", "part_mark_rules.py"),
+                       ("STEP_SET_BY_CARDS_MESSAGE", "part_mark_gates.py")):
+        line = next(x for x in _read(ROOT / "foms/services/production" / path).splitlines() if x.startswith(name + " ="))
+        assert "[되돌리기]" not in line, name
+        assert "[{label} 완료 취소]" in line, name
