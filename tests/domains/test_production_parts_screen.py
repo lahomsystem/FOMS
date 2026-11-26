@@ -172,7 +172,7 @@ def test_other_part_has_no_basic_and_no_other_part_buttons(client, cohort):
     # 다른 파트 한 줄은 누를 수 없는 글 — 그 안에 단추 0, 재단 낱말(완료 · 기본 · 중 · 안 봄)이 선다
     for line in re.findall(r'<span class="fph-dr__by pp-by">(.*?)</span></span>\s*<div class="pp-actbox"', block, re.S):
         assert "<button" not in line and "<a " not in line
-    assert "<i>재단</i> 중" in block and "<i>재단</i> 기본" in block and "<i>재단</i> 안 봄" in block
+    assert "<i>재단</i> 작업 중" in block and "<i>재단</i> 기본" in block and "<i>재단</i> 미정" in block
     # 남의 파트 단추 0 — 카드 단추는 내 파트 동작 넷뿐이고 JS 설정의 파트는 내 파트
     acts = set(re.findall(r'data-pp-act="([a-z]+)"', html))
     assert acts <= {"take", "basic", "done", "undo", "bulk"}

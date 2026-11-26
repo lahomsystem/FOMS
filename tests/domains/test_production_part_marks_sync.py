@@ -117,7 +117,7 @@ def test_only_rows_updated_after_since_come_back(client):
     assert done["order_id"] == oid and done["state"] == "done" and done["done_by_name"] == "박재단"
     assert done["done_by_user_id"] == park.id and done["picked_by_name"] == "박재단"
     assert (done["word"], done["tone"]) == ("완료", "done")  # 다른 파트 한 줄 낱말도 서버가 준다(SSOT)
-    assert (marks[1]["word"], marks[1]["tone"]) == ("중", "need")
+    assert (marks[1]["word"], marks[1]["tone"]) == ("작업 중", "need")
     # 대조군: since 를 앞당기면 옛 줄도 나온다(거르기가 since 때문임을 보인다)
     older = (base - datetime.timedelta(hours=1)).isoformat()
     assert len(_marks(_get(client, [oid], older))) == 3

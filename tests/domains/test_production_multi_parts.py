@@ -273,10 +273,10 @@ def test_other_part_line_says_mine_only_for_my_second_part(app):
         return {c["key"]: {o["part"]: (o["word"], o["tone"]) for o in c["others"]} for c in _today(_board(user))["cards"]}
 
     mine = words(me)
-    assert mine["mo/d0.png"]["edge"] == ("내 작업", "mine") and mine["mo/d1.png"]["edge"] == ("중", "need")
+    assert mine["mo/d0.png"]["edge"] == ("내 작업", "mine") and mine["mo/d1.png"]["edge"] == ("작업 중", "need")
     for viewer in (single, admin):  # 대조군: 그 파트가 내 파트가 아니면 지금 낱말(단 하나 파트 계정은 자기가 맡았어도)
         got = words(viewer)
-        assert got["mo/d0.png"]["edge"] == ("중", "need") and got["mo/d1.png"]["edge"] == ("중", "need")
+        assert got["mo/d0.png"]["edge"] == ("작업 중", "need") and got["mo/d1.png"]["edge"] == ("작업 중", "need")
 
 
 def test_sync_words_follow_the_viewer_like_the_board(client):
@@ -290,7 +290,7 @@ def test_sync_words_follow_the_viewer_like_the_board(client):
     assert (edge["word"], edge["tone"]) == ("내 작업", "mine")
     login(client, _user("박재단", parts=["cut"]))
     edge = next(m for m in client.get(url).get_json()["data"]["marks"] if m["part"] == "edge")
-    assert (edge["word"], edge["tone"]) == ("중", "need")
+    assert (edge["word"], edge["tone"]) == ("작업 중", "need")
 
 
 # --------------------------------------------------------------------------- #

@@ -214,3 +214,10 @@ def test_unseen_text_and_bulk_button_count_the_same_cards():
     req = _read(JS / "foms-production-drawing-request.js")
     assert "var look = Math.max(0, Number(text.getAttribute('data-pp-unseen-text') || 0) - 1);" in req
     assert "text.textContent = look ? '안 본 도면 ' : '안 본 도면 없어요';" in req
+
+
+def test_other_part_words_are_mijeong_and_working():
+    """사장님 2026-11-26 가 — 도면 칸 아래 다른 파트 줄: 손 안 댄 것은 파트 구분 없이 "미정", 시작한 것은 "작업 중"(완료 · 기본 그대로)."""
+    board = _read(ROOT / "foms/services/production/part_board.py")
+    assert '_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "작업 중", "none": "미정"}' in board
+    assert '_OTHER_WORDS = {"done": "완료", "need": "작업 중", "none": "미정"}' in board

@@ -88,9 +88,9 @@ def _card(pane: dict, key: str) -> dict:
 # 낱말 · 상태별 카드
 # --------------------------------------------------------------------------- #
 def test_other_part_words_cut_has_basic_others_say_not_yet():
-    assert [other_part_word("cut", s)["word"] for s in ("done", "basic", "need", "none")] == ["완료", "기본", "중", "안 봄"]  # '끝' → '완료'(multi-holder K4)
-    assert [other_part_word("assemble", s)["word"] for s in ("done", "need", "none")] == ["완료", "중", "아직"]
-    assert other_part_word("edge", "none") == {"part": "edge", "label": "엣지", "word": "아직", "tone": "none"}
+    assert [other_part_word("cut", s)["word"] for s in ("done", "basic", "need", "none")] == ["완료", "기본", "작업 중", "미정"]  # '끝' → '완료'(multi-holder K4)
+    assert [other_part_word("assemble", s)["word"] for s in ("done", "need", "none")] == ["완료", "작업 중", "미정"]
+    assert other_part_word("edge", "none") == {"part": "edge", "label": "엣지", "word": "미정", "tone": "none"}
 
 
 def test_cards_carry_state_names_badges_and_other_part_line(app):
@@ -111,12 +111,12 @@ def test_cards_carry_state_names_badges_and_other_part_line(app):
     assert (taken["state"], taken["badge"], taken["taken_by_other"]) == ("need", "taken", True)
     assert (basic["state"], basic["badge"], basic["done_by_name"]) == ("basic", "basic", "박재단")
     assert (fresh["state"], fresh["badge"]) == ("none", None)  # 안 봄 = 배지 없음(D52)
-    assert [(o["label"], o["word"]) for o in mine["others"]] == [("엣지", "완료"), ("조립", "중"), ("검수", "아직")]
+    assert [(o["label"], o["word"]) for o in mine["others"]] == [("엣지", "완료"), ("조립", "작업 중"), ("검수", "미정")]
     assert (mine["no"], mine["of"], mine["customer_name"], mine["order_id"]) == (1, 4, "한빛", order.id)
 
-    # 엣지 계정이 보면 재단 줄 낱말이 '안 봄 · 기본 · 중' 으로 선다(그 밖 파트는 '기본' 낱말이 없다).
+    # 엣지 계정이 보면 재단 줄 낱말이 '미정 · 기본 · 작업 중' 으로 선다(그 밖 파트는 '기본' 낱말이 없다).
     edge_pane = _today(_board(edge_man))
-    assert [o["word"] for o in _card(edge_pane, "o1/d3.png")["others"]] == ["안 봄", "아직", "아직"]
+    assert [o["word"] for o in _card(edge_pane, "o1/d3.png")["others"]] == ["미정", "미정", "미정"]
     assert _card(edge_pane, "o1/d2.png")["others"][0]["word"] == "기본"
     assert _card(edge_pane, "o1/d0.png")["state"] == "done"
 

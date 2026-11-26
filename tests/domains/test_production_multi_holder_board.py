@@ -192,7 +192,7 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     assert ro.strip().startswith(f'<span class="fph-wi pp-act pp-st-need">이시영 · 김재단 작업{NBSP}중</span>') and "<button" not in ro
 
     insp = _card(_page(client, p.insp), k[2])  # H — 검수 판: 재단 1/2 완료 = 미완료, 다른 파트 낱말 '완료'
-    assert ">재단 미완료</button>" in _act(insp) and "<i>재단</i> 중" in insp and "<i>엣지</i> 완료" in insp and "<i>조립</i> 완료" in insp
+    assert ">재단 미완료</button>" in _act(insp) and "<i>재단</i> 작업 중" in insp and "<i>엣지</i> 완료" in insp and "<i>조립</i> 완료" in insp
 
     _press(client, p.kim, p.order, 1, "join", "need")  # C — 내 화면 · 둘이 작업
     c = _card(_page(client, p.kim), k[1])
