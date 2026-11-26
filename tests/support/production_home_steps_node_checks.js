@@ -119,7 +119,7 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.next}`]);
   const status = $('[data-foms-home-status]');
   assert.ok(status.classList.contains('is-undo') && status.querySelector('span').textContent === `${want.first_name} ${want.label} 완료`, status.textContent);
-  assert.strictEqual(status.querySelector('[data-foms-step-undo]').textContent, '되돌리기');
+  assert.strictEqual(status.querySelector('[data-foms-step-undo]').textContent, `${want.label} 완료 취소`);
   // 4) 새 화면(셸 교체로 이 JS 가 다시 돈다): 되돌리기 띠를 다시 그리고 [끝]은 잠깐(600ms) 잠근다 — 두 번 누름이 다음 주문에 떨어지지 않게
   calls.fetch.length = 0;
   const homeRoot = $('[data-foms-prod-home]');
@@ -146,7 +146,7 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   await flush(); await flush();
   assert.deepStrictEqual(calls.fetch, [stepCall(false)]);
   assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.first}`]);
-  assert.ok(status.textContent.startsWith('되돌렸어요') && !status.classList.contains('is-undo'), status.textContent);
+  assert.ok(status.textContent.startsWith(`취소했어요. ${want.first_name} — 다시 ${want.label} 줄로 가요`) && !status.classList.contains('is-undo'), status.textContent);
   // 6) 실패: 저장 실패 = 판 글 · 단추 풀림 · 이동 0. 되돌리기 실패 = 띠가 붉게 + 글, 단추는 남는다
   calls.fetch.length = 0;
   calls.replace.length = 0;
@@ -160,7 +160,7 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   G.api.showUndo();
   dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
   await flush(); await flush();
-  assert.ok(status.classList.contains('is-err') && status.textContent.includes('되돌리지 못했어요') && status.querySelector('[data-foms-step-undo]'), status.textContent);
+  assert.ok(status.classList.contains('is-err') && status.textContent.includes('취소하지 못했어요. ') && status.querySelector('[data-foms-step-undo]'), status.textContent);
   assert.strictEqual(calls.replace.length, 0);
   G.undo = null;
   // 5) 그림 = 원본 뷰어(그림 원본 전부)

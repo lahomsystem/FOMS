@@ -57,7 +57,7 @@
   {%- set by = (cr.done or c.done_by_name) if c.state == 'done' else c.done_by_name -%}
   {%- set word = ((pb.part_label ~ ' 완료') if c.state == 'done' else '기본') ~ (' · ' ~ by if by else '') -%}
 <span class="fph-wi pp-act pp-st-{{ c.state }}{% if can_undo %} pp-not-done{% endif %}">{{ word }}</span>
-  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '되돌리기' }}</button></div>{%- endif -%}
+  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '기본 취소' }}</button></div>{%- endif -%}
 {%- endif -%}
 {% endmacro %}
 {% macro pp_tag(c) -%}
