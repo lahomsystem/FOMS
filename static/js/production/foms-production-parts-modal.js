@@ -43,15 +43,15 @@
     var many = crew && card ? crew.plan(action, card) : null;
     if (many) { return many; }
     if (action === 'take') {
-      return { title: LABEL + ' 작업을 시작할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 필요 · ' + NAME, run: '작업 시작', tone: 'need' };
+      return { title: LABEL + ' 작업을 시작할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 중 · ' + NAME, run: '작업 시작', tone: 'need' };
     }
     if (action === 'basic') { return { title: '기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: '기본으로', tone: 'basic' }; }
     if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두)
-      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
+      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 중 → ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
     if (card && attr(card, 'data-state') === 'basic') { return { title: '기본을 취소할까요?', line: '기본 → 안 봄', run: '기본 취소', tone: 'unbasic' }; }
-    return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 작업 필요 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need' };
+    return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 작업 중 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need' };
   }
   function bulkPlan(cards) {
     return { title: cards.length + '장을 기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: cards.length + '장 기본으로', tone: 'basic' };

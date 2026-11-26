@@ -189,3 +189,17 @@ def test_basic_and_step_undo_buttons_are_paired_names():
     assert "u.error = '취소하지 못했어요. ' + failText(result);" in steps
     assert "G.api.setStatus('취소했어요. ' + u.name + ' — 다시 ' + u.label + ' 줄로 가요')" in steps
     assert "msg.textContent = u.error || (u.name + ' ' + u.label + ' 완료');" in steps  # 띠 글은 그대로
+
+
+def test_confirm_and_pc_state_words_say_working_but_audit_keeps_need():
+    """사장님 2026-11-26 나 "화면 글만 '작업 중'으로" — 확인 창 · 빈 이름 자리 · PC 상태 칸. 감사 글은 "작업 필요" 그대로."""
+    modal = _read(JS / "foms-production-parts-modal.js")
+    assert "'→ 작업 중 · ' + NAME" in modal and "line: '작업 중 → ' + LABEL" in modal and "' 완료 → 작업 중 · ' + NAME" in modal
+    crew = _read(JS / "foms-production-parts-crew.js")
+    assert "line: '작업 중 → ' + LABEL" in crew and "half(cr) + ' → 작업 중 · ' + NAME" in crew
+    assert "(o.mine ? '다른 사람 작업 중' : '작업 중')" in crew
+    assert "('다른 사람 작업 중' if pb.mine else '작업 중')" in _read(TPL / "partials" / "home_parts.html")
+    for text in (modal, crew):
+        assert "'작업 필요" not in text and "작업 필요 · '" not in text and "→ 작업 필요 · '" not in text  # 따옴표 안 글(주석은 그대로)
+    assert '.replace("작업 필요", "작업 중")' in _read(ROOT / "foms/services/production/pc_sheet.py")
+    assert 'else "작업 필요"' in _read(ROOT / "foms/services/production/part_mark_notes.py")  # 감사 낱말은 그대로

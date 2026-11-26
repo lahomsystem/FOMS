@@ -269,7 +269,7 @@ def test_js_join_window_and_late_start_notice(client, cohort, tmp_path) -> None:
     assert out[6] == {"do": "notice", "hidden": True, "stopped": True, "viewer_open": False}  # 누르면 바로 닫힘 · 크게 보기 안 열림
     out = out[1:]
     done = out[6]["modal"]  # 남은 사람이 있는 내 [재단 완료]
-    assert done["line"] == "작업 필요 → 재단 1/3 완료 · 김재단"
+    assert done["line"] == "작업 중 → 재단 1/3 완료 · 김재단"
     assert done["note"] == "이시영 · 최재단이 아직 작업 중이라 이시영 · 최재단이 완료해야 도면이 완료돼요."
     rel = out[8]["modal"]
     assert (rel["title"], rel["line"], rel["run"]["text"]) == ("시작을 취소할까요?", "이시영 · 김재단 외 1 작업 중 → 이시영 · 최재단 작업 중",
@@ -335,7 +335,7 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
     res = _node(page, {"sync": True, "gets": [synced], "steps": [{"do": "sync"}, {"do": "card", "key": k[1]},
                                                               {"do": "click", "key": k[2], "act": "release"}, {"do": "close"},
                                                               {"do": "click", "key": k[3], "act": "undo"}]})
-    assert res["out"][4]["modal"]["line"] == "재단 완료 → 작업 필요 · 김재단"  # 파트 계정 본인 몫 되돌리기 = 지금 꼴(H 대조군)
+    assert res["out"][4]["modal"]["line"] == "재단 완료 → 작업 중 · 김재단"  # 파트 계정 본인 몫 되돌리기 = 지금 꼴(H 대조군)
     rel = res["out"][2]["modal"]  # 내 [시작 취소] — 남은 이시영이 완료 = 저절로 완료(Q6), 바뀐 뒤는 완료 칸 글
     assert (rel["title"], rel["line"], rel["note"]) == ("시작을 취소할까요?", "이시영 · 김재단 작업 중 → 재단 완료 · 이시영",
                                                         "남은 사람이 모두 완료라 도면이 완료돼요.")
@@ -346,7 +346,7 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
     page.write_text(_page(client, p.lee), encoding="utf-8")
     res = _node(page, {"steps": [{"do": "click", "key": k[2], "act": "undo"}]})
     undo = res["out"][0]["modal"]
-    assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 1/2 완료 → 작업 필요 · 이시영")
+    assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 1/2 완료 → 작업 중 · 이시영")
 
 
 def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_path) -> None:
