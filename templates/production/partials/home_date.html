@@ -19,8 +19,12 @@
        href="{{ home_href(tab, part_board.url_part if part_board else None, d.key, factory=part_board.url_factory if part_board else None) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>
       {%- set sub = d.sub ~ (' · 없음' if not d.total and not d.show_day else '') %}
       <span class="fph-sd__d"><b>{{ d.label }}</b><small>{{ sub }}</small></span>
+      {%- if pc_view %}{# PC 는 막대 그대로(사장님 11-26 은 태블릿 결정) #}
       {%- set _bar %}<svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">{% for s in d.segs %}<rect class="is-{{ s.k }}" x="{{ s.x }}" y="0" width="{{ s.w }}" height="10"/>{% endfor %}</svg>{% endset %}
       {% if d.arrival %}<span class="fph-sd__mid">{{ _bar }}<span class="fph-sd__dw is-{{ d.arrival.state }}">{{ d.arrival.strip }}</span></span>{% else %}{{ _bar }}{% endif %}
+      {%- else %}{# 태블릿: 막대를 빼고 도면 글 · 숫자만 — 가운데 칸은 비어도 자리를 지킨다(숫자가 가운데 칸으로 밀리지 않게) #}
+      <span class="fph-sd__mid">{% if d.arrival %}<span class="fph-sd__dw is-{{ d.arrival.state }}">{{ d.arrival.strip }}</span>{% endif %}</span>
+      {%- endif %}
       <span class="fph-sd__n">{% if d.total or d.show_day %}<b>{{ d.make }}</b><small> / {{ d.total }}</small>{% endif %}</span>{# 빈 날은 '없음'만(사장님 2026-11-26 — "0 / 0"과 겹침) #}
     </a>
     {% endfor %}
