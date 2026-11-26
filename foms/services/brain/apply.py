@@ -66,11 +66,14 @@ AUTO_PROPOSERS: frozenset[str] = frozenset({"agent:cs_handoff_learning"})
 AUTO_OPS: frozenset[str] = frozenset({OP_CREATE, OP_UPDATE, OP_LINK_ADD})
 #: 바로 반영하지 않는 유형 — 값 규칙 · 사장님 결정 · 기준 답 문구(혼자 발송 재료)는 늘 사람이 넣는다.
 AUTO_HELD_TYPES: frozenset[str] = frozenset({"price_rule", "owner_decision", "template", "conflict", "question"})
-#: 바로 반영으로 더할 수 있는 잇기 종류(설계서 2026-11-26 4.1 · 7.2) — 그 밖 종류(금액 · 수량 정본 · '같이 안 돼요' 같은 것)는 허용
-#: 짝이어도 늘 사람이 잇는다. 처음 값은 지금 학습이 바로 넣는 종류뿐: 넘긴 상담 배우기의 온톨로지 '잇기'(상황 → 제품 · 옵션 —
-#: :func:`foms.services.cs_agent.photo_learning._filer` 의 ``link`` 갈래, :mod:`foms.services.cs_agent.handoff_learning_onto` 가
-#: 바로 반영). 허용 짝 표(:data:`.constants.ALLOWED_LINKS`)와 따로 둔다 — 짝 표는 '이을 수 있나', 이것은 '사람 없이 이어도 되나'.
-AUTO_LINK_KINDS: frozenset[str] = frozenset({"applies_to"})
+#: 바로 반영으로 더할 수 있는 잇기 종류(설계서 2026-11-26 4.1 · 7.2) — 그 밖 종류(금액 · 수량 정본 ``value_from`` · ``copy_in`` ·
+#: ``quantity_from``, '같이 안 돼요 · 꼭 같이' ``excludes`` · ``requires``, ``supersedes`` 같은 것)는 허용 짝이어도 늘 사람이 잇는다.
+#: 넘긴 상담 배우기의 온톨로지 '잇기'(상황 → 제품 · 옵션 ``applies_to`` — :func:`foms.services.cs_agent.photo_learning._filer` 의
+#: ``link`` 갈래)와 밤 배우기 끝 이어 붙이기(:mod:`foms.services.cs_agent.handoff_learning_link` — 뻔한 것만 바로, 7.2 조건 다섯)가
+#: 이 길을 탄다. 허용 짝 표(:data:`.constants.ALLOWED_LINKS`)와 따로 둔다 — 짝 표는 '이을 수 있나', 이것은 '사람 없이 이어도 되나'.
+AUTO_LINK_KINDS: frozenset[str] = frozenset({"applies_to", "at_step", "uses", "refines"})
+#: 바로 반영으로 잇지 않는 끝 유형(7.2 조건 5 — 사장님 결정 · 기준 답 문구, 에이전트 일). 어느 쪽 끝이든 이 유형이면 사람이 잇는다.
+AUTO_LINK_HELD_ENDS: frozenset[str] = frozenset({"owner_decision", "template", "conflict", "question"})
 
 
 @dataclass(frozen=True)
@@ -287,6 +290,8 @@ def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.
     ends = [source.visibility, _link_end_visibility(session, change.link_to)]
     if auto is not None and any(v not in (None, SCOPE_ALL) for v in ends):
         raise BrainPermissionError("바로 반영은 모두가 보는 지식끼리만 잇는다")
+    if auto is not None and {source.item_type, to_type} & AUTO_LINK_HELD_ENDS:
+        raise BrainPermissionError("바로 반영은 사장님 결정 · 기준 답에 잇지 않는다 — 사람이 잇는다")
     actor_id = auto.on_behalf if auto is not None else check_permission(
         actor, op=change.op, layer=source.layer, types=[source.item_type, to_type], visibilities=ends)
     if adding:  # 바깥 정본 자리가 지금도 있나 · 연결 개수 최대(7.7 · D105) · 링크 제약(7.8) — 빼기는 보지 않는다
@@ -395,7 +400,8 @@ def apply_change(session: Any, change_id: int, *, actor: Any, now: Optional[date
         detail: 감사 줄에 더할 숫자 · 코드(결정 시간 · 고쳐 넣음 · 다시 확인 같은 측정 — 글 없음).
         action: 이 반영을 부른 액션 이름(:mod:`.actions` — 제안 줄 ``decided_action`` · 감사 줄).
         auto: 배운 것 바로 반영(:class:`AutoLearn`) — 학습 에이전트 제안(:data:`AUTO_PROPOSERS`)의 새로 만들기 · 고치기 · 링크
-            더하기만, 모두가 보는 지식만(:data:`AUTO_HELD_TYPES` 유형은 안 받는다), 링크는 :data:`AUTO_LINK_KINDS` 종류만.
+            더하기만, 모두가 보는 지식만(:data:`AUTO_HELD_TYPES` 유형은 안 받는다), 링크는 :data:`AUTO_LINK_KINDS` 종류만
+            (끝이 :data:`AUTO_LINK_HELD_ENDS` 유형이면 안 받는다).
             권한 확인을 건너뛰고(``actor`` 는 안 본다) 결정한 사람 · 사람 승인자 칸을 비운다.
 
     Raises:

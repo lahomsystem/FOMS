@@ -31,6 +31,7 @@ WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 부르고, **밤(KST :d
    놓을 자리(같음 · 더함 · 새 지식 · 부딪침 · 이미 정함 · 규칙 아님 — 11-22) → 되풀이 문턱(한 상담뿐인 말은 '기다리는 말' — 11-23)
    → 제안 길. 패널 '배운 것 바로 반영'이 켜져 있으면 관문을 지난 안을 그 자리에서 반영한다(:func:`auto_learn`). 지금 지식과 다른
    말은 서로 다른 손님 둘 이상이면 그 항목을 바로 고친다.
+6. **이어 붙이기**(:mod:`.handoff_learning_link` — 패널 칸, 처음 끔): 읽기가 끝난 밤의 바퀴 끝에서 그 밤 배운 지식을 잇는다.
 
 로그 · 결과에는 숫자 · 코드만 싣는다(글 · 상담 id 없음).
 """
@@ -57,6 +58,7 @@ from foms.services.cs_agent.full_conversation import MIN_CASE_CHARS, case_limit,
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD, EDIT_LEARN_FIELD, HANDOFF_LEARN_FIELD
 from foms.services.cs_agent.handoff_learning_cache import night_lists
 from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, open_cards, seen_proposals
+from foms.services.cs_agent.handoff_learning_link import attach_night
 from foms.services.cs_agent.handoff_learning_onto import file_ontology
 from foms.services.cs_agent.handoff_learning_photos import BatchPhotos, batch_photos
 from foms.services.cs_agent.handoff_learning_pick import model_for, pick_batch
@@ -430,8 +432,8 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         session.rollback()
         return {"off": off}
     day = day_id(now)
-    if not claim_day(session, day, now):
-        return {"off": "already_today"}
+    if not claim_day(session, day, now):  # 읽기가 끝난 밤의 바퀴 — 이어 붙이기만(:mod:`.handoff_learning_link` — 끄면 빈 dict)
+        return {"off": "already_today", **attach_night(session, day, now=now, cfg=cfg, client=client)}
     fresh_policy(session)
     pool = collect_cases(session, now, cap=POOL, edits=cfg.get(EDIT_LEARN_FIELD) is True)
     photos = _photo_marks(session, sorted({str(case["chat_id"] or "") for case in pool} - {""}))
@@ -469,6 +471,7 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
                 counts["applied"], counts["cards"], counts["fixed"], counts["new"], counts["added"], counts["same"],
                 counts["decided"], counts["not_rule"], counts["held"], counts["promoted"], counts["blocked"],
                 counts["halted"], counts["photos"], counts["photo_skipped"], counts["cache_read"], counts["cache_write"])
+    counts.update(attach_night(session, day, now=now, cfg=cfg, client=client))  # 이 바퀴로 읽기가 끝났으면(닫음 · 상한 · 마지막)
     return counts
 
 

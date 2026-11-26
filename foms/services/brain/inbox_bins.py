@@ -15,6 +15,10 @@
   공정 단계뿐인 것은 허용 짝이 강제한다) 더하기. 글 · 금액이 바뀌지 않는 연결이다. 사람 제안 ``at_step`` 은 ② 그대로.
   옮기기 묶음이 넣은 ``requires`` · ``excludes``(꼭 같이 · 같이 못 함 — 빈 재료 채우기 B)는 끝이 계산기 제품이어도 ⑥ 이 아니라
   ② 한 장씩이다(D203 — 상담 AI 가 "그 조합은 안 돼요"라고 말하게 하는 재료라 사장님이 한 장씩 본다).
+  넓힘(설계 글 2026-11-26 온톨로지 잇기 7.2 — 밤 배우기 끝 이어 붙이기): 옮기기 묶음 · 밤 배우기(:data:`LEARN_PROPOSERS`)가 넣은
+  넓힌 종류(:data:`WIDE_RULE_KINDS` — 적용 · 공정 단계 · 쓰는 낱말 · 자세히 풂 · 수량 표) 더하기도 ⑥. 밤 배우기의 ``applies_to``
+  는 끝을 가리지 않는다(허용 짝이 제품 · 옵션으로 둔다 — 옮기기 묶음은 예전대로 계산기 제품 · 옵션 끝만). ``value_from`` ·
+  ``requires`` · ``excludes`` 는 누가 냈든 ⑥ 에 넣지 않는다(금액 · '같이 안 돼요'는 한 장씩).
 
 ①과 ④ · ⑤ · ⑥ 은 글 · 금액 · 규칙이 바뀌지 않아 관리자가 한꺼번에 승인할 수 있다(:func:`bulk_ok_any_grade` — D151 · D192).
 ① 은 상담팀장도(D167 — 묶음은 :func:`.access.wide_bins`). ⑤ · ⑥ 은 사장님(관리자)만(D192 · D194).
@@ -42,6 +46,10 @@ CALC_KEY_HEADS: tuple[str, ...] = ("product_line/", "option/")
 CALC_PROPOSER, CALC_REF, VALUE_LINK, RULE_LINK = "import", "calc:", "value_from", "applies_to"
 #: ⑥ 에 드는 공정 단계 잇기(D202) — 끝은 허용 짝(:data:`.constants.ALLOWED_LINKS`)이 공정 단계로만 둔다.
 STEP_LINK = "at_step"
+#: ⑥ 넓힘(설계 글 2026-11-26 7.2) — 밤 배우기가 낸 잇기(만든 이 · :data:`foms.services.cs_agent.handoff_learning_gates.AGENT`
+#: — 시험이 맞춘다)와 ⑥ 에 드는 넓힌 종류. 글 · 금액이 바뀌지 않는 잇기만(``value_from`` · ``requires`` · ``excludes`` 는 뺀다).
+LEARN_PROPOSERS: frozenset[str] = frozenset({"agent:cs_handoff_learning"})
+WIDE_RULE_KINDS: frozenset[str] = frozenset({RULE_LINK, STEP_LINK, "uses", "refines", "quantity_from"})
 #: ⑤ 에 들지 못하게 하는 실음 칸(금액 · 값 사본 — 계산기 값은 ``value_from`` 으로만 가리킨다, D179).
 _AMOUNT_KEYS: frozenset[str] = frozenset({"price", "prices", "amount", "values", "price_30cm", "price_1cm", "price_1m",
                                           "coupon_value"})
@@ -85,11 +93,15 @@ def calc_change(op: str, item_type: Optional[str], fields: Optional[Mapping[str,
 
 def rule_link_change(op: str, link_kind: Optional[str], *, proposed_by: Optional[str] = None,
                      link_to: Optional[str] = None) -> bool:
-    """⑥ 규칙 잇기인가 — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 더하기, 또는 옮기기 묶음이 넣은 공정 단계
-    ``at_step`` 더하기(D202). 허용 짝은 넣을 때 이미 봤다."""
-    if proposed_by != CALC_PROPOSER or op != OP_LINK_ADD:
+    """⑥ 규칙 잇기인가 — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 더하기, 옮기기 묶음이 넣은 공정 단계
+    ``at_step`` 더하기(D202), 그리고 옮기기 묶음 · 밤 배우기가 넣은 넓힌 종류 더하기(모듈 설명 넓힘). 허용 짝은 넣을 때 이미 봤다."""
+    if op != OP_LINK_ADD or link_kind not in WIDE_RULE_KINDS:
         return False
-    return link_kind == STEP_LINK or (link_kind == RULE_LINK and str(link_to or "").startswith(CALC_KEY_HEADS))
+    if proposed_by in LEARN_PROPOSERS:
+        return True
+    if proposed_by != CALC_PROPOSER:
+        return False
+    return link_kind != RULE_LINK or str(link_to or "").startswith(CALC_KEY_HEADS)
 
 
 def change_ends(change: Any) -> dict[str, Any]:

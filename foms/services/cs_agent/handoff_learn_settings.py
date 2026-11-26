@@ -13,7 +13,7 @@ from __future__ import annotations
 from foms.services.cs_agent.settings_field import KIND_BOOL, KIND_INT, Field
 
 __all__ = ["AUTO_FIELD", "CACHE_FIELD", "CASES_FIELD", "EDIT_LEARN_FIELD", "GROUP_HANDOFF_LEARN", "HANDOFF_LEARN_FIELD",
-           "HANDOFF_LEARN_FIELDS"]
+           "HANDOFF_LEARN_FIELDS", "LINK_CALLS_FIELD", "LINK_FIELD"]
 
 GROUP_HANDOFF_LEARN = "넘긴 상담 배우기 → 회사 지식 제안"
 HANDOFF_LEARN_FIELD, CASES_FIELD = "handoff_learn_enabled", "handoff_learn_cases"
@@ -21,6 +21,9 @@ EDIT_LEARN_FIELD = "edit_learn_enabled"
 AUTO_FIELD = "learn_auto_enabled"
 #: 밤 배우기 지식 목록 아껴 보내기(설계 글 2026-11-26 6절 — :mod:`.handoff_learning_cache`). 처음 끔 — 끄면 요청 꼴이 예전 그대로.
 CACHE_FIELD = "handoff_learn_cache_enabled"
+#: 밤 배우기 끝에 지식 이어 붙이기(설계 글 2026-11-26 7.1 · 7.2 — :mod:`.handoff_learning_link`). 처음 끔 — 끄면 모델을 부르지
+#: 않는다. 한 밤 부르기 횟수 상한(한 번에 지식 20개까지).
+LINK_FIELD, LINK_CALLS_FIELD = "handoff_learn_link_enabled", "handoff_learn_link_calls"
 
 HANDOFF_LEARN_FIELDS: tuple[Field, ...] = (
     Field(HANDOFF_LEARN_FIELD, "넘긴 상담 배우기", KIND_BOOL, False, GROUP_HANDOFF_LEARN,
@@ -40,4 +43,11 @@ HANDOFF_LEARN_FIELDS: tuple[Field, ...] = (
     Field(CACHE_FIELD, "밤 배우기 지식 목록 아껴 보내기", KIND_BOOL, False, GROUP_HANDOFF_LEARN,
           help="켜면 회사 지식 목록을 그 밤 첫 번에 맡겨 두고, 한 시간 안에 다시 부르면 맡겨 둔 목록을 훨씬 싼 값으로 다시 써요. "
                "그 밤에 새로 들어가거나 바뀐 지식은 따로 붙여 보내요. 맡기는 첫 번(모델마다 한 번)은 보통의 2배 값이에요"),
+    Field(LINK_FIELD, "밤 배우기 끝에 지식 이어 붙이기", KIND_BOOL, False, GROUP_HANDOFF_LEARN,
+          help="켜면 밤 배우기가 끝난 뒤 그 밤 새로 배우거나 고친 지식을 이미 있는 회사 지식에 이어요. 글에 상대 이름이 그대로 "
+               "있고 가리키는 지식이 하나뿐인 뻔한 연결은 '배운 것 바로 반영'이 켜져 있을 때 바로 넣고('AI 가 배운 것'에서 지울 "
+               "수 있어요), 나머지는 '승인 대기'에 올려요. 금액 · 수량이 걸린 연결 · '같이 안 돼요' 연결 · 두 지식 합치기는 늘 "
+               "여쭤요"),
+    Field(LINK_CALLS_FIELD, "이어 붙이기 한 밤 횟수", KIND_INT, 3, GROUP_HANDOFF_LEARN, low=1, high=10, unit="번",
+          help="한 밤에 이어 붙이기를 부르는 횟수 상한이에요. 한 번에 지식 20개까지 봐요. 학습 돈 상한 안에서만 불러요"),
 )
