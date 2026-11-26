@@ -274,3 +274,14 @@ def test_production_screen_says_drawing_fix_in_progress_like_the_sheet_badge():
     assert "도면 수정 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요." in gates.splitlines() and "도면 수정 중" in arrival.splitlines()
     for src in (card, fix, gate, alerts, steps, gates, arrival):
         assert "고치는 중" not in src
+
+
+def test_no_pan_word_loading_text_and_replaced_label_say_drawing():
+    """사장님 2026-11-26 2 — '판'이라는 말 빼기: 받는 중 글 · 바뀐 도면 칸 "전 도면"(코드 주석 · 독스트링은 그대로). 고친 JS 의 ?v= 는 20261126f."""
+    js = _read(JS / "foms-production-home-steppane.js")
+    steps = _read(TPL / "partials" / "home_steps.html")
+    assert "var LOAD_TEXT = '받는 중이에요…';" in js and "판을 받는 중" not in js + steps
+    assert 'data-foms-step-wait-text>받는 중이에요…</p>' in steps
+    assert "foms-production-home-steppane.js') }}?v=20261126f" in _read(TPL / "partials" / "home_early.html")
+    board = _py_strings(ROOT / "foms" / "services" / "production" / "part_board.py")
+    assert "바뀐 도면 · 전 도면 " in board.splitlines() and "전 판" not in board

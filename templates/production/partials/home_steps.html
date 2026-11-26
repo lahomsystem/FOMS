@@ -54,5 +54,5 @@
     {% endfor %}
   </div>
   {% endif %}
-{% if step_panel %}</div>{% if q.rows %}<div class="fph-q__panes" data-foms-step-panes>{% for p in q.panels %}{% include 'production/partials/home_step_panel.html' %}{% endfor %}<div class="fph-sp-wait" data-foms-step-wait role="status" aria-live="polite" hidden><p data-foms-step-wait-text>판을 받는 중…</p><button type="button" class="fph-sp__act" data-foms-step-retry hidden>다시 해 보기</button></div></div>{% endif %}{% endif %}</div>
+{% if step_panel %}</div>{% if q.rows %}<div class="fph-q__panes" data-foms-step-panes>{% for p in q.panels %}{% include 'production/partials/home_step_panel.html' %}{% endfor %}<div class="fph-sp-wait" data-foms-step-wait role="status" aria-live="polite" hidden><p data-foms-step-wait-text>받는 중이에요…</p><button type="button" class="fph-sp__act" data-foms-step-retry hidden>다시 해 보기</button></div></div>{% endif %}{% endif %}</div>
 {% endfor %}
