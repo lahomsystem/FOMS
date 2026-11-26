@@ -327,12 +327,9 @@ def order_label(order_id: int, customer: str) -> str:
 
 
 def request_message(order_id: int, customer: str, numbers: list[int], note: str) -> str:
-    """공장 요청 알림 글(§10) — 영업 수정 요청 글과 같은 꼴(대상이 여럿이면 "대상: 2, 3번 도면 (2건).")."""
-    if len(numbers) == 1:
-        target = f" 대상: {numbers[0]}번 도면."
-    else:
-        target = f" 대상: {', '.join(map(str, numbers))}번 도면 ({len(numbers)}건)." if numbers else ""
-    return f"{order_label(order_id, customer)} 공장 도면 수정 요청이 접수되었습니다.{target} 사유: {note}"
+    """공장 요청 알림 글(§10) — 반려 알림과 같은 말투 · 같은 번호 꼴(2026-11-26): "… 공장 도면 수정 요청이 접수됐어요. 대상: 도면 2 · 3. 사유: …"."""
+    target = f" 대상: {numbers_label(numbers)}." if numbers else ""
+    return f"{order_label(order_id, customer)} 공장 도면 수정 요청이 접수됐어요.{target} 사유: {note}"
 
 
 def reject_message(order_id: int, customer: str, numbers: list[int], note: str) -> str:

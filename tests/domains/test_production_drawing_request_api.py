@@ -280,7 +280,7 @@ def test_notification_goes_to_whole_drawing_team_and_admins_like_a_sales_request
     db_session.expire_all()
     note = db_session.query(Notification).filter_by(order_id=seed.id).one()
     assert (note.notification_type, note.target_team, note.title) == ("DRAWING_FACTORY_REQUEST", "DRAWING", "공장 도면 수정 요청")
-    assert note.message == f"주문 #{seed.id} (정하늘) 공장 도면 수정 요청이 접수되었습니다. 대상: 2, 3번 도면 (2건). 사유: 측판 길이"
+    assert note.message == f"주문 #{seed.id} (정하늘) 공장 도면 수정 요청이 접수됐어요. 대상: 도면 2 · 3. 사유: 측판 길이"
     states = {s.user_id for s in db_session.query(NotificationUserState).filter_by(notification_id=note.id)}
     assert {who.drawer.id, who.drawer2.id} <= states and not states & {who.sales.id, who.lead.id, who.part.id}
     assert sent.push == [note.id]
