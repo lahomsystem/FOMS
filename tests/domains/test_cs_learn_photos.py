@@ -183,6 +183,20 @@ def test_caps_per_chat_and_per_batch_keep_customer_pictures_first_and_the_newest
     assert more.skipped == {"customer_cap": 1, "staff_cap": 1} and "a/s2.jpg" in store.signed  # 직원 그림도 새 것부터
 
 
+def test_the_token_budget_of_a_batch_stops_pictures_from_blowing_up_the_reservation(world, monkeypatch):
+    """묶음의 사진 토큰 어림 합이 상한을 넘으면 넘는 사진은 싣지 않는다(운영 11-26: 사진 쪽 어림이 예약을 하루 상한보다 키워
+    밤 배우기가 그 묶음에서 멈췄다). 새 사진부터 싣고, 못 실은 사진은 ``media_budget`` 으로 센다."""
+    store, chan = world
+    chan.chat("uc-1", *(photo_msg(store, f"a-{i}", i, "user", f"a/{i}.jpg", picture(i)) for i in range(3)))
+    one = lp._tokens(lp.prepare(lp.FileRef("m", 0, "image/jpeg", 1, 1, 1, key="k"), picture(0), page_cap=3,
+                                pdf_max_bytes=10 ** 7, long_edge=lp.LONG_EDGE))
+    monkeypatch.setattr(lp, "MEDIA_TOKEN_BUDGET", one * 2)
+    got = batch_photos(db_session, make_reader(chan, FakeClock()), cfg(image_read_mode="note"), [{"chat_id": "uc-1"}], {},
+                       brand="LAHOM", transport=FakeDownload(store))
+    assert len(got.items) == 2 and got.skipped == {"media_budget": 1}
+    assert sorted(got.marks["uc-1"]) == ["a-1", "a-2"]  # 새 사진 둘만
+
+
 def test_the_same_picture_rides_once_and_every_line_points_at_it(world, monkeypatch):
     store, chan = world
     shared = picture(5)  # 여러 손님에게 보낸 구성표

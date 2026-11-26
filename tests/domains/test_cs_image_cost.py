@@ -72,6 +72,22 @@ def test_pdf_pages_are_counted_per_page_text_plus_page_image():
     assert media == 3 * (PDF_TEXT_TOKENS_PER_PAGE + IMAGE_TOKEN_CAP)
 
 
+def test_a_pdf_whose_pages_sit_only_inside_a_packed_stream_is_not_counted_as_a_hundred_pages():
+    """쪽 나무와 쪽 객체가 눌린 묶음 속에만 있는 PDF — 날 바이트로는 0쪽이라 100쪽으로 잡혔다(운영 11-26: 예약 한 번이 하루
+    상한보다 커져 밤 배우기가 그 묶음에서 멈춤). 준비와 같은 셈(묶음을 풀어 셈)으로 센다."""
+    from foms.services.cs_agent import image_pdf
+    from foms.services.cs_agent.brain_media import PDF_UNKNOWN_PAGES, pdf_tokens
+
+    data = pdf_bytes(2, object_stream=True).replace(b"/Type /Page ", b"/Type /Xage ")
+    assert image_pdf.page_count(data) == 0 and image_pdf.scan_pdf(data).pages == 2  # 날 바이트 0 · 풀어 세면 2
+    packed = Prepared(ref=REF, kind="document", media_type="application/pdf", data=data, sha256="2" * 64, pages=2)
+    _, media = media_tokens(params(packed))
+    assert media == 2 * (PDF_TEXT_TOKENS_PER_PAGE + IMAGE_TOKEN_CAP)
+    # 대조: 정말 못 세는 것은 넉넉한 쪽(100쪽) 그대로
+    broken = Prepared(ref=REF, kind="document", media_type="application/pdf", data=b"%PDF-1.7 nothing", sha256="3" * 64)
+    assert media_tokens(params(broken))[1] == pdf_tokens(0) == PDF_UNKNOWN_PAGES * (PDF_TEXT_TOKENS_PER_PAGE + IMAGE_TOKEN_CAP)
+
+
 def test_negative_control_a_text_only_request_reserves_exactly_as_before():
     for p in ({"model": bp.MODEL, "max_tokens": 16000}, params(), bp_like_draft()):
         assert bp.worst_case_cost(p) == old_worst_case(p)
