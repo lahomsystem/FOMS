@@ -49,7 +49,7 @@ def test_reload_instruction_is_one_sentence_on_board_refusals():
 def test_toast_says_what_was_pressed_and_stays_quiet_for_zero():
     parts = _read(JS / "foms-production-parts.js")
     assert "/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : (SAID[p.run] || '저장했어요')" in parts
-    assert "'같이 작업': '같이 작업 시작했어요', '기본으로': '기본으로 했어요', '되돌리기': '되돌렸어요', '담당 바꾸기': '담당 바꿨어요'" in parts
+    assert "'같이 작업': '같이 작업 시작했어요', '기본으로': '기본으로 했어요', '담당 바꾸기': '담당 바꿨어요'" in parts
     assert "var text = changed ? changed + '장 기본으로 했어요' : '';" in parts
 
 
@@ -135,12 +135,12 @@ def test_empty_day_shows_only_none_word():
 def test_undo_button_is_named_after_its_done_button():
     parts = _read(TPL / "partials" / "home_parts.html")
     assert parts.count('data-pp-act="undo">{{ pb.part_label }} 완료 취소</button>') == 2  # 내 몫만 완료 줄(파트 계정 · 반장)
-    assert "data-pp-act=\"undo\">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '되돌리기' }}</button>" in parts  # 기본은 그대로
+    assert "data-pp-act=\"undo\">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '기본 취소' }}</button>" in parts  # 기본 = [기본 취소](11-26 가)
     crew = _read(JS / "foms-production-parts-crew.js")
-    assert "st === 'basic' ? '되돌리기' : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 2
+    assert "st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 2
     modal = _read(JS / "foms-production-parts-modal.js")
     assert "title: LABEL + ' 완료를 취소할까요?'" in modal and "run: LABEL + ' 완료 취소', tone: 'need'" in modal
-    assert "title: '안 봄으로 되돌릴까요?', line: '기본 → 안 봄', run: '되돌리기'" in modal  # 기본 되돌리기는 안 여쭌 것 — 그대로
+    assert "title: '기본을 취소할까요?', line: '기본 → 안 봄', run: '기본 취소'" in modal  # 11-26 가
 
 
 def test_hold_reason_reads_the_same_on_every_screen():
@@ -179,3 +179,13 @@ def test_request_modal_close_and_server_refusals_use_current_button_names():
         line = next(x for x in _read(ROOT / "foms/services/production" / path).splitlines() if x.startswith(name + " ="))
         assert "[되돌리기]" not in line, name
         assert "[{label} 완료 취소]" in line, name
+
+
+def test_basic_and_step_undo_buttons_are_paired_names():
+    """사장님 2026-11-26 가 "둘 다 맞추기" — 기본 무르기 = [기본 취소], '남은 공정' 띠 = [<공정> 완료 취소]."""
+    assert "'되돌리기'" not in _read(JS / "foms-production-parts.js")  # 알림은 규칙(…취소 → 했어요)으로 "기본 취소했어요"
+    steps = _read(JS / "foms-production-home-steps.js")
+    assert "btn.textContent = u.busy ? '취소하는 중…' : u.label + ' 완료 취소';" in steps
+    assert "u.error = '취소하지 못했어요. ' + failText(result);" in steps
+    assert "G.api.setStatus('취소했어요. ' + u.name + ' — 다시 ' + u.label + ' 줄로 가요')" in steps
+    assert "msg.textContent = u.error || (u.name + ' ' + u.label + ' 완료');" in steps  # 띠 글은 그대로

@@ -66,7 +66,7 @@
   function undoRow(st, text) {
     var row = el('div', 'fph-wi pp-act pp-undo-row pp-st-' + st + ' pp-only-done');
     row.appendChild(el('span', '', text));
-    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', st === 'basic' ? '되돌리기' : LABEL + ' 완료 취소', 'undo')); // 완료 단추와 짝(사장님 2026-11-26)
+    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소', 'undo')); // 완료 단추와 짝(사장님 2026-11-26)
     return row;
   }
   function render(card, box, o) {
