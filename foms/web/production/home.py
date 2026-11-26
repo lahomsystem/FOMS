@@ -153,7 +153,7 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
         # 터치 기기), 화면 긴 변이 992 미만인 폰(``foms_scr``)은 가로로 돌려도 카드를 못 보니 뺀다. 주소(?tab=parts)는 그대로 열린다.
         'parts_link': surface and mode in _PARTS_TAB_MODES and wants_wide_only_surfaces(),
         'hide_steps_tab': mode == VIEW_PART,
-        'part_title': (_title_parts(board), name) if board is not None and mode == VIEW_PART else None,
+        'part_title': _home_title(mode, user, board, name) if surface else None,
         'nav_part': _nav_part(mode, user, board),
     }
 
@@ -171,6 +171,14 @@ def _nav_part(mode: str, user, board) -> str | None:
     mine = part_account_parts(user)
     asked = str(request.args.get('part') or '').strip().lower()
     return asked if len(mine) > 1 and asked in mine else None
+
+
+def _home_title(mode: str, user, board, name: str):
+    """위 줄 큰 제목 (역할, 이름) — 파트 계정 "엣지 박엣지" · 반장 "반장 박반장", 어느 탭이든(사장님 2026-11-26). 그 밖은 None("생산")."""
+    if mode == VIEW_PART:
+        role = _title_parts(board) if board is not None else production_parts_label(part_account_parts(user))
+        return (role, name) if role else None
+    return ('반장', name) if mode == VIEW_SUB else None
 
 
 def _title_parts(board: dict) -> str:

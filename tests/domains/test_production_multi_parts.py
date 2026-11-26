@@ -361,7 +361,9 @@ def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
     assert html.count('id="foms-part-confirm-modal"') == 1 and '&#34;mode&#34;: &#34;sub&#34;' in html
     assert 'class="pp-parts"' in pane and 'data-pp-act="take"' in pane and 'data-pp-act="join"' not in pane
     assert "<b>박재단 작업\u00a0중</b>" in pane and 'data-pp-act="check"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료](대신 완료 check)
-    assert "<h1 class=\"foms-prod-home__title\">생산</h1>" in html
+    # 반장 제목 = "반장 박반장", 어느 탭이든(사장님 2026-11-26 "반장도 이름 붙이기") — 날짜 탭도 같다
+    lead_title = '<h1 class="foms-prod-home__title">반장 <span class="foms-prod-home__me">박반장</span></h1>'
+    assert lead_title in html and lead_title in date and lead_title in _get(client, HOME + "?tab=all")
     _tablet(client, _user("최보기"))  # 파트도 반장도 아님 = 같은 판을 단추 없이(P1 읽기 전용 모습)
     view = _get(client, HOME + "?tab=parts&part=cut")
     assert '&#34;mode&#34;: &#34;readonly&#34;' in view and 'data-pp-act="' not in _pane(view) and "data-pp-card " in view
@@ -437,3 +439,14 @@ def test_query_counts_stay_for_two_part_date_tab_and_sub_cards_tab(client, cohor
     monkeypatch.setattr("foms.services.production.part_access.can_write_production", lambda user: False)
     _small, readonly, html = _measure(client, url, boss, (3400, 3500))
     assert 'data-pp-act="' not in html and sub == readonly == MEASURED["parts_tab"] + 1, (sub, readonly)
+
+
+def test_part_account_title_stays_on_every_tab_and_readonly_keeps_plain(client, cohort):
+    """파트 계정 제목 "재단 박재단"은 [바뀐 것] · [찾기] 탭에서도 그대로(사장님 2026-11-26). 파트도 반장도 아닌 계정은 "생산"."""
+    _order("한빛", _files("tt", 1))
+    _tablet(client, _user("박재단", parts=["cut"]))
+    title = '<h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">박재단</span></h1>'
+    for tab in ("", "?tab=changes", "?tab=all"):
+        assert title in _get(client, HOME + tab), tab
+    _tablet(client, _user("최보기"))
+    assert '<h1 class="foms-prod-home__title">생산</h1>' in _get(client, HOME + "?tab=all")

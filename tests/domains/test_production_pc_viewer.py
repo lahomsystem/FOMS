@@ -219,7 +219,7 @@ def test_고치기_켬이면_태블릿과_같은_쓰기_단추(client, cohort, w
     # 재단 줄: 가재단(재단 중) — 같은 [끝] 계약(data-foms-home-step-done · POST /production/steps, foms-production-home.js)
     assert f'data-foms-home-step-done data-order-id="{orders["cut"].id}" data-step-key="cut"' in steps
     # 보류 줄은 [끝] 대신 보류 글
-    assert f'data-order-id="{orders["hold"].id}" data-step-key=' not in steps and "보류 중 · 자재 기다림" in steps
+    assert f'data-order-id="{orders["hold"].id}" data-step-key=' not in steps and "보류 · 자재 기다림</span>" in steps and "보류 중" not in steps
     sheet = get_html(client, _sheet(orders["edge"]))
     for mark in ('data-tablet-sheet-action="production-cancel"', 'data-tablet-sheet-action="production-hold"',
                  'data-foms-sheet-step="cut"', "data-foms-sheet-defect-toggle", "tablet-domain-sheets.js",

@@ -77,6 +77,7 @@
   border-bottom: 1px solid var(--fph-line);
 }
 .foms-prod-home__title { margin: 0; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; color: var(--fph-text); } /* 기기 어두운 설정의 공용 머리글 색을 안 따른다(C05) */
+.foms-prod-home__me { margin-left: 4px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 600; color: var(--fph-text2); } /* 제목의 이름 — 파트 계정 · 반장, 어느 탭이든(2026-11-26, parts.css 에서 옮김) */
 .foms-prod-home__date { font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; }
 .foms-prod-home__tabs { display: flex; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
 .foms-prod-home__tab {
@@ -846,7 +847,8 @@
 .fph-sp__done:hover, .fph-sp__done:focus-visible { background: var(--fph-dw-ok); outline: none; }
 .fph-sp__done:active { background: #065f46; }
 .fph-sp__hold { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 2px solid var(--fph-hold-300); border-radius: 14px; background: var(--fph-hold-50); color: var(--fph-hold-700); text-align: center; }
-.fph-sp__hold b { display: inline-flex; align-items: center; gap: 8px; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; }
+.fph-sp__hold b { display: inline-flex; align-items: center; gap: 8px; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; word-break: keep-all; overflow-wrap: anywhere; }
+.fph-sp__hold b svg { flex: none; } /* 사유가 길어 두 줄이 돼도 멈춤 그림이 안 줄게("보류 · 사유" 한 줄 꼴, 2026-11-26) */
 .fph-sp__hold span { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; }
 /* 판 [끝] 자리 막힘 둘 — 위 줄 끝 규칙과 같은 색(보류 색 아님). 도면 칸 막힘은 누르면 그 주문 도면 판(밑줄 없음 · 초점 테두리) */
 .fph-sp__hold.is-cards { border-color: var(--fph-pre-300); background: var(--fph-pre-50); color: var(--fph-pre-700); text-decoration: none; }

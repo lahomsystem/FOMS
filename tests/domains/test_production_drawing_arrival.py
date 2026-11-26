@@ -65,14 +65,15 @@ def test_줄_글_x_n_과_가장_급한_상태() -> None:
     assert da.arrival_line([], tue) is None
     # 하루 줄: 제작 완료도 n 에 든다
     line = da.arrival_line([_made(1, "2026-11-25"), _made(2, "2026-11-25", "done"), _wait(3, "2026-11-25")], tue)
-    assert line == {"x": 2, "n": 3, "state": "late", "strip": "도면 2/3 마감 지남", "pane": "도면 2/3 내려옴"}
-    assert da.arrival_line([_made(1, "2026-11-26"), _wait(2, "2026-11-26")], tue)["strip"] == "도면 1/2 마감 오늘"
-    assert da.arrival_line([_wait(2, "2026-11-27")], tue)["strip"] == "도면 0/1 마감 내일"
+    assert line == {"x": 2, "n": 3, "state": "late", "strip": "도면 2/3", "group": "도면 2/3 마감 지남",
+                    "pane": "도면 2/3 내려옴"}  # 띠(strip)는 '마감 …' 글 없이 숫자 + 색(사장님 2026-11-26)
+    assert da.arrival_line([_made(1, "2026-11-26"), _wait(2, "2026-11-26")], tue)["group"] == "도면 1/2 마감 오늘"
+    assert da.arrival_line([_wait(2, "2026-11-27")], tue)["group"] == "도면 0/1 마감 내일"
     assert da.arrival_line([_wait(2, "2026-11-30")], tue)["strip"] == "도면 0/1"
     assert da.arrival_line([_made(1, "2026-11-25"), _made(2, "2026-11-25", "done")], tue)["strip"] == "도면 2/2 다 내려옴"
     # 여러 날 줄: 주문마다 매겨 가장 급한 것(늦음 > 빠듯 > 여유). 빠듯끼리는 가장 이른 마감의 '언제'
     many = [_wait(1, "2026-12-03"), _wait(2, "2026-11-27"), _wait(3, "2026-11-26"), _made(4, "2026-11-20")]
-    assert da.arrival_line(many, tue)["strip"] == "도면 1/4 마감 오늘"
+    assert da.arrival_line(many, tue)["group"] == "도면 1/4 마감 오늘" and da.arrival_line(many, tue)["strip"] == "도면 1/4"
     assert da.arrival_line(many + [_wait(5, "2026-11-25")], tue)["state"] == "late"
     # 시공일 없음 줄은 마감이 없어 다 내려옴 또는 여유만
     assert da.arrival_line([_wait(1, None)], tue)["state"] == "calm"

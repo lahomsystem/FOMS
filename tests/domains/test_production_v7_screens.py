@@ -119,8 +119,9 @@ def test_PC_여러_시공일_기다림_줄_늦음은_띠와_같은_날(client, c
     row = near_pane.split(f'data-foms-home-dayrow="{oid}"', 1)[1].split('<div class="fpc-r', 1)[0]
     assert "is-late" in head and "늦음 — 도면 마감" in row and "<span>내일</span>" in row and "<small>외 1</small>" in row
     strip = get_html(client, HOME)
-    assert "마감 지남" in strip.split(f'data-foms-home-daybtn="{near}"')[1].split("</a>")[0]
-    assert "마감 지남" not in strip.split(f'data-foms-home-daybtn="{flat}"')[1].split("</a>")[0]
+    near_btn = strip.split(f'data-foms-home-daybtn="{near}"')[1].split("</a>")[0]
+    assert "fph-sd__dw is-late" in near_btn and "마감" not in near_btn  # 띠는 색만(사장님 2026-11-26)
+    assert "fph-sd__dw is-late" not in strip.split(f'data-foms-home-daybtn="{flat}"')[1].split("</a>")[0]
 
 
 def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지난_날이면_빨강(client, cohort) -> None:
