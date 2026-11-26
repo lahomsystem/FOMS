@@ -1975,3 +1975,8 @@
 - [불량] · [불량 보고] → [불량 알리기]('내 공정' 판 · 폰 공정 시트).
 - 핀: parts `w` · parts-viewer `u` · parts-modal `u` · home-steps `m5` · home `d` · sheet-page `k` · steps `q` · tablet-domain-sheets `20261126a`(+ 이를 부르는 shipment-entry.js `20261126a`).
 - 확인: 닿는 시험 `3312 passed`(생산 · 출고 · 태블릿 · 패킹 · 도면 수정 · 마감 알림) · 새 시험 `test_production_wording_1126.py` `6 passed` · 계약 · 하네스 · 보안 `2012 passed` · node --check 8 · `APP_OK`. 준비물 서버 그림 직접 봄(150% 작업 시트 아래 줄 [제작 시작 취소] 한 줄 · '내 공정' [불량 알리기] · "영업 이시영" · "도면 마감 지난 주문"). 서버 · SQLite 치움.
+
+## 글 여덟 스테이징 올림 (11-26)
+
+- `safe_push`(smoke_push95): `21911 passed, 831 skipped` / `174 passed, 27 skipped` / `PUSHED e2fbe2991` / CI 넷 초록 / `[일치] staging: e2fbe299 배포됨 status=SUCCESS` / 운영 `363d7082` 그대로.
+- 다음에 여쭐 글: 반장 화면 '작업 필요' 칸 이름 · C19 · C23 · C25 ~ C28 · C30 ~ C32 · C41 ~ C43 · C46 ~ C52 · C10 · C36 · "저장했어요"로 남긴 알림 넷 · 브라우저 알림 창 "오류: …" · [도면 수정 요청] 창 [취소] · 단계 기록 글 "제작 시작 (도면 카드 첫 맡기)".
