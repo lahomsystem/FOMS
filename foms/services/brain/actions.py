@@ -21,11 +21,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
-from foms.services.brain.constants import BULK_MAX, HUMAN_EDIT_FIELDS, KEY_RE, LAYERS, MAX_REASON, REJECT_CODES
+from foms.services.brain.constants import (
+    ANSWER_CODES, BULK_MAX, HUMAN_EDIT_FIELDS, KEY_RE, LAYERS, MAX_REASON, MAX_TEXT, REJECT_CODES,
+)
 from foms.services.brain.display import LAYER_LABELS, REJECT_LABELS
 from foms.services.brain.errors import BrainShapeError
 
-KINDS: tuple[str, ...] = ("key", "int", "int_or_null", "text", "choice", "fields", "confirm", "ids", "ms")
+#: 매개변수 꼴 — ``body`` 는 지식 글 길이까지의 글(③ 답의 사장님 글), ``flag`` 는 참 · 거짓.
+KINDS: tuple[str, ...] = ("key", "int", "int_or_null", "text", "choice", "fields", "confirm", "ids", "ms", "body", "flag")
 
 
 @dataclass(frozen=True)
@@ -129,6 +132,18 @@ ACTIONS: dict[str, ActionType] = {a.name: a for a in (
                ("결정 권한(층 승인자 · 사장님 몫 — D101)", _SEE, "내가 하루 안에 거절한 제안", "같이 넣은 고침 뒤에 또 바뀌지 않음"),
                ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_DOC_SYNC"),
                "되돌렸어요 — 다시 정해 주세요.", ui=False),
+    # ③ 질문 카드 답 한 번에 저장(설계서 2026-11-26 온톨로지 잇기 3.2 — :mod:`.question_answer`). 그 카드 단추만 쓴다(ui=False).
+    ActionType("answer_question", "③ 답 저장",
+               "③ 질문 카드의 답 하나를 한 번에 저장한다 — 고칠 글이 있으면 지식 고침 제안 · 반영, 카드 닫기, 사장님이 적은 글 남기기"
+               "(하나라도 막히면 모두 되돌린다).", "decide", "brain_review_api.brain_answer",
+               (_CHANGE, Param("code", "choice", "답", choices=ANSWER_CODES),
+                Param("text", "body", "사장님이 적은 글", required=False),
+                Param("base_version", "int_or_null", "다루는 지식의 기준 판"),
+                Param("money_ok", "flag", "금액 알림을 보고 그대로 저장", required=False), _MS),
+               ("사장님(ADMIN)만 — ③ 질문 카드", _SEE, "열린 질문 카드", "고칠 글이 있으면 기준 판 = 지금 판"),
+               ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_BASE_CHANGED", "BRAIN_CONFIRM",
+                "BRAIN_REJECTED_BEFORE", "BRAIN_DOC_SYNC"),
+               "정했어요.", ui=False, admin_only=True),
     ActionType("bulk_apply", "한꺼번에 승인", "등급 A 제안, 또는 관리자의 이름표만 · 사본 링크만 제안을 한꺼번에 승인한다(D151).",
                "decide", "brain_review_api.brain_bulk_apply", (Param("ids", "ids", "제안 번호들"),),
                (*_DECIDE, "모두 등급 A 또는 (관리자 · 이름표만 · 사본 링크만)"), ("BRAIN_SHAPE",), "승인했어요."),
@@ -212,6 +227,8 @@ def _ok(param: Param, value: Any) -> bool:
         "confirm": lambda v: isinstance(v, dict) and isinstance(v.get("field"), str) and isinstance(v.get("value"), str),
         "ids": lambda v: isinstance(v, list) and 0 < len(v) <= BULK_MAX and all(_int(i) for i in v),
         "ms": lambda v: _int(v) and 0 <= v <= 86_400_000,
+        "body": lambda v: isinstance(v, str) and bool(v.strip()) and len(v) <= MAX_TEXT,
+        "flag": lambda v: isinstance(v, bool),
     }
     return checks[kind](value)
 
@@ -270,7 +287,8 @@ _JSON_TYPES = {"key": {"type": "string"}, "int": {"type": "integer"}, "int_or_nu
                "text": {"type": "string", "maxLength": MAX_REASON}, "fields": {"type": "object"},
                "confirm": {"type": "object", "properties": {"field": {"type": "string"}, "value": {"type": "string"}}},
                "ids": {"type": "array", "items": {"type": "integer"}, "maxItems": BULK_MAX},
-               "ms": {"type": "integer", "minimum": 0}}
+               "ms": {"type": "integer", "minimum": 0}, "body": {"type": "string", "maxLength": MAX_TEXT},
+               "flag": {"type": "boolean"}}
 
 
 def tool_specs(names: Optional[tuple[str, ...]] = None) -> list[dict[str, Any]]:

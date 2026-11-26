@@ -3,7 +3,7 @@
 - 순수 계산(``ds-inbox-view.js`` textDiff): 같은 글 · 한 문장 덧붙임 · 가운데 문장 바꿈 · 통째 바꿈 · 크기 한도 · 빈칸과 줄 바꿈을
   지켜 'del' 을 뺀 조각을 이으면 저장할 글, 'add' 를 뺀 조각을 이으면 지금 글(여러 쌍).
 - 화면(``test_brain_ds_inbox_js`` 의 가짜 DOM + 실제 새 템플릿): '바깥 글이 맞아요' 를 열면 바뀌는 곳이 보이고, 적으면 바뀌고,
-  '둘 다 맞아요' 는 적은 한 줄을 들어가는 글로 보인다. 보내는 글(제안 → 승인 → 닫기)은 그대로다.
+  '둘 다 맞아요' 는 적은 한 줄을 들어가는 글로 보인다. 보내는 글은 한 번에 저장 하나(2026-11-26 온톨로지 잇기 3.2).
 합성 자료만.
 """
 
@@ -139,12 +139,9 @@ def test_outside_box_shows_what_changes_and_follows_typing(page, tmp_path):
         ["SPAN", "fb-change__same", " 입니다."], ["INS", "fb-change__add", EXTRA]]
     assert got["same"] == {"shown": True, "text": "아직 바뀌는 곳이 없어요.", "parts": []}
     new = "합성 선반 깊이는 400mm 입니다."
-    assert got["posts"] == [  # 보내는 글은 지금과 같다 — 고침 제안 → 바로 승인 → 질문 닫기
-        {"url": "/api/brain/proposals", "body": {"action": "propose_edit", "key": "common/shelf", "base_version": 3,
-                                                  "after": {"text": new}, "reason": "사장님 답 — 바깥 글이 맞아요"}},
-        {"url": "/api/brain/proposals/777/apply",
-         "body": {"base_version": 3, "view_ms": 0, "confirm": {"field": "text", "value": new}}},
-        {"url": "/api/brain/proposals/10/reject", "body": {"code": "outside_right", "view_ms": 0}}]
+    assert got["posts"] == [  # 한 번에 저장(2026-11-26 3.2) — 적은 글 · 다루는 지식 판 · 답 하나만 보낸다
+        {"url": "/api/brain/proposals/10/answer",
+         "body": {"code": "outside_right", "view_ms": 0, "text": new, "base_version": 3}}]
 
 
 @NODE
@@ -163,10 +160,6 @@ def test_both_box_shows_the_new_line_as_added_at_the_end(page, tmp_path):
     assert got["empty"] == {"shown": True, "text": "아직 바뀌는 곳이 없어요.", "parts": []}
     assert got["typed"]["parts"] == [["SPAN", "fb-change__same", NOW], ["INS", "fb-change__add", "\n합성 벽 붙임은 두 줄이에요."]]
     assert got["other"] is False  # 고른 답의 칸만
-    new = NOW + "\n합성 벽 붙임은 두 줄이에요."
-    assert got["posts"] == [
-        {"url": "/api/brain/proposals", "body": {"action": "propose_edit", "key": "common/shelf", "base_version": 3,
-                                                  "after": {"text": new}, "reason": "사장님 답 — 둘 다 맞아요"}},
-        {"url": "/api/brain/proposals/777/apply",
-         "body": {"base_version": 3, "view_ms": 0, "confirm": {"field": "text", "value": new}}},
-        {"url": "/api/brain/proposals/10/reject", "body": {"code": "both_right", "view_ms": 0}}]
+    assert got["posts"] == [  # 적은 한 줄만 보낸다 — 지식 글 끝에 붙이는 셈은 서버가 한다
+        {"url": "/api/brain/proposals/10/answer",
+         "body": {"code": "both_right", "view_ms": 0, "text": "합성 벽 붙임은 두 줄이에요.", "base_version": 3}}]

@@ -3,7 +3,8 @@
 ``docs/specs/2026-11-22-cs-learning-placement_SPEC.md`` 2.2 · ``docs/specs/2026-11-23-brain-learning-upgrade_SPEC.md`` 2.1 · 3절).
 
 그대로 두는 것: 꼴 · 가림 · 근거 · 숫자 관문, 사장님이 거절 · 지운 말 다시 안 넣기, **서로 다른 손님 둘 이상의 다른 말은 바로
-고침**(D267 — 막히면 그 항목 엇갈림 카드).
+고침**(D267 — 막히면 그 항목 엇갈림 카드). 다만 사장님이 ③ 답으로 정한 지식은 바로 고침 · 바로 반영을 타지 않는다(판정 · 승인 대기로
+— :mod:`.handoff_learning_owner`, 멈춘 수는 ``owner_redo``).
 
 그 밖의 안(새로 만들기 · 두뇌의 고치기 · 바로 고치지 못한 다른 말)은 같음 · 겹침 관문(글자 비슷함 — 판정자를 부르지 않는다) 뒤 놓을
 자리 판정자에게 한 번 묻고 답대로 한다. 고치기 · 다른 말은 두뇌가 짚은 항목을 대상으로 묻고, 그 항목이 지금 없으면 ``target``.
@@ -63,6 +64,7 @@ from foms.services.cs_agent.handoff_learning_gates import (
     AGENT, CARD_PREFIX, CLASH_HEAD, DUP_SIMILARITY, MAX_FILED, MAX_TEXT, SAME_SIMILARITY, _card_rows, _check, _duplicate,
     _filer, _fix_text, _numbers_ok, _replies, _sources, _store_code, _try_card, apply_now, close_cards, seen_proposals,
 )
+from foms.services.cs_agent.handoff_learning_owner import OWNER_REDO, auto_unless_owner, owner_decided
 from foms.services.cs_agent.handoff_learning_place import (
     ADDS, CONTRADICTS, DECIDED, NOT_RULE, REPEAT, SAME, UNAVAILABLE, UNKNOWN, Placement, learned_vector, place,
 )
@@ -285,6 +287,7 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
     session.commit()
     counts: dict[str, int] = {"filed": 0}
     applied: list[str] = []
+    stopped: set[int] = set()
     for number, item in enumerate(raw[:MAX_FILED * 2], start=1):
         code, title, text, why, ids = _check(item, by_id, known)
         make, merged, done, fix, waited = None, [], None, False, None
@@ -304,6 +307,9 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                 said = dataclasses.replace(said, heard=customers)  # 앞 엇갈림 카드의 손님도 같은 말을 들었다
                 if _duplicate(text, seen) == "rejected_before":  # 사장님이 거절 · 지운 말 — 손님이 둘이어도 다시 안 고친다
                     code, fixed, merged = "rejected_before", None, []
+                elif fixed is not None and owner_decided(session, wanted):  # 사장님이 ③ 답으로 정한 지식
+                    fixed = None  # 바로 고치지 않고 놓을 자리 판정 · 카드 길로(:mod:`.handoff_learning_owner`)
+                    stopped.add(number)
                 elif fixed is not None:  # 서로 다른 손님 둘 이상 — 그 항목을 바로 고친다(D267)
                     why_fix = f"넘긴 상담 배우기 · 지금 지식과 다른 직원 답 · 서로 다른 손님 {customers}곳 — {why}"[:500]
                     code, make = _filer(session, {**item, "op": UPDATE}, title=title, text=fixed, number=number,
@@ -319,7 +325,10 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                 change = make()
                 session.commit()
                 seen = [(CHANGE_OPEN, None, title, text), *seen]  # 한 번에 비슷한 안 둘이 들어가지 않게
-                extra = after_filed(session, change, waited=waited, merged=merged, auto=auto, now=now)
+                here, held_back = auto_unless_owner(session, change, auto)  # 사장님이 정한 지식을 고치는 안은 승인 대기로
+                if held_back:
+                    stopped.add(number)
+                extra = after_filed(session, change, waited=waited, merged=merged, auto=here, now=now)
                 if extra == "applied":
                     applied.append(change.item_key)
                 if done is not None and (extra == "applied" or done != "differs_fixed"):
@@ -335,5 +344,7 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
         if code == "conflict_card":
             seen = [(CHANGE_OPEN, None, title, text), *seen]
         counts[code or "filed"] = counts.get(code or "filed", 0) + 1
+    if stopped:  # 사장님이 정한 지식이라 사람 없는 길을 멈춘 안 수(:data:`.handoff_learning_owner.OWNER_REDO`)
+        counts[OWNER_REDO] = len(stopped)
     _embed_applied(session, applied, now)
     return counts

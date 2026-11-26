@@ -12,6 +12,7 @@
 - ``POST /recheck/confirm`` 아직 맞음 · ``POST /releases/<번호>/rollback`` 판 되돌리기(ADMIN 만).
 - ``POST /learned/<id>/seen`` · ``/fix`` · ``/undo`` AI 가 배워 바로 넣은 지식을 살펴본다(맞아요 · 고치기 · 지우기 — ADMIN 만,
   사장님 2026-11-19). 읽기는 ``GET /learned``(ADMIN 만 — 그 밖 404).
+- ``POST /proposals/<id>/answer`` ③ 질문 카드 답 한 번에 저장(``answer_question`` — 설계서 2026-11-26 온톨로지 잇기 3.2).
 
 읽기: ``GET /inbox`` 제안함 · ``GET /inbox/count`` 알림 수(폰 알림은 아직 없고 나중에 이 수를 쓴다) · ``GET /recheck`` 다시
 확인 · ``GET /actions`` 액션 · 도구 · 속성 틀 표(⑤-5 가 같은 목록을 쓴다) · ``GET /metrics`` 결정 숫자(ADMIN 만).
@@ -242,3 +243,10 @@ def brain_learned_fix(change_id: int) -> tuple[Any, int]:
 def brain_learned_undo(change_id: int) -> tuple[Any, int]:
     """AI 가 배운 것 지우기(ADMIN 만 — 새 지식은 지우고 고친 것은 앞 글로 되돌린다)."""
     return _act(lambda: "learned_undo", {"change_id": change_id}, routed("brain_review_api.brain_learned_undo"))
+
+
+@brain_review_api_bp.route("/proposals/<int:change_id>/answer", methods=["POST"])
+def brain_answer(change_id: int) -> tuple[Any, int]:
+    """③ 질문 카드 답 한 번에 저장(사장님만 — 고침 제안 · 반영 · 카드 닫기 · 사장님 글 남기기를 한 트랜잭션에서, 막히면 모두
+    되돌린다. 금액 알림이면 아무것도 쓰지 않고 ``saved`` 거짓 + 알림 한 줄)."""
+    return _act(lambda: "answer_question", {**_body(), "change_id": change_id}, routed("brain_review_api.brain_answer"))

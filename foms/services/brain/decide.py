@@ -24,6 +24,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.access import approval_problem, wide_bins
+from foms.services.brain.answers import drop_answer
 from foms.services.brain.apply import ApplyResult, apply_change, reject_change
 from foms.services.brain.constants import (
     BULK_MAX, CHANGE_APPLIED, CHANGE_EXPIRED, CHANGE_OPEN, CHANGE_REJECTED, GRADE_A, GRADE_B, HUMAN_EDIT_FIELDS, LINK_OPS,
@@ -270,6 +271,7 @@ def reopen_decision(session: Any, change_id: Any, *, actor: Any, undo_edit: Opti
     code = change.reject_code
     change.status, change.reject_code = CHANGE_OPEN, None
     change.decided_by = change.decided_at = change.decided_action = None
+    drop_answer(change)  # ③ 질문 카드에 남긴 사장님 답(한 번에 저장 — :mod:`.answers`)도 같이 뺀다
     if change.op not in LINK_OPS and change.base_changed_at is None:
         current = current_object(session, change.item_key)
         version = current.version if current is not None else None

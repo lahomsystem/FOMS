@@ -1,13 +1,16 @@
 /**
  * 새 승인 대기 화면 — ③ 사장님이 정해 주실 것 질문 카드(설계서 2026-11-14-foms-graft 5.4 · 옛 brain-inbox-question.js 와 같은
- * 흐름 — D152). 엇갈림 · 질문 제안 하나를 "어느 쪽이 맞아요?" 로 묻고, 답마다 있는 동작만 쓴다(새 쓰기 길 없음):
- *  - 회사 지식이 맞아요 = 그 제안을 'knowledge_right' 까닭으로 닫는다(바깥 글은 고칠 일로 남음).
- *  - 바깥 글이 맞아요 = 다루는 지식 글을 적은 글로 고치는 제안 → 바로 승인 → 질문 제안을 'outside_right' 로 닫는다. 칸에는
- *    바깥 글이 미리 들어간다(ds-inbox-view.js outsideDraft — 지금 글을 품으면 바깥 글 그대로, 아니면 어긋난 문장을 빼고 붙임).
- *  - 둘 다 맞아요 = 경우를 적은 한 줄을 지식 글 끝에 덧붙이는 제안 → 바로 승인 → 'both_right' 로 닫는다.
+ * 흐름 — D152). 엇갈림 · 질문 제안 하나를 "어느 쪽이 맞아요?" 로 묻는다. 답은 **한 번에 저장**(설계서 2026-11-26 온톨로지 잇기
+ * 3.2 — POST …/proposals/<id>/answer 한 번. 서버가 고침 제안 · 반영 · 카드 닫기 · 사장님 글 남기기를 한 트랜잭션에서 한다):
+ *  - 회사 지식이 맞아요 = code 'knowledge_right'(글 없음).
+ *  - 바깥 글이 맞아요 = code 'outside_right' + 적은 글(새 지식 글 전체). 칸에는 바깥 글이 미리 들어간다(ds-inbox-view.js
+ *    outsideDraft — 지금 글을 품으면 바깥 글 그대로, 아니면 어긋난 문장을 빼고 붙임).
+ *  - 둘 다 맞아요 = code 'both_right' + 적은 한 줄(서버가 지식 글 끝에 붙인다).
  * 두 칸 아래에는 저장 전에 '바뀌는 곳'(빠지는 글 · 들어가는 글 — ds-inbox-view.js textDiff)을 보인다(설계서 2026-11-23 5.1).
+ * 결정 시간(view_ms)은 카드를 보인 때부터 누를 때까지 잰다. 서버가 금액 알림(saved 거짓 · 견적 계산기가 원본인 지식에 금액을 적음)을
+ * 돌려주면 그 한 줄을 보이고, 같은 글로 한 번 더 누르면 money_ok 를 실어 저장한다.
  * 결정한 사람 · 등급 B 확인은 서버가 다시 본다. PC · 폰 모두 같은 카드(폰에서도 정한다). '나중에'는 data-ds-act="later".
- * 답한 바로 뒤 ds-inbox-undo.js 가 [되돌리기]를 보인다(닫은 질문 번호 + 그 답으로 넣은 고침 번호를 넘긴다).
+ * 답한 바로 뒤 ds-inbox-undo.js 가 [되돌리기]를 보인다(닫은 질문 번호 + 서버가 돌려준 고침 번호를 넘긴다).
  * 글은 textContent 만 · 인라인 스타일 없음.
  */
 (function () {
@@ -84,7 +87,8 @@
     var view = card.main;
     var about = (view.about || [])[0] || null;
     var li = el('li', { cls: 'f-card f-card-compact f-col fb-icard', attrs: { 'data-card-id': card.id } });
-    var box = el('div', { cls: 'f-col fb-prop', attrs: { 'data-change-id': view.id } });
+    var box = el('div', { cls: 'f-col fb-prop', attrs: { 'data-change-id': view.id,
+                                                         'data-shown-at': Math.round(window.performance.now()) } });
     var title = card.title || card.name || '';
     box.appendChild(el('span', { cls: 'f-strong', text: title }));
     box.appendChild(el('p', { cls: 'f-h6', text: '어느 쪽이 맞아요?' }));
@@ -109,11 +113,21 @@
     return li;
   }
 
-  function newText(kind, box, about) {
+  /** 사장님이 적은 글(앞뒤 빈칸 뺌) — 서버에 보내는 글. */
+  function typedText(kind, box) {
     var input = box.querySelector('[data-ds-answer-text="' + (kind === 'outside-save' ? 'outside' : 'both') + '"]');
-    var value = input ? input.value.trim() : '';
+    return input ? input.value.trim() : '';
+  }
+
+  /** 저장하면 들어갈 지식 글(서버와 같은 셈 — 바뀌는 곳 · 바뀐 글 없음 확인용). */
+  function newText(kind, box, about) {
+    var value = typedText(kind, box);
     if (!value) return '';
     return kind === 'outside-save' ? value : about.text.replace(/\s+$/, '') + '\n' + value;
+  }
+
+  function viewMs(box) {
+    return Math.max(0, Math.round(window.performance.now() - Number(box.getAttribute('data-shown-at') || 0)));
   }
 
   function lock(box, on) {
@@ -125,19 +139,19 @@
     dom.setStatus(status, text || '하지 못했어요 — 다시 눌러 주세요.', 'error');
   }
 
-  /** 고칠 글이 있으면 고침 제안 → 승인. {problem: 실패 글(없으면 빈 글), edit: 넣은 고침 번호}. */
-  async function rewrite(kind, box, about, urls) {
-    var text = about ? newText(kind, box, about) : '';
-    if (!text || text === about.text) return { problem: '바뀐 글이 없어요 — 글을 적어 주세요.' };
-    var made = await dom.postJson(urls.proposals, { action: 'propose_edit', key: about.key, base_version: about.version,
-                                                    after: { text: text }, reason: '사장님 답 — ' + SAID[kind] });
-    if (!made.ok) return { problem: made.error };
-    var applied = await dom.postJson(urls.proposals + '/' + made.data.change_id + '/apply',
-                                     { base_version: about.version, view_ms: 0, confirm: { field: 'text', value: text } });
-    return { problem: applied.ok ? '' : applied.error, edit: made.data.change_id };
+  /** 보낼 본문 — 고칠 글이 있는 답은 적은 글 · 다루는 지식 판. {problem: 실패 글(없으면 빈 글), body}. */
+  function answerBody(kind, box, about) {
+    var body = { code: CODES[kind], view_ms: viewMs(box) };
+    if (kind === 'knowledge') return { problem: '', body: body };
+    var after = about ? newText(kind, box, about) : '';
+    if (!after || after === about.text) return { problem: '바뀐 글이 없어요 — 글을 적어 주세요.' };
+    body.text = typedText(kind, box);
+    body.base_version = about.version;
+    if (box.getAttribute('data-ds-money-ok') === body.text) body.money_ok = true;  // 금액 알림을 본 뒤 같은 글로 다시 누름
+    return { problem: '', body: body };
   }
 
-  /** 답 하나 — 고칠 글이 있으면 고침 제안 → 승인, 그다음 질문 제안을 그 답의 까닭으로 닫는다. */
+  /** 답 하나 — 서버 동작 하나(answer_question)로 한 번에 저장한다. */
   async function answer(button, deps) {
     var box = button.closest('[data-change-id]');
     var view = box && deps.findView(box.getAttribute('data-change-id'));
@@ -152,19 +166,23 @@
       return;
     }
     lock(box, true);
-    var edit = null;
-    if (kind !== 'knowledge') {
-      dom.setStatus(status, '회사 지식을 고치는 중…');
-      var wrote = await rewrite(kind, box, (view.about || [])[0], deps.urls);
-      if (wrote.problem) { fail(box, status, wrote.problem); return; }
-      edit = wrote.edit;
+    var made = answerBody(kind, box, (view.about || [])[0]);
+    if (made.problem) { fail(box, status, made.problem); return; }
+    if (kind !== 'knowledge') dom.setStatus(status, '회사 지식을 고치는 중…');
+    var res = await dom.postJson(deps.urls.proposals + '/' + view.id + '/answer', made.body);
+    if (!res.ok) { fail(box, status, res.error); return; }
+    if (res.data && res.data.saved === false) {  // 금액 알림 — 아무것도 저장하지 않았다. 같은 글로 다시 누르면 저장
+      box.setAttribute('data-ds-money-ok', made.body.text || '');
+      lock(box, false);
+      dom.setStatus(status, res.data.message);
+      return;
     }
-    var closed = await dom.postJson(deps.urls.proposals + '/' + view.id + '/reject', { code: CODES[kind], view_ms: 0 });
-    if (!closed.ok) { fail(box, status, closed.error); return; }
     var title = box.querySelector('.f-strong');
     await deps.reload();
     deps.done('정했어요 — ' + SAID[kind] + '.');
-    if (window.FOMS_DS_INBOX_UNDO) window.FOMS_DS_INBOX_UNDO.offer({ id: view.id, edit: edit, title: title ? title.textContent : '' });
+    if (window.FOMS_DS_INBOX_UNDO) {
+      window.FOMS_DS_INBOX_UNDO.offer({ id: view.id, edit: (res.data && res.data.edit) || null, title: title ? title.textContent : '' });
+    }
   }
 
   window.FOMS_DS_INBOX_QUESTION = { build: build, answer: answer };
