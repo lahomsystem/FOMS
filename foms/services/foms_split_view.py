@@ -183,8 +183,8 @@ def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") ->
                 "id": tab_id,
                 "label": _RAIL_LABELS[tab_id],
                 "icon": _RAIL_ICONS[tab_id],
-                # 생산 칸은 사람마다(설계서 2026-11-21-production-pc-viewer §9-4): 첫 화면을 여는 사람은 첫 화면(계약 경로),
-                # 그 밖(첫 화면을 못 보는 사람 · 사용자 없음)은 옛 보드. PC 메뉴 · 폰 메뉴와 같은 한 함수.
+                # 생산 칸(설계서 2026-11-21-production-pc-viewer §9-4): 누구든 첫 화면(2026-11-27 옛 보드 없앰).
+                # PC 메뉴 · 폰 메뉴와 같은 한 함수.
                 "href": production_nav_href(user) if tab_id == "production" else path,
                 "active": tab_id == active_id,
             }

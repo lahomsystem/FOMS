@@ -15,12 +15,12 @@
       <nav class="foms-prod-home__nav" aria-label="화면">
         {# 위 탭 = 날짜 · 내 공정 · 바뀐 것 · 찾기(시안 안 3, 11-21 사용자 ②). '도면 카드' 화면(?tab=parts)은 날짜 장 제목 옆
            [도면 카드로 보기]로 들어가는 날짜 탭의 다른 모습이라 날짜가 켜진다(누르면 예전 탭처럼 날짜 첫 화면으로).
-           옛 보드(칸반)로 가는 [보드 →] 는 태블릿에서 뺐다 — PC(마우스)에는 탭 끝에 남긴다(home_pc_board_link.html,
-           설계서 2026-11-21-production-pc-viewer §10 R0 · R2 에서 뺀다). PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
+           옛 보드(칸반)로 가는 [보드 →] 는 없다 — 옛 보드를 없앴다(2026-11-27 사장님 "legacy 보드 없애").
+           PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
         <a class="foms-prod-home__navtab{% if tab in ('date', 'parts') %} is-on{% endif %}" href="{{ home_href(None, nav_part) }}"{% if tab in ('date', 'parts') %} aria-current="page"{% endif %}>날짜</a>
         {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>남은 공정 <small>{{ counts.making }}</small></a>
 {% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ home_href('changes', nav_part) }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
-        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>{% if pc_view %}{% include 'production/partials/home_pc_board_link.html' %}{% endif %}
+        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>
       </nav>
       {# 오른쪽 묶음 — 줄이 넘치면 같이 다음 줄로 간다(단추 하나만 떨어져 한 줄이 비지 않게, 사용자 11-10 ②). 알림 종은 가로 태블릿만(11-21 ③) #}
       <div class="foms-prod-home__tools">
