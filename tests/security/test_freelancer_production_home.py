@@ -100,7 +100,7 @@ def _panel(order_id: int) -> str:
 # --------------------------------------------------------------------------
 _SCOPED, _DENIED = "허용+범위", "거절"
 _READ_ROUTES = {
-    "erp_production_page.erp_production_home": _SCOPED,          # 탭 · 조각 · 판 · ?order= (query 검사 + 들머리 거르기)
+    "erp_production_page.erp_production_home": _SCOPED,          # 탭 · 조각 · 판 · 숫자(view=counts) · ?order= (query 검사 + 들머리 거르기)
     "erp_production_page.erp_production_sheet_page": _SCOPED,    # URL 번호 검사 + 핸들러 user_can_read_order
     "erp_production_page.erp_production_print_sheet": _SCOPED,   # 같은 두 겹
     "erp_production_page.erp_production_part_thumb": _DENIED,    # 도면 카드 작은 그림
@@ -239,6 +239,26 @@ def test_counts_are_own_only(world, app, monkeypatch):
     with app.test_request_context("/"):
         assert home_read_model.build_production_home(db_session, world.staff)[1] == {"past_hidden": 1, "total": 5}
         assert home_read_model.build_production_home(db_session, world.fl_a)[1] == {"past_hidden": 0, "total": 1}
+
+
+def _counts(app, user) -> dict:
+    resp = client_for(app, user, "tablet").get(f"{HOME}?view=counts")
+    assert resp.status_code == 200 and resp.headers["Cache-Control"] == "private, no-store"
+    body = resp.get_json()
+    assert body["success"] is True and body["error"] is None
+    return body["data"]["counts"]
+
+
+def test_counts_view_is_own_only(world, app, monkeypatch):
+    """위 탭 숫자만(``?view=counts`` — 도면 카드 쓰기 뒤 parts-fresh.js)도 행 · 묘비 두 들머리가 '내 주문만'.
+
+    프리랜서 가 = 내 주문 1 · 내 묘비 1, 직원 대조군 = 남은 공정 4 · 바뀐 것 3(위 시험의 화면 숫자와 같은 값).
+    음성 대조: 이 길의 묘비 들머리만 거르기를 끄면 남의 취소 주문 수가 '바뀐 것'에 샌다(2026-11-27 고친 자리).
+    """
+    assert _counts(app, world.fl_a) == {"making": 1, "changed": 1}
+    assert _counts(app, world.staff) == {"making": 4, "changed": 3}
+    monkeypatch.setattr(home_page, "production_home_mine_only", lambda user: False)  # 행은 읽기 모델이 여전히 거른다
+    assert _counts(app, world.fl_a) == {"making": 1, "changed": 3}
 
 
 def test_inactive_freelancer_and_switched_off_filter_see_everything(world, app, monkeypatch):
