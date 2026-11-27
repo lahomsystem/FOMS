@@ -359,13 +359,14 @@ def _utc_iso(value: Optional[datetime.datetime]) -> Optional[str]:
 
 
 def holder_rows(crew: Any) -> list[dict[str, Any]]:
-    """응답에 싣는 목록 ``[{user_id, name, done, picked_at, picked_day, done_at, done_name}]``(시작한 차례)."""
+    """응답에 싣는 목록 ``[{user_id, name, done, picked_at, picked_day, done_at, done_name, once}]``(시작한 차례 — ``once`` =
+    시작과 완료를 한 요청에서 적음, :func:`~foms.services.production.mark_crew.done_in_one_press`)."""
     out = []
     for item in crew:
         at = item.get("at")
         out.append({"user_id": item.get("uid"), "name": item.get("name"), "done": mc.is_done(item), "picked_at": at,
                     "picked_day": format_datetime_kst(at, "%Y-%m-%d") if at else None, "done_at": item.get("done_at"),
-                    "done_name": item.get("done_name") or None})
+                    "done_name": item.get("done_name") or None, "once": mc.done_in_one_press(item)})
     return out
 
 

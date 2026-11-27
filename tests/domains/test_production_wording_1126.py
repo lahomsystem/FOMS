@@ -139,7 +139,7 @@ def test_undo_button_is_named_after_its_done_button():
     assert parts.count('data-pp-act="undo">{{ pb.part_label }} 완료 취소</button>') == 2  # 내 몫만 완료 줄(파트 계정 · 반장)
     assert "data-pp-act=\"undo\">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '기본 취소' }}</button>" in parts  # 기본 = [기본 취소](11-26 가)
     crew = _read(JS / "foms-production-parts-crew.js")
-    assert "st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 2
+    assert "st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 3  # 3 = 바로 완료 취소 창(11-27)
     modal = _read(JS / "foms-production-parts-modal.js")
     assert "title: LABEL + ' 완료를 취소할까요?'" in modal and "run: LABEL + ' 완료 취소', tone: 'need'" in modal
     assert "title: '기본을 취소할까요?', line: '기본 → 안 봄', run: '기본 취소'" in modal  # 11-26 가

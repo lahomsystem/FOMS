@@ -7,8 +7,7 @@ PC [완료 처리]와 같은 요청)가 보인다. 재단은 [기본][작업 시
 * 서버(새 규칙 없음 — 지금 ``check`` 길 그대로): 빈 줄 = 누른 사람 시작 + 완료 · 막는 문(남의 공장 403 · 보류 · 도면 수정 중 · 손 체크 칸 ·
   생산 단계 아님 409 · 검수는 앞 공정 완료 뒤) · 파트 계정은 403 ``PART_FORBIDDEN`` · 제작 대기 주문의 첫 도면이면 [작업 시작]처럼 제작
   시작 · 감사 글 "재단 안 봄 → 재단 완료"(대신 꼬리 없음).
-* [완료 취소]는 지금 반장 대신 되돌리기 규칙 그대로(Q23 — 완료만 끄고 작업하던 사람은 그대로) = "박반장 작업 중", [시작 취소]를 한 번 더
-  눌러야 미정. (PC 는 ``undo_releases`` 로 두 요청을 잇는다 — 태블릿에는 그 규칙이 없다, 사장님께 여쭐 것.)
+* [완료 취소]는 한 번에 미정(사장님 2026-11-27 "한 번에 미정으로" — 자세한 시험은 ``test_production_direct_done_undo_1127.py``).
 * 화면: 템플릿 ↔ JS(crew.render) 같은 규칙 · 창 글("안 봄 → 재단 완료 · 박반장" / "→ 엣지 완료 · 박반장", 첫 도면 안내 줄) · 완료 뒤 칸
   · 숫자 · 409 뒤 다시 그리기 · 받아 오기 표시로 다시 그리기. 파트 계정 · 막힌 칸 · 보기만은 지금 그대로(음성 대조).
 
@@ -190,18 +189,16 @@ def test_first_drawing_of_waiting_order_starts_production_like_take(client):
     assert second["run_started"] is False and current_runs(waiting.id) == 1  # 둘째 장은 제작 시작 없음
 
 
-def test_undo_of_direct_done_keeps_lead_working_then_release_makes_it_unseen(client):
-    """[재단 완료 취소] = 지금 반장 대신 되돌리기(Q23) 그대로 — 완료만 꺼져 "박반장 작업 중", [시작 취소]까지 눌러야 안 봄(미정)."""
+def test_undo_of_direct_done_goes_back_to_unseen_in_one_press(client):
+    """[재단 완료 취소] = 한 번에 안 봄(미정) — 사장님 2026-11-27 "한 번에 미정으로"(자세한 시험은 test_production_direct_done_undo_1127)."""
     order = make_order(2)
     login(client, _lead())
     _check(client, order, 0)
     undo = mark(client, order, 0, "cut", "undo", "done", seen_me="done")  # 화면이 보내는 몸(대상 없음)
     assert undo.status_code == 200, undo.get_json()
-    assert undo.get_json()["data"]["mark"]["state"] == "need" and _names(order.id, order.keys[0]) == [("박반장", False)]
-    assert "재단 완료 → 작업 필요" in _audits(order.id)[-1]
-    release = mark(client, order, 0, "cut", "release", "need", seen_me="held")
-    assert release.status_code == 200 and release.get_json()["data"]["mark"]["state"] == "none"
-    assert row(order.id, order.keys[0], "cut").state == "NONE" and _names(order.id, order.keys[0]) == []
+    assert undo.get_json()["data"]["mark"]["state"] == "none" and _names(order.id, order.keys[0]) == []
+    assert "재단 완료 → 안 봄" in _audits(order.id)[-1]
+    assert row(order.id, order.keys[0], "cut").state == "NONE"
 
 
 def test_started_meanwhile_becomes_proxy_finish_not_join(client):
@@ -354,7 +351,8 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name", ["parts", "parts-claim", "parts-modal", "parts-crew"])
-def test_pins_bumped(name):
+@pytest.mark.parametrize("name,pin", [("parts", "20261127b"), ("parts-claim", "20261127b"), ("parts-modal", "20261127b"),
+                                      ("parts-crew", "20261127g")])  # crew = 바로 완료 취소 한 번에 미정(11-27)이 한 번 더
+def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    assert f"foms-production-{name}.js') }}}}?v=20261127b\" defer" in tpl
+    assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl
