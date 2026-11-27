@@ -71,7 +71,9 @@ AUTO_HELD_TYPES: frozenset[str] = frozenset({"price_rule", "owner_decision", "te
 #: 넘긴 상담 배우기의 온톨로지 '잇기'(상황 → 제품 · 옵션 ``applies_to`` — :func:`foms.services.cs_agent.photo_learning._filer` 의
 #: ``link`` 갈래)와 밤 배우기 끝 이어 붙이기(:mod:`foms.services.cs_agent.handoff_learning_link` — 뻔한 것만 바로, 7.2 조건 다섯)가
 #: 이 길을 탄다. 허용 짝 표(:data:`.constants.ALLOWED_LINKS`)와 따로 둔다 — 짝 표는 '이을 수 있나', 이것은 '사람 없이 이어도 되나'.
-AUTO_LINK_KINDS: frozenset[str] = frozenset({"applies_to", "at_step", "uses", "refines"})
+#: 공정 단계 ``at_step`` 은 뺐다 — 운영 실제 확인(11-27)에서 글에 단계 이름만 있어도 걸려 가장 헐거웠다(사장님 11-27 "공정 단계만
+#: 여쭙게 하고 켜기"). 공정 단계 잇기는 늘 ⑥ 규칙 잇기 칸으로 간다.
+AUTO_LINK_KINDS: frozenset[str] = frozenset({"applies_to", "uses", "refines"})
 #: 바로 반영으로 잇지 않는 끝 유형(7.2 조건 5 — 사장님 결정 · 기준 답 문구, 에이전트 일). 어느 쪽 끝이든 이 유형이면 사람이 잇는다.
 AUTO_LINK_HELD_ENDS: frozenset[str] = frozenset({"owner_decision", "template", "conflict", "question"})
 
