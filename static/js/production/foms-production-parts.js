@@ -224,6 +224,7 @@
       if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
       done.text += asks ? '' : started(data);
+      document.dispatchEvent(new CustomEvent('foms:prod-parts-written', { detail: { action: p.action, data: data } })); // 위 탭 숫자 · 탭 사본(parts-fresh)
       setBusy(false);
       var fac = data.factory_ready;
       // 검수 마지막 장 → 같은 창에서 "제작 완료할까요?"(섞인 주문은 공장마다). 시작 취소로 남은 사람이 모두 완료돼 저절로 완료된

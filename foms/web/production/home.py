@@ -10,7 +10,7 @@ import datetime
 import re
 import time
 
-from flask import abort, g, make_response, render_template, request
+from flask import abort, g, jsonify, make_response, render_template, request
 
 from db import get_db
 from models import Order
@@ -82,6 +82,9 @@ DAY_PANE_HEADER = 'X-FOMS-HOME-DAY'
 #: 날짜 한 장과 같은 꼴). 응답 머리글 = 받은 판의 주문 번호(JS 가 누른 줄과 같은지 본다).
 PANEL_VIEW = 'panel'
 PANEL_HEADER = 'X-FOMS-HOME-PANEL'
+#: 위 탭 숫자만(``?view=counts`` — JSON ``{making, changed}``) — 도면 카드 쓰기가 주문 칸을 바꾼 뒤 한 번 받는다(2026-11-27
+#: 사장님 "작업 시작하면 내 공정에 바로 반영"). 화면과 같은 행 · 같은 묘비로 세고 템플릿을 그리지 않는다.
+COUNTS_VIEW = 'counts'
 from foms.web.auth import login_required
 from foms.web.production.dashboard import erp_production_page_bp
 
@@ -285,6 +288,20 @@ def _step_panel_response(db, tab: str, surface: bool, rows: list, flags: dict, u
     return response
 
 
+def _counts_response(db, user, rows: list, partner_org: str):
+    """위 탭 숫자만(``view=counts``) — 화면의 '남은 공정 N' · '바뀐 것 N'과 같은 함수(``production_home_counts``) · 같은 묘비 읽기.
+
+    도면 카드 쓰기(첫 카드 = 제작 시작 · 공정 칸 켜짐/꺼짐 · 제작 완료) 뒤 foms-production-parts-fresh.js 가 한 번 받는다 —
+    쓰기 응답에 읽기를 얹지 않으려고 따로 받는다. 받아 두지 않는다(no-store).
+    """
+    tombstones = collect_production_tombstones(db, user, False, partner_org)
+    counts = production_home_counts(rows, len(tombstones))
+    response = jsonify({'success': True, 'data': {'counts': {'making': counts['making'], 'changed': counts['changed']}},
+                        'error': None})
+    response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
 def selected_day_pane(days: dict) -> dict:
     """고른 날(주소 ``day=`` 또는 자동으로 고른 날)의 장 하나. ``production_home_days`` 의 ``selected`` 는 늘 장 열쇠다."""
     return next((p for p in days['panes'] if p['key'] == days['selected']), days['panes'][0])
@@ -327,6 +344,8 @@ def erp_production_home():
     # 협력사 거르기(헤더 메뉴 · 쿠키)를 보드와 같이 먹는다(설계서 2026-11-21-production-pc-viewer §9-11).
     partner_org = partner_filter_value(request)
     rows, stats = build_production_home(db, user, partner_org=partner_org)
+    if request.args.get('view') == COUNTS_VIEW:
+        return _counts_response(db, user, rows, partner_org)  # 위 탭 숫자만(도면 카드 쓰기 뒤 parts-fresh.js) — 그리기 없음
     today = get_today_kst()
     if flags['pc_view']:
         attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
