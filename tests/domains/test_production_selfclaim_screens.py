@@ -128,7 +128,7 @@ def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘�
     # 이름 줄 = 작업 시트 링크 · 시공 줄 감싸개 · 판 순서(미정 → 담당 → 완료)
     assert f'<a class="pp-ln pp-sheetlink" href="/erp/production/sheet/{order_id}"' in mine and '<div class="pp-duerow">' in mine
     keys = re.findall(r'data-key="한빛/d(\d)\.png"', html)
-    assert keys == ["3", "0", "1", "2"]
+    assert keys == ["0", "3", "1", "2"]  # 파트 계정 화면: 내 작업(d0)이 맨 앞, 그다음 미정 → 담당 → 완료(11-27)
     # 아침 칩(밤 넘긴 내 작업 1장) · 창 몸 글 · 고르기 · 거절 글 자리
     assert 'data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 1장' in html
     assert '<p class="pp-mbody" data-pp-modal-body hidden></p>' in html and "data-pp-modal-choices" in html
@@ -232,7 +232,7 @@ def test_날짜_줄_칸_아래_이름과_단계_칸_미완료(client, cohort) ->
     _login(client, _user("반장"))
     html = _get(client, HOME)
     row = html.split(f'data-foms-home-dayrow="{order.id}"', 1)[1].split("</a>", 1)[0]
-    assert '<span class="fph-dr__sg">재단 중<small class="is-miss">2장 미완료</small></span>' in row
+    assert '<span class="fph-dr__sg">재단 작업 중<small class="is-miss">2장 미완료</small></span>' in row
     assert '<span class="fph-dr__steps has-hd" aria-label="공정">' in row
     assert '<i></i>재단 3/5<span class="visually-hidden">, 재단 3/5 · 2장 미완료 · 박재단 작업 중</span>' in row
     assert '<small class="fph-dr__hd" aria-hidden="true"><b>박재단</b></small>' in row

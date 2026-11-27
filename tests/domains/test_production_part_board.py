@@ -219,10 +219,10 @@ def test_cut_puts_unseen_first_then_order_and_sheet_others_keep_order(app):
     assert all(c["order_pos"] == order_of[c["order_id"]] for c in pane["cards"])
     keys = [c["key"] for c in pane["cards"]]
     # 2026-11-23 §8-1 '판 순서': 모든 파트 남은 일 앞 — 미정 → 담당 → 완료(재단만 '안 본 장 먼저'이던 것을 넓힘)
-    assert set(keys[:2]) == {"o6/d1.png", "o7/d0.png"}  # 미정(안 본 장) 먼저
-    assert keys[2] == "o6/d2.png"  # 그다음 담당
+    assert keys[0] == "o6/d2.png"  # 파트 계정 화면: 내 작업(내 몫이 작업 중)이 맨 앞(사장님 11-27)
+    assert set(keys[1:3]) == {"o6/d1.png", "o7/d0.png"}  # 그다음 미정(안 본 장)
     assert set(keys[3:]) == {"o6/d0.png", "o7/d1.png"}  # 완료 · 기본은 뒤
-    for group in (pane["cards"][:2], pane["cards"][3:]):  # 묶음 안은 주문 · 장 번호 순
+    for group in (pane["cards"][1:3], pane["cards"][3:]):  # 묶음 안은 주문 · 장 번호 순
         assert [(c["order_pos"], c["no"]) for c in group] == sorted((c["order_pos"], c["no"]) for c in group)
     edge_cards = _today(_board(edge))["cards"]  # 엣지는 모두 미정 — 주문 · 장 번호 순 그대로
     assert [(c["order_id"], c["no"]) for c in edge_cards] == \
