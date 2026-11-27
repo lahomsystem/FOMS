@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from tests.domains.test_production_multi_holder_board import _act, _card, _node, _page, _post, cohort  # noqa: F401
+from tests.support.production_factory_seed import HOME_NONE
 from tests.support.production_part_claim_seed import login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -80,10 +81,39 @@ def test_js_redraw_windows_and_notices_follow_the_button(client, cohort, tmp_pat
     crew_rel = out[4]["modal"]  # 남은 사람이 있는 내 시작 취소(crew 창)
     assert (crew_rel["title"], crew_rel["run"]["text"]) == ("엣지 시작을 취소할까요?", "엣지 시작 취소")
     assert crew_rel["line"] == "최엣지 · 박엣지 작업 중 → 최엣지 작업 중"
+    assert out[6]["modal"]["line"] == "미정 → 작업 중 · 박엣지"  # 옛 "→ 작업 중 · 박엣지"(앞말 없음)
     assert [b["text"] for b in out[8]["card"]["act"][0]["kids"]] == ["엣지 시작 취소", "엣지 완료"]
     solo = out[9]["modal"]
     assert (solo["title"], solo["line"], solo["run"]["text"]) == ("엣지 시작을 취소할까요?", "담당 박엣지 → 미정", "엣지 시작 취소")
     assert out[10]["status"] == "엣지 시작 취소했어요"
+
+
+def test_lead_windows_say_mijeong_for_every_part_and_picker_keeps_names(client, cohort, tmp_path):
+    order = make_order(4)
+    lead, kim = make_user("박반장", lead=True), make_user("김재단", part="cut")
+    _press(client, kim, order, 1, "cut", "take", "none")  # 도면 2 = 김재단 작업 중(반장 고르기 창)
+    _press(client, kim, order, 2, "cut", "basic", "none")  # 도면 3 = 기본
+    k = order.keys
+    cut = tmp_path / "cut.html"
+    cut.write_text(_page(client, lead, HOME_NONE + "&tab=parts&part=cut"), encoding="utf-8")
+    out = _node(cut, {"steps": [
+        {"do": "click", "key": k[0], "act": "take"}, {"do": "close"},
+        {"do": "click", "key": k[0], "act": "check"}, {"do": "close"},
+        {"do": "click", "key": k[0], "act": "basic"}, {"do": "close"},
+        {"do": "click", "key": k[2], "act": "undo"}, {"do": "close"},
+        {"do": "click", "key": k[1], "act": "held"}]})["out"]
+    assert out[0]["modal"]["line"] == "미정 → 작업 중 · 박반장"  # 옛 "안 봄 → 작업 중 · 박반장"
+    assert (out[2]["modal"]["title"], out[2]["modal"]["line"]) == ("재단 완료로 바꿀까요?", "미정 → 재단 완료 · 박반장")
+    assert out[4]["modal"]["line"] == "미정 → 기본 · 박반장"
+    assert (out[6]["modal"]["title"], out[6]["modal"]["line"], out[6]["modal"]["run"]["text"]) == ("기본을 취소할까요?", "기본 → 미정", "기본 취소")
+    picks = [c["text"] for c in out[8]["modal"]["choices"]]
+    assert "김재단 시작 취소" in picks and "같이 작업" in picks  # 대조군 — 고르기 창은 사람 이름 그대로(파트 이름을 덧붙이지 않음)
+    edge = tmp_path / "edge.html"
+    edge.write_text(_page(client, lead, HOME_NONE + "&tab=parts&part=edge"), encoding="utf-8")
+    out = _node(edge, {"steps": [{"do": "click", "key": k[0], "act": "take"}, {"do": "close"},
+                                 {"do": "click", "key": k[0], "act": "check"}]})["out"]
+    assert out[0]["modal"]["line"] == "미정 → 작업 중 · 박반장"  # 엣지도 같은 꼴(옛 앞말 없음)
+    assert out[2]["modal"]["line"] == "미정 → 엣지 완료 · 박반장"
 
 
 def test_source_contract_words_kept_and_changed():
@@ -91,6 +121,10 @@ def test_source_contract_words_kept_and_changed():
     crew = (JS / "foms-production-parts-crew.js").read_text(encoding="utf-8")
     claim = (JS / "foms-production-parts-claim.js").read_text(encoding="utf-8")
     parts = (JS / "foms-production-parts.js").read_text(encoding="utf-8")
+    code = [ln for ln in modal.splitlines() if not ln.lstrip().startswith(("/*", "*", "//"))]
+    assert not any("'안 봄" in ln or "안 봄'" in ln for ln in code)  # 창 글에 '안 봄' 없음
+    assert "IS_CUT" not in modal  # 파트마다 앞말이 다르던 갈래 없음
+    assert modal.count("'미정 → 기본 · ' + NAME") == 2 and "line: '기본 → 미정'" in modal  # 하나 · 모두 기본 · 기본 취소
     assert "run: LABEL + ' 시작 취소'" in modal and "run: '시작 취소'" not in modal
     assert "LABEL + ' 같이\\u00a0작업', 'join'" in crew and "run: LABEL + ' 같이 작업'" in crew
     assert "c.label + ' 시작\\u00a0취소', 'release'" in claim
