@@ -127,7 +127,7 @@
     if (st === 'none') { if (b) { box.appendChild(blockChip(card, b)); } return !!b; }
     if (attr(card, 'data-picked-me') === '1') {
       var two = el('div', 'pp-two is-mine');
-      two.appendChild(actBtn('foms-prod-home__btn pp-release', '시작 취소', 'release'));
+      two.appendChild(actBtn('foms-prod-home__btn pp-release', c.label + ' 시작\u00a0취소', 'release'));
       two.appendChild(b ? blockChip(card, b) : actBtn('fph-qr__done pp-act pp-fin is-pair', c.label + ' 완료', 'done'));
       box.appendChild(two);
       return true;

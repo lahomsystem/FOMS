@@ -92,7 +92,7 @@
       } else if (o.mine) { // 남이 작업 중(B · D · I) — 이름 칸(누르면 담당 바꾸기) + [같이 작업]
         var two = el('div', 'pp-two pp-two--join');
         two.appendChild(claim.held(card, head, 'pp-st-taken'));
-        two.appendChild(el('button', 'foms-prod-home__btn foms-prod-home__btn--pri', '같이 작업', 'join'));
+        two.appendChild(el('button', 'foms-prod-home__btn foms-prod-home__btn--pri', LABEL + ' 같이\u00a0작업', 'join'));
         box.appendChild(two);
       } else if (!o.writable) {
         box.appendChild(el('span', 'fph-wi pp-act pp-st-need', head));
@@ -126,7 +126,7 @@
     if (action === 'join') { // 창 1 — [같이 작업]
       var who = cr.who || '다른 사람';
       var at = since(cr.day, cr.at);
-      return { title: '같이 작업할까요?', line: who + ' 작업 중 → ' + (cr.join || NAME) + ' 작업 중', run: '같이 작업', tone: 'need',
+      return { title: LABEL + ' 같이 작업할까요?', line: who + ' 작업 중 → ' + (cr.join || NAME) + ' 작업 중', run: LABEL + ' 같이 작업', tone: 'need',
         note: (cr.who_subj || '다른 사람이') + ' ' + (at ? at + ' ' : '') + '작업 중인 도면이에요. 같이 작업하면 ' +
           ((cr.n || 0) + 1 === 2 ? '두 사람 모두' : '모두') + ' [' + LABEL + ' 완료]를 눌러야 완료돼요.' };
     }
@@ -158,7 +158,7 @@
     if (action === 'release' && cr.me === 'held' && cr.n > 1) { // 내 [시작 취소] — 남은 사람이 있음
       var mine = (cr.people || []).filter(function (p) { return String(p.uid) === ME; })[0] || {};
       var rest = cr.d === cr.n - 1; // 남은 사람이 모두 완료 = 저절로 완료(Q6) — 바뀐 뒤는 완료 칸 글 그대로
-      return { title: '시작을 취소할까요?', run: '시작 취소', tone: 'release',
+      return { title: LABEL + ' 시작을 취소할까요?', run: LABEL + ' 시작 취소', tone: 'release',
         line: cr.who + ' 작업 중 → ' + (rest ? LABEL + ' 완료 · ' + cr.done : (mine.drop || '') + ' 작업 중'),
         note: rest ? '남은 사람이 모두 완료라 도면이 완료돼요.' : '' };
     }

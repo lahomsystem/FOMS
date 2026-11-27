@@ -71,8 +71,8 @@
     var holder = who(card) || '다른 사람';
     var mine = attr(card, 'data-picked-me') === '1';
     if (action === 'release') {
-      return mine ? { title: '시작을 취소할까요?', line: '담당 ' + NAME + ' → 미정', run: '시작 취소', tone: 'release' }
-        : { title: holder + ' 작업 시작을 취소할까요?', line: '담당 ' + holder + ' → 미정', run: '시작 취소', tone: 'release', note: heldSince(card) };
+      return mine ? { title: LABEL + ' 시작을 취소할까요?', line: '담당 ' + NAME + ' → 미정', run: LABEL + ' 시작 취소', tone: 'release' }
+        : { title: holder + ' 작업 시작을 취소할까요?', line: '담당 ' + holder + ' → 미정', run: LABEL + ' 시작 취소', tone: 'release', note: heldSince(card) };
     }
     if (action === 'takeover') {
       return { title: '담당을 ' + holder + '에서 ' + toward(NAME) + ' 바꿀까요?', line: '담당 ' + holder + ' → 담당 ' + NAME,
