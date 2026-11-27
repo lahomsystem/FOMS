@@ -378,10 +378,10 @@ def test_카드를_안_쓴_파트가_있으면_막히고_파트_없는_계정이
     denied = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     assert denied.status_code == 403  # 파트 계정 = 카드로만
 
-    _login(client, _user(part=None, lead=True))  # 반장(설계서 2026-11-23 '승인 때 고친 것' 5)
-    ok = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
-    assert ok.status_code == 200 and ok.get_json()["data"]["complete_ready"] is False  # 검수가 아직
-    _finish_part(client, oid, key, "inspect")  # 엣지 칸이 켜져 검수가 열린다
+    _login(client, _user(part=None, lead=True))  # 반장 — 2026-11-27 "도면이 주": 도면 있는 주문은 칸 켜기 409(옛 단언 200), 도면 화면에서 푼다
+    assert client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True}).get_json()["data"]["code"] == "STEP_PER_SHEET"
+    _finish_part(client, oid, key, "edge")  # 엣지를 도면 화면에서 완료 → 검수가 열린다
+    _finish_part(client, oid, key, "inspect")
     assert _complete(client, oid).status_code == 200
 
 
