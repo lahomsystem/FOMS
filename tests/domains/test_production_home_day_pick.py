@@ -90,7 +90,7 @@ def test_admin_parts_tab_and_readonly_day_fragment(client, cohort):
     assert f'href="{HOME}?tab=parts&amp;part=edge&amp;day={_day(2)}"' in link
     frag = _get(client, HOME + f"?tab=parts&part=edge&day={_day(2)}&view=day")
     assert _pane_keys(frag) == [_day(2)] and frag.count("data-pp-card ") == 4
-    assert 'class="fph-pane__now"' not in frag and 'data-pp-act="take">작업 시작<' in frag  # '도면 카드' 탭 = 판만, 고른 파트
+    assert 'class="fph-pane__now"' not in frag and 'data-pp-act="take">엣지 시작<' in frag  # '도면 카드' 탭 = 판만, 고른 파트
     assert re.search(r'class="pp-part is-on"[^>]*part=edge&amp;day=' + _day(2), frag)
 
     _login(client, _user("상담", team="CS"))  # 읽기 전용 — 조각에도 쓰기 단추가 없다

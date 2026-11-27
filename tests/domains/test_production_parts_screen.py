@@ -167,7 +167,7 @@ def test_other_part_has_no_basic_and_no_other_part_buttons(client, cohort):
     block = _parts_block(_first_pane(html))
     assert block.count("data-pp-card ") == 5
     assert 'data-pp-act="basic"' not in block and 'data-pp-act="bulk"' not in block  # '기본'은 재단에만(D49)
-    assert block.count('data-pp-act="take"') == 5 and 'data-pp-act="take">작업 시작<' in block  # 네 파트 같은 글(§8-2 1)
+    assert block.count('data-pp-act="take"') == 5 and 'data-pp-act="take">조립 시작<' in block  # 파트마다 [<파트> 시작](11-27)
     assert "출고 3건 · 도면 나온 2건" in block  # 그 밖 파트 장 머리(시공 = 그날 주문 전부, 도면 나온 집 = 카드가 선 집)
     # 다른 파트 한 줄은 누를 수 없는 글 — 그 안에 단추 0, 재단 낱말(완료 · 기본 · 중 · 안 봄)이 선다
     for line in re.findall(r'<span class="fph-dr__by pp-by">(.*?)</span></span>\s*<div class="pp-actbox"', block, re.S):
@@ -225,7 +225,7 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
 
     html = _get(client, HOME + "?tab=parts&part=assemble")
     pane = _first_pane(html)
-    assert 'data-pp-act="take">작업 시작<' in pane and 'data-pp-act="basic"' not in pane
+    assert 'data-pp-act="take">조립 시작<' in pane and 'data-pp-act="basic"' not in pane
     assert '"part": "assemble"' in html.replace("&#34;", '"')
 
 
