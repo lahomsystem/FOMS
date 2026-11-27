@@ -80,7 +80,7 @@ def _no_date_order(name: str) -> Order:
 def _seed() -> dict[str, Order]:
     """재단 중(내일) · 엣지 중(모레, 재단 김재단 끝) · 보류 · 제작 대기 · 시공일 바뀐 주문 · 시공일 없음 · 여러 시공일."""
     orders = {
-        "cut": add_order("가재단", 1),
+        "cut": add_order("가재단", 1, pngs=1),  # 도면 1장(여러 장 줄은 [끝] 자리가 막힌다 — 사장님 2026-11-27)
         "edge": add_order("나엣지", 2, done=("cut",)),
         "hold": add_order("다보류", 5, done=("cut",), hold="자재 기다림"),
         "wait": add_order("라대기", 1, run=False),

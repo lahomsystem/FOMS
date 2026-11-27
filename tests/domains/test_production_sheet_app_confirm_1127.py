@@ -32,6 +32,7 @@ from tests.support.production_part_claim_seed import login as login_person
 ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_sheet_confirm_node_checks.js"
 PIN = "20261127a"
+SHEET_PARTS_PIN = "20261127d"  # 11-27 d: sheet-parts.js 만 한 번 더(도면 여러 장 주문 공정 칸 막힘 — test_production_per_sheet_only_1127)
 PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 FACTORY_JS = "static/js/production/foms-production-sheet-factory.js"
@@ -94,7 +95,7 @@ def test_작업_시트_생산_단추는_앱_창으로_묻고_같은_주소로_�
     pages = {oid: _sheet(client, oid) for oid in (wait.id, making.id, done.id)}
     for page in pages.values():  # 창 조각 하나 · 같은 핀(그려서 확인)
         assert page.count("data-foms-sheet-confirm hidden") == 1
-        assert f"foms-production-sheet-parts.js?v={PIN}" in page and f"tablet-domain-sheets.js?v={PIN}" in page
+        assert f"foms-production-sheet-parts.js?v={SHEET_PARTS_PIN}" in page and f"tablet-domain-sheets.js?v={PIN}" in page
         assert '<section class="foms-prod-page" data-foms-prod-sheet-page' in page
     assert f'data-production-split-note="{split}"' in pages[making.id]
     assert 'data-hold-active="1"' in pages[making.id] and f'data-hold-reason="{HOLD}"' in pages[making.id]
@@ -218,9 +219,9 @@ def test_핀은_싣는_곳마다_같다() -> None:
         assert f"tablet-domain-sheets.js') }}}}?v={PIN}" in read(rel), rel
     assert f"'/static/js/foms/tablet-domain-sheets.js?v={PIN}'" in read("static/js/shipment/shipment-entry.js")
     assert f"shipment-entry.js') }}}}?v={PIN}" in read("templates/shipment/partials/dashboard_scripts.html")
-    assert read("templates/production/partials/home_scripts.html").count(f"foms-production-sheet-parts.js') }}}}?v={PIN}") == 2
+    assert read("templates/production/partials/home_scripts.html").count(f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}") == 2
     for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
-        assert f"foms-production-sheet-parts.js') }}}}?v={PIN}" in read(rel), rel
+        assert f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}" in read(rel), rel
         assert f"css/contexts/production/sheet.css') }}}}?v={PIN}" in read(rel), rel
     assert f"foms-production-sheet-factory.js') }}}}?v={PIN}" in read("templates/production/sheet.html")
     # home.css 는 같은 날 날짜 줄 이름 한 줄 고침과 겹쳐 핀을 한 번 더 올렸다(합칠 때마다 올림)

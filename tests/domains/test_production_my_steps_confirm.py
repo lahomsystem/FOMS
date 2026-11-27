@@ -34,7 +34,7 @@ NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
 PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow"}
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 CONFIRM_ATTR = re.compile(r'data-foms-sheet-parts="([^"]+)"')
-PARTS_PIN = "foms-production-sheet-parts.js?v=20261127a"
+PARTS_PIN = "foms-production-sheet-parts.js?v=20261127d"
 REASON_CSS = "css/components/foms-reason-sheet.css?v=20261122t"
 
 
@@ -51,9 +51,12 @@ def _revise(order_id: int) -> None:
     db_session.commit()
 
 
-def _seed():
-    """재단 줄: 도면 3장(먼저) · 도면 없음 · 도면 고치는 중 · 보류 — 시공일 순."""
-    drawn = add_order("가짜도면집", 1, pngs=3)
+def _seed(pngs: int = 1):
+    """재단 줄: 도면 있는 주문(먼저 — 기본 1장) · 도면 없음 · 도면 고치는 중 · 보류 — 시공일 순.
+
+    확인 창은 도면 1장 주문에만 뜬다 — 여러 장이면 [<공정> 완료] 자리가 막힌다(사장님 2026-11-27, test_production_per_sheet_only_1127).
+    """
+    drawn = add_order("가짜도면집", 1, pngs=pngs)
     bare = add_order("가짜빈집", 2, pngs=0)
     revising = add_order("가짜고침집", 3, pngs=2)
     _revise(revising.id)
@@ -88,12 +91,12 @@ def test_tablet_finish_buttons_carry_the_work_sheet_value_only_on_drawn_rows(cli
     login(client)  # 반장
     set_cookies(client, TABLET)
     page = get_html(client, HOME + "?tab=steps")
-    want = {"parts": {"cut": {"uses_cards": False}}, "sheets": 3}
+    want = {"parts": {"cut": {"uses_cards": False}}, "sheets": 1}
     assert _data(pane_html(page, drawn.id)) == want  # 판 [끝]
     row = _row(page, drawn.id)
     assert "data-foms-home-step-done" in row and _data(row) == want  # 줄 [끝](태블릿 가로에선 CSS 로 숨김 — 같은 자료)
     # 같은 서버 값 — 작업 시트 화면 자료 · 공정 API 와 같은 장 수
-    assert _work_sheet_sheets(client, drawn.id) == _api_sheets(client, drawn.id) == 3
+    assert _work_sheet_sheets(client, drawn.id) == _api_sheets(client, drawn.id) == 1
     # 도면 없는 줄 = 자료 없음(지금처럼 바로 저장 — 단추 마크업 그대로)
     assert f'data-foms-home-step-done data-order-id="{bare.id}" data-step-key="cut"><svg' in _row(page, bare.id)
     # 도면 고치는 중 · 보류 = [끝] 자리가 막힘 글(⑺) — 창보다 먼저, 자료도 없다
@@ -114,7 +117,7 @@ def test_phone_and_pc_rows_use_the_same_data_and_dialog(client, cohort, where):
     if where == "pc":
         client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")  # [고치기] 켬(2시간 안)
     page = get_html(client, HOME + "?tab=steps")
-    assert _data(_row(page, drawn.id)) == {"parts": {"cut": {"uses_cards": False}}, "sheets": 3}
+    assert _data(_row(page, drawn.id)) == {"parts": {"cut": {"uses_cards": False}}, "sheets": 1}
     assert "data-foms-sheet-parts" not in _row(page, bare.id) and "data-foms-home-step-done" in _row(page, bare.id)
     assert page.count("data-foms-sheet-confirm hidden") == 1 and page.count(PARTS_PIN) == 1 and page.count(REASON_CSS) == 1
 
@@ -164,7 +167,7 @@ def test_extra_query_only_for_writers_with_drawn_rows(client, cohort):
 
 def test_part_that_uses_cards_shows_left_sheets_instead_of_a_finish_that_is_always_refused(client, cohort):
     """도면 칸을 쓴 파트의 [끝]은 서버가 늘 409 PART_USES_CARDS — [끝] 자리에 남은 장(비평 C03, 대조군 = 도면 칸을 안 쓴 줄은 [끝] 그대로)."""
-    drawn, bare, *_ = _seed()
+    drawn, bare, *_ = _seed(3)  # 도면 3장 — 카드를 쓴 파트는 여러 장 막힘(STEP_PER_SHEET)보다 지금 글이 먼저
     db_session.add(ProductionPartMark(order_id=drawn.id, drawing_key="orders/x/drawing/가짜도면집_0.png", part="cut", state="NEED"))
     db_session.commit()
     login(client)
@@ -183,8 +186,9 @@ def test_second_factory_lead_gets_the_whole_order_count_like_the_work_sheet(clie
     for factory in (2, 1):
         login_person(client, factory_user(f"가짜반장{factory}", factory=factory, lead=True))
         set_cookies(client, TABLET)
-        page = get_html(client, HOME + "?tab=steps")
-        assert _data(pane_html(page, order.id))["sheets"] == 5
+        # 도면 5장(2공장 장 포함) = 여러 장 주문 — 두 공장 반장 모두 [끝] 자리에 주문 전체 장 수(사장님 2026-11-27)
+        pane = pane_html(get_html(client, HOME + f"?tab=steps&order={order.id}"), order.id)
+        assert "<b>재단 0/5 · 5장 미완료</b>" in pane and "data-foms-step-finish" not in pane
         assert _work_sheet_sheets(client, order.id) == _api_sheets(client, order.id) == 5
 
 
@@ -199,7 +203,7 @@ def _node(tmp_path, page: str, want: dict) -> None:
     assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
 
 
-WORDS = {"key": "cut", "title": "재단 완료할까요?", "text": "이 주문의 도면 3장이 모두 재단 완료로 처리돼요."}
+WORDS = {"key": "cut", "title": "재단 완료할까요?", "text": "이 주문의 도면 1장이 모두 재단 완료로 처리돼요."}
 
 
 def test_node_tablet_panel_asks_once_cancel_posts_nothing_and_double_tap_is_dropped(client, cohort, tmp_path):
@@ -207,7 +211,7 @@ def test_node_tablet_panel_asks_once_cancel_posts_nothing_and_double_tap_is_drop
     login(client)
     set_cookies(client, TABLET)
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
-    _node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 3, "next": bare.id, **WORDS})
+    _node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 1, "next": bare.id, **WORDS})
 
 
 def test_node_tablet_panel_without_drawings_saves_at_once(client, cohort, tmp_path):

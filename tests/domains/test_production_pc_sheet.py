@@ -197,7 +197,9 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     assert d["cells_html"] in page and d["status_html"] in page and d["late"] in (None, "late", "tight")
     # 다른 파트 = "미정"(11-27), 담당 미정
     edge = _get(client, order, "edge").get_json()["data"]
-    assert {r["word"] for r in edge["rows"]} == {"미정"} and edge["all"] is True and edge["notice"] is None
+    # 아무도 안 시작한 파트라도 도면 5장 주문 = [모두 완료 처리] 없음(사장님 2026-11-27 "도면 두 장 이상이면 막기") · 도면마다 [완료 처리]는 그대로
+    assert {r["word"] for r in edge["rows"]} == {"미정"} and edge["all"] is False and edge["notice"] is None
+    assert {r["act"] for r in edge["rows"]} == {"check"}
 
 
 def test_제작_회차_없는_주문은_창_머리_한_줄_태블릿과_같은_글(client, cohort) -> None:
@@ -277,7 +279,7 @@ def test_권한_보기는_생산_화면_보는_직원_쓰기는_관리자_반장
 
 def test_창_단추_권한은_쓰기_길과_한_규칙_보기만_생산팀은_둘_다_막힘(client, cohort) -> None:
     """can_write(단추) = 공정 칸 손 체크([모두 체크] · 통째 해제) = 도면마다 [체크] — 반장 · 관리자만(반장 따로 지정 뒤)."""
-    oid = _order("가온", 2).id
+    oid = _order("가온", 1).id  # 도면 1장(여러 장은 공정 칸 켜기가 막힌다 — 사장님 2026-11-27)
     key = "orders/pcs/가온_0.png"
     _login(client, _user("생산보기"))
     assert _get(client, oid, "cut").get_json()["data"]["can_write"] is False
@@ -336,7 +338,7 @@ def test_완료_처리_한_요청_뒤_칸이_3_5_그리고_완료_취소(client,
 
 
 def test_모두_체크는_공정_칸_길_그대로이고_칸이_채워진다(client, cohort) -> None:
-    oid = _order("제갈하늘", 3, done=("cut",)).id
+    oid = _order("제갈하늘", 1, done=("cut",)).id  # 도면 1장(여러 장은 [모두 완료 처리]가 없다 — 사장님 2026-11-27)
     _login(client, _user("반장"))
     before = _get(client, oid, "edge").get_json()["data"]
     assert before["all"] is True and 'class="fpc-s is-done"' in before["cells_html"]  # 재단은 이미 칸 체크(손)

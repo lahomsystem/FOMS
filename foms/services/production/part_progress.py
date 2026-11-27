@@ -49,6 +49,11 @@ INSPECT_PREREQ_PARTS: tuple[str, ...] = (PART_CUT, PART_EDGE, PART_ASSEMBLE)
 CARDS_LEFT_MESSAGE = "미완료가 있어요"
 #: 카드를 쓴 주문인데 지금 확정 도면이 0장(새 글, §4-3 끝) — 칸이 기준이다.
 NO_DRAWINGS_MESSAGE = "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
+#: 공정 칸을 손으로 켜(그 파트를 통째로 완료) 되는 확정 도면 장 수 상한 — 넘으면 도면 화면에서 한 장씩(사장님 2026-11-27 "도면 두 장
+#: 이상이면 막기" · "각 도면을 체크하면서 완료하는 게 맞다"). 장 수 = 확인 창 "도면 n장"과 같은 :func:`current_keys`(주문 전체 — 2공장 장 포함).
+WHOLE_STEP_MAX_SHEETS = 1
+#: 그때의 거절 글(사장님 결정 글 그대로) — 공정 API 409 ``STEP_PER_SHEET`` · 작업 시트 칸 아래 · '남은 공정' 판 막힘 칸이 같이 쓴다.
+STEP_PER_SHEET_MESSAGE = "도면이 여러 장인 주문이에요. 도면 화면에서 한 장씩 완료해 주세요."
 
 
 def mark_finished(part: str, state: Optional[str]) -> bool:
@@ -94,6 +99,12 @@ def current_keys(sd: Any, *, factory: Optional[int] = None) -> list[str]:
     if factory is None:
         return [entry["key"] for entry in resolve_final_drawing_files(sd)]
     return [entry["key"] for entry, f in _drawing_factory.current_factories(sd) if f == factory]
+
+
+def per_sheet_only(sd: Any) -> bool:
+    """공정 칸 통째 켜기가 막힌 주문인지 — 확정 도면이 :data:`WHOLE_STEP_MAX_SHEETS` 장보다 많다(공정 API 문 · '남은 공정' 판 · PC
+    [모두 완료 처리] · 작업 시트가 같은 한 판정). 끄기 · 도면 → 공정 칸 동기화(``part_steps_sync``)와는 상관없다."""
+    return len(current_keys(sd)) > WHOLE_STEP_MAX_SHEETS
 
 
 def marks_by_part(marks: Iterable[Any]) -> dict[str, dict[str, Any]]:
@@ -253,11 +264,17 @@ def parts_progress(sd: Any, marks: Iterable[Any]) -> dict[str, dict[str, Any]]:
 def step_api_extras(sd: Any, marks: Iterable[Any]) -> dict[str, Any]:
     """공정 API · 작업 시트가 더 싣는 값 — 확정 도면 장 수(반장 손 체크 확인 창 "도면 5장이 모두 …") · 파트 진행.
 
+    도면이 여러 장인 주문(:func:`per_sheet_only`)은 ``per_sheet`` = 거절 글을 더 싣는다 — 작업 시트가 칸을 켜기 전에 요청 없이 글을
+    보인다(그 밖 주문은 지금 자료 그대로).
+
     Returns:
-        ``{sheets, parts: {part: {uses_cards, done, done_n, total_n, left_n, via}}}``.
+        ``{sheets, parts: {part: {uses_cards, done, done_n, total_n, left_n, via}}[, per_sheet]}``.
     """
     marks = list(marks)
-    return {"sheets": len(current_keys(sd)), "parts": parts_progress(sd, marks)}
+    out: dict[str, Any] = {"sheets": len(current_keys(sd)), "parts": parts_progress(sd, marks)}
+    if per_sheet_only(sd):
+        out["per_sheet"] = STEP_PER_SHEET_MESSAGE
+    return out
 
 
 # 장의 공장(3단계) — ``drawing_factory`` 가 이 모듈의 :func:`cards_used` 를 맨 위에서 import 한다(서로 부름). 그래서 모든 정의 뒤

@@ -66,7 +66,7 @@ def test_hand_check_on_held_order_is_refused_without_write(client):
 
 
 def test_uncheck_still_works_while_on_hold_and_check_works_after_release(client):
-    oid = _order("남궁하늘", 2, done=("cut",), hold="자재 기다림").id
+    oid = _order("남궁하늘", 1, done=("cut",), hold="자재 기다림").id  # 도면 1장(여러 장은 켜기 자체가 막힘 — 사장님 2026-11-27)
     _login(client, _user("반장"), {"foms_ptr": "coarse"})
     res = client.post(STEPS.format(oid), json={"key": "cut", "done": False})
     assert res.status_code == 200 and res.get_json()["success"] is True
@@ -79,7 +79,7 @@ def test_uncheck_still_works_while_on_hold_and_check_works_after_release(client)
 
 
 def test_order_not_on_hold_is_unchanged(client):
-    oid = _order("황보민재", 3).id
+    oid = _order("황보민재", 1).id  # 도면 1장(여러 장은 켜기 자체가 막힘 — 사장님 2026-11-27)
     _login(client, _user("반장"), {"foms_ptr": "coarse"})
     res = client.post(STEPS.format(oid), json={"key": "edge", "done": True})
     assert res.status_code == 200 and _state(oid)[0]["edge"] is True
@@ -93,7 +93,7 @@ def test_admin_is_refused_too(client):
 
 
 def test_pc_sheet_hides_check_all_on_held_order():
-    sd = {"drawing_current_files": [{"key": "k1"}, {"key": "k2"}], "production": {"steps": []}}
+    sd = {"drawing_current_files": [{"key": "k1"}], "production": {"steps": []}}  # 도면 1장(여러 장은 늘 거짓 — 사장님 2026-11-27)
     assert build_part_sheet(sd, [], "cut", hold_active=False)["all"] is True  # 대조군
     held = build_part_sheet(sd, [], "cut", hold_active=True)
     assert held["all"] is False

@@ -149,9 +149,10 @@ def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohor
     assert [p["body"]["action"] for p in out["undoPosts"]] == ["undo"]  # 같이 작업한 장은 완료 취소만
     assert [(p["body"]["action"], p["body"]["seen"], p["body"].get("seen_by")) for p in out["minePosts"]] == [
         ("undo", "done", None), ("release", "need", me)]  # 나 혼자 시작 + 완료한 장 = 시작 취소까지
-    assert out["allTools"] == ["모두 완료 처리"] and out["confirmOpen"] is True and out["confirmClosed"] is True
-    assert (out["confirmTitle"], out["confirmYes"]) == ("조립 완료할까요?", "조립 완료")  # 확인 창 글 그대로
-    assert out["postsAfterCancel"] == 4  # [취소] = 공정 칸 쓰기 0
+    # 도면 5장 주문 = 아무도 안 시작한 파트도 [모두 완료 처리] 없음 · 확인 창 0 · 공정 칸 쓰기 0(사장님 2026-11-27 "도면 두 장 이상이면 막기" —
+    # 1장 주문의 [모두 완료 처리] 확인 창은 test_production_per_sheet_only_1127)
+    assert out["allTools"] == [] and out["confirmOpen"] is False
+    assert out["postsAfterCancel"] == 4
     assert out["handTools"] == ["모두 완료 취소"] and {r["word"] for r in out["handRows"]} == {"엣지 완료 · 박반장"}
     # 바뀐 기록 낱말(§8-2 24 · §8-1) — 도면마다 한 줄
     log = out["log"]
@@ -249,7 +250,7 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
     set_cookies(client, TABLET)
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
     assert "끝내면 다음은 <b>" in pane_html(page, drawn.id)  # 판 아래 다음 손님 글 그대로
-    steps_node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 3, "next": bare.id, **WORDS,
+    steps_node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 1, "next": bare.id, **WORDS,
                                 "done_status": f"{drawn.customer_name} 재단 완료"})
     set_cookies(client, STEPS_PC)
     client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")
@@ -260,7 +261,7 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
 
 def test_finished_rows_say_inspect_done_and_my_steps_button_says_done(client, cohort) -> None:
     full = _order("다솜", 2, done=("cut", "edge", "assemble", "inspect"))
-    cutting = _order("라온", 2)
+    cutting = _order("라온", 1)  # 도면 1장(여러 장 줄은 [재단 완료] 자리가 막힌다 — 사장님 2026-11-27)
     fid, cid, day = full.id, cutting.id, full.erp_construction_date
     boss = make_user("박반장", lead=True)
     _login(client, boss)
