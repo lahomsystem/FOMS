@@ -15,11 +15,12 @@
 1. 이번 쓰기 뒤 그 주문 **네 파트 표시 줄이 모두 미정**(옛 판 key 줄 포함 — :func:`cards_used` 가 빈 집합).
 2. 보류 중 아님 · 수정 제작 중 아님 · 공장 완료 표지 없음.
 3. 이번 쓰기 뒤 공정 칸 넷이 모두 꺼짐(이번 쓰기가 끌 칸까지 반영 — 손으로 켠 칸이 하나라도 남으면 되돌리지 않는다).
-4. 지금 회차가 있고, 그 회차를 연 것이 **도면**(가장 최근 ``PRODUCTION_STARTED`` 의 ``via == 'part_marks'`` 이고 그 이벤트가 이 회차가
+4. 그 주문에 불량 기록(``production.defects``)이 하나도 없음 — 사장님 글자 그대로 "불량 기록이 있는 주문은 건드리지 않습니다"
+   (옛 회차의 기록 · 모양이 이상한 기록도 있는 것으로 본다).
+5. 지금 회차가 있고, 그 회차를 연 것이 **도면**(가장 최근 ``PRODUCTION_STARTED`` 의 ``via == 'part_marks'`` 이고 그 이벤트가 이 회차가
    열린 때보다 앞서지 않음). 작업 시트 [제작 시작] · 옛 회차(이벤트 없음) · 완료 취소가 새로 연 회차는 건드리지 않는다.
-5. 그 회차가 열린 뒤 불량 기록 없음(때를 못 읽는 기록은 있는 것으로 본다).
 
-1 ~ 3 은 쿼리 0(읽은 줄 · 잠근 주문). 4 · 5 는 1 ~ 3 을 통과한 취소 길에서만 읽기 2(회차 · 마지막 시작 이벤트) — 시작 · 완료 길은 0.
+1 ~ 4 는 쿼리 0(읽은 줄 · 잠근 주문). 5 는 1 ~ 4 를 통과한 취소 길에서만 읽기 2(회차 · 마지막 시작 이벤트) — 시작 · 완료 길은 0.
 
 되돌리기 = 회차 닫기(``_supersede_production_run`` — [제작 시작 취소] API 와 같은 함수) + 단계 기록 "제작 시작 취소 (도면 작업 시작 취소)"
 + 이벤트 ``PRODUCTION_CANCELLED``(``via:'part_marks'``) + 감사 한 줄. 단계는 생산 그대로. [제작 시작 취소] API 가 같이 하는 보류 해제 ·
@@ -31,7 +32,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
-from foms.services.production import mark_crew
 from foms.services.production.factory_marks import done_table
 from foms.services.production.order_write_helpers import (
     _current_production_run,
@@ -102,15 +102,10 @@ def _opened_by_cards(db: Any, order_id: int, run: Any) -> bool:
     return payload.get("via") == VIA_PART_MARKS and last.created_at >= run.started_at
 
 
-def _defect_in_run(sd: Any, run: Any) -> bool:
-    """그 회차가 열린 뒤 불량 기록이 있는지(쿼리 0). 때를 못 읽는 기록은 있는 것으로 본다(건드리지 않는 쪽)."""
+def _has_defect(sd: Any) -> bool:
+    """그 주문에 불량 기록이 하나라도 있는지(쿼리 0) — 언제 · 어느 회차의 기록인지 가리지 않는다(사장님 2026-11-27 글자 그대로)."""
     production = sd.get("production") if isinstance(sd, dict) else None
-    defects = production.get("defects") if isinstance(production, dict) else None
-    for defect in defects if isinstance(defects, list) else []:
-        at = mark_crew.from_iso(defect.get("at")) if isinstance(defect, dict) else None
-        if at is None or at >= run.started_at:
-            return True
-    return False
+    return bool(production.get("defects")) if isinstance(production, dict) else False
 
 
 def plan_start_rollback(db: Any, order: Any, marks: list[Any], parts: Iterable[str],
@@ -131,12 +126,12 @@ def plan_start_rollback(db: Any, order: Any, marks: list[Any], parts: Iterable[s
     if target != MARK_STATE_NONE:
         return None
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-    if cards_used(marks) or _hold_active(sd)[0] or _is_rework_completion(sd) or done_table(sd):
+    if cards_used(marks) or _hold_active(sd)[0] or _is_rework_completion(sd) or done_table(sd) or _has_defect(sd):
         return None
     if not _steps_off_after(sd, marks, parts, cleared):
         return None
     run = _current_production_run(db, order.id)
-    if run is None or not _opened_by_cards(db, order.id, run) or _defect_in_run(sd, run):
+    if run is None or not _opened_by_cards(db, order.id, run):
         return None
     return StartRollback(run)
 
