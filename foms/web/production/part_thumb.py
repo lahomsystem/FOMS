@@ -97,7 +97,7 @@ def _thumb_bytes(key: str) -> Optional[bytes]:
 @erp_production_page_bp.route('/production/parts/thumb/<int:order_id>')
 @login_required
 def erp_production_part_thumb(order_id: int):
-    """도면 카드 작은 그림(긴 변 720px JPEG). 볼 수 없는 사람 403, 지금 확정 도면이 아니거나 그림이 아니면 404."""
+    """도면 카드 작은 그림(긴 변 720px JPEG). 생산 화면을 볼 수 없는 사람 403, 읽을 수 없는 주문 · 지금 확정 도면이 아닌 key · 그림이 아니면 404."""
     user = getattr(g, 'current_user', None)
     if not can_view_production_home(user):
         abort(403)
@@ -106,10 +106,9 @@ def erp_production_part_thumb(order_id: int):
         .filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True))
         .first()
     )
-    if order is None:
+    # 읽을 수 없는 주문(협력사 밖 · 켜진 프리랜서의 남의 주문)은 없는 주문과 같은 404 — 있는지 알리지 않는다(작업 시트 · 인쇄와 같은 답).
+    if order is None or not user_can_read_order(user, order):
         abort(404)
-    if not user_can_read_order(user, order):
-        abort(403)
     key = (request.args.get('key') or '').strip()
     entry = _current_entry(order, key) if key else None
     if entry is None or not is_part_thumb_image(entry):

@@ -136,8 +136,8 @@ def test_화면_판정_표() -> None:
     fresh = str(now - 60)
     # PC 보기 전용 — 쓰기 없음, [확인했어요]는 보는 사람 모두(§13 결정 5, 기기 무관), [고치기]는 쓰기 팀만
     assert production_screen_flags(admin, _Req(foms_ptr="fine"), now) == {
-        "pc_view": True, "can_act": False, "can_check_steps": False, "steps_lock_note": "", "can_ack": True, "edit_on": False,
-        "edit_toggle": True, "edit_now": now, "write_omitted": False}
+        "pc_view": True, "can_act": False, "can_check_steps": False, "steps_lock_note": "", "can_ack": True,
+        "parts_read": True, "edit_on": False, "edit_toggle": True, "edit_now": now, "write_omitted": False}
     for ptr in ("fine", "coarse", "", "weird"):
         for user in (cs, _U(team="SALES"), _U(team="DRAWING"), _U(team="SHIPMENT"), prod):
             assert production_screen_flags(user, _Req(foms_ptr=ptr), now)["can_ack"] is True, (ptr, user.team)

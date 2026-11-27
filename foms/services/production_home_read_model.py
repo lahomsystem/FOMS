@@ -23,6 +23,7 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
 from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
+from foms.services.production.home_scope import production_home_mine_only
 from foms.services.production.part_card_state import order_block
 from foms.services.production.ship_dates import PAST_DAYS, SHIP_LOAD, live_condition, loading_day, row_due, ship_fields
 from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
@@ -413,8 +414,8 @@ def build_production_home(
     """
     today = today or get_today_kst()
     cutoff = (today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)).isoformat()
-    base = build_production_orders_query(
-        db, user, '', '', False, partner_org, stage_codes=PRODUCTION_HOME_STAGE_CODES
+    base = build_production_orders_query(  # 켜진 프리랜서는 '내 주문만'(연결 표) — 행 · total · past_hidden 이 같이 좁아진다
+        db, user, '', '', production_home_mine_only(user), partner_org, stage_codes=PRODUCTION_HOME_STAGE_CODES
     )
     live = live_condition(cutoff)
     orders = apply_production_dashboard_sort(base.filter(live), '', '').all()

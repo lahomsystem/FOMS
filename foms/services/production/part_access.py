@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.production.factory_constants import (
     DEFAULT_FACTORY,
     FACTORIES,
@@ -107,6 +108,9 @@ def part_view_mode(user: Any) -> str:
     관리자를 먼저 본다 — 관리자 계정에 파트가 있어도 관리자 모드(D55). 그다음 반장(대신 — 파트가 있어도 반장이 이긴다, '승인 때
     고친 것' 5), 그다음 파트 계정(파트 1개 이상). 파트도 반장도 아닌 생산팀은 읽기 전용이다.
 
+    켜진 프리랜서는 못 봄(``none``)이다(2026-11-27 옛 생산 보드 없애기 §3-5) — 도면 카드 판은 그 날 회사 전체 주문을 싣고, 카드 읽기
+    API(표시 · PC 도면 창 · 바뀐 기록)는 주문 범위로 좁히지 않아 프리랜서에게 닫혀 있다. 첫 화면 날짜 줄 · 작업 시트만 본다.
+
     Args:
         user: 사용자 객체(None 허용).
 
@@ -114,6 +118,8 @@ def part_view_mode(user: Any) -> str:
         ``part`` · ``sub`` · ``admin`` · ``readonly`` · ``none`` 중 하나.
     """
     if not can_view_production_home(user) or not _is_live_staff(user):
+        return VIEW_NONE
+    if is_list_freelancer(user):  # 영업팀 직원 · 매니저만 설정을 읽는다(요청 안에서는 한 번 — 문지기가 이미 읽은 값)
         return VIEW_NONE
     if is_part_admin(user):
         return VIEW_ADMIN
