@@ -387,7 +387,10 @@ LEARN = "agent:cs_handoff_learning"
     (LEARN, "requires", "product_line/lahom-1", "content"), (LEARN, "excludes", "product_line/lahom-1", "content"),
     ("import", "uses", "common/term-a", "rules"), ("import", "refines", "common/price-a", "rules"),
     ("import", "quantity_from", "common/spec-a", "rules"),
-    ("import", "applies_to", "common/other", "content"),  # 옮기기 묶음의 적용은 예전대로 계산기 제품 · 옵션 끝만
+    ("import", "applies_to", "common/other", "rules"),  # 옮기기 묶음의 적용도 끝을 가리지 않는다(11-27 되채우기 — 허용 짝이 제품 · 옵션)
+    ("import", "at_step", "process_step/install", "rules"),
+    ("import", "value_from", "calc:option/1:2", "content"), ("import", "requires", "common/other", "content"),
+    ("import", "excludes", "common/other", "content"),  # 옮기기 묶음이어도 금액 · 꼭 같이 · 같이 안 됨은 한 장씩
     ("agent:cs", "uses", "common/term-a", "content"), ("user:1", "refines", "common/price-a", "content"),
     ("agent:cs_photo", "applies_to", "common/synth-door", "content"),
 ])

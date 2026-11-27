@@ -15,14 +15,18 @@
 2. **시작 항목** — 지금 판이 살아 있나(없음 · 은퇴 · 기간 끝남은 ``source``).
 3. **대상 거르기** — :func:`check_target`(모르는 키 · 은퇴 · 자기 자신 · 허용 짝 밖 · 이미 있는 잇기 · 열린 같은 안 · 사장님이
    거절했거나 'AI 가 배운 것'에서 지운 같은 잇기 · 링크 제약).
-4. **가름** — **바로**: :func:`auto_block` 이 ``None``(종류 — 공정 단계 · 금액 · 수량 · 같이 안 됨은 늘 사장님 · 코드 글자 맞춤
+4. **가름** — 시작 항목 근거에 서로 다른 사람 둘이 없으면(제안 길 근거 관문 :func:`foms.services.brain.ai_gates.evidence_gate` 가
+   막을 줄 — 옮기기 · 사장님 승인 · 직접 고침으로 생긴 판) 늘 올림(``no_evidence`` — 아래 5). 그 밖은 **바로**: :func:`auto_block` 이
+   ``None``(종류 — 공정 단계 · 금액 · 수량 · 같이 안 됨은 늘 사장님 · 코드 글자 맞춤
    (:func:`glyph_matches`)이 그 대상을 가리키고 그 이름의 지식이 하나뿐 · 보기 범위 · 브랜드 · 사장님 결정 끝) · 계획 확신 ``high`` ·
    패널 '배운 것 바로 반영' 켬. 하나라도 빠지면 **올림**(열린 제안 — 승인 대기 ⑥ 규칙 잇기 칸, 금액 · 꼭 같이 · 같이 안 됨은 ② 한
    장씩 — :func:`foms.services.brain.inbox_bins.rule_link_change`). 올린 까닭은 처음 빠진 조건 코드로 센다(``ask_why``). 시작 유형은
    가리지 않는다(밤 붙이기는 배운 사실 · 정책 · 상황 · 제작 조건만 고른다 — 시작 유형별 수 ``by_source_type`` 로 보인다).
 5. **넣기** — :func:`file_link` 그대로(만든 이 ``agent:cs_handoff_learning`` — 바로 넣은 것은 'AI 가 배운 것'에 뜨고 거기서 지운다).
    까닭 글은 ``쌓인 지식 잇기(되채우기) — <근거>``(밤 붙이기와 구별). 근거는 시작 항목 지금 판을 만든 제안의 근거
-   (:func:`source_evidence`) — 서로 다른 사람 둘이 없으면(옮기기 · 사람이 만든 지식) 제안 길 근거 관문이 막는다(``brain_evidence``).
+   (:func:`source_evidence`). ``no_evidence`` 줄은 버리지 않고 **옮기기 묶음 제안**(:data:`IMPORT_PROPOSER` — 11-13 자료 계획과
+   같은 만든 이, 에이전트 관문 밖)으로 넣는다(:func:`_owner_link`) — **바로 넣지 않는다**(늘 열린 제안 · 사장님이 본다 · ⑥ 칸은
+   넓힌 종류만). 밤 붙이기에는 이 길이 없다.
 
 올림은 한 번에 ``max_ask`` 개까지(사장님 하루 몫) — 넘는 것은 넣지 않고 ``ask_left`` 로 센다(다음 실행이 넣는다). 멱등 — 다시
 돌리면 들어간 잇기(``exists``) · 열린 같은 안(``open``)으로 빠진다.
@@ -38,15 +42,18 @@ from __future__ import annotations
 import datetime
 from typing import Any, Collection, Mapping, Optional, Sequence
 
+from foms.services.brain.ai_gates import evidence_gate
 from foms.services.brain.constants import OP_LINK_ADD, STATUS_ACTIVE
+from foms.services.brain.errors import BrainError as BrainStoreError
 from foms.services.brain.errors import BrainShapeError
+from foms.services.brain.gates import FAIL
 from foms.services.brain.inbox_bins import BIN_CONTENT, BIN_RULES, rule_link_change
-from foms.services.brain.proposals import Proposer
+from foms.services.brain.proposals import IMPORT_PROPOSER, Proposer, propose_link
 from foms.services.brain.store import current_object, kst_day
 from foms.services.cs_agent import handoff_learning_link_prompt as lp
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.handoff_learning import auto_learn
-from foms.services.cs_agent.handoff_learning_gates import AGENT
+from foms.services.cs_agent.handoff_learning_gates import AGENT, _store_code
 from foms.services.cs_agent.handoff_learning_link import (
     auto_block, check_target, file_link, glyph_matches, label_owners, source_evidence, why_reason,
 )
@@ -59,6 +66,8 @@ MAX_ASK = 60
 REASON_HEAD = "쌓인 지식 잇기(되채우기)"
 SURE: tuple[str, ...] = ("high", "mid")
 LANES: tuple[str, ...] = ("auto", "ask")
+#: 사람 근거 둘이 없는 줄의 올린 까닭(``ask_why``) · 옮기기 묶음으로 넣었을 때 넣는 길 결과 코드.
+NO_EVIDENCE, OWNER_ASK = "no_evidence", "owner_ask"
 _PROPOSER = Proposer.agent_named(AGENT).name
 
 
@@ -122,14 +131,31 @@ def _alive(source: Any, today: datetime.date) -> bool:
     return source is not None and source.status == STATUS_ACTIVE and (source.valid_to is None or source.valid_to >= today)
 
 
-def _held(kind: str, source: Any, target: Any, *, sure: str, found: dict[str, bool], to: str, auto: Any) -> Optional[str]:
-    """바로 넣는 조건(모듈 설명 4)에서 처음 빠진 것 — 다 맞으면 ``None``."""
+def _held(kind: str, source: Any, target: Any, *, sure: str, found: dict[str, bool], to: str, auto: Any,
+          evidence: Sequence[str]) -> Optional[str]:
+    """바로 넣는 조건(모듈 설명 4)에서 처음 빠진 것 — 다 맞으면 ``None``. 사람 근거 둘이 없으면 늘 ``no_evidence``."""
+    if evidence_gate(evidence) == FAIL:
+        return NO_EVIDENCE
     blocked = auto_block(kind, source, target, matched=to in found, unique=found.get(to, False))
     if blocked is not None:
         return blocked
     if sure != "high":
         return "mid"
     return "auto_off" if auto is None else None
+
+
+def _owner_link(session: Any, source: Any, kind: str, to: str, *, reason: str, evidence: Sequence[str],
+                now: datetime.datetime) -> str:
+    """사람 근거 둘이 없는 시작 지식의 잇기 — 옮기기 묶음 제안으로 넣는다(모듈 설명 5 — 반영하지 않는다). 안마다 커밋한다.
+    넣었으면 ``owner_ask``, 제안 길이 막으면 그 까닭 코드."""
+    try:
+        propose_link(session, op=OP_LINK_ADD, kind=kind, from_key=source.item_key, to_key=to, reason=reason,
+                     proposer=IMPORT_PROPOSER, evidence=list(evidence), now=naive_utc(now))
+        session.commit()
+    except BrainStoreError as exc:  # 꼴 · 바깥 자리 · 거절된 같은 안 — 넣지 않고 센다
+        session.rollback()
+        return _store_code(exc)
+    return OWNER_ASK
 
 
 class _Tally:
@@ -165,8 +191,8 @@ class _Tally:
             self.glyph_fixed["plan_no_code_yes"] += 1
 
     def filed(self, code: str, number: int, triple: tuple[str, str, str], source: Any, held: Optional[str]) -> None:
-        """넣는 길 결과 — 바로 · 올림(바로 반영이 막혀 열린 채 남은 것도 올림)이 아니면 버린 까닭."""
-        if code not in ("auto", "proposed", "auto_blocked"):
+        """넣는 길 결과 — 바로 · 올림(바로 반영이 막혀 열린 채 남은 것 · 옮기기 묶음으로 올린 것도 올림)이 아니면 버린 까닭."""
+        if code not in ("auto", "proposed", "auto_blocked", OWNER_ASK):
             self.drop(code, number, triple)
             return
         start, kind, to = triple
@@ -179,7 +205,8 @@ class _Tally:
         if lane == "ask":
             why = "auto_blocked" if code == "auto_blocked" else str(held)
             self.ask_why[why] = self.ask_why.get(why, 0) + 1
-            rules = rule_link_change(OP_LINK_ADD, kind, proposed_by=_PROPOSER, link_to=to)
+            proposer = IMPORT_PROPOSER.name if code == OWNER_ASK else _PROPOSER
+            rules = rule_link_change(OP_LINK_ADD, kind, proposed_by=proposer, link_to=to)
             self.ask_bins[BIN_RULES if rules else BIN_CONTENT] += 1
 
     def summary(self) -> dict[str, Any]:
@@ -226,7 +253,8 @@ def _run(session: Any, picked: Sequence[Any], *, now: datetime.datetime, only: O
             matches[start] = glyph_matches(source.text, start, owners)
             evidence.update(source_evidence(session, [source]))
         tally.glyph(line.get("glyph"), to in matches[start])
-        held = _held(kind, source, target, sure=str(sure), found=matches[start], to=to, auto=auto)
+        held = _held(kind, source, target, sure=str(sure), found=matches[start], to=to, auto=auto,
+                     evidence=evidence[start])
         lane = "auto" if held is None else "ask"
         if only is not None and lane != only:
             tally.only_held[lane] += 1
@@ -234,8 +262,11 @@ def _run(session: Any, picked: Sequence[Any], *, now: datetime.datetime, only: O
         if lane == "ask" and tally.asks >= max_ask:
             tally.ask_left += 1
             continue
-        done = file_link(session, source, kind, to, reason=str(reason), evidence=evidence[start], auto=auto, now=now,
-                         wanted_auto=held is None)
+        if held == NO_EVIDENCE:
+            done = _owner_link(session, source, kind, to, reason=str(reason), evidence=evidence[start], now=now)
+        else:
+            done = file_link(session, source, kind, to, reason=str(reason), evidence=evidence[start], auto=auto,
+                             now=now, wanted_auto=held is None)
         tally.filed(done, number, triple, source, held)
 
 

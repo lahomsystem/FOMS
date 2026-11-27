@@ -103,11 +103,12 @@ def test_links_wait_for_the_product_to_be_approved(app):
     assert out["filed_total"] == 0 and out["deferred"] == {"awaiting_create": 2}  # 링크 1 + 이름표 1 — 제품이 승인 대기
 
 
-def test_rule_bin_needs_the_import_proposer_and_a_catalog_end():
+def test_rule_bin_needs_the_import_proposer_and_any_product_end():
+    """옮기기 묶음의 적용은 끝을 가리지 않는다(11-27 쌓인 지식 잇기 — 허용 짝이 끝을 제품 · 옵션으로 둔다). 다른 에이전트는 ②."""
     ends = {"proposed_by": "import", "link_from": "common/spec", "link_to": "product_line/lahom-1"}
     assert card_bin("link_add", None, None, "applies_to", **ends) == BIN_RULES
     assert card_bin("link_add", None, None, "applies_to", **{**ends, "proposed_by": "agent:cs"}) == "content"
-    assert card_bin("link_add", None, None, "applies_to", **{**ends, "link_to": "common/other"}) == "content"
+    assert card_bin("link_add", None, None, "applies_to", **{**ends, "link_to": "common/other"}) == BIN_RULES
 
 
 def test_rule_bin_also_takes_imported_process_step_links_but_not_people_ones():

@@ -7,7 +7,9 @@
 넣는다.
 
 - 쓰기는 :func:`foms.services.cs_agent.handoff_learning_backfill.run_backfill` 한 길이다 — 계획 꼴 · 거르기 · 가름 · 넣는 길 ·
-  내는 수 칸은 그 모듈 머리말. 멱등 — 다시 돌려도 들어간 잇기 · 열린 같은 제안은 다시 넣지 않는다.
+  내는 수 칸은 그 모듈 머리말. 멱등 — 다시 돌려도 들어간 잇기 · 열린 같은 제안은 다시 넣지 않는다. 시작 지식에 사람 근거 둘이
+  없는 줄(옮기기 · 사장님 승인 · 직접 고침으로 생긴 판)은 버리지 않고 옮기기 묶음 제안으로 올린다(``ask_why.no_evidence`` — 바로 넣지
+  않는다).
 - 운영 막기는 기준 답 스크립트(``tools/ops/cs_agent_knowledge.py``)의 환경 판정을 그대로 쓴다 — local · staging 밖은
   ``--i-have-owner-approval`` 없이 넣지 않는다(미리 돌려 보기는 쓰기 0 이라 막지 않는다).
 - 작게 시작: ``--only auto`` · ``--only ask`` 로 한쪽만, ``--limit N`` 으로 앞 N 줄만, ``--kinds a,b`` 로 종류만. 한 번에 올리는 수는

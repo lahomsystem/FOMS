@@ -6,6 +6,7 @@ AI가 바로' · 11-27 "공정 단계만 여쭙게 하고 켜기").
 - 음성 대조군 — 조건 하나라도 빠지면 올림(⑥ 규칙 잇기 칸 · 꼭 같이는 ②): 확신 mid · 글자 맞춤 없음(계획이 있다고 거짓말) · 이름이
   둘 · 공정 단계 · 수량 표 · 브랜드 다름 · 기준 답 끝 · 패널 끔. 계획의 글자 맞춤 표시는 믿지 않는다(코드가 바로잡는다).
 - 코드가 까닭별로 거른다 · 멱등 · 올림 상한 · 한쪽만 · 앞 N 줄 · 종류 고르기 · 운영은 승인 표시 없이 넣지 않는다 · 수만 낸다.
+- 사람 근거 둘이 없는 시작 지식의 줄은 버리지 않고 옮기기 묶음 제안으로 ⑥ 칸에 올린다 — 조건 다섯이 다 맞아도 바로 넣지 않는다.
 
 합성 지식 · 합성 계정만(손님 글 · 직원 이름 · 금액 · 회사 지식 글 없음 · 네트워크 0 · 모델 부르기 0).
 """
@@ -27,6 +28,7 @@ from foms.persistence.brain.models import BrainChange, BrainLink
 from foms.services.brain import constants as c
 from foms.services.brain import learned
 from foms.services.brain.apply import apply_change
+from foms.services.brain.inbox import inbox
 from foms.services.brain.inbox_bins import card_bin, change_ends
 from foms.services.brain.proposals import Proposer, propose_create
 from foms.services.brain.scope import viewer_of
@@ -40,6 +42,7 @@ from tests.support.brain_support import NOW, create, link as tie, person, values
 
 _SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "maintenance" / "brain_link_backfill.py"
 WHEN = datetime.datetime(2026, 11, 27, 9, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+LATER = datetime.datetime(2026, 11, 28, 1, 0)  # 승인 대기 화면을 여는 때(UTC naive)
 EVIDENCE = ["case:1", "staff:mgr-1"]  # 서로 다른 사람 둘 — 잇기 제안 근거 관문이 지난다
 DOC = {"approved_by": "합성", "approved_at": "2026-10-20"}
 DOOR, STEP, TERM, TABLE = "common/bf-door", "process_step/bf-measure", "common/bf-term", "common/bf-table"
@@ -206,8 +209,6 @@ def test_the_code_measures_the_glyph_itself(world):
 # ── 코드가 거른다 ─────────────────────────────────────────────────────────
 def test_the_code_drops_bad_lines_and_counts_each_reason(world):
     create(db_session, world, "common/bf-old", name="합성 옛 문", status="retired")
-    create(db_session, world, "lahom/bf-bare", item_type="situation", layer="cs", brand="LAHOM", name="합성 근거 없는 상황",
-           text="합성 여닫이문 상황")  # 사람 근거가 없는 지식(옮기기 · 사람이 바로 만든 것과 같다)
     made(world, "lahom/bf-rule", "build_rule", "합성 제작 조건", brand="LAHOM", text="합성 규칙 글")
     tie(db_session, world, "excludes", "lahom/bf-rule", DOOR)
     tie(db_session, world, "uses", FACT, TERM)
@@ -218,14 +219,59 @@ def test_the_code_drops_bad_lines_and_counts_each_reason(world):
         "합성 꼴 아닌 줄", ln(FACT, "applies_to", DOOR, why=f"합성 연락처 {phone}"), ln("lahom/none", "applies_to", DOOR),
         ln(FACT, "applies_to", FACT), ln(FACT, "applies_to", "common/none"), ln(FACT, "applies_to", "common/bf-old"),
         ln(FACT, "applies_to", TERM), ln(FACT, "uses", TERM), ln("lahom/bf-rule", "requires", DOOR),
-        ln("lahom/bf-bare", "applies_to", DOOR), ln(FACT, "applies_to", DOOR), ln(FACT, "applies_to", DOOR),
-        show_dropped=True)
-    assert out["dropped"] == {"brain_evidence": 1, "exists": 1, "form": 3, "mask": 1, "not_allowed": 1, "repeat": 1,
-                              "retired": 1, "rule": 1, "self": 1, "source": 1, "unknown": 1}
+        ln(FACT, "applies_to", DOOR), ln(FACT, "applies_to", DOOR), show_dropped=True)
+    assert out["dropped"] == {"exists": 1, "form": 3, "mask": 1, "not_allowed": 1, "repeat": 1, "retired": 1, "rule": 1,
+                              "self": 1, "source": 1, "unknown": 1}
     assert (out["auto_total"], out["ask_total"]) == (1, 0)
     assert [d["code"] for d in out["dropped_keys"]][:3] == ["form", "form", "form"] and "from" not in out["dropped_keys"][2]
-    assert {"n": 12, "code": "brain_evidence", "from": "lahom/bf-bare", "kind": "applies_to", "to": DOOR} in out["dropped_keys"]
+    assert {"n": 11, "code": "rule", "from": "lahom/bf-rule", "kind": "requires", "to": DOOR} in out["dropped_keys"]
     assert "dropped_keys" not in backfill(ln(FACT, "applies_to", DOOR), apply=False)  # 키는 물을 때만
+
+
+# ── 사람 근거 없는 시작 지식 — 버리지 않고 옮기기 묶음으로 사장님께 ─────────────
+BARE = "lahom/bf-bare"
+
+
+def bare(admin):
+    """사람이 바로 만든 사실(근거 없음 — 옮기기 · 사장님 승인 · 직접 고침으로 생긴 판과 같다)."""
+    create(db_session, admin, BARE, item_type="fact", brand="LAHOM", name="합성 근거 없는 사실",
+           text=f"{MARK} 합성 여닫이문은 합성 실측 방문 때 잰다", payload={"doc_id": "bf_bare", **DOC})
+    db_session.commit()
+
+
+def imported():
+    db_session.expire_all()
+    return list(db_session.scalars(select(BrainChange).where(
+        BrainChange.proposed_by == "import", BrainChange.op == "link_add").order_by(BrainChange.id)))
+
+
+def test_a_source_without_people_evidence_goes_to_the_owner_and_never_in_at_once(world):
+    bare(world)
+    plan = (ln(BARE, "applies_to", DOOR), ln(BARE, "at_step", STEP))  # 앞 줄은 바로 넣는 조건 다섯이 다 맞는다
+    dry = backfill(*plan, apply=False)
+    assert imported() == [] and filed() == []
+    assert (dry["auto_total"], dry["ask_total"], dry["ask_why"], dry["ask_bins"], dry["dropped"]) == (
+        0, 2, {"no_evidence": 2}, {"rules": 2, "content": 0}, {})
+    real = backfill(*plan)
+    assert {k: v for k, v in real.items() if k != "applied"} == {k: v for k, v in dry.items() if k != "applied"}
+    rows = imported()
+    assert [(r.link_kind, r.status, r.proposed_by, bin_of(r)) for r in rows] == [
+        ("applies_to", "open", "import", "rules"), ("at_step", "open", "import", "rules")]
+    assert all(r.reason == f"{REASON_HEAD} — {WHY}" for r in rows) and filed() == []  # 에이전트 제안이 아니다
+    assert current_link(db_session, "applies_to", BARE, DOOR) is None  # 조건 다섯이 맞아도 바로 들어가지 않는다
+    cards = {card["main"]["id"]: card for card in inbox(db_session, viewer_of(world), now=LATER)["cards"]}
+    assert [(cards[r.id]["bin"], cards[r.id]["main"]["bulk_ok"]) for r in rows] == [("rules", True), ("rules", True)]
+    again = backfill(*plan)
+    assert (again["ask_total"], again["dropped"], len(imported())) == (0, {"open": 2}, 2)  # 멱등
+
+
+def test_owner_proposals_follow_only_and_max_ask(world):
+    bare(world)
+    plan = (ln(BARE, "applies_to", DOOR), ln(BARE, "at_step", STEP), ln(FACT, "applies_to", DOOR))
+    held = backfill(*plan, only="auto")
+    assert (held["auto_total"], held["only_held"], imported()) == (1, {"auto": 0, "ask": 2}, [])
+    capped = backfill(*plan, max_ask=1)
+    assert (capped["ask_total"], capped["ask_left"], capped["ask_why"], len(imported())) == (1, 1, {"no_evidence": 1}, 1)
 
 
 # ── 멱등 · 올림 상한 · 한쪽만 · 앞 N 줄 · 종류 ──────────────────────────────
