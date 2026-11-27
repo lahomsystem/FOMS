@@ -48,6 +48,7 @@ from tests.support.freelancer_production_home_seed import (
     designate,
     leaks,
     linked_order_ids,
+    make_order,
     named_user,
     seed_world,
     tomorrow,
@@ -404,9 +405,12 @@ def test_closed_write_answers_come_from_the_gate_tables(world, app, monkeypatch)
 # --------------------------------------------------------------------------
 def test_write_markers_are_real_for_writers_and_parts_are_closed_for_freelancer(world, app):
     lead = named_user("STAFF", "PRODUCTION", "가짜반장", production_lead=True)
-    sheet = _get(app, lead, _order_paths(world.own.id)[0], "tablet")
+    # 공정 칸 · [끝] 표식은 2026-11-27 "도면이 주"부터 도면 0장 주문에만 그려진다 — 대조군은 도면 없는 주문으로
+    zero = make_order(9901, "가짜고객영", "9901", manager="가짜직원", extra={"drawing_current_files": []})
+    sheet = _get(app, lead, _order_paths(zero.id)[0], "tablet")
     steps = _get(app, lead, f"{HOME}?tab=steps", "tablet")
     assert "data-tablet-sheet-action" in sheet and "data-foms-sheet-step=" in sheet
+    assert "data-tablet-sheet-action" in _get(app, lead, _order_paths(world.own.id)[0], "tablet")  # 도면 있는 주문도 큰 단추는 있다
     assert "data-foms-home-step-done" in steps and "data-foms-step-finish" in steps
     assert "data-pp-" in _get(app, world.staff, f"{HOME}?tab=parts", "tablet")  # 직원(읽기 전용)은 도면 카드 판을 본다
     # 프리랜서: 도면 카드 보기 모드 none — 판 · [도면 카드로 보기] 없음, ?tab=parts 는 날짜 탭으로.
