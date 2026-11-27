@@ -28,6 +28,7 @@ SHEETS_JS = ROOT / "static/js/foms/tablet-domain-sheets.js"
 SHEET_PARTS = PROD_JS / "foms-production-sheet-parts.js"
 SHEET_PAGE = PROD_JS / "foms-production-sheet-page.js"
 PIN = "20261127z"
+PARTS_PIN = "20261128a"  # 11-28 a: 도면 없는 주문 안내 글 '완료로 처리'(test_production_wording_1127_z1)
 
 # 남긴 '…습니다' 글 — (파일, 글, 그 글이 있는 함수, 까닭)
 ALLOWED = [
@@ -162,13 +163,13 @@ def test_고친_파일_핀은_싣는_곳마다_같다() -> None:
     sheet = _read(ROOT / "templates/production/sheet.html")
     scripts = _read(ROOT / "templates/production/partials/home_scripts.html")
     body = _read(ROOT / "templates/production/partials/home_body.html")
-    assert f"foms-production-sheet-parts.js') }}}}?v={PIN}" in sheet and f"foms-production-sheet-page.js') }}}}?v={PIN}" in sheet
-    assert scripts.count(f"foms-production-sheet-parts.js') }}}}?v={PIN}") == 2
+    assert f"foms-production-sheet-parts.js') }}}}?v={PARTS_PIN}" in sheet and f"foms-production-sheet-page.js') }}}}?v={PIN}" in sheet
+    assert scripts.count(f"foms-production-sheet-parts.js') }}}}?v={PARTS_PIN}") == 2
     assert f"foms-production-sheet-page.js') }}}}?v={PIN}" in body
     every = "".join(_read(p) for p in (ROOT / "templates").rglob("*.html"))
-    for name in ("foms-production-sheet-parts.js", "foms-production-sheet-page.js"):
+    for name, pin in (("foms-production-sheet-parts.js", PARTS_PIN), ("foms-production-sheet-page.js", PIN)):
         pins = set(re.findall(re.escape(name) + r"'\) \}\}\?v=(\w+)", every))
-        assert pins == {PIN}, (name, pins)
+        assert pins == {pin}, (name, pins)
 
 
 # --------------------------------------------------------------------------- #

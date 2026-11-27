@@ -1,6 +1,6 @@
 """여러 명이 같이 작업 M3 — 도면 판 밖의 화면(설계서 2026-11-25 multi-holder §10 M3 · §11 M2 · M3 · §8-2 24 · 37 ~ 45 · §8-3 지휘 판결).
 
-* PC 도면별 창(``GET /api/production/part-sheet``): 줄 글은 서버가 사람마다 한 조각씩("작업 시작 이시영 · 11/25 08:10" · "완료 이시영 ·
+* PC 도면별 창(``GET /api/production/part-sheet``): 줄 글은 서버가 사람마다 한 조각씩("시작 이시영 · 11/25 08:10" · "완료 이시영 ·
   11/25 11:30", K6) · 상태 칸 "재단 1/2 완료" + 작은 글 "김재단 작업 중" · 모두 완료 "재단 완료"(K4) · 아무도 안 시작 "담당 미정"(K2 그대로).
 * 창 JS(Node — 서버가 그린 진짜 PC 화면 + 진짜 API 응답): 단추 [완료 처리] · [완료 취소] · [모두 완료 처리] · [모두 완료 취소](K3),
   [완료 처리] = POST 한 번(action ``check`` — 판결 2, 옛 맡기 → 완료 두 요청 없음), [모두 완료 처리] 확인 창 글은 그대로("…작업 완료로
@@ -48,7 +48,7 @@ def _press(client, who, oid: int, key: str, action: str, seen: str, part: str = 
 
 
 def _like(lines: list[str], heads: list[str]) -> bool:
-    """줄 글이 ``heads``("작업 시작 이시영" …) 차례와 같고 모두 " · M/D HH:MM" 로 끝나는지."""
+    """줄 글이 ``heads``("시작 이시영" …) 차례와 같고 모두 " · M/D HH:MM" 로 끝나는지."""
     return len(lines) == len(heads) and all(re.fullmatch(re.escape(h) + " · " + STAMP, line) for line, h in zip(lines, heads))
 
 
@@ -106,11 +106,11 @@ def test_pc_window_rows_are_one_piece_per_person(client, cohort) -> None:
     assert [r["word"] for r in rows] == ["재단 완료", "재단 1/2 완료", "작업 중", "미정", "재단 완료"]
     assert [r["note"] for r in rows] == [None, "김재단 작업 중", None, None, None]
     assert [r["act"] for r in rows] == ["uncheck", "check", "check", "check", "uncheck"]
-    assert _like(rows[0]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단", "완료 김재단"])  # 모두 보임 — 사람마다
-    assert _like(rows[1]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단"])
-    assert _like(rows[2]["lines"], ["작업 시작 이시영"])  # 반장이 시작 취소한 김재단은 줄에 없다
+    assert _like(rows[0]["lines"], ["시작 이시영", "완료 이시영", "시작 김재단", "완료 김재단"])  # 모두 보임 — 사람마다
+    assert _like(rows[1]["lines"], ["시작 이시영", "완료 이시영", "시작 김재단"])
+    assert _like(rows[2]["lines"], ["시작 이시영"])  # 반장이 시작 취소한 김재단은 줄에 없다
     assert rows[3]["lines"] == ["담당 미정"]  # K2 그대로
-    assert _like(rows[4]["lines"], ["작업 시작 박반장", "완료 박반장"])
+    assert _like(rows[4]["lines"], ["시작 박반장", "완료 박반장"])
     assert [r["undo_releases"] for r in rows] == [False, False, False, False, True]  # 나 혼자 시작 + 완료한 장만
     for r in rows:  # 한 명짜리 옛 칸(담당 · 완료 · 본 담당)은 PC 창 자료에서 뺐다 — 줄 글은 lines 하나
         assert not {"holder", "done", "seen_by"} & set(r), r
@@ -169,8 +169,8 @@ def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohor
     assert (done["proxied"], done["mark"]["state"]) == (True, "done")
     after = _sheet(client, oid)["rows"]
     assert after[1]["word"] == "재단 완료" and after[1]["note"] is None
-    assert _like(after[1]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단", "완료 박반장"])
-    assert not any(line.startswith("작업 시작 박반장") for r in after[:4] for line in r["lines"])
+    assert _like(after[1]["lines"], ["시작 이시영", "완료 이시영", "시작 김재단", "완료 박반장"])
+    assert not any(line.startswith("시작 박반장") for r in after[:4] for line in r["lines"])
     # 반장 [완료 취소] 둘(JS 몸 그대로) — 나 혼자 한 장은 시작 취소까지 이어 "미정 · 담당 미정"
     for body in [p["body"] for p in out["minePosts"]]:
         assert client.post(ONE, json=body).status_code == 200, body

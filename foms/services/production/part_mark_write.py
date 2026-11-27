@@ -381,8 +381,8 @@ def _decide(db: Any, req: MarkRequest, order: Order, entry: dict[str, Any], rows
     return decision
 
 
-def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any]:
-    """잠금 → 주문 · 도면 검사 → 전이 표 · 막는 까닭 → 쓰기 → 주문 쓰기 → 감사. 커밋 전 응답 자료를 돌려준다.
+def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest, *, dry: bool = False) -> dict[str, Any]:
+    """잠금 → 주문 · 도면 검사 → 전이 표 · 막는 까닭 → 쓰기 → 주문 쓰기 → 감사. 커밋 전 응답 자료를 돌려준다. ``dry``(11-27 [시작 취소] 창 미리 보기) = 잠금 · 쓰기 없이 되돌림 판정까지만.
 
     Returns:
         ``{mark, order_step, changed, run_started, run_cancelled, order_ready, factory_ready, joined_late, notice, proxied}``
@@ -390,7 +390,7 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
         줄이 DONE 이 된 누름만, 검수 1/2 완료면 안 묻는다). ``joined_late`` · ``notice`` = 늦은 [작업 시작]이 같이 작업으로 넘어감(Q16
         "{이름}이 먼저 시작했어요."), ``proxied`` = PC [완료 처리]가 대신 완료로 감(판결 2), ``run_cancelled`` = 제작 시작도 되돌림(11-27).
     """
-    order = check_order(lock_order_row(db, req.order_id))
+    order = check_order(db.get(Order, req.order_id, populate_existing=True) if dry else lock_order_row(db, req.order_id))
     entry = current_entry(order, req.key)
     rows = order_marks(db, req.order_id)  # 네 파트 한 번(검수 순서 · 손 체크 · 완료 물음 — 쿼리 수는 그대로 1)
     row = next((r for r in rows if r.drawing_key == req.key and r.part == req.part), None)
@@ -404,7 +404,8 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     action = decision.action or req.action
     write = plan_write(order, entry, row, part=req.part, target=decision.target, user=user, action=action,
                        override=decision.override, decision=decision, now=now)
-    flush_writes(db, [write])
+    if not dry:
+        flush_writes(db, [write])
     starting = set()
     if action in STARTING_ACTIONS and decision.target != MARK_STATE_NONE:
         starting = {req.order_id} - orders_with_current_run(db, [req.order_id])  # 잠금 아래 — 회차 찾기 +1
@@ -412,6 +413,8 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     finished_before = write.before.state in (MARK_STATE_DONE, MARK_STATE_BASIC)  # 바로 완료 취소 · 기본 취소 → 미정 = 칸도 맞춘다
     cleared = (req.part,) if finished_before and decision.target == MARK_STATE_NONE else ()
     closing = plan_start_rollback(db, order, views[req.order_id], (req.part,), cleared, target=decision.target)  # 11-27
+    if dry:  # 미리 보기 — 여기까지 읽기만. 아래 주문 쓰기 · 감사는 하지 않는다
+        return {"changed": False, "run_cancelled": bool(closing)}
     steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting, cleared=cleared,
                                          closing=closing)
     write_audit(db, user, _note(req, write, decision, user) + step_note(steps) + run_tail(started, closing),

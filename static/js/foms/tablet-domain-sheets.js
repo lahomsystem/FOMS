@@ -242,7 +242,7 @@
   // 후진 전이라 서버 보류 게이트 없음(HOLD_ACTIVE 분기 무발동, 무해).
   function productionCancel(orderId, btn) {
     openReasonSheetAndSubmit(orderId, "/production/cancel", {
-      title: "제작을 취소하고 제작대기로 되돌릴까요?",
+      title: "제작을 취소하고 제작 대기로 되돌릴까요?",
       actionLabel: "제작 시작 취소",
       cancelLabel: "닫기",
       detailLabel: "제작 취소 사유 (선택)",
@@ -253,7 +253,7 @@
   // 재제작 완료였으면 서버가 rework 를 다시 활성으로 복원한다. 후진 전이라 보류 게이트 없음.
   function productionUncomplete(orderId, btn) {
     if (!orderId) return;
-    var text = "완료를 취소하고 제작중으로 되돌릴까요?";
+    var text = "완료를 취소하고 제작 중으로 되돌릴까요?";
     ask(btn, { title: text, yes: "완료 취소", plain: text }, function () {
       return submitTransition(orderId, "/production/uncomplete", {}, btn);
     });

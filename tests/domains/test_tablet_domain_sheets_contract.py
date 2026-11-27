@@ -32,7 +32,7 @@ CORE_MEDIA_QUERY = (
 )
 # ADMIN-OVERRIDE-01: tablet-domain-sheets.js 에 관리자 강제 진행 재시도가 들어가
 # 자산 핀을 올렸다. 핀 고정 계약은 새 핀을 따라간다(안 바꾼 자산의 핀은 안 올린다).
-SCRIPT_CACHEBUSTER = "?v=20261127p"  # 11-27: 옛 생산 칸반 몫(필터 · 숫자 타일 · 전체 화면 · 변경 브리핑 창)을 지웠다
+SCRIPT_CACHEBUSTER = "?v=20261128a"  # 11-28 a: 확인 창 띄어쓰기 · 11-27: 옛 생산 칸반 몫(필터 · 숫자 타일 · 전체 화면 · 변경 브리핑 창)을 지웠다
 
 
 def _read(rel: str) -> str:
@@ -88,10 +88,10 @@ def test_domain_sheets_js_wires_production_cancel_and_uncomplete() -> None:
     js = _read(DOMAIN_SHEETS_JS)
     assert "production-cancel" in js  # 시트 액션 위임 분기
     assert "/production/cancel" in js  # 신규 되돌리기 엔드포인트
-    assert "제작을 취소하고 제작대기로 되돌릴까요" in js  # 취소 confirm
+    assert "제작을 취소하고 제작 대기로 되돌릴까요" in js  # 취소 confirm
     assert "production-uncomplete" in js
     assert "/production/uncomplete" in js
-    assert "완료를 취소하고 제작중으로 되돌릴까요" in js  # 완료 취소 confirm
+    assert "완료를 취소하고 제작 중으로 되돌릴까요" in js  # 완료 취소 confirm
 
 
 def test_domain_sheets_js_wires_hold_release_confirm() -> None:

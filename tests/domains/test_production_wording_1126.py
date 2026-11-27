@@ -249,7 +249,7 @@ def test_big_button_default_dialog_texts_match_production_buttons():
     assert "시작하시겠습니까" not in js and "완료하시겠습니까" not in js and "불러오지 못했습니다" not in js
     assert 'window.alert("오류: " + (data.message || "저장 실패"));' in js  # 출고 저장 글은 그대로
     entry = _read(ROOT / "static/js/shipment/shipment-entry.js")
-    assert "tablet-domain-sheets.js?v=20261127p" in entry
+    assert "tablet-domain-sheets.js?v=20261128a" in entry
 
 
 def _py_strings(path: Path) -> str:

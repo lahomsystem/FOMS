@@ -8,6 +8,9 @@
   ``check`` = PC [완료 처리](시작 + 완료를 한 요청 — 반장 · 관리자만, 판결 2).
 * ``POST /api/production/part-marks/basic`` — 재단 [남은 N장 모두 기본]. 몸 ``{part:'cut', seen:'none', items:[{order_id,
   drawing_key}…]}``(최대 200). **화면이 보낸 목록만** 바꾼다(서버가 '남은 전부'를 고르지 않는다) · 일부 성공.
+* ``GET /api/production/part-marks/cancel-preview`` — [<파트> 시작 취소] · [<파트> 완료 취소] · [기본 취소] 창을 열 때(사장님 2026-11-27
+  "창에도 미리 알리기" · "여기도 미리 알리기"). 질의 = 한 장 쓰기 몸과 같은 칸(``action`` 은 release · remove · undo 만). 답
+  ``{run_cancelled}`` = 지금 그 취소를 누르면 제작 시작도 같이 취소되는지. 읽기 전용이고, 문(로그인 · 파트 문)과 판정은 쓰기와 같은 함수다(``mark_one(dry=True)`` — 쓰기 직전까지 같은 길).
 
 이 모듈은 로그인 · 파트 문(:mod:`foms.services.production.part_access`) · 몸 읽기 · tx 만 맡는다. 잠금 · 전이 표 · 막는 까닭 ·
 쓰기 · 공정 칸 동기화 · 첫 카드 제작 시작 · 감사는 :mod:`foms.services.production.part_mark_write` 다. CSRF · 정책 가드는
@@ -31,7 +34,10 @@ from foms.services.production.part_card_crew import attach_crew
 from foms.services.production.part_mark_rules import (
     ACTION_BASIC,
     ACTION_CHECK,
+    ACTION_RELEASE,
+    ACTION_REMOVE,
     ACTION_TAKEOVER,
+    ACTION_UNDO,
     MARK_ACTIONS,
     SEEN_BY_UNSET,
     SEEN_VALUES,
@@ -46,6 +52,10 @@ BULK_MAX_ITEMS = 200
 _SAVE_FAILED = "저장하지 못했어요. 잠시 뒤 다시 해 주세요."
 #: PC [완료 처리](``check``)는 감독 단추 — 반장 · 관리자만(판결 2, 지금 대신 처리 문과 같다).
 CHECK_FORBIDDEN_MESSAGE = "[완료 처리]는 반장이나 관리자만 할 수 있어요."
+#: 미리 보기가 받는 누름 — 표시 줄을 미정으로 돌릴 수 있는 취소 셋(내 시작 취소 · 반장이 남의 시작 취소 · 완료 취소/기본 취소).
+PREVIEW_ACTIONS: tuple[str, ...] = (ACTION_RELEASE, ACTION_REMOVE, ACTION_UNDO)
+_PREVIEW_TEXT_ARGS = ("drawing_key", "part", "action", "seen", "seen_me")
+_PREVIEW_ID_ARGS = ("order_id", "seen_by", "target_user_id")
 
 
 def _ok(data: dict[str, Any]):
@@ -230,3 +240,44 @@ def api_part_marks_basic():
         return _with_crew(bulk_basic(db, user, override, pairs), user)
 
     return _run(_handle)
+
+
+def _preview_body(args: Any) -> dict[str, Any]:
+    """미리 보기 질의 → 한 장 쓰기 몸과 같은 꼴(같은 :func:`_parse_one` 이 검사한다). 번호 칸은 정수로, 빈 ``seen_by`` 는 null(담당 없음으로 봄)."""
+    body: dict[str, Any] = {key: args.get(key) for key in _PREVIEW_TEXT_ARGS if key in args}
+    for key in _PREVIEW_ID_ARGS:
+        if key not in args:
+            continue
+        text = (args.get(key) or "").strip()
+        if text.isascii() and text.isdigit():
+            body[key] = int(text)
+        else:
+            body[key] = None if key == "seen_by" and not text else text  # 숫자가 아닌 글은 _parse_one 이 400 으로 거절
+    return body
+
+
+@production_part_marks_bp.route("/part-marks/cancel-preview", methods=["GET"])
+def api_part_mark_cancel_preview():
+    """[<파트> 시작 취소] · [<파트> 완료 취소] · [기본 취소]를 누르기 전 — 지금 그 취소를 누르면 제작 시작도 같이 취소되는지(``run_cancelled``). 읽기 전용.
+
+    문 · 검사 · 판정은 한 장 쓰기와 같다(같은 ``_parse_one`` · ``_gate_part`` · ``mark_one`` — ``dry`` 라 잠금 · 쓰기만 없다). 누르면 거절될
+    누름(409 — 낡은 화면 · 막힌 주문)은 같이 취소될 것도 없으니 ``False``, 그 밖 거절(400 · 401 · 403 · 404)은 쓰기와 같은 답이다.
+    """
+    db = get_db()
+    try:
+        user = _actor()
+        req = _parse_one(_preview_body(request.args))
+        override = _gate_part(user, req.part)
+        if req.action not in PREVIEW_ACTIONS:
+            raise MarkRefusal(400, "BAD_REQUEST", "누름 값이 올바르지 않아요.")
+        cancelled = bool(mark_one(db, user, override, req, dry=True)["run_cancelled"])
+    except MarkRefusal as refusal:
+        db.rollback()
+        if refusal.status == 409:
+            return _ok({"run_cancelled": False})
+        return _fail(MarkRefusal(refusal.status, refusal.code, refusal.message))
+    except SQLAlchemyError:
+        db.rollback()
+        return _fail(MarkRefusal(500, "READ_FAILED", "확인하지 못했어요. 잠시 뒤 다시 해 주세요."))
+    db.rollback()  # 읽기만 했다 — 세션에 남은 것이 있어도 버린다
+    return _ok({"run_cancelled": cancelled})

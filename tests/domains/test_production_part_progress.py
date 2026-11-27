@@ -124,7 +124,7 @@ def test_no_cards_body_is_exactly_the_old_step_rule():
 def test_cards_order_with_zero_drawings_needs_all_four_steps():
     marks = [_m("gone", "cut", "DONE")]
     body = complete_block_body(_sd(0), marks)
-    assert body["message"] == "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
+    assert body["message"] == "도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요."
     assert complete_ready(_sd(0, on=("cut", "edge", "assemble", "inspect")), marks) is True
 
 
