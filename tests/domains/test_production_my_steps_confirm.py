@@ -9,6 +9,11 @@
 
 되돌리면 실패: 도면 있는 [끝]에 자료가 없음 · 도면 없는 [끝]에 자료가 붙음 · 창이 없거나 둘 · 작업 시트와 다른 창 마크업 · 장 수가 작업 시트와 다름 ·
 Node 에서 [취소]에 POST · 두 번 누름이 [작업 완료]로 · 셸 교체 뒤 창 단추가 안 먹음 · 판이 바뀐 뒤 엉뚱한 주문 저장.
+
+2026-11-27 뒤 결정("도면이 주, 작업 시트는 보기" — test_production_steps_view_only_1127): 도면이 1장이라도 있는 줄은 [끝] 자리가 막힘 칸 링크
+("재단 0/1 · 1장 미완료", 누르면 그 주문 도면 판)라 누를 단추도 물을 창도 없다. 그래서 "도면 있는 [끝]은 묻는다" 시험은 "도면 있는 줄은 [끝]
+없음 · 막힘 칸 · 자료 없음"으로, 창 흐름(Node [취소] · 두 번 누름 · 셸 교체 · 판 바뀜)은 탈 길이 없어 "도면 없는 줄 = 묻지 않고 바로 저장"으로
+바꿨다. 장 수(작업 시트 = 공정 API), 창 조각 · 핀 · 겉틀 CSS 한 번, 보기만은 [끝] · 창 없음, 쿼리 +1 은 그대로 본다.
 """
 from __future__ import annotations
 
@@ -34,7 +39,7 @@ NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
 PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow"}
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 CONFIRM_ATTR = re.compile(r'data-foms-sheet-parts="([^"]+)"')
-PARTS_PIN = "foms-production-sheet-parts.js?v=20261127d"
+PARTS_PIN = "foms-production-sheet-parts.js?v=20261127n"
 REASON_CSS = "css/components/foms-reason-sheet.css?v=20261122t"
 
 
@@ -86,15 +91,18 @@ def _api_sheets(client, oid: int) -> int:
     return client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]["sheets"]
 
 
+CARDS = "재단 0/1 · 1장 미완료"  # 도면 있는 줄의 [끝] 자리(사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
+
+
 def test_tablet_finish_buttons_carry_the_work_sheet_value_only_on_drawn_rows(client, cohort):
     drawn, bare, revising, held = _seed()
     login(client)  # 반장
     set_cookies(client, TABLET)
     page = get_html(client, HOME + "?tab=steps")
-    want = {"parts": {"cut": {"uses_cards": False}}, "sheets": 1}
-    assert _data(pane_html(page, drawn.id)) == want  # 판 [끝]
+    pane = pane_html(get_html(client, HOME + f"?tab=steps&order={drawn.id}"), drawn.id)  # 막힌 줄은 처음 고른 줄에서 빠진다
+    assert "data-foms-step-finish" not in pane and "data-foms-sheet-parts" not in pane and f"<b>{CARDS}</b>" in pane  # 판 [끝] 자리
     row = _row(page, drawn.id)
-    assert "data-foms-home-step-done" in row and _data(row) == want  # 줄 [끝](태블릿 가로에선 CSS 로 숨김 — 같은 자료)
+    assert "data-foms-home-step-done" not in row and "data-foms-sheet-parts" not in row and f">{CARDS}</a>" in row  # 줄 [끝] 자리
     # 같은 서버 값 — 작업 시트 화면 자료 · 공정 API 와 같은 장 수
     assert _work_sheet_sheets(client, drawn.id) == _api_sheets(client, drawn.id) == 1
     # 도면 없는 줄 = 자료 없음(지금처럼 바로 저장 — 단추 마크업 그대로)
@@ -104,8 +112,8 @@ def test_tablet_finish_buttons_carry_the_work_sheet_value_only_on_drawn_rows(cli
         assert f'data-foms-home-step-done data-order-id="{oid}"' not in page and f'data-foms-step-finish data-order-id="{oid}"' not in page
     # 창 = 화면에 하나, 작업 시트와 같은 조각 · 같은 파일(같은 핀)
     assert page.count("data-foms-sheet-confirm hidden") == 1
-    assert _dialog(page) == _dialog(get_html(client, f"/erp/production/sheet/{drawn.id}"))
-    assert page.count(PARTS_PIN) == 1 and PARTS_PIN in get_html(client, f"/erp/production/sheet/{drawn.id}")
+    assert _dialog(page) == _dialog(get_html(client, f"/erp/production/sheet/{bare.id}"))
+    assert page.count(PARTS_PIN) == 1 and PARTS_PIN in get_html(client, f"/erp/production/sheet/{bare.id}")
     assert page.count(REASON_CSS) == 1  # 겉틀(판 화면은 몸통이 [보류] 사유 창과 같이 싣는다 — 두 번 싣지 않는다)
 
 
@@ -117,7 +125,8 @@ def test_phone_and_pc_rows_use_the_same_data_and_dialog(client, cohort, where):
     if where == "pc":
         client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")  # [고치기] 켬(2시간 안)
     page = get_html(client, HOME + "?tab=steps")
-    assert _data(_row(page, drawn.id)) == {"parts": {"cut": {"uses_cards": False}}, "sheets": 1}
+    row = _row(page, drawn.id)
+    assert "data-foms-sheet-parts" not in row and "data-foms-home-step-done" not in row and f">{CARDS}</a>" in row
     assert "data-foms-sheet-parts" not in _row(page, bare.id) and "data-foms-home-step-done" in _row(page, bare.id)
     assert page.count("data-foms-sheet-confirm hidden") == 1 and page.count(PARTS_PIN) == 1 and page.count(REASON_CSS) == 1
 
@@ -203,15 +212,16 @@ def _node(tmp_path, page: str, want: dict) -> None:
     assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
 
 
-WORDS = {"key": "cut", "title": "재단 완료할까요?", "text": "이 주문의 도면 1장이 모두 재단 완료로 처리돼요."}
+WORDS = {"key": "cut", "cards": CARDS}
 
 
 def test_node_tablet_panel_asks_once_cancel_posts_nothing_and_double_tap_is_dropped(client, cohort, tmp_path):
+    """옛 "한 번 묻기" 판 — 도면 있는 줄은 이제 [끝]이 없다(막힘 칸 링크 · 창 숨김 · 요청 0, 사장님 2026-11-27)."""
     drawn, bare, _revising, _held = _seed()
     login(client)
     set_cookies(client, TABLET)
-    page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
-    _node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 1, "next": bare.id, **WORDS})
+    page = get_html(client, HOME + f"?tab=steps&order={drawn.id}&view=fragment", SHELL)
+    _node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 1, **WORDS})
 
 
 def test_node_tablet_panel_without_drawings_saves_at_once(client, cohort, tmp_path):

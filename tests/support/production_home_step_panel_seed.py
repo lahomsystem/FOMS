@@ -73,13 +73,14 @@ def add_order(name, off, *, done=(), run=True, hold=None, pngs=2, pdfs=0, handle
 
 
 def seed_cut_queue():
-    """목업 ③ 재단 줄: 박서준(그림 1장 · 손잡이 없음) · 김하늘(1장) · 한지우(보류) · 오민재(도면 없음) + 엣지 1.
+    """목업 ③ 재단 줄: 박서준(손잡이 없음) · 김하늘 · 한지우(보류) · 오민재(도면 없음) + 엣지 1.
 
-    박서준 · 김하늘은 도면 1장 — 도면이 여러 장인 주문은 [<공정> 완료] 자리가 막힌다(사장님 2026-11-27 "도면 두 장 이상이면 막기",
-    test_production_per_sheet_only_1127). 그림 여러 장 뷰어는 :func:`add_order` 의 ``pngs`` 로 따로 만든다.
+    박서준 · 김하늘은 도면 0장 — 도면이 한 장이라도 있는 주문은 [<공정> 완료] 자리가 막힘 칸 링크다(사장님 2026-11-27 "도면 두 장 이상이면
+    막기" → 같은 날 "도면이 주, 작업 시트는 보기", test_production_steps_view_only_1127). 그림 있는 판(640 그림 · 원본 뷰어)은
+    :func:`add_order` 의 ``pngs`` 로 따로 만들어 주소 ``order=`` 로 고른다.
     """
-    a = add_order("박서준", 1, pngs=1, handle="없음")
-    b = add_order("김하늘", 2, pngs=1, color="화이트 오크")
+    a = add_order("박서준", 1, pngs=0, handle="없음")
+    b = add_order("김하늘", 2, pngs=0, color="화이트 오크")
     c = add_order("한지우", 3, hold="고객 연락 기다림", handle="블랙", color="화이트",
                items=(("키큰장", "600", "600", "2300"),), started=datetime.datetime(2026, 11, 20, 7, 10))
     d = add_order("오민재", 5, pngs=0)

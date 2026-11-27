@@ -290,7 +290,9 @@ def test_창_단추_권한은_쓰기_길과_한_규칙_보기만_생산팀은_�
     assert _get(client, oid, "cut").get_json()["data"]["can_write"] is True
     assert _post(client, "/api/production/part-marks", {"order_id": oid, "drawing_key": key, "part": "cut", "action": "take",
                                                        "seen": "none"}).status_code == 200
-    assert _post(client, f"/api/orders/{oid}/production/steps", {"key": "edge", "done": True}).status_code == 200
+    # 공정 칸 켜기 = 권한 문은 지나고(403 아님) 도면이 있어 409 STEP_PER_SHEET(사장님 2026-11-27 "도면이 주, 작업 시트는 보기", 옛 단언 200)
+    edge = _post(client, f"/api/orders/{oid}/production/steps", {"key": "edge", "done": True})
+    assert edge.status_code == 409 and edge.get_json()["data"]["code"] == "STEP_PER_SHEET"
 
 
 def test_질의가_틀리면_400_없는_주문_404_쿼리_셋(client, cohort) -> None:
@@ -338,12 +340,17 @@ def test_완료_처리_한_요청_뒤_칸이_3_5_그리고_완료_취소(client,
 
 
 def test_모두_체크는_공정_칸_길_그대로이고_칸이_채워진다(client, cohort) -> None:
-    oid = _order("제갈하늘", 1, done=("cut",)).id  # 도면 1장(여러 장은 [모두 완료 처리]가 없다 — 사장님 2026-11-27)
+    """2026-11-27 사장님 "도면이 주, 작업 시트는 보기": 도면이 있는 주문은 창에 [모두 완료 처리]가 없고 공정 칸 켜기도 409(옛 단언 — [모두 완료
+    처리] 참 · 켜기 200 · 칸 둘 채움 — 를 막힘 단언으로). 손으로 켜 둔 옛 칸(재단)은 창 머리 [모두 완료 취소](끄기) 길이 그대로 남는다."""
+    oid = _order("제갈하늘", 1, done=("cut",)).id
     _login(client, _user("반장"))
     before = _get(client, oid, "edge").get_json()["data"]
-    assert before["all"] is True and 'class="fpc-s is-done"' in before["cells_html"]  # 재단은 이미 칸 체크(손)
+    assert before["all"] is False and 'class="fpc-s is-done"' in before["cells_html"]  # 재단은 이미 칸 체크(손)
     resp = _post(client, f"/api/orders/{oid}/production/steps", {"key": "edge", "done": True})
-    assert resp.status_code == 200, resp.get_json()
+    assert resp.status_code == 409 and resp.get_json()["data"]["code"] == "STEP_PER_SHEET"
     after = _get(client, oid, "edge").get_json()["data"]
-    assert after["hand_off"] is True and after["all"] is False and after["hand"].startswith("엣지 완료 · ")
-    assert after["cells_html"].count('class="fpc-s is-done"') == 2 and "조립 작업 중" in after["status_html"]
+    assert after["hand_off"] is False and after["all"] is False and after["cells_html"].count('class="fpc-s is-done"') == 1
+    cut = _get(client, oid, "cut").get_json()["data"]
+    assert cut["hand_off"] is True and cut["hand"].startswith("재단 완료 · 박반장")  # 옛 손 칸 끄기 길
+    off = _post(client, f"/api/orders/{oid}/production/steps", {"key": "cut", "done": False})
+    assert off.status_code == 200 and _get(client, oid, "cut").get_json()["data"]["hand_off"] is False

@@ -14,6 +14,9 @@
 409 ``STEP_PER_SHEET``) 위 창 · 알림이 화면에 나올 길이 없다. 여기 시험은 ① 그 줄 · 판 · PC 창에 [끝] · [모두 완료 처리]가 없음 ② 낡은 화면
 (도면 1장일 때 그린 [끝])을 누르면 서버 거절 글이 그 화면의 지금 실패 자리에 그대로 · 다시 받기 0 · 되돌리기 0 ③ 도면 1장 주문의 PC
 [모두 완료 처리] 확인 창은 지금 글 그대로(대조군)를 지킨다.
+
+같은 날 뒤 결정(사장님 2026-11-27 "도면이 주, 작업 시트는 보기"): 도면 1장 주문도 [끝] · [모두 완료 처리]가 없다 — 낡은 화면은 "도면 0장일 때 그린 [끝]"(묻지 않고 바로 보냄)으로,
+③은 "도면 1장 주문도 [모두 완료 처리] 없음"으로 바꿨다.
 """
 from __future__ import annotations
 
@@ -133,9 +136,9 @@ def _run_js(tmp_path, page: str, answer: dict, scripts: list[str], steps: str) -
 
 
 def test_node_row_finish_after_expand_shows_the_done_words_keeps_the_row_and_no_undo(client, cohort, tmp_path):
-    """낡은 폰 줄 [끝](도면 1장일 때 그림) — 그사이 도면이 3장이 된 주문: 확인 창(그린 때 글) → [재단 완료] → 진짜 409 STEP_PER_SHEET 글이
+    """낡은 폰 줄 [끝](도면 0장일 때 그림 — 묻지 않음) — 그사이 도면이 3장이 된 주문: [재단 완료] → 진짜 409 STEP_PER_SHEET 글이
     상태 줄에 그대로 · [끝]은 다시 누를 수 있게 남음 · 다시 받기 0."""
-    ready = add_order("가짜고침집", 1, pngs=1).id
+    ready = add_order("가짜고침집", 1, pngs=0).id
     home_login(client)
     set_cookies(client, PHONE)
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
@@ -144,11 +147,8 @@ def test_node_row_finish_after_expand_shows_the_done_words_keeps_the_row_and_no_
     assert res.status_code == 409 and res.get_json()["data"]["code"] == "STEP_PER_SHEET"
     steps = f"""
   const btn = $('[data-foms-home-step-done][data-order-id="{ready}"]');
-  btn.click(); await flush(); await flush();
-  assert.ok(!dlg().hidden);
-  assert.strictEqual(dlg().querySelector('[data-foms-sheet-confirm-body]').textContent, '이 주문의 도면 1장이 모두 재단 완료로 처리돼요.');
-  await sleep(450);
-  dlg().querySelector('[data-foms-sheet-confirm-yes]').click(); await flush(); await flush(); await flush();
+  btn.click(); await flush(); await flush(); await flush();
+  assert.ok(!dlg() || dlg().hidden, '도면 0장 때 그린 [끝] = 묻지 않는다');
   assert.strictEqual(calls.fetch.filter((c) => c.method === 'POST').length, 1);
   assert.strictEqual($('[data-foms-home-status]').textContent, {json.dumps(STEP_PER_SHEET_MESSAGE, ensure_ascii=False)});
   assert.strictEqual(calls.reload, 0, '다시 받기 없음');
@@ -159,9 +159,9 @@ def test_node_row_finish_after_expand_shows_the_done_words_keeps_the_row_and_no_
 
 
 def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(client, cohort, tmp_path):
-    """낡은 가로 판 [<공정> 완료] — 그사이 도면이 3장이 된 주문: 진짜 409 STEP_PER_SHEET 글이 판 상태 줄에 그대로 · [되돌리기] 없음 · 다음
-    손님으로 안 넘어감."""
-    ready = add_order("가짜고침집", 1, pngs=1).id
+    """낡은 가로 판 [<공정> 완료](도면 0장일 때 그림) — 그사이 도면이 3장이 된 주문: 진짜 409 STEP_PER_SHEET 글이 판 상태 줄에 그대로 ·
+    [되돌리기] 없음 · 다음 손님으로 안 넘어감."""
+    ready = add_order("가짜고침집", 1, pngs=0).id
     add_order("가짜다음집", 2, pngs=0)
     home_login(client)
     set_cookies(client, TABLET)
@@ -171,10 +171,8 @@ def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(clien
     assert answer["data"]["code"] == "STEP_PER_SHEET"
     steps = f"""
   const pane = $('[data-foms-step-pane="{ready}"]');
-  pane.querySelector('[data-foms-step-finish]').click(); await flush(); await flush();
-  assert.ok(!dlg().hidden);
-  await sleep(450);
-  dlg().querySelector('[data-foms-sheet-confirm-yes]').click(); await flush(); await flush(); await flush();
+  pane.querySelector('[data-foms-step-finish]').click(); await flush(); await flush(); await flush();
+  assert.ok(!dlg() || dlg().hidden, '묻지 않는다');
   const line = pane.querySelector('[data-foms-sheet-status]');
   assert.strictEqual(line.textContent, {json.dumps(STEP_PER_SHEET_MESSAGE, ensure_ascii=False)});
   assert.ok(line.classList.contains('is-bad'));
@@ -189,7 +187,7 @@ def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(clien
 
 def test_node_pc_window_all_button_asks_with_the_new_body(client, cohort, tmp_path):
     """판결 C 이던 것 — PC 공정 칸 창: 도면 3장 주문(막힌 도면 있음 · 없음 둘 다)은 [모두 완료 처리]가 없고(사장님 2026-11-27), 도면 1장
-    주문은 지금 확인 창 글 그대로(대조군). PC 로 연 작업 시트에서."""
+    주문도 없다(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 옛 대조군 "1장은 확인 창 글 그대로"를 없음 단언으로). PC 로 연 작업 시트에서."""
     ready, plain = add_order("가짜고침집", 1, pngs=3).id, add_order("가짜도면집", 2, pngs=3).id
     one = add_order("가짜한장집", 3, pngs=1).id
     _fixing(ready, 1)
@@ -198,7 +196,7 @@ def test_node_pc_window_all_button_asks_with_the_new_body(client, cohort, tmp_pa
     client.set_cookie(EDIT_COOKIE, str(int(time.time())), domain="localhost", path="/erp/production")
     scripts = ["static/js/production/foms-production-sheet-parts.js", "static/js/production/foms-production-pc-sheet-write.js",
                "static/js/production/foms-production-pc-sheet.js"]
-    for oid, text in ((ready, None), (plain, None), (one, "이 주문의 도면 1장이 모두 재단 완료로 처리돼요.")):
+    for oid, text in ((ready, None), (plain, None), (one, None)):
         page = get_html(client, f"/erp/production/sheet/{oid}")
         answer = {f"/api/production/part-sheet?order_id={oid}&part=cut":
                   client.get(f"/api/production/part-sheet?order_id={oid}&part=cut").get_json()}

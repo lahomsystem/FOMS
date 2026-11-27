@@ -114,9 +114,10 @@ def test_pc_window_rows_are_one_piece_per_person(client, cohort) -> None:
     assert [r["undo_releases"] for r in rows] == [False, False, False, False, True]  # 나 혼자 시작 + 완료한 장만
     for r in rows:  # 한 명짜리 옛 칸(담당 · 완료 · 본 담당)은 PC 창 자료에서 뺐다 — 줄 글은 lines 하나
         assert not {"holder", "done", "seen_by"} & set(r), r
-    # 작업 시트 공정 칸 옆 글은 도면 수 그대로 — "1/2 완료"는 도면 한 장 자리에만(Q11)
+    # 작업 시트 공정 줄은 도면 수 그대로 — "1/2 완료"는 도면 한 장 자리에만(Q11). 2026-11-27 "도면이 주, 작업 시트는 보기": 칸 옆 글
+    # "도면 2/5 · 3장 미완료" 대신 보기 줄 "재단 2/5 완료 · …"(test_production_steps_view_only_1127)
     sheet = client.get(f"/erp/production/sheet/{oid}").get_data(as_text=True)
-    assert "도면 2/5 · 3장 미완료" in sheet and "1/2 완료" not in sheet
+    assert '<span>재단</span> <small class="fpp-note is-run">2/5 완료 · ' in sheet and "1/2 완료" not in sheet
 
 
 def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohort, tmp_path) -> None:
@@ -245,13 +246,17 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
     from tests.domains.test_production_my_steps_confirm import PC as STEPS_PC, WORDS, _node as steps_node, _seed as steps_seed
     from tests.support.production_home_step_panel_seed import SHELL, get_html, login as steps_login, pane_html, set_cookies
 
+    # 2026-11-27 "도면이 주, 작업 시트는 보기": 도면 있는 줄은 [재단 완료]가 없다 — [재단 완료]가 남는 도면 0장 줄 둘로 잰다
+    from tests.support.production_home_step_panel_seed import add_order
+
     drawn, bare, _revising, _held = steps_seed()
+    add_order("가짜빈집둘", 5, pngs=0)  # 판 아래 '끝내면 다음은' 손님(막히지 않은 다음 줄)
     steps_login(client)
     set_cookies(client, TABLET)
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
-    assert "끝내면 다음은 <b>" in pane_html(page, drawn.id)  # 판 아래 다음 손님 글 그대로
-    steps_node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 1, "next": bare.id, **WORDS,
-                                "done_status": f"{drawn.customer_name} 재단 완료"})
+    assert "끝내면 다음은 <b>가짜빈집둘</b>" in pane_html(page, bare.id)  # 판 아래 다음 손님 글 그대로
+    steps_node(tmp_path, page, {"mode": "panel", "first": bare.id, "sheets": 0, **WORDS,
+                                "done_status": f"{bare.customer_name} 재단 완료"})
     set_cookies(client, STEPS_PC)
     client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
@@ -261,7 +266,7 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
 
 def test_finished_rows_say_inspect_done_and_my_steps_button_says_done(client, cohort) -> None:
     full = _order("다솜", 2, done=("cut", "edge", "assemble", "inspect"))
-    cutting = _order("라온", 1)  # 도면 1장(여러 장 줄은 [재단 완료] 자리가 막힌다 — 사장님 2026-11-27)
+    cutting = _order("라온", 0)  # 도면 0장(도면 있는 줄은 [재단 완료] 자리가 막힌다 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
     fid, cid, day = full.id, cutting.id, full.erp_construction_date
     boss = make_user("박반장", lead=True)
     _login(client, boss)

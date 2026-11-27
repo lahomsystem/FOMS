@@ -51,6 +51,9 @@ def test_끝_불량_보류는_지금_API_길을_부른다_Node(client, cohort, t
         pytest.skip("node 없음")
     login(client)
     a, b, c, d, e = seed_cut_queue()
+    # 그림 있는 판 — 도면 있는 줄은 [끝] 자리가 막힘 칸(사장님 2026-11-27 "도면이 주, 작업 시트는 보기")이라 재단 첫 판(박서준 · 도면 0장)에는
+    # 그림이 없다. 엣지 줄 맨 앞(시공일이 엣지집보다 빠름)에 그림 1장 주문을 두어 그 판으로 원본 뷰어를 잰다
+    pic = add_order("그림엣지집", 3, done=("cut",), pngs=1)
     set_cookies(client, TABLET)
     frag = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
     page = tmp_path / "steps.html"
@@ -59,7 +62,7 @@ def test_끝_불량_보류는_지금_API_길을_부른다_Node(client, cohort, t
     held = tmp_path / f"panel_{c.id}.html"
     held.write_text(get_html(client, panel_url("cut", c.id)), encoding="utf-8")
     want = {"first": a.id, "first_name": "박서준", "hold": c.id, "next": b.id, "key": "cut", "label": "재단", "pin": None,
-            "other_tab": "edge", "other_url": f"{HOME}?tab=steps&order={e.id}", "panels": {str(c.id): str(held)}}
+            "other_tab": "edge", "other_url": f"{HOME}?tab=steps&order={pic.id}", "viewer": pic.id, "panels": {str(c.id): str(held)}}
     proc = subprocess.run([node, str(NODE_CHECK), str(page), json.dumps(want, ensure_ascii=False)], capture_output=True,
                           text=True, encoding="utf-8", timeout=60)
     assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
