@@ -7,7 +7,7 @@
 * 그대로인 것(대조군): [같이 작업] · [시작 취소] · [기본] · 서버 넘김 글 · 작업 시트 바뀐 기록 낱말('작업 시작').
 * 바로 반영: 위 탭 숫자는 서버가 그릴 때만 적혀(쓰기 응답 · 30초 받아 오기는 카드만) 옛 숫자였고, 셸이 60초 받아 둔 탭 사본을 다시 끼웠다.
   쓰기 성공 → parts.js 가 'foms:prod-parts-written' → parts-fresh.js 가 위 탭 · 지금 주소 셸 사본을 버리고(요청 0), 주문 칸이 바뀐
-  쓰기(제작 시작 · 공정 칸 · 제작 완료)만 ``?view=counts`` 한 번(그리기 없이 숫자). 쓰기 길 쿼리는 그대로.
+  쓰기(제작 시작 · 그 시작 되돌림 ``run_cancelled`` · 공정 칸 · 제작 완료)만 ``?view=counts`` 한 번(그리기 없이 숫자). 쓰기 길 쿼리는 그대로.
 """
 from __future__ import annotations
 
@@ -144,6 +144,30 @@ def test_counts_view_matches_the_drawn_tabs_and_moves_with_first_card(client, co
     assert _counts(client) == after
 
 
+def test_start_cancel_rollback_recounts_and_remaining_number_goes_down(client, cohort):
+    """시작 취소로 제작 대기로 돌아가면(run_cancelled — 2026-11-27 start_rollback) '남은 공정 N'이 그 자리에서 준다. 서버 답은 진짜 API JSON."""
+    admin = make_user("관리", team="CS", role="ADMIN")
+    order = make_order(2, run=False)
+    login(client, admin)
+    before = _counts(client)
+    assert _take(client, admin, order, 0)["data"]["run_started"] is True
+    during = client.get(COUNTS).get_json()
+    assert during["data"]["counts"]["making"] == before["making"] + 1
+    cancel = {"order_id": order.id, "drawing_key": order.keys[0], "part": "cut", "action": "release", "seen": "need",
+              "seen_me": "held", "seen_by": admin.id}
+    released = _post(client, admin, cancel)["data"]
+    assert (released["run_cancelled"], released["run_started"], released["order_step"]) == (True, False, None)
+    reply = client.get(COUNTS).get_json()
+    assert reply["data"]["counts"] == before  # 서버 숫자가 원래대로
+    tabs = [dict(t, small=str(during["data"]["counts"]["making"])) if "tab=steps" in t["href"] else t for t in ADMIN_TABS]
+    out = _fresh({"tabs": tabs, "here": HERE, "reply": reply, "steps": [
+        {"type": "foms:prod-parts-written", "detail": {"action": "release", "data": released}},
+        {"type": "foms:prod-parts-written", "detail": {"action": "release", "data": dict(released, run_cancelled=False)}}]})
+    assert out[0]["calls"] == [{"url": COUNTS, "method": "GET", "cache": "no-store"}]
+    assert out[0]["smalls"][1] == {"text": str(before["making"]), "hot": False}  # 화면 숫자가 그 자리에서 준다
+    assert out[1]["calls"] == []  # 음성 대조 — 다른 도면이 남아 제작 시작이 그대로인 시작 취소는 받지 않는다
+
+
 def test_counts_view_is_lighter_than_a_screen_and_the_write_path_is_unchanged(client, cohort):
     admin = make_user("관리", team="CS", role="ADMIN")
     order = make_order(4, run=False)
@@ -178,7 +202,7 @@ def _fresh(want: dict) -> list:
 def test_js_written_event_drops_tab_copies_and_recounts_only_on_order_change(client, cohort):
     admin = make_user("관리", team="CS", role="ADMIN")
     make_order(2, run=False)
-    assert "foms-production-parts-fresh.js?v=20261127k" in _page(client, admin, HOME_NONE + "&tab=parts&part=cut")
+    assert "foms-production-parts-fresh.js?v=20261127t" in _page(client, admin, HOME_NONE + "&tab=parts&part=cut")
     reply = client.get(COUNTS).get_json()  # 진짜 서버 답
     reply["data"]["counts"]["changed"] = 2  # '바뀐 것' 빨간 점 켜짐도 본다(숫자만 바꾼 같은 꼴)
     making = reply["data"]["counts"]["making"]
@@ -220,5 +244,5 @@ def test_source_contract_written_event_and_script_order():
     shell = (ROOT / "static/js/runtime/erp-shell.js").read_text(encoding="utf-8")
     assert "window.FOMS_ERP_SHELL.invalidateFragmentCache = invalidateFragmentCache;" in shell  # 쓰는 셸 문은 이미 있는 것
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    assert tpl.index("foms-production-parts-sync.js") < tpl.index("foms-production-parts-fresh.js') }}?v=20261127k")
-    assert "foms-production-parts.js') }}?v=20261127k" in tpl
+    assert tpl.index("foms-production-parts-sync.js") < tpl.index("foms-production-parts-fresh.js') }}?v=20261127t")
+    assert "foms-production-parts.js') }}?v=20261127t" in tpl
