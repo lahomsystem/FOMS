@@ -59,12 +59,6 @@
    * 2026-11-21 9탭의 생산 칸이 되어(FRESH_TTL_PATHS) 지금은 비었다 — 둘 다에 두면 하트비트가 한 주소를 두 번 받는다.
    */
   var LINKED_FRESH_PATHS = [];
-  /**
-   * 9탭에서 빠진 옛 생산 보드(2026-11-21) — 첫 화면 [보드 →] · 켜진 프리랜서 메뉴 · 첫 화면을 못 보는 사람의 생산 칸이 여기로
-   * 온다. 조각 규약은 그대로라 다른 하위 화면처럼 바꿔 끼운다 — 9탭 하트비트 · fresh 목록에는 없어서, 미리 받기는 링크에
-   * 마우스를 올리거나 서랍을 열 때뿐이다.
-   */
-  var LEGACY_SWAP_PATHS = ['/erp/production/dashboard'];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
@@ -385,7 +379,7 @@
     if (p === '/erp/shipment-settings') {
       return true;
     }
-    if (LINKED_FRESH_PATHS.indexOf(p) >= 0 || LEGACY_SWAP_PATHS.indexOf(p) >= 0) {
+    if (LINKED_FRESH_PATHS.indexOf(p) >= 0) {
       return true;
     }
     if (/^\/erp\/drawing-workbench\/\d+$/.test(p)) {
@@ -467,10 +461,10 @@
     }
   }
 
-  /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast(옛 생산 보드도 — 배지 신선도, Q2). */
+  /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast(배지 신선도, Q2). */
   function cacheTtlForKey(key) {
     var path = key.split('?')[0];
-    return FRESH_TTL_PATHS.indexOf(path) >= 0 || LEGACY_SWAP_PATHS.indexOf(path) >= 0
+    return FRESH_TTL_PATHS.indexOf(path) >= 0
       || LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
   }
 

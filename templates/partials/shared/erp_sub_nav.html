@@ -34,7 +34,7 @@
     <span>도면작업실</span>
   </a>
   {% endif %}
-  {# 생산(설계서 2026-11-21-production-pc-viewer §9-2): 첫 화면을 여는 사람은 첫 화면, 그 밖은 옛 보드 — 판정은 한 곳
+  {# 생산(설계서 2026-11-21-production-pc-viewer §9-2): 누구든 첫 화면(2026-11-27 옛 보드 없앰) — 주소는 한 곳
      (production_nav_href, foms/services/production/nav_target.py). 시공팀도 보인다(§13 결정 5, 보기만). #}
   <a class="erp-pro-nav-item {% if _active == 'production' %}active{% endif %}"
     href="{{ production_nav_href() }}">

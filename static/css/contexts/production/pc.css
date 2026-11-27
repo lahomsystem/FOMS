@@ -41,9 +41,7 @@
   --fpc-basic-700: #075985;
 }
 
-/* ── 제목 줄: [보드 →] · 보기 전용 표 · [고치기] · 주황 띠 ── */
-.foms-prod-home__navtab.fpc-board { gap: 6px; border-left: 1px solid var(--fpc-line2); border-radius: 0 9px 9px 0; }
-.fpc-board svg { font-size: calc(16px * var(--foms-fs, 1)); stroke-width: 2.6; }
+/* ── 제목 줄: 보기 전용 표 · [고치기] · 주황 띠 ── */
 .fpc-view { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; border: 1.5px solid var(--fpc-teal-line); border-radius: 999px; background: var(--fpc-teal-50); color: var(--fpc-teal); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 .fpc-view svg, .fpc-edit svg, .fpc-band svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .fpc-edit { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 18px; border: 1.5px solid var(--fpc-warn-line); border-radius: 10px; background: #fff; color: var(--fpc-warn-ink); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; cursor: pointer; }
