@@ -170,3 +170,23 @@ def test_production_login_with_legacy_next_lands_on_production_home(client, app,
     )
     assert response.status_code == 302
     assert response.headers["Location"].endswith(PRODUCTION_HOME)
+
+
+def test_production_root_redirects_to_production_home(client, app) -> None:
+    user = _create_user("prod_root_user", team="PRODUCTION", role="STAFF")
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    response = client.get("/", follow_redirects=False, headers={"User-Agent": DESKTOP_UA})
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(PRODUCTION_HOME)
+
+
+def test_cs_desktop_login_is_unchanged_by_production_landing(client, app) -> None:
+    _create_user("cs_desktop_user")
+    response = _login(
+        client, username="cs_desktop_user", follow_redirects=False, headers={"User-Agent": DESKTOP_UA}
+    )
+    assert response.status_code == 302
+    assert not response.headers["Location"].endswith(PRODUCTION_HOME)

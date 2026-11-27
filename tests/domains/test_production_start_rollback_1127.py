@@ -468,16 +468,19 @@ def test_js_status_says_start_was_cancelled_too_and_first_drawing_line_returns(c
     take = {"order_id": order.id, "drawing_key": k[0], "part": "cut", "action": "take", "seen": "none", "seen_me": "none"}
     release = {"order_id": order.id, "drawing_key": k[0], "part": "cut", "action": "release", "seen": "need", "seen_me": "held",
                "seen_by": kim.id}
-    replies = [_post(client, kim, take), _post(client, kim, release)]
-    assert (replies[0]["data"]["run_started"], replies[1]["data"]["run_cancelled"]) == (True, True)
-    res = _node(page, {"posts": replies, "steps": [
+    took = _post(client, kim, take)
+    shown = client.get("/api/production/part-marks/cancel-preview", query_string=release).get_json()  # 창이 묻는 답(진짜) — 줄이 뜬다
+    sent = {**release, "seen_cancel": True}  # 화면이 보내는 몸 = 줄이 보였다(11-27 "창에 보인 대로만 된다" — 줄 없이 보내면 서버가 멈춘다)
+    replies = [took, _post(client, kim, sent)]
+    assert (replies[0]["data"]["run_started"], shown["data"]["run_cancelled"], replies[1]["data"]["run_cancelled"]) == (True, True, True)
+    res = _node(page, {"posts": replies, "previews": [shown], "steps": [
         {"do": "click", "key": k[0], "act": "take"}, {"do": "run"},
         {"do": "click", "key": k[1], "act": "take"}, {"do": "close"},
         {"do": "click", "key": k[0], "act": "release"}, {"do": "run"},
         {"do": "click", "key": k[1], "act": "take"}, {"do": "close"},
         {"do": "card", "key": k[0]}]})
     out, calls = res["out"], res["calls"]
-    assert [c["body"] for c in calls] == [take, release]  # 화면이 보내는 몸 = 위에서 진짜 API 에 보낸 몸
+    assert [c["body"] for c in calls] == [take, sent]  # 화면이 보내는 몸 = 위에서 진짜 API 에 보낸 몸
     assert out[0]["modal"]["body"] == FIRST_LINE and out[1]["status"] == "재단 시작했어요 · 제작 시작도 같이 됐어요"
     assert out[2]["modal"]["body"] == ""  # 제작이 시작돼 다른 도면도 첫 도면 안내가 없다
     assert out[5]["sent"] == 1 and out[5]["status"] == "재단 시작 취소했어요 · 제작 시작도 같이 취소됐어요"  # 11-27 누른 단추 [재단 시작 취소] 그대로

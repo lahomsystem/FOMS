@@ -319,7 +319,7 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     assert out[1]["sent"] == 0 and (w1["title"], w1["line"], w1["run"]["text"]) == (
         "재단 같이 작업할까요?", "이시영 · 김재단 작업 중 → 이시영 · 김재단 외 1 작업 중", "재단 같이 작업")  # 고르기 창 [같이 작업] → 카드와 같은 창
     assert w1["note"].startswith("이시영 · 김재단이 ") and w1["note"].endswith("같이 작업하면 모두 [재단 완료]를 눌러야 완료돼요.")
-    assert [c["body"] for c in calls] == [remove] and out[4]["sent"] == 1
+    assert [c["body"] for c in calls] == [{**remove, "seen_cancel": False}] and out[4]["sent"] == 1  # 취소 창이 보여 준 것까지(줄 없음 — 11-27 "창에 보인 대로만 된다")
     after = out[5]["card"]  # 남은 사람(이시영)이 모두 완료 = 저절로 완료(Q6) — 상태 줄은 한 명 완료 때와 같은 지금 글
     assert after["state"] == "done" and after["act"][0]["text"] == "재단 완료 · 이시영" and out[4]["status"] == "김재단 시작 취소했어요"
 

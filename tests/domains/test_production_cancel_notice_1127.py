@@ -15,6 +15,8 @@
   [완료 취소] · [기본 취소] 창(사장님 11-27 "여기도 미리 알리기")은 ``test_production_cancel_notice_undo_1127.py``.
 
 되돌리면 실패: 줄이 떴는데 안 취소됨 / 안 떴는데 취소됨 / 미리 보기가 표시 · 주문을 바꿈 / 다른 창에 늦은 답이 줄을 넣음.
+2026-11-27 덧붙임 둘("창에 보인 대로만 된다"): 화면 쓰기 몸에 ``seen_cancel``(창이 그 단추에 대해 보여 준 것)이 실린다 — 서버 거절 · 창이 다시
+묻는 흐름은 ``test_production_cancel_stale_1127.py``. 취소 창 조각은 ``foms-production-parts-cancel.js`` 로 옮겼다(동작 그대로).
 이름은 모두 지어낸 값이다.
 """
 from __future__ import annotations
@@ -330,13 +332,14 @@ def test_js_release_dialog_shows_the_line_only_when_the_server_says_so(client, c
     rel0 = {"order_id": order.id, "drawing_key": k[0], "part": "cut", "action": "release", "seen": "need", "seen_me": "held",
             "seen_by": kim.id}
     rel1 = {**rel0, "drawing_key": k[1]}
+    sent1, sent0 = {**rel1, "seen_cancel": False}, {**rel0, "seen_cancel": True}  # 화면이 보내는 몸 = 묻는 칸 + 그 창이 보여 준 것
     posts = [_post(client, kim, take0)]
     yes = _answer(client, kim, rel0)  # 도면 1 만 시작한 때 — 서버 답 True
     posts.append(_post(client, kim, take1))
     no = _answer(client, kim, rel0)  # 도면 둘을 시작한 때 — False
-    posts.append(_post(client, kim, rel1))
+    posts.append(_post(client, kim, sent1))
     last = _answer(client, kim, rel0)  # 도면 2 를 취소한 뒤 — 다시 True
-    posts.append(_post(client, kim, rel0))
+    posts.append(_post(client, kim, sent0))
     assert [a["data"]["run_cancelled"] for a in (yes, no, last)] == [True, False, True]
     assert posts[3]["data"]["run_cancelled"] is True and posts[2]["data"]["run_cancelled"] is False
     res = _node(page, {"posts": posts, "previews": [yes, no, no, last], "steps": [
@@ -360,8 +363,8 @@ def test_js_release_dialog_shows_the_line_only_when_the_server_says_so(client, c
     assert out[12]["sent"] == 1 and out[12]["status"] == "재단 시작 취소했어요"
     assert out[14]["modal"]["body"] == CANCEL_LINE
     assert out[15]["sent"] == 1 and out[15]["status"] == "재단 시작 취소했어요" + CANCELLED_TAIL
-    assert [c["body"] for c in calls] == [take0, take1, rel1, rel0]  # 쓰기는 지금 그대로 넷
-    assert [_query(u) for u in previews] == [_as_query(b) for b in (rel0, rel0, rel1, rel0)]  # 묻는 칸 = 그 창이 보낼 몸 그대로
+    assert [c["body"] for c in calls] == [take0, take1, sent1, sent0]  # 쓰기는 지금 그대로 넷 — 취소 둘에만 창이 보여 준 것(줄 없음 · 줄 있음)
+    assert [_query(u) for u in previews] == [_as_query(b) for b in (rel0, rel0, rel1, rel0)]  # 묻는 칸 = 그 창이 보낼 몸(본 것 칸만 빼고)
 
 
 def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, cohort, tmp_path):
@@ -373,22 +376,30 @@ def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, 
     rel0 = _body(order, seen_by=kim.id)
     yes = _answer(client, kim, rel0)
     assert yes["data"]["run_cancelled"] is True
-    res = _node(page, {"posts": [_post(client, kim, rel0)], "previews": ["__hang", {"__hold": yes}, {"__status": 500, "body": {}}],
+    stopped = _post(client, kim, {**rel0, "seen_cancel": False})  # 줄 없이 열린 창의 누름 — 진짜 서버는 멈춘다(같이 취소될 차례)
+    assert stopped["__status"] == 409 and stopped["body"]["data"] == {"code": "CANCEL_NOTICE_STALE"}
+    done = _post(client, kim, {**rel0, "seen_cancel": True})
+    res = _node(page, {"posts": [stopped, done], "previews": ["__hang", {"__hold": yes}, {"__status": 500, "body": {}}, yes],
                        "steps": [
         {"do": "click", "key": k[0], "act": "release"}, {"do": "run"},    # 0 1  답이 안 옴 — 눌러도 안 나간다
         {"do": "timers"}, {"do": "modal"}, {"do": "close"},               # 2 3 4  3초 뒤 — 줄 없이 열린다
         {"do": "click", "key": k[0], "act": "release"}, {"do": "close"},  # 5 6  답이 오기 전에 닫음
         {"do": "click", "key": k[1], "act": "take"}, {"do": "answer"},    # 7 8  다른 창([재단 시작])에 늦은 답 — 버린다
         {"do": "close"},                                                  # 9
-        {"do": "click", "key": k[0], "act": "release"}, {"do": "modal"}, {"do": "run"}]})  # 10 11 12  서버 오류 — 줄 없이 열리고 쓰기는 된다
+        {"do": "click", "key": k[0], "act": "release"}, {"do": "modal"}, {"do": "run"},   # 10 11 12  서버 오류 — 줄 없이 열린다 · 누르면 멈춤
+        {"do": "run"}]})                                                  # 13  다시 물어 줄이 뜬 뒤 한 번 더 — 같이 취소
     out = res["out"]
     assert out[0]["modal"]["run"]["locked"] is True and out[1]["sent"] == 0 and out[1]["modal"]["hidden"] is False
     assert out[3]["modal"]["body"] == "" and out[3]["modal"]["run"]["locked"] is False
     assert out[7]["modal"]["title"] == "재단 시작할까요?" and out[7]["modal"]["run"]["locked"] is False
     assert out[8]["modal"]["body"] == "" and out[8]["modal"]["title"] == "재단 시작할까요?"
     assert out[11]["modal"]["body"] == "" and out[11]["modal"]["run"]["locked"] is False
-    assert out[12]["sent"] == 1 and out[12]["status"] == "재단 시작 취소했어요" + CANCELLED_TAIL  # 못 물은 때는 지금처럼 알림으로
-    assert len(res["previews"]) == 3 and len(res["calls"]) == 1
+    # 못 물은 창도 같은 규칙(사장님 11-27 "줄 없이 열린 창도 … 같이 취소될 차례면 멈추고 다시 확인") — 창 그대로 · 서버 글 · 줄이 나타남
+    stop = out[12]["modal"]
+    assert out[12]["sent"] == 1 and (stop["hidden"], stop["lost"], stop["err"]) == (False, False, stopped["body"]["error"])
+    assert stop["body"] == CANCEL_LINE and stop["run"] == {"text": "재단 시작 취소", "hidden": False, "locked": False}
+    assert out[13]["sent"] == 1 and out[13]["status"] == "재단 시작 취소했어요" + CANCELLED_TAIL
+    assert len(res["previews"]) == 4 and [c["body"].get("seen_cancel") for c in res["calls"]] == [False, True]
 
 
 def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, tmp_path):
@@ -400,10 +411,11 @@ def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, t
     page = tmp_path / "lead.html"
     page.write_text(_page(client, lead, CUT_ADMIN), encoding="utf-8")
     remove = _body(solo, action="remove", seen_by=kim.id, target_user_id=kim.id)
+    sent = {**remove, "seen_cancel": True}  # 줄에 이름이 불린 단추 — 창이 보여 준 것까지 싣는다
     yes = _answer(client, lead, remove)
     crew_no = [_answer(client, lead, _body(both, action="remove", seen_by=kim.id, target_user_id=who.id)) for who in (kim, oh)]
     assert [a["data"]["run_cancelled"] for a in (*crew_no, yes)] == [False, False, True]
-    res = _node(page, {"posts": [_post(client, lead, remove)], "previews": [*crew_no, yes], "steps": [
+    res = _node(page, {"posts": [_post(client, lead, sent)], "previews": [*crew_no, yes], "steps": [
         {"do": "click", "key": both.keys[0], "act": "held"}, {"do": "modal"}, {"do": "close"},    # 0 1 2
         {"do": "click", "key": solo.keys[0], "act": "held"}, {"do": "modal"},                     # 3 4
         {"do": "choice", "text": "김재단 시작 취소"}]})                                             # 5
@@ -418,7 +430,7 @@ def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, t
     assert [c["text"] for c in pick["choices"]] == ["김재단 시작 취소", "담당 바꾸기", "같이 작업", "대신 완료"]
     assert previews[2] == _as_query(remove) and len(previews) == 3
     assert out[5]["sent"] == 1 and out[5]["status"] == "김재단 시작 취소했어요" + CANCELLED_TAIL
-    assert [c["body"] for c in res["calls"]] == [remove]
+    assert [c["body"] for c in res["calls"]] == [sent]
 
     mine = tmp_path / "kim.html"  # 같이 작업 중 내 몫 [재단 시작 취소] — 묻지만 답이 거짓이라 줄이 없다
     mine.write_text(_page(client, kim), encoding="utf-8")
@@ -432,26 +444,29 @@ def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, t
 
 def test_source_contract_one_line_one_judge_and_sizes():
     js = {name: (ROOT / f"static/js/production/foms-production-{name}.js").read_text(encoding="utf-8")
-          for name in ("parts", "parts-modal", "parts-crew", "parts-claim")}
-    modal = js["parts-modal"]
-    assert modal.count(CANCEL_LINE) == 1 and all(CANCEL_LINE not in text for name, text in js.items() if name != "parts-modal")
+          for name in ("parts", "parts-modal", "parts-cancel", "parts-crew", "parts-claim")}
+    modal = js["parts-cancel"]  # 취소 창 조각은 창 글 파일에서 이 파일로 옮겼다(11-27 덧붙임 둘 — 300줄 래칫)
+    assert "fetch(" not in js["parts-modal"] and "cancelLine: cancelLine" not in js["parts-modal"]
+    assert modal.count(CANCEL_LINE) == 1 and all(CANCEL_LINE not in text for name, text in js.items() if name != "parts-cancel")
     assert modal.count("fetch(") == 1 and "'/api/production/part-marks/cancel-preview'" in modal and "method: 'GET'" in modal
     assert modal.index("try {") < modal.index("fetch(") < modal.index("} catch (e)") and "data.success === true" in modal
     line = next(text for text in modal.splitlines() if "var asks" in text)  # 화면은 누름 이름만 고른다 — 판정 조건은 적지 않는다
     assert "ASKS.indexOf(c[0]) >= 0" in line and "var ASKS = ['release', 'remove', 'undo'];" in modal
     assert modal.count("'를 누르면 제작 시작도 같이 취소돼요.'") == 1  # 고르기 창 글 — 단추 글은 늘 '취소'로 끝나 토씨 '를' 고정
     for word in ("data-pp-first", "hold", "defect", "cr.n", "run_started"):
-        assert word not in modal[modal.index("function cancelLine"):modal.index("// ── 창 그리기")], word
-    assert "M.cancelLine(pending, p, " in js["parts"]
-    assert len(js["parts"].splitlines()) <= 299 and len(modal.splitlines()) <= 300
+        assert word not in modal[modal.index("var CANCEL_LINE"):], word
+    assert "M.cancelLine(pending, p, " in js["parts"] and "M.cancelLine = cancelLine;" in modal
+    assert all(len(text.splitlines()) <= 299 for text in js.values())  # 래칫 = 300줄 미만
     write = (ROOT / "foms/services/production/part_mark_write.py").read_text(encoding="utf-8")
     assert write.count("plan_start_rollback(") == 1 and len(write.splitlines()) <= 499  # 판정을 부르는 곳은 쓰기 · 미리 보기가 같은 한 줄
     assert write.index("closing = plan_start_rollback(") < write.index("if dry:") < write.index("steps, started = apply_order_changes(")
     api = (ROOT / "foms/api/production/part_marks.py").read_text(encoding="utf-8")
     assert 'mark_one(db, user, override, req, dry=True)' in api and 'methods=["GET"]' in api
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    for name in ("parts", "parts-modal"):
-        assert f"foms-production-{name}.js') }}}}?v=20261128b\" defer" in tpl, name
+    for name in ("parts", "parts-modal", "parts-cancel"):
+        assert f"foms-production-{name}.js') }}}}?v=20261128c\" defer" in tpl, name
+    order = [tpl.index(f"foms-production-parts{n}.js") for n in ("-modal", "-cancel", "-crew", "")]
+    assert order == sorted(order)  # 창 글 → 취소 창 조각(창 글에 붙는다) → 여러 명 칸 → 쓰기
     overlay = (ROOT / "templates/production/partials/home_parts_overlays.html").read_text(encoding="utf-8")
     assert overlay.count('class="pp-mbody" data-pp-modal-body hidden') == 1  # 줄 자리 = 첫 도면 줄과 같은 칸(새 칸 · 새 CSS 없음)
 

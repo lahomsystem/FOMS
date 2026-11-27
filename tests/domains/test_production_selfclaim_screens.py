@@ -31,7 +31,8 @@ JS = ROOT / "static/js/production"
 NEW_JS = ("foms-production-parts-claim.js", "foms-production-parts-modal.js", "foms-production-sheet-parts.js")
 TOUCHED_JS = NEW_JS + ("foms-production-parts.js", "foms-production-parts-viewer.js", "foms-production-parts-sync.js",
                        "foms-production-sheet-page.js", "foms-production-home-steps.js",
-                       "foms-production-parts-crew.js")  # 여러 명 같이 작업 M2(2026-11-25 multi-holder)
+                       "foms-production-parts-crew.js",  # 여러 명 같이 작업 M2(2026-11-25 multi-holder)
+                       "foms-production-parts-cancel.js")  # 취소 창 미리 안내 조각(11-27 덧붙임 둘 — 창 글 파일에서 옮김)
 _seq = count(1)
 
 
@@ -288,16 +289,21 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     assert "if (bound.claim === root || board.root !== root) { return; }" in claim
     assert "if (bound.modal === root) { return; }" in modal and "if (!S.bound) {" in sheet
     assert not re.search(r"fetch\s*\(|fomsMutationFetch|XMLHttpRequest|sendBeacon", claim), "쓰기는 parts.js send() 하나"
-    # 창 글 JS 의 요청은 읽기 하나뿐 — [시작 취소] 창 미리 보기 GET(사장님 2026-11-27 "창에도 미리 알리기"). 쓰기는 여전히 parts.js send() 하나
-    assert not re.search(r"method: 'POST'|fomsMutationFetch|XMLHttpRequest|sendBeacon", modal), "쓰기는 parts.js send() 하나"
-    assert len(re.findall(r"fetch\s*\(", modal)) == 1 and "fetch(ASK_URL + '?' + qs, { method: 'GET'," in modal
+    # 창 글 JS 에는 요청이 없다. 읽기 하나 — [시작 취소] 창 미리 보기 GET(사장님 2026-11-27 "창에도 미리 알리기") — 는 창 글에 붙는
+    # parts-cancel.js 로 옮겼다(11-27 덧붙임 둘, 300줄 래칫). 쓰기는 여전히 parts.js send() 하나
+    cancel = (JS / "foms-production-parts-cancel.js").read_text(encoding="utf-8")
+    assert "if (bound.cancel === root) { return; }" in cancel
+    for src in (modal, cancel):
+        assert not re.search(r"method: 'POST'|fomsMutationFetch|XMLHttpRequest|sendBeacon", src), "쓰기는 parts.js send() 하나"
+    assert not re.search(r"fetch\s*\(", modal)
+    assert len(re.findall(r"fetch\s*\(", cancel)) == 1 and "fetch(ASK_URL + '?' + qs, { method: 'GET'," in cancel
     assert not re.search(r"method: 'POST'|fomsMutationFetch", sheet), "시트 JS 의 POST 는 시트 공정 길 하나"
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "-crew", "", "-sync")]
+    order = [tpl.index(f"js/production/foms-production-parts{n}.js") for n in ("-viewer", "-claim", "-modal", "-cancel", "-crew", "", "-sync")]
     assert order == sorted(order)
     # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다 — 검토 고침(11-25 [대신 완료] =
     # check · 반장 자기 몫 되돌리기 줄)이 modal · crew · parts 를 한 번 더 · 비평 C06 · C09(11-26 주문 막힘 칸)가 claim · parts · sync 를, 검토 고침(걸린 카드 건너뛰기)이 parts · sync 를 한 번 더
-    for name, pin in (("parts", "20261128b"), ("parts-claim", "20261127w"), ("parts-modal", "20261128b"),
+    for name, pin in (("parts", "20261128c"), ("parts-claim", "20261127w"), ("parts-modal", "20261128c"),
                       ("parts-crew", "20261127y"), ("parts-sync", "20261125u")):  # 11-27 반장 미정 바로 완료가 넷을 한 번 더 · 바로 완료 취소 한 번에 미정이 crew 를 한 번 더
         assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v={pin}\" defer", tpl)) == 1, name
 

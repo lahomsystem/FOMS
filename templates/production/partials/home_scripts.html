@@ -3,14 +3,15 @@
 <script src="{{ url_for('static', filename='js/production/foms-production-home.js') }}?v=20261127x" defer></script>
 {% if part_board %}{# 도면 카드(설계서 §15.6): 크게 보기 · 칸 단추 · 카드 고치기 · 30초 받아 오기(P15-7)는 누구나. 쓰기(누름 · 확인 창 · 저장)는
    확인 창이 있는 사람(쓸 수 있는 사람, D55)에게만 묶인다 — 읽기 전용은 창이 없어 parts.js 가 카드 고치기만 내보낸다.
-   순서 = 보기(viewer) → 새 카드 칸(claim) → 창 글(modal) → 여러 명 칸(crew — 2026-11-25 multi-holder) → 쓰기 · 고치기(parts) → 받아 오기(sync)
-   — 뒤 파일이 앞 파일의 window.* 를 쓴다. #}
+   순서 = 보기(viewer) → 새 카드 칸(claim) → 창 글(modal) → 취소 창 미리 안내(cancel — 2026-11-27, 창 글 위에 붙는다) → 여러 명 칸(crew —
+   2026-11-25 multi-holder) → 쓰기 · 고치기(parts) → 받아 오기(sync) — 뒤 파일이 앞 파일의 window.* 를 쓴다. #}
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-viewer.js') }}?v=20261127y" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-zoom.js') }}?v=20261127f" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-claim.js') }}?v=20261127w" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-modal.js') }}?v=20261128b" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-modal.js') }}?v=20261128c" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-cancel.js') }}?v=20261128c" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-crew.js') }}?v=20261127y" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261128b" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261128c" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-parts-sync.js') }}?v=20261125u" defer></script>
 {# 내 쓰기 뒤 위 탭 숫자 · 탭 사본 맞추기(2026-11-27 "작업 시작하면 남은 공정에 바로") — parts.js 가 쏘는 사건만 듣는다 #}<script src="{{ url_for('static', filename='js/production/foms-production-parts-fresh.js') }}?v=20261127t" defer></script>
 {% if part_board.can_request %}{# [도면 수정 요청] 창(설계서 2026-11-25 N3) — 관리자 · 반장 · 파트 계정만(창이 있는 사람) #}<script src="{{ url_for('static', filename='js/production/foms-production-drawing-request.js') }}?v=20261126f" defer></script>{% endif %}

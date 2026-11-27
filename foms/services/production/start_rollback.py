@@ -25,12 +25,16 @@
 되돌리기 = 회차 닫기(``_supersede_production_run`` — [제작 시작 취소] API 와 같은 함수) + 단계 기록 "제작 시작 취소 (도면 작업 시작 취소)"
 + 이벤트 ``PRODUCTION_CANCELLED``(``via:'part_marks'``) + 감사 한 줄. 단계는 생산 그대로. [제작 시작 취소] API 가 같이 하는 보류 해제 ·
 수정 제작 표지 끄기 · 공장 완료 표지 지우기는 하지 않는다(조건 2 가 이미 걸렀다). 알림 · '바뀐 것' 줄은 만들지 않는다.
+
+창에 보인 대로만 된다(사장님 2026-11-27 "설계대로 만들기") — 취소 창이 미리 알린 것(쓰기 몸 ``seen_cancel``: 같이 취소된다는 줄이 보였으면
+true, 안 보였으면 false)과 위 판정이 다르면 :func:`check_cancel_notice` 가 409 ``CANCEL_NOTICE_STALE`` 로 거절하고 아무것도 바뀌지 않는다
+(양쪽 다 — 줄이 보였는데 안 취소될 차례 · 줄이 없었는데 같이 취소될 차례). 값을 안 실은 쓰기(옛 화면 사본 · PC 창)는 견주지 않는다.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from foms.services.production.factory_marks import done_table
 from foms.services.production.order_write_helpers import (
@@ -57,6 +61,9 @@ from models import OrderEvent
 #: 표시 감사 글 꼬리 — 첫 카드가 제작을 시작했을 때 / 표시가 모두 미정이 돼 그 시작을 되돌렸을 때(짝).
 START_AUDIT_TAIL = " · 제작 시작"
 ROLLBACK_AUDIT_TAIL = " · 제작 시작 취소"
+#: 창에 보인 것과 실제가 다를 때의 거절 — 코드 · 글(사장님 2026-11-27 글자 그대로). 화면은 창을 닫지 않고 이 글을 보인 뒤 다시 묻는다.
+CANCEL_NOTICE_STALE = "CANCEL_NOTICE_STALE"
+CANCEL_NOTICE_STALE_MESSAGE = "그 사이 이 주문이 바뀌었어요. 다시 확인해 주세요."
 
 
 @dataclass(frozen=True)
@@ -136,9 +143,26 @@ def plan_start_rollback(db: Any, order: Any, marks: list[Any], parts: Iterable[s
     return StartRollback(run)
 
 
+def check_cancel_notice(seen_cancel: Optional[bool], closing: Optional[StartRollback],
+                        refusal: Callable[[int, str, str], Exception]) -> None:
+    """창에 보인 대로만 된다 — 화면이 본 것과 되돌림 판정이 다르면 거절한다(쿼리 0 — 판정은 이미 :func:`plan_start_rollback` 이 했다).
+
+    Args:
+        seen_cancel: 그 단추에 대해 창이 보여 준 것 — 같이 취소된다는 줄이 보였으면 True · 안 보였으면 False · 안 실었으면 None(견주지 않음).
+        closing: 이번 쓰기의 되돌림 판정(:func:`plan_start_rollback` 결과 — 되돌리면 :class:`StartRollback`, 아니면 None).
+        refusal: 거절 예외를 만드는 것(``MarkRefusal`` — 상태 · 코드 · 글). 표시 쓰기까지 부르는 쪽 tx 되감기가 지운다.
+
+    Raises:
+        Exception: ``refusal(409, CANCEL_NOTICE_STALE, CANCEL_NOTICE_STALE_MESSAGE)`` — 본 것과 실제가 다를 때.
+    """
+    if seen_cancel is not None and bool(seen_cancel) is not bool(closing):
+        raise refusal(409, CANCEL_NOTICE_STALE, CANCEL_NOTICE_STALE_MESSAGE)
+
+
 def run_tail(started: Any, closing: Any) -> str:
     """표시 감사 글의 회차 꼬리 — 제작 시작 " · 제작 시작" / 되돌림 " · 제작 시작 취소" / 둘 다 아니면 빈 글."""
     return START_AUDIT_TAIL if started else ROLLBACK_AUDIT_TAIL if closing else ""
 
 
-__all__ = ["ROLLBACK_AUDIT_TAIL", "START_AUDIT_TAIL", "StartRollback", "plan_start_rollback", "run_tail"]
+__all__ = ["CANCEL_NOTICE_STALE", "CANCEL_NOTICE_STALE_MESSAGE", "ROLLBACK_AUDIT_TAIL", "START_AUDIT_TAIL", "StartRollback",
+           "check_cancel_notice", "plan_start_rollback", "run_tail"]
