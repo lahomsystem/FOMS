@@ -16,7 +16,7 @@
  *
  * 활성 게이트(SSOT): MQ (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
  *   AND CSS 마커 --foms-tablet-ui:ready (foms-tablet-side-sheet.css 정의, v2 셸 번들
- *   로드 여부에서 파생 — 이중 정의 금지). tablet-production-kanban.js 와 동일 패턴.
+ *   로드 여부에서 파생 — 이중 정의 금지). tablet-domain-sheets.js 와 동일 패턴.
  *
  * idempotent: window.__FOMS_CWORK_BOUND 싱글턴 가드(perf 가드 G4 — fragment 재실행/
  *   재로드 시 전역 listener 중복 바인딩 방지). defer 로드(perf 가드 G1).
