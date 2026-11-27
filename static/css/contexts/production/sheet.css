@@ -117,7 +117,7 @@
 /* 도면 */
 .foms-prod-page__dwg { position: relative; background: var(--fpp-dwg); color: #fff; min-height: 420px; display: flex; flex-direction: column; overflow: hidden; }
 .foms-prod-page__cap { margin: 0; padding: 12px 16px 0; text-align: center; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 700; }
-.foms-prod-page__main-btn { flex: 1; min-height: 0; border: 0; background: transparent; padding: 12px 90px; cursor: zoom-in; display: flex; align-items: center; justify-content: center; }
+.foms-prod-page__main-btn { flex: 1; min-height: 0; border: 0; background: transparent; padding: 12px 90px; cursor: zoom-in; display: flex; align-items: center; justify-content: center; touch-action: pan-y pinch-zoom; } /* 가로 밀기 = 앞 · 다음 도면(foms-production-sheet-swipe.js) — 세로 굴림 · 두 손가락 확대는 브라우저 몫 */
 .foms-prod-page__main { max-width: 100%; max-height: calc(100dvh / var(--foms-ui-zoom, 1) - 64px - 160px); object-fit: contain; background: #fff; border-radius: 4px; }
 .foms-prod-page__nav {
   position: absolute;
