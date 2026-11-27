@@ -11,6 +11,8 @@ import ast
 import re
 from pathlib import Path
 
+from foms.services.production.pc_view import _step_cells
+
 ROOT = Path(__file__).resolve().parents[2]
 JS = ROOT / "static" / "js" / "production"
 TPL = ROOT / "templates" / "production"
@@ -306,3 +308,10 @@ def test_factory_request_notice_uses_the_reject_notice_voice_and_numbers():
     assert "tooBig: '사진이 너무 커요. 크기를 줄여 올려 주세요.'" in req and "너무 큽니다" not in req
     assert "foms-production-drawing-request.js') }}?v=20261126f" in _read(TPL / "partials" / "home_scripts.html")
 
+
+def test_pc_step_cell_not_started_says_mijeong():
+    """PC 공정 칸 — 안 한 칸 '아직' → '미정' · 마우스 글 '엣지 · 미정' · '조립 · 지금 여기'(사장님 2026-11-27 "'미정'으로 맞추기")."""
+    steps = [{"key": "cut", "label": "재단", "done": True, "by": "김재단", "at_label": "11/21 09:12"},
+             {"key": "assembly", "label": "조립", "now": True}, {"key": "edge", "label": "엣지"}]
+    got = [(c["tip"], c["cell"]) for c in _step_cells({"home_steps": steps})]
+    assert got == [("재단 완료 · 김재단 · 11/21 09:12", "김재단 11/21"), ("조립 · 지금 여기", "지금 여기"), ("엣지 · 미정", "미정")]

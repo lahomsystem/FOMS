@@ -405,7 +405,7 @@ def test_공정_칸_누가_언제는_PC_에만(client, cohort) -> None:
     assert '<span class="fpc-steps has-hd" aria-label="공정">' in row
     assert '<span class="fpc-s__m"><b>김재단</b><small class="fpc-s__at">11/21</small></span>' in row
     assert row.count('<span class="fpc-s__m is-none"><b>미정</b></span>') == 3
-    assert 'data-tip="엣지 · 지금 여기(아직)"' in row and 'data-tip="조립 · 아직"' in row  # 카드를 안 쓴 칸의 마우스 글은 그대로
+    assert 'data-tip="엣지 · 지금 여기"' in row and 'data-tip="조립 · 미정"' in row and "(아직)" not in row and '· 아직"' not in row  # 카드 안 쓴 칸 마우스 글(11-27 '아직' → '미정')
     assert 'data-tip="제작 시작 11/21 08:40"' in row
     set_cookies(client, TABLET)
     tablet = get_html(client, HOME + f"?view=day&day={key}")

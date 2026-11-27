@@ -163,9 +163,9 @@ def _step_cells(row: dict[str, Any]) -> list[dict[str, Any]]:
         elif s['key'] == stopped:
             tip, cell = f"{label} · 보류", '보류'
         elif s.get('now'):
-            tip, cell = f"{label} · 지금 여기(아직)", '지금 여기'
+            tip, cell = f"{label} · 지금 여기", '지금 여기'
         else:
-            tip, cell = f"{label} · 아직", '아직'
+            tip, cell = f"{label} · 미정", '미정'  # 사장님 2026-11-27 "'미정'으로 맞추기"(옛 '아직' · '지금 여기(아직)')
         cells.append({**s, 'tip': tip, 'cell': cell, 'stopped': s['key'] == stopped})
     return cells
 
