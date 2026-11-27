@@ -8,8 +8,13 @@
 화면 셋: 작업 시트 공정 칸(요청 0 · 칸 아래 글) · '남은 공정' 판 [<공정> 완료] 자리(도면 칸 쓴 파트와 같은 막힘 칸 "재단 0/3 · 3장 미완료") ·
 PC 도면 목록 창 [모두 완료 처리] 없음(도면마다 [완료 처리]는 그대로).
 
-되돌리면 실패: 3장 주문 켜기가 200 · 관리자만 뚫림 · 끄기가 막힘 · 마지막 장 완료로 칸이 안 켜짐 · 1장 주문이 막힘 · 작업 시트가 확인 창부터 띄우거나
+되돌리면 실패: 3장 주문 켜기가 200 · 관리자만 뚫림 · 끄기가 막힘 · 마지막 장 완료로 칸이 안 켜짐 · 작업 시트가 확인 창부터 띄우거나
 요청을 보냄 · 판에 [재단 완료]가 남음 · PC 창에 [모두 완료 처리]가 남음. 이름은 지어낸 값.
+
+같은 날 뒤 결정(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — test_production_steps_view_only_1127): 문턱이 **1장 이상**으로 넓어졌다 —
+1장 주문도 409(옛 대조군 "1장 주문은 지금처럼 켜짐"은 409 단언으로, 대조군은 도면 0장 주문으로 옮겼다). 글도 장 수에 맞게 한 글
+"도면이 있는 주문은 도면 화면에서 완료해 주세요."로. 작업 시트 공정 칸은 도면 있는 주문이면 체크 칸 대신 보기 줄이라, 여기 화면 시험은 보기 줄
+누름(요청 0) · 손 체크 칸 끄기 · 낡은 화면(체크 칸 + 서버 자료 per_sheet) · 도면 0장 칸을 본다.
 """
 from __future__ import annotations
 
@@ -40,7 +45,7 @@ from tests.support.production_part_claim_seed import check_step, code, events, f
 
 ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_per_sheet_only_node_checks.js"
-MSG = "도면이 여러 장인 주문이에요. 도면 화면에서 한 장씩 완료해 주세요."
+MSG = "도면이 있는 주문은 도면 화면에서 완료해 주세요."
 PARTS = ("cut", "edge", "assemble", "inspect")
 
 
@@ -65,15 +70,15 @@ def _snapshot(oid: int) -> tuple:
 # 판정 한 곳
 # --------------------------------------------------------------------------- #
 def test_rule_and_words_are_one_place():
-    assert STEP_PER_SHEET_MESSAGE == MSG and WHOLE_STEP_MAX_SHEETS == 1
+    assert STEP_PER_SHEET_MESSAGE == MSG and WHOLE_STEP_MAX_SHEETS == 0  # 11-27 뒤 결정 — 1장 이상
     sd = lambda n: {"drawing_current_files": [{"key": f"k{j}"} for j in range(n)], "production": {"steps": []}}  # noqa: E731
-    assert [per_sheet_only(sd(n)) for n in (0, 1, 2, 5)] == [False, False, True, True]
-    for n in (2, 5):
+    assert [per_sheet_only(sd(n)) for n in (0, 1, 2, 5)] == [False, True, True, True]
+    for n in (1, 2, 5):
         gate = step_cell_gate(sd(n), [], "cut", True)
         assert (gate.status, gate.code, gate.message, gate.extra) == (409, STEP_PER_SHEET, MSG, {"part": "cut", "left": n, "total": n})
         assert step_cell_gate(sd(n), [], "cut", False) is None  # 끄기는 된다
         assert step_api_extras(sd(n), [])["per_sheet"] == MSG
-    for n in (0, 1):  # 대조군
+    for n in (0,):  # 대조군 — 도면 0장
         assert step_cell_gate(sd(n), [], "cut", True) is None and "per_sheet" not in step_api_extras(sd(n), [])
 
 
@@ -93,7 +98,7 @@ def test_gate_order_hold_revising_and_cards_come_first():
 # API
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("who", ["lead", "admin"])
-@pytest.mark.parametrize("n", [2, 3])
+@pytest.mark.parametrize("n", [1, 2, 3])
 def test_turning_on_a_multi_sheet_order_is_refused_for_everyone_without_any_write(client, who, n):
     seed = make_order(n)
     login(client, make_user("가짜반장", lead=True) if who == "lead" else make_user("가짜관리", role="ADMIN", team="CS"))
@@ -107,7 +112,7 @@ def test_turning_on_a_multi_sheet_order_is_refused_for_everyone_without_any_writ
     assert got["per_sheet"] == MSG and got["sheets"] == n
 
 
-@pytest.mark.parametrize("n", [0, 1])
+@pytest.mark.parametrize("n", [0])  # 옛 [1] 은 위 409 시험으로(11-27 뒤 결정)
 def test_control_zero_or_one_sheet_turns_on_and_off_like_today(client, n):
     seed = make_order(n)
     login(client, make_user("가짜반장", lead=True))
@@ -180,27 +185,32 @@ def _node(tmp_path, page: str, want: dict) -> None:
 def test_work_sheet_shows_the_reason_without_dialog_or_request_and_turn_off_is_unchanged(client, cohort, tmp_path):
     many = make_order(3, steps_done=("edge",))
     one = make_order(1)
+    zero = make_order(0)
     login(client, make_user("가짜반장", lead=True))
     set_cookies(client, TABLET)
     page = get_html(client, f"/erp/production/sheet/{many.id}")
     assert _sheet_parts(page)["per_sheet"] == MSG and _sheet_parts(page)["sheets"] == 3
     assert 'data-foms-sheet-stepmsg role="status" hidden' in page and page.count("data-foms-sheet-confirm hidden") == 1
-    _node(tmp_path, page, {"key": "cut", "mode": "many", "msg": MSG})
-    _node(tmp_path, page, {"key": "edge", "mode": "off"})  # 켜진 칸 끄기 = 지금 그대로(묻지 않고 POST)
+    _node(tmp_path, page, {"key": "cut", "mode": "view"})  # 꺼진 파트 = 보기 줄(누름 = 요청 0 · 창 0)
+    _node(tmp_path, page, {"key": "edge", "mode": "off"})  # 손으로 켜 둔 칸 끄기 = 지금 그대로(묻지 않고 POST)
     one_page = get_html(client, f"/erp/production/sheet/{one.id}")
-    assert "per_sheet" not in _sheet_parts(one_page)  # 대조군 자료 그대로
-    _node(tmp_path, one_page, {"key": "cut", "mode": "one", "text": "이 주문의 도면 1장이 모두 재단 완료로 처리돼요."})
+    assert _sheet_parts(one_page)["per_sheet"] == MSG  # 1장 주문도(11-27 뒤 결정)
+    _node(tmp_path, one_page, {"key": "cut", "mode": "view"})
+    zero_page = get_html(client, f"/erp/production/sheet/{zero.id}")
+    assert "per_sheet" not in _sheet_parts(zero_page)  # 대조군 — 도면 0장 자료 그대로
+    _node(tmp_path, zero_page, {"key": "cut", "mode": "zero"})
+    _node(tmp_path, zero_page, {"key": "edge", "mode": "stale", "msg": MSG})  # 낡은 화면(체크 칸 + 새 자료) = 칸 아래 서버 글 · 요청 0
 
 
 def test_work_sheet_js_contract():
     parts = (ROOT / "static/js/production/foms-production-sheet-parts.js").read_text(encoding="utf-8")
-    assert "if (info.per_sheet) { if (stepMsg(page, info.per_sheet))" in parts  # 서버 글 그대로 · 글 칸 없는 화면은 서버가 답한다
+    assert "if (info && info.per_sheet && !(part && part.uses_cards) && stepMsg(page, info.per_sheet))" in parts  # 서버 글 그대로 · 글 칸 없는 화면은 서버가 답한다
     assert "code !== 'STEP_PER_SHEET'" in parts  # 낡은 화면에서 보낸 켜기의 409 도 칸 아래 글로
     assert MSG not in parts  # 글은 서버 한 곳
     for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
-        assert "foms-production-sheet-parts.js') }}?v=20261127d" in (ROOT / rel).read_text(encoding="utf-8"), rel
+        assert "foms-production-sheet-parts.js') }}?v=20261127u" in (ROOT / rel).read_text(encoding="utf-8"), rel
     assert (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8").count(
-        "foms-production-sheet-parts.js') }}?v=20261127d") == 2
+        "foms-production-sheet-parts.js') }}?v=20261127u") == 2
     assert len(parts.splitlines()) <= 300
 
 
@@ -209,7 +219,7 @@ def test_work_sheet_js_contract():
 # --------------------------------------------------------------------------- #
 def test_my_steps_panel_and_rows_show_the_same_block_as_card_parts(client, cohort):
     many = add_order("가짜여러장", 1, pngs=3)
-    one = add_order("가짜한장", 2, pngs=1)
+    one = add_order("가짜한장", 2, pngs=0)  # 대조군 — 도면 0장(11-27 뒤 결정: 1장 주문도 막힘)
     used = add_order("가짜카드집", 3, pngs=3)
     db_session.add(ProductionPartMark(order_id=used.id, drawing_key=used.structured_data["drawing_current_files"][0]["key"],
                                       part="cut", state="DONE", done_by_name="김재단"))
@@ -228,9 +238,9 @@ def test_my_steps_panel_and_rows_show_the_same_block_as_card_parts(client, cohor
     assert "data-foms-home-step-done" not in row
     used_pane = pane_html(get_html(client, HOME + f"?tab=steps&order={used.id}"), used.id)
     assert "<b>재단 1/3 · 2장 미완료</b><span>도면 2장이 미완료예요." in used_pane  # 카드를 쓴 파트 = 지금 글 그대로(먼저)
-    one_pane = pane_html(html, one.id)  # 대조군 — [재단 완료] + 확인 창 자료(1장)
+    one_pane = pane_html(html, one.id)  # 대조군 — 도면 0장 = [재단 완료](묻지 않음 — 확인 창 자료 없음)
     assert (f'data-foms-step-finish data-order-id="{one.id}" data-step-key="cut" data-step-label="재단"' in one_pane
-            and "&#34;sheets&#34;: 1" in one_pane and ">재단 완료</button>" in one_pane)
+            and "data-foms-sheet-parts" not in one_pane and ">재단 완료</button>" in one_pane)
     refused = check_step(client, many.id, "cut", True)
     assert refused.status_code == 409 and refused.get_json()["error"] in pane  # 판 글 = 서버 거절 글 그대로
 
@@ -240,14 +250,13 @@ def test_my_steps_panel_and_rows_show_the_same_block_as_card_parts(client, cohor
 # --------------------------------------------------------------------------- #
 def test_pc_window_hides_check_all_for_multi_sheet_orders_and_keeps_per_sheet_buttons(client, cohort):
     sd = lambda n: {"drawing_current_files": [{"key": f"k{j}"} for j in range(n)], "production": {"steps": []}}  # noqa: E731
-    assert build_part_sheet(sd(1), [], "cut", hold_active=False)["all"] is True  # 대조군
-    for n in (2, 4):
+    for n in (1, 2, 4):  # 11-27 뒤 결정 — 1장 주문도 없음(창은 도면 1장 이상일 때만 열리니 [모두 완료 처리]는 늘 없다)
         data = build_part_sheet(sd(n), [], "cut", hold_active=False)
         assert data["all"] is False and [r["act"] for r in data["rows"]] == ["check"] * n  # 도면마다 [완료 처리] 그대로
     many, one = make_order(3), make_order(1)
     login(client, make_user("가짜관리", role="ADMIN", team="CS"))
     got = {s.id: client.get(f"/api/production/part-sheet?order_id={s.id}&part=edge").get_json()["data"] for s in (many, one)}
     assert got[many.id]["all"] is False and got[many.id]["can_write"] is True
-    assert {r["act"] for r in got[many.id]["rows"]} == {"check"} and got[one.id]["all"] is True
+    assert {r["act"] for r in got[many.id]["rows"]} == {"check"} and got[one.id]["all"] is False
     put_mark(many, 0, "edge", "DONE", factory_user("김엣지", part="edge"))  # 도면마다 [완료 처리]는 그대로 — 한 장 완료
     assert check_step(client, many.id, "edge", True).status_code == 409 and step(many.id, "edge")["done"] is False

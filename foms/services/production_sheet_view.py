@@ -51,6 +51,7 @@ from foms.services.production.part_access import steps_lock
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_ready, parts_progress, step_api_extras
 from foms.services.production.sheet_parts import sheet_part_extras
+from foms.services.production.sheet_step_lines import sheet_step_lines
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
@@ -206,7 +207,7 @@ def _worker_names(sd: dict[str, Any]) -> list[str]:
 
 
 def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: Any, stage_label: str,
-                       marks: list[Any]) -> dict[str, Any]:
+                       marks: list[Any], today: datetime.date) -> dict[str, Any]:
     customer = (sd.get('parties') or {}).get('customer') or {}
     orderer = (sd.get('parties') or {}).get('orderer') or {}
     site = sd.get('site') or {}
@@ -243,8 +244,10 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
         'complete_ready': complete_ready(sd, marks),
         'final_sheet_count': len(resolve_final_drawing_files(sd)),
         'part_progress': parts_progress(sd, marks),
-        # 도면이 여러 장인 주문 = 공정 칸 켜기 거절 글(공정 API 와 같은 값 — 칸을 켜기 전에 요청 없이 보인다, 사장님 2026-11-27)
+        # 도면이 있는 주문 = 공정 칸 켜기 거절 글(공정 API 와 같은 값 — 낡은 화면 · 옆 시트가 요청 없이 보인다, 사장님 2026-11-27)
         'per_sheet_note': step_api_extras(sd, marks).get('per_sheet'),
+        # 도면이 있는 주문의 공정 칸 = 보기 줄 넷(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 도면 0장 주문은 None, 체크 칸 그대로)
+        'step_lines': sheet_step_lines(sd, marks, today),
         # 공정 칸 옆 "카드 3/5 · 2장 미완료" · [제작 완료] 까닭 · 바뀐 기록 번호(카드를 쓴 주문만 — 그 밖은 지금 글 그대로)
         **sheet_part_extras(sd, marks),
         'latest_defect': {
@@ -323,7 +326,7 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
     sheet['has_change_history'] = bool(_sc['history'])
     if full:
         marks = order_marks(db, order.id)
-        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, marks))
+        sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, marks, today or get_today_kst()))
         # 2공장(설계서 2026-11-23 §4-14): 섞인 주문만 공장 줄 · 공장 단추(한 공장 주문은 None — 지금 시트 그대로). 같은 표시 줄(쿼리 0)
         sheet['factory_sheet'] = factory_sheet_view(sd, marks, user, stage_label=stage_label)
         # 파트 계정 · 파트도 반장도 아닌 생산팀 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 · '승인 때 고친 것' 5 — 공정 API 403 과 같은 판정)

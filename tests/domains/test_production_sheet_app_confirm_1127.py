@@ -32,7 +32,8 @@ from tests.support.production_part_claim_seed import login as login_person
 ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_sheet_confirm_node_checks.js"
 PIN = "20261127a"
-SHEET_PARTS_PIN = "20261127d"  # 11-27 d: sheet-parts.js 만 한 번 더(도면 여러 장 주문 공정 칸 막힘 — test_production_per_sheet_only_1127)
+SHEET_PARTS_PIN = "20261127u"  # 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
+SHEET_CSS_PIN = "20261127u"  # sheet.css — 도면 있는 주문 공정 보기 줄(사장님 2026-11-27 "도면이 주", test_production_steps_view_only_1127)
 PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 FACTORY_JS = "static/js/production/foms-production-sheet-factory.js"
@@ -222,7 +223,7 @@ def test_핀은_싣는_곳마다_같다() -> None:
     assert read("templates/production/partials/home_scripts.html").count(f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}") == 2
     for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
         assert f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}" in read(rel), rel
-        assert f"css/contexts/production/sheet.css') }}}}?v=20261127m" in read(rel), rel  # 11-27 도면 밀어 넘기기(touch-action)로 한 번 더 올림
+        assert f"css/contexts/production/sheet.css') }}}}?v={SHEET_CSS_PIN}" in read(rel), rel  # 11-27 m 밀어 넘기기 · u 보기 줄
     assert f"foms-production-sheet-factory.js') }}}}?v={PIN}" in read("templates/production/sheet.html")
     # home.css 는 같은 날 날짜 줄 이름 한 줄 고침과 겹쳐 핀을 한 번 더 올렸다(합칠 때마다 올림)
     assert "css/contexts/production/home.css') }}?v=20261127g" in read("templates/production/partials/home_styles.html")

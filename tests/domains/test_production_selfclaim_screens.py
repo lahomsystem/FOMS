@@ -248,7 +248,8 @@ def test_작업_시트_카드_진행_글_막힘_글_바뀐_기록_까닭_손_체
     plain_id, order_id = _order("빈시트", 2).id, order.id
     _login(client, _user("반장"))
     html = _get(client, f"/erp/production/sheet/{order_id}")
-    assert '<small class="fpp-note is-miss" data-foms-sheet-step-meta data-foms-sheet-cardnote>도면 3/5 · 2장 미완료 · 바뀜 1</small>' in html
+    # 2026-11-27 "도면이 주, 작업 시트는 보기": 칸 옆 글 "도면 3/5 · 2장 미완료 · 바뀜 1" 대신 보기 줄(세부 기록 — 사람 · 때 · 같은 꼬리 "바뀜 n")
+    assert re.search(r'<span>재단</span> <small class="fpp-note is-run">3/5 완료 · 김재단 \d+/\d+ \d\d:\d\d부터 작업 중 · 바뀜 1</small>', html)
     assert '<p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>' in html
     assert 'data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>' in html
     assert 'data-foms-sheet-complete-why="미완료가 있어요 — 재단 2장 · 엣지 5장 · 조립 5장 · 검수 5장"' in html
@@ -258,7 +259,8 @@ def test_작업_시트_카드_진행_글_막힘_글_바뀐_기록_까닭_손_체
     assert "foms-production-sheet-parts.js?v=" in html and html.index("sheet-parts.js") < html.index("sheet-page.js")
     # 대조군: 카드를 안 쓴 주문 — 칸 옆 글 · 기록 단추 · 까닭 글 없음(손 체크 확인 창 자료는 있다)
     other = _get(client, f"/erp/production/sheet/{plain_id}")
-    assert "fpp-note" not in other and "data-foms-sheet-loglink" not in other and "data-foms-sheet-complete-why" not in other
+    # (2026-11-27 "도면이 주": 도면 있는 주문은 보기 줄 "재단 미정"이 같은 글 꼴 fpp-note 를 쓴다 — 칸 옆 카드 글 표지만 없다)
+    assert "data-foms-sheet-cardnote" not in other and "data-foms-sheet-loglink" not in other and "data-foms-sheet-complete-why" not in other
     assert "data-foms-sheet-parts=" in other
 
 
@@ -327,7 +329,8 @@ def test_작업_시트_JS_는_새_파일이_없으면_지금_그대로() -> None
     assert "sp && sp.refused(page, result) ? '' : failText(result)" in page
     assert "var why = window.FomsSheetParts && window.FomsSheetParts.why(page);" in page and "completeBlockedText()" in page
     sheet = (JS / "foms-production-sheet-parts.js").read_text(encoding="utf-8")
-    assert "open({ title: label + ' 완료할까요?', yes: label + ' 완료', body: body(label, sheets, fix)" in sheet and "'이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.'" in sheet
+    # 옛 손 체크 확인 창(ask · body)은 탈 길이 없어 뺐다(사장님 2026-11-27 "도면이 주" — 도면 있는 주문은 켜기 전에 서버 글, 0장은 바로)
+    assert "function ask(" not in sheet and "stepMsg(page, info.per_sheet)" in sheet
     assert "if (!done) { go(); return; }" in sheet  # 끌 때는 묻지 않는다
     assert "part.uses_cards" in sheet and "/api/production/part-history?order_id=" in sheet
 

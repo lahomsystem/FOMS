@@ -110,11 +110,11 @@ def test_생산팀은_전체_화면_시트에서_도면_연락처_공정_단추�
     assert html.count("data-foms-sheet-dwg-th=") == 2
     assert html.count("파일 열기") == 1
     assert "도면 1 / 2" in html and "/api/files/view/drawings/a.png" in html
-    # 공정 4줄(도장 없음, D15): 재단 끝(누가·몇 시), 엣지가 지금 여기
-    assert html.count("data-foms-sheet-step=") == 4
-    assert 'data-foms-sheet-step="cut" aria-pressed="true"' in html
-    assert "이철호 · 11/9 09:12" in html
-    assert 'is-now' in html and ">1/4<" in html
+    # 공정 4줄(도장 없음, D15): 재단 끝(누가·몇 시), 엣지가 지금 여기. 2026-11-27 사장님 "도면이 주, 작업 시트는 보기": 도면 있는 주문은
+    # 체크 칸 대신 보기 줄 넷 — 손으로 켜 둔 옛 재단 칸은 "완료 · 이철호 11/9 09:12 · 작업 시트에서 완료"(반장 아닌 생산팀은 끄는 길 없음)
+    assert html.count("data-foms-sheet-step=") == 0 and html.count("data-foms-sheet-line=") == 4
+    assert '<span>재단</span> <small class="fpp-note is-ok">완료 · 이철호 11/9 09:12 · 작업 시트에서 완료</small>' in html
+    assert 'is-now" data-foms-sheet-line="edge"' in html and ">1/4<" in html
     # 불량: 최근 1줄 + 칩 4
     assert "최근 불량 · 파손" in html
     assert html.count("data-foms-sheet-defect-reason=") == 4
@@ -255,8 +255,10 @@ def test_아래_단추_줄_지금_여기_치수_연결_한_줄(client) -> None:
     assert foot.index("data-foms-sheet-defect-reasons") < foot.index('data-tablet-sheet-action="production-complete"')
     assert foot.index('data-tablet-sheet-action="production-complete"') < foot.index("data-foms-sheet-status")
     assert "data-foms-sheet-net>연결 좋음<" in foot
-    # 공정: 지금 칸(엣지) 옆 '지금 여기', 끝난 칸은 누가 · 몇 시
-    assert html.count("지금 여기") == 1 and "이철호 · 11/9 09:12" in html
+    # 공정: 지금 칸(엣지)은 줄 색(is-now), 끝난 칸은 누가 · 몇 시. 도면 있는 주문의 보기 줄은 '지금 여기' 대신 진행 글("엣지 미정" —
+    # 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
+    assert html.count("지금 여기") == 0 and "완료 · 이철호 11/9 09:12 · 작업 시트에서 완료" in html
+    assert 'is-now" data-foms-sheet-line="edge"' in html and '<span>엣지</span> <small class="fpp-note is-miss">미정</small>' in html
     # 만들 것: 품목마다 'W×D×H · 수량'(시드는 가로만 있어 W 만)
     assert "<span>거실장</span><span>W3100 · 1</span>" in html and "<span>W2160 · 1</span>" in html
 

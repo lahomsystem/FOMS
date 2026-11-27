@@ -372,6 +372,17 @@
 .foms-prod-page__step small.fpp-note { display: block; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fpp-text2); white-space: normal; word-break: keep-all; }
 .foms-prod-page__step small.fpp-note.is-miss { color: var(--fpp-amber-text); }
 .foms-prod-page__step small.fpp-note.is-ok { color: var(--fpp-ok-dark); }
+/* 도면이 있는 주문의 공정 보기 줄(사장님 2026-11-27 "도면이 주, 작업 시트는 보기") — 칸 꼴 그대로 체크 네모만 없다. 작업 중 = 남색(도면 카드
+   '작업 중'과 같은 뜻), 완료 = 위 초록, 미정 = 위 호박. 누르면 도면 화면으로 가는 줄(a)만 손가락 모양. 손 체크 칸을 끈 뒤 보일 줄은 [hidden] */
+.foms-prod-page__step small.fpp-note.is-run { color: var(--fpp-brand-dark); }
+.foms-prod-page__step.is-line { cursor: default; }
+a.foms-prod-page__step.is-line, a.foms-prod-page__step.is-line:hover, a.foms-prod-page__step.is-line:focus-visible { color: var(--fpp-text); text-decoration: none; cursor: pointer; }
+a.foms-prod-page__step.is-line.is-now { color: var(--fpp-brand-dark); }
+a.foms-prod-page__step.is-line:hover, a.foms-prod-page__step.is-line:focus-visible { background: var(--fpp-brand-50); border-radius: 8px; }
+/* 이름 칸은 한 줄 그대로, 진행 글이 길면 글 칸 안에서 두 줄로(말줄임 없음 — 글자 150% 에서 "재단"이 한 글자씩 꺾이던 것) */
+.foms-prod-page__step.is-line > span, .foms-prod-page__step.is-hand > span { flex: 0 0 auto; white-space: nowrap; }
+.foms-prod-page__step.is-line small.fpp-note, .foms-prod-page__step.is-hand small.fpp-note { flex: 1 1 auto; min-width: 0; text-align: right; }
+.foms-prod-page__step[hidden] { display: none; }
 /* 카드 쓴 파트 칸을 눌렀을 때 · 손 체크 확인 뒤 서버 글(공정 칸 묶음 아래) · [제작 완료] 까닭(상태 줄 안) — 호박 상자 */
 .fpp-stepmsg, .fpp-why { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--fpp-warn-soft); border-radius: 9px; background: var(--fpp-warn-50); color: var(--fpp-amber-text); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.4; text-align: left; word-break: keep-all; }
 .fpp-stepmsg[hidden], .fpp-why[hidden] { display: none; }
