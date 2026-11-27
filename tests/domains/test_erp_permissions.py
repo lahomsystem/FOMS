@@ -602,7 +602,7 @@ def test_all_erp_dashboard_mine_paths_use_shared_role_scope_contract() -> None:
         "control_tower": root / "foms/services/orders/dashboard_control_tower.py",
         "measurement": root / "foms/web/measurement/dashboard.py",
         "drawing": root / "foms/web/drawing/workbench.py",
-        "production": root / "foms/web/production/dashboard.py",
+        "production": root / "foms/services/production_home_read_model.py",
         "shipment": root / "foms/web/shipment/dashboard.py",
         "as": root / "foms/web/cs/as_dashboard.py",
         "construction": root / "foms/web/construction/dashboard.py",

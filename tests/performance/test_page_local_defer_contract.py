@@ -72,7 +72,6 @@ def test_measurement_dashboard_uses_single_deferred_entry_not_inline_bundles() -
 def test_order_detail_fragment_scripts_are_deferred_but_keep_include_order() -> None:
     layout = _read("templates/partials/shared/layout_scripts.html")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    production = _read("templates/production/partials/dashboard_body.html")
     construction = _read("templates/construction/partials/dashboard_body.html")
 
     # 주문 대시보드: 인라인 partial 은 퇴역 — layout 이 entry(defer) 1개만 싣고,
@@ -80,7 +79,6 @@ def test_order_detail_fragment_scripts_are_deferred_but_keep_include_order() -> 
     # fragment(헬퍼) → detail-dom(소비자) 로드 순서는 test_order_detail_two_phase_contract 가 커버.
     _assert_deferred(layout, "js/orders/erp-dashboard-entry.js")
     assert "js/orders/order-detail-fragment.js" in entry
-    _assert_deferred(production, "js/orders/order-detail-fragment.js")
     _assert_deferred(construction, "js/orders/order-detail-fragment.js")
 
 

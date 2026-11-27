@@ -108,12 +108,10 @@ _READ_ROUTES = {
     "production_part_marks.api_part_sheet": _DENIED,             # PC 도면 창
     "production_part_marks.api_part_history": _DENIED,           # 바뀐 기록
     "erp_orders_production.api_production_steps_get": _DENIED,   # 공정 읽기(지우는 길)
-    "erp_production_page.erp_production_dashboard": _DENIED,     # 옛 보드(지우는 길 — 넘겨주기 없음)
-    "erp_production_page.erp_production_tablet_sheet": _DENIED,  # 옛 옆 시트(지우는 길)
 }
 #: 다음 조각이 라우트째 지우는 길 — 지워진 뒤 표에만 남아도 된다(없는 길도 문지기 기본 거부다).
-_GOING_AWAY = {"erp_orders_production.api_production_steps_get", "erp_production_page.erp_production_dashboard",
-               "erp_production_page.erp_production_tablet_sheet"}
+#: 옛 보드 · 옛 옆 시트 라우트는 2026-11-27 지웠다(표에서도 뺐다). 공정 읽기 GET 은 뒤에 지운다(설계서 §6-3).
+_GOING_AWAY = {"erp_orders_production.api_production_steps_get"}
 
 
 def _production_rules(app, *, read: bool) -> list:

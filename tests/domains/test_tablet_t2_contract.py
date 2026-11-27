@@ -149,11 +149,10 @@ SIDE_SHEET_JS = "static/js/foms/tablet-side-sheet.js"
 SIDE_SHEET_CSS = "static/css/components/foms-tablet-side-sheet.css"
 LAYOUT_SCRIPTS = "templates/partials/shared/layout_scripts.html"
 
-# 3 legacy 그리드 partial — 행 order-id 소스 계약(세 그리드 동일 마크업 공유).
+# legacy 그리드 partial — 행 order-id 소스 계약(두 그리드 동일 마크업 공유). 생산 그리드는 옛 생산 보드와 함께 2026-11-27 지움.
 _LEGACY_GRID_PARTIALS = (
     "templates/orders/partials/dashboard_grid.html",
     "templates/construction/partials/filters_grid.html",
-    "templates/production/partials/filters_grid.html",
 )
 
 
@@ -296,131 +295,14 @@ def test_tile_section_is_token_driven_and_cohort_scoped() -> None:
 # production start/complete API. 카드 탭 = tablet-side-sheet 위임 확장.
 # =====================================================================
 
-KANBAN_PARTIAL = "templates/production/partials/tablet_kanban_body.html"
+# 칸반 템플릿 · JS · 보드 본문은 2026-11-27 옛 생산 보드와 함께 지웠다. CSS 파일은 확인 창 꼴만 남는다(아래 남은 시험).
 KANBAN_CSS = "static/css/foundation/foms-tablet-production-kanban.css"
-KANBAN_JS = "static/js/foms/tablet-production-kanban.js"
-PRODUCTION_DASHBOARD_BODY = "templates/production/partials/dashboard_body.html"
-
-
-def test_kanban_partial_exists_with_three_bucket_labels() -> None:
-    """파샬 존재 + read-model 3버킷 라벨(제작대기/제작중/제작완료) + 카드 order-id 소스."""
-    body = _read(KANBAN_PARTIAL)
-    for bucket in ("제작대기", "제작중", "제작완료"):
-        assert bucket in body, f"missing kanban bucket label: {bucket}"
-    assert "foms-kanban-card" in body
-    assert "data-order-id=" in body
-
-
-def test_kanban_groups_read_model_bucket_via_row_stage() -> None:
-    """버킷 접근 방식 판정: 서버 무변경 — 행 dict의 stage(버킷 라벨)로 Jinja selectattr
-    그룹핑(신규 컨텍스트/쿼리 없음)."""
-    body = _norm(_read(KANBAN_PARTIAL))
-    assert "selectattr('stage', 'equalto', '제작대기')" in body
-    assert "selectattr('stage', 'equalto', '제작중')" in body
-    assert "selectattr('stage', 'equalto', '제작완료')" in body
-
-
-def test_kanban_move_buttons_reuse_existing_production_api() -> None:
-    """열 이동 = 신규 API 없이 기존 생산 워크플로 엔드포인트 재사용(production/orders.py).
-    P3: 제작완료 열 = 수정 제작(/production/rework) 되돌림 엔드포인트."""
-    js = _read(KANBAN_JS)
-    assert "/api/orders/" in js
-    assert "/production/start" in js
-    assert "/production/complete" in js
-    assert "/production/rework" in js
-
-
-def test_kanban_rework_badge_and_move_button_rendered() -> None:
-    """P3: 제작완료 열 = 수정 제작(rework) 이동 버튼 + active 카드 재제작 배지
-    (보류 배지와 동일 문법: fa-rotate-left '재제작' 칩)."""
-    body = _read(KANBAN_PARTIAL)
-    assert "'move': 'rework'" in body
-    assert 'data-kanban-action="rework"' in body
-    assert "foms-kanban-card__rework" in body
-    assert "fa-rotate-left" in body
-    assert "재제작" in body
-
-
-def test_kanban_js_has_idempotent_guard() -> None:
-    """fragment 재실행/재로드 시 전역 listener 중복 바인딩 방지(perf G4)."""
-    js = _read(KANBAN_JS)
-    assert "window.__FOMS_KANBAN_BOUND" in js
-
-
-def test_kanban_js_wired_in_layout_scripts_deferred() -> None:
-    """칸반 JS는 layout_scripts.html에서 defer + ?v 캐시버스터로 로드(perf G1, W10 전례)."""
-    html = _read(LAYOUT_SCRIPTS)
-    m = re.search(r"<script[^>]*tablet-production-kanban\.js[^>]*>", html)
-    assert m is not None, "tablet-production-kanban.js not wired in layout_scripts.html"
-    tag = m.group(0)
-    assert "defer" in tag, "kanban script must be defer (perf G1)"
-    assert "?v=" in tag, "kanban script must carry a ?v cachebuster"
-
-
-def test_side_sheet_delegation_extended_to_kanban_cards() -> None:
-    """카드 탭 → 상세 시트: side-sheet 위임 셀렉터에 .foms-kanban-card[data-order-id]
-    확장(최소 1줄). 기존 그리드 행 셀렉터도 보존(회귀 금지)."""
-    js = _read(SIDE_SHEET_JS)
-    assert ".foms-kanban-card[data-order-id]" in js
-    assert "#erp-grid tr.erp-main-row[data-order-id]" in js
-
-
-def test_kanban_wired_into_dashboard_body_with_legacy_wrapper() -> None:
-    """dashboard_body.html include 배선 + legacy 큐 배타 래퍼(.foms-production-legacy-queue)."""
-    body = _read(PRODUCTION_DASHBOARD_BODY)
-    assert "production/partials/tablet_kanban_body.html" in body
-    assert "foms-production-legacy-queue" in body
-
-
-def test_kanban_css_exclusivity_couples_hide_and_show_no_blank() -> None:
-    """배타(blank 금지): 기본은 칸반 은닉 / legacy 표시. 태블릿 가로 코호트에서 legacy
-    은닉과 칸반 표시가 **동일 게이트**(코호트 body class + 코어 MQ) 아래 결합 → 어떤
-    조합도 3영역 전부 은닉되지 않는다."""
-    css = _norm(_read(KANBAN_CSS))
-    assert ".foms-kanban { display: none" in css  # 기본 은닉(PC/모바일 fallback)
-    assert CORE_MEDIA_QUERY in css
-    assert "body.erp-mobile-v2-layout .foms-kanban { display: grid" in css
-    assert "body.erp-mobile-v2-layout .foms-production-legacy-queue { display: none" in css
-
-
-def test_kanban_css_hmi_color_only_on_dday_chip() -> None:
-    """HMI 색 규율: 카드/열은 무채색, 상차 D-day 칩만 임박/지연 시 유채색."""
-    css = _norm(_read(KANBAN_CSS))
-    assert ".foms-kanban-chip.is-imminent" in css
-    assert ".foms-kanban-chip.is-overdue" in css
 
 
 def test_kanban_css_is_landscape_only_no_portrait_token() -> None:
     """세로=모바일 셸 — 이 파일은 landscape 전용(portrait 토큰 금지, split-view 가드 정합)."""
     css = _read(KANBAN_CSS)
     assert "orientation: portrait" not in css
-
-
-def test_kanban_css_confirmed_change_has_persistent_border() -> None:
-    """R6/R8: 확인됨 변경 카드(data-change-history=1, is-changed 아님)에 상설 정적 테두리 —
-    원거리 식별용. 미확인(.is-changed danger 빨강 펄스)과 파스텔 라벤더로 위계 구분."""
-    css = _norm(_read(KANBAN_CSS))
-    assert '.foms-kanban-card[data-change-history="1"]:not(.is-changed)' in css
-
-
-def test_kanban_css_kpi_strip_is_five_column_flex_grow() -> None:
-    """D-a/D-b: 통합 상단 바 KPI 는 5타일 1줄(repeat(5)) + flex:1 로 pcbar 가운데 확장.
-    5번째 보류 타일 줄바꿈(2줄) 회귀 차단."""
-    css = _norm(_read(KANBAN_CSS))
-    assert (
-        ".erp-pro-alerts { flex: 1 1 auto; "
-        "grid-template-columns: repeat(5, minmax(0, 1fr))" in css
-    )
-
-
-def test_kanban_css_col_body_cap_lowered_for_chrome_shrink() -> None:
-    """D-d: pcbar+KPI 통합·필터 접기로 상단 크롬이 줄어든 만큼 열 body 캡 상수를 실측 조정
-    (240→265). 크롬(177) + 열 헤더 + 상하 패딩을 함께 상쇄해야 board 가 뷰포트를 안 넘어
-    페이지 스크롤이 없다 — 카드 17건 실측으로 board_bottom 이 뷰포트 안에 드는 확정값이
-    265(과소값은 오히려 페이지 스크롤 유발). 240 회귀 차단."""
-    css = _norm(_read(KANBAN_CSS))
-    assert "max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 265px)" in css
-    assert "calc(100dvh - 240px)" not in css
 
 
 def test_kanban_css_change_modal_list_height_corrects_ui_zoom() -> None:
@@ -431,42 +313,11 @@ def test_kanban_css_change_modal_list_height_corrects_ui_zoom() -> None:
     assert "max-height: 60vh;" not in css
 
 
-def test_kanban_body_has_no_label_print_button() -> None:
-    """F-2: 미구현 전역 라벨 인쇄 버튼(disabled) 제거 — pcbar actions/label 마크업 부재.
-    통합 바가 [lead][KPI] 2요소로 1줄 안정."""
-    body = _read(KANBAN_PARTIAL)
-    assert "foms-prod-pcbar__actions" not in body
-    assert "foms-prod-pcbar__label" not in body
-
-
 def test_kanban_css_has_no_label_print_rules() -> None:
     """F-2: 사용처 없는 라벨 인쇄 CSS 규칙 정리 — pcbar__actions/__label 셀렉터 부재."""
     css = _read(KANBAN_CSS)
     assert "foms-prod-pcbar__actions" not in css
     assert "foms-prod-pcbar__label" not in css
-
-
-def test_kanban_css_fullscreen_hides_chrome_and_expands_board() -> None:
-    """F-3: 전체화면(.tablet-prod-board.is-fullscreen)에서 통합 바·필터 바 은닉 + 플로팅 복원
-    버튼 표시 + 열 body 캡 확대(크롬 없으니 복원 버튼 여백만). 코호트 게이트 유지."""
-    css = _norm(_read(KANBAN_CSS))
-    assert CORE_MEDIA_QUERY in css
-    # 통합 바·필터 바 은닉.
-    assert (
-        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-prod-pcbar, "
-        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-filter "
-        "{ display: none" in css
-    )
-    # 플로팅 복원 버튼 전체화면 시 표시.
-    assert (
-        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen "
-        ".tablet-prod-fullscreen-exit {" in css
-    )
-    # 열 body 캡 확대(일반 265 → 크롬 사라져 열 헤더+패딩만 상쇄). 카드 15건 실측 확정 90.
-    assert (
-        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-kanban-col__body "
-        "{ max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 90px)" in css
-    )
 
 
 # =====================================================================
@@ -630,7 +481,8 @@ def test_side_sheet_still_uses_shared_loader() -> None:
 # =====================================================================
 
 MEASURE_JS_W14 = "static/js/foms/tablet-measurement.js"
-KANBAN_JS_W14 = "static/js/foms/tablet-production-kanban.js"
+# 셋째 = 도메인 시트 JS(옛 칸반 JS 는 2026-11-27 지움 — 같은 마커를 같은 식으로 읽는다).
+KANBAN_JS_W14 = "static/js/foms/tablet-domain-sheets.js"
 
 
 def test_w14_tablet_ui_gate_marker_is_css_ssot_consumed_by_all_three_js() -> None:
@@ -724,7 +576,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20261123b" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20261127p" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -764,9 +616,9 @@ def test_side_sheet_delegation_extended_to_as_and_history_rows() -> None:
     js = _read(SIDE_SHEET_JS)
     assert ".erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id]" in js
     assert ".erp-history-mobile-shell tr.history-main-row[data-order-id]" in js
-    # 회귀 금지: 기존 그리드/칸반 소스 보존.
+    # 회귀 금지: 기존 그리드 소스 보존(칸반 카드 소스는 2026-11-27 옛 생산 보드와 함께 지움).
     assert "#erp-grid tr.erp-main-row[data-order-id]" in js
-    assert ".foms-kanban-card[data-order-id]" in js
+    assert ".foms-kanban-card[data-order-id]" not in js
 
 
 def test_side_sheet_interactive_guard_covers_role_button_and_form_check() -> None:
@@ -1141,7 +993,7 @@ def test_side_sheet_delegation_extended_to_completion_grid_rows() -> None:
     js = _read(SIDE_SHEET_JS)
     assert ".foms-completion-grid tbody tr[data-order-id]" in js
     assert "#erp-grid tr.erp-main-row[data-order-id]" in js
-    assert ".foms-kanban-card[data-order-id]" in js
+    assert ".foms-kanban-card[data-order-id]" not in js
 
 
 # =====================================================================

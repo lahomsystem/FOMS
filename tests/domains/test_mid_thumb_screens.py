@@ -289,9 +289,8 @@ def _n7_sources(rel: str) -> list[tuple[str, str]]:
 @pytest.mark.parametrize("rel", [
     "static/js/orders/dashboard/erp-dashboard-core.js",
     "static/js/construction/dashboard.js",
-    "templates/production/partials/scripts.html",
     "static/js/cs/as-dashboard.js",
-])
+])  # 생산 보드 창(production/partials/scripts.html)은 2026-11-27 지움
 def test_attachment_modal_cards_640_src_and_viewer_original(rel):
     html = _node(_n7_sources(rel), _N7_BODY, _N7_LIST)
     srcs = re.findall(r'<img src="([^"]+)"', html)
@@ -304,7 +303,6 @@ def test_attachment_modal_cards_640_src_and_viewer_original(rel):
 @pytest.mark.parametrize("rel,opener", [
     ("static/js/orders/dashboard/erp-dashboard-attachments.js", "function showAttachmentAtIndex(index)"),
     ("static/js/construction/dashboard.js", "function showAttachmentAtIndex(index)"),
-    ("templates/production/partials/scripts.html", "function showAttachmentAtIndex(index)"),
     ("static/js/cs/as-dashboard.js", "function showAttachmentAtIndex(index)"),
 ])
 def test_attachment_modal_viewer_opens_list_not_src(rel, opener):

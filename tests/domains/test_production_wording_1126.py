@@ -29,7 +29,8 @@ def test_board_head_tab_name_follows_the_viewer():
 
 
 def test_failed_save_text_has_no_error_head_or_status_number():
-    for name in ("foms-production-home-steps.js", "foms-production-home.js", "foms-production-sheet-page.js", "foms-production-steps.js"):
+    # 폰 공정 창(foms-production-steps.js)은 2026-11-27 옛 생산 보드와 함께 지웠다.
+    for name in ("foms-production-home-steps.js", "foms-production-home.js", "foms-production-sheet-page.js"):
         src = _read(JS / name)
         assert "'오류: '" not in src and "'HTTP '" not in src, name
         assert "res.status === 409 ? '" + STALE + "' : ''" in src, name
@@ -56,7 +57,7 @@ def test_toast_says_what_was_pressed_and_stays_quiet_for_zero():
 
 
 def test_production_cancel_button_and_dialog_words():
-    for path in (TPL / "sheet.html", TPL / "partials" / "tablet_sheet.html"):
+    for path in (TPL / "sheet.html",):  # 옆 시트(tablet_sheet.html)는 2026-11-27 지움
         html = _read(path)
         assert 'data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 시작 취소</button>' in html, path.name
     sheets = _read(ROOT / "static" / "js" / "foms" / "tablet-domain-sheets.js")
@@ -80,7 +81,6 @@ def test_owner_words_for_people_orders_dialogs_and_defect():
     assert "p.closeText || '닫기';" in modal and "'이 주문 첫 도면이라 제작 시작도 같이 돼요.'" in modal
     assert "data-pp-modal-close>닫기</button>" in _read(TPL / "partials" / "home_parts_overlays.html")
     assert "</svg>불량 알리기</button>" in _read(TPL / "partials" / "home_step_panel.html")
-    assert "</i> 불량 알리기" in _read(TPL / "partials" / "production_steps_sheet.html")  # 폰 공정 시트 단추
 
 
 def test_top_tab_is_named_for_what_it_counts():
@@ -247,7 +247,7 @@ def test_big_button_default_dialog_texts_match_production_buttons():
     assert "시작하시겠습니까" not in js and "완료하시겠습니까" not in js and "불러오지 못했습니다" not in js
     assert 'window.alert("오류: " + (data.message || "저장 실패"));' in js  # 출고 저장 글은 그대로
     entry = _read(ROOT / "static/js/shipment/shipment-entry.js")
-    assert "tablet-domain-sheets.js?v=20261127a" in entry
+    assert "tablet-domain-sheets.js?v=20261127p" in entry
 
 
 def _py_strings(path: Path) -> str:

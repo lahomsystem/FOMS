@@ -78,8 +78,7 @@ def test_no_dashboard_root_opts_in(client, monkeypatch):
     assert "erp-dashboard-orders" in orders
     assert "data-attachments-show-superseded" not in orders
 
-    for path, root_cls in (("/erp/production/dashboard", "erp-dashboard-production"),
-                           ("/erp/construction/dashboard", "erp-construction-dashboard")):
+    for path, root_cls in (("/erp/construction/dashboard", "erp-construction-dashboard"),):  # 옛 생산 보드는 2026-11-27 지움
         html = _page(client, path)
         assert root_cls in html, path
         assert "erp-dashboard-entry.js" in html, path  # 번들은 실린다 — 그래서 페이지 표시로 가른다
@@ -202,15 +201,11 @@ def test_order_edit_viewer_groups_by_superseded():
 
 
 def test_attachment_preview_click_handled_once_per_page():
-    """생산·시공 페이지에서는 ERP 쪽 위임이 비키고, 두 페이지 처리기는 자기 페이지에서만 돈다."""
+    """생산·시공 페이지에서는 ERP 쪽 위임이 비키고, 시공 처리기는 자기 페이지에서만 돈다(옛 생산 보드 처리기는 2026-11-27 지움)."""
     detail = DETAIL_DOM_JS.read_text(encoding="utf-8")
     branch = detail[detail.index("closest('.erp-btn-attachments-preview')"):]
     branch = branch[:branch.index("openAttachmentsPreview(Number(orderId))")]
     assert ".erp-dashboard-production" in branch and ".erp-construction-dashboard" in branch
-
-    prod = (ROOT / "templates/production/partials/scripts.html").read_text(encoding="utf-8")
-    prod_branch = prod[prod.index("closest('.erp-btn-attachments-preview')"):]
-    assert ".erp-dashboard-production" in prod_branch[:prod_branch.index("openAttachmentsPreview(")]
 
     constr = (ROOT / "static/js/construction/dashboard.js").read_text(encoding="utf-8")
     constr_branch = constr[constr.index("closest('.erp-btn-attachments-preview')"):]

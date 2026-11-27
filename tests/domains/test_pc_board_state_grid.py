@@ -13,11 +13,10 @@ ROOT = Path(__file__).resolve().parents[2]
 STYLE_FILES = (
     "static/css/contexts/orders/dashboard-grid.css",
     "static/css/contexts/construction/dashboard.css",
-    "templates/production/partials/styles.html",
 )
+# 생산 PC 표(옛 생산 보드 filters_grid · styles · scripts)는 2026-11-27 보드와 함께 지웠다.
 BOARD_GRIDS = (
     "templates/construction/partials/filters_grid.html",
-    "templates/production/partials/filters_grid.html",
 )
 
 
@@ -175,8 +174,7 @@ def test_dead_quest_surfaces_removed_and_stage_select_plain():
         assert ">H. CS<" not in body, rel
         assert '<option value="RECEIVED"' in body, rel
         assert ">주문접수<" in body, rel
-    for rel in ("static/js/construction/dashboard.js",
-                "templates/production/partials/scripts.html"):
+    for rel in ("static/js/construction/dashboard.js",):
         body = _read(rel)
         assert "approveQuestTeam" not in body, rel
         assert "loadQuestDetail" not in body, rel

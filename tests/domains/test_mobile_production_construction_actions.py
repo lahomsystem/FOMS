@@ -119,47 +119,6 @@ def _order_ids_for_action(body: str, action: str) -> list[str]:
 # --- v2 모바일: 생산 -------------------------------------------------------
 
 
-def test_생산_권한자_모바일_큐에_되돌리기_버튼이_해당_단계에만_나온다(client, monkeypatch):
-    user = _make_user(client, "mpa_prod_staff", "PRODUCTION")
-    _enable_v2(monkeypatch, user.id)
-    orders = _seed_production_orders()
-
-    res = client.get("/erp/production/dashboard")
-    assert res.status_code == 200
-    body = res.get_data(as_text=True)
-
-    assert _count_action(body, "productionRework") == 1
-    assert _count_action(body, "productionCancel") == 1
-    assert _count_action(body, "productionUncomplete") == 1
-    # 제작중 카드에만 수정 제작·제작 취소가, 제작완료 카드에만 완료 취소가 붙는다.
-    assert _order_ids_for_action(body, "productionRework") == [str(orders["running"].id)]
-    assert _order_ids_for_action(body, "productionCancel") == [str(orders["running"].id)]
-    assert _order_ids_for_action(body, "productionUncomplete") == [str(orders["done"].id)]
-
-
-def test_생산_권한_없는_팀에게는_생산_액션_버튼이_하나도_없다(client, monkeypatch):
-    """음성 대조군 — 도면팀은 서버(_production_steps_edit_required)가 403 을 준다.
-
-    되돌리기뿐 아니라 시작·완료도 같은 데코레이터를 지나므로 화면에서도 전부 사라져야
-    한다(눌러도 거부당할 버튼 0). 단계 배지는 남아 지금 상태는 여전히 읽을 수 있다.
-    """
-    user = _make_user(client, "mpa_drawing_staff", "DRAWING")
-    _enable_v2(monkeypatch, user.id)
-    _seed_production_orders()
-
-    res = client.get("/erp/production/dashboard")
-    assert res.status_code == 200
-    queue = _mobile_queue_section(res.get_data(as_text=True), "생산 모바일 작업 큐")
-
-    assert _count_action(queue, "productionRework") == 0
-    assert _count_action(queue, "productionCancel") == 0
-    assert _count_action(queue, "productionUncomplete") == 0
-    assert _count_action(queue, "startProduction") == 0
-    assert _count_action(queue, "completeProduction") == 0
-    # 배지는 남는다 — 권한이 없어도 무슨 단계인지는 보인다(정보까지 빼앗지 않는다).
-    assert "제작중" in queue
-
-
 # --- v2 모바일: 시공 -------------------------------------------------------
 
 
@@ -225,7 +184,7 @@ def test_모바일_세_화면_응답에_window_prompt_가_없다(client, monkeyp
     _add_order("CONSTRUCTION", "prompt 점검 현장", construction_started=True)
 
     for path in (
-        "/erp/production/dashboard",
+        "/erp/production/home",
         "/erp/construction/dashboard",
         "/erp/dashboard",
     ):

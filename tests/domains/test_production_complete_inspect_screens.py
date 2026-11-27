@@ -24,12 +24,9 @@ from tests.support.production_steps_seed import inspected_steps
 # 6. 화면 — 모든 [제작 완료] 단추가 같은 API 를 부르고, 시트 두 곳은 같은 함수로 회색
 # --------------------------------------------------------------------------- #
 def test_모든_제작_완료_단추는_같은_완료_API_로_간다() -> None:
-    """작업 시트 · 옆 시트(tablet-domain-sheets.js) · 칸반 카드(tablet-production-kanban.js) · PC 보드 상세 · 폰 큐
-    (production/partials/scripts.html completeProduction)가 모두 /production/complete — 서버 거절 하나가 전부를 막는다."""
+    """작업 시트 · '내 공정' 판(tablet-domain-sheets.js)이 /production/complete — 서버 거절 하나가 전부를 막는다.
+    (옛 보드 칸반 카드 · PC 상세 · 폰 큐는 2026-11-27 지웠다.)"""
     assert '"/production/complete"' in _read("static/js/foms/tablet-domain-sheets.js")
-    assert 'path: "/production/complete"' in _read("static/js/foms/tablet-production-kanban.js")
-    assert "submitProductionTransition(orderId, '/production/complete')" in _read("templates/production/partials/scripts.html")
-    assert "'data_action': 'completeProduction'" in _read("templates/production/partials/mobile_queue.html")
 
 
 def test_거절_글이_엉뚱한_연결_끊김_글로_덮이지_않는다() -> None:
@@ -39,10 +36,6 @@ def test_거절_글이_엉뚱한_연결_끊김_글로_덮이지_않는다() -> N
     body = sheets[i:sheets.index("function productionStart(", i)]
     assert 'window.alert(failed.message || failed.error || "처리하지 못했어요");' in body
     assert body.index("연결이 끊겼어요") > body.index(".catch(function (err)")
-    kanban = _read("static/js/foms/tablet-production-kanban.js")
-    assert 'window.alert("오류: " + (failed.message || failed.error || result.message));' in kanban
-    pc = _read("templates/production/partials/scripts.html")
-    assert "alert('오류: ' + (result.data.message || '처리에 실패했습니다.'));" in pc
     # 공용 쓰기 래퍼는 서버 글을 먼저 쓴다(409 기본 글 '충돌' 은 서버 글이 없을 때만)
     write = _read("static/js/foms/foms-write.js")
     assert "extractServerMessage(data) || STATUS_MESSAGES[res.status]" in write
@@ -57,37 +50,11 @@ def test_일괄_화면이_막힌_주문을_알린다() -> None:
 
 
 def test_시트_두_곳은_뷰_모델의_같은_판정으로_그린다() -> None:
+    """작업 시트는 뷰 모델 판정(complete_ready)으로 그린다(옆 시트는 2026-11-27 옛 보드와 함께 지움)."""
     page = _read("templates/production/sheet.html")
-    side = _read("templates/production/partials/tablet_sheet.html")
     assert "{% set _inspected = order.complete_ready %}" in page
     assert "steps_done >= (order.steps | length)" not in page  # 템플릿이 스스로 세지 않는다
-    assert "order.complete_ready" in side and "data-foms-sheet-complete" in side
-    assert "검수까지 끝나면 눌러요" in page and "검수까지 끝나면 눌러요" in side
-    css = _read("static/css/contexts/production/sheet.css")
-    assert ".foms-prod-sheet__btn--off, .foms-prod-sheet__btn--off:disabled" in css
-
-
-def _render_side_sheet(client, oid: int) -> str:
-    resp = client.get(f"/erp/production/tablet-sheet/{oid}")
-    assert resp.status_code == 200, resp.status_code
-    html = resp.get_data(as_text=True)
-    return re.search(r'<button [^>]*data-tablet-sheet-action="production-complete"[^>]*>.*?</button>', html, re.S).group(0)
-
-
-def test_옆_시트_제작_완료는_검수_전_회색_검수_끝_파랑(client) -> None:
-    _login(client, _user())
-    grey = _render_side_sheet(client, _order(production={"steps": inspected_steps(upto="cut")}))
-    # 진짜 disabled 없이 aria-disabled 만 — 누르면 남은 공정을 알린다(2026-11-22, test_production_sheet_tap_explains)
-    assert "foms-prod-sheet__btn--off" in grey and " disabled" not in grey and 'aria-disabled="true"' in grey
-    assert "검수까지 끝나면 눌러요" in grey and "data-foms-sheet-complete-hint>" in grey
-    blue = _render_side_sheet(client, _order(production={"steps": inspected_steps()}))
-    assert "foms-prod-sheet__btn--pri" in blue and " disabled" not in blue
-    assert "data-foms-sheet-complete-hint hidden" in blue
-    # 한 칸도 안 켠 주문 = 규칙 밖이라 파랑(서버가 그대로 완료시키므로 회색으로 막아 보이지 않는다)
-    for production in (None, {"steps": _all_off()}):
-        unused = _render_side_sheet(client, _order(production=production))
-        assert "foms-prod-sheet__btn--pri" in unused and " disabled" not in unused, production
-        assert "data-foms-sheet-complete-hint hidden" in unused
+    assert "검수까지 끝나면 눌러요" in page
 
 
 def test_공정_API_는_같은_함수의_답을_싣는다(client) -> None:

@@ -242,7 +242,6 @@
     "static/js/orders/foms-call-log.js",
     "static/js/orders/order-detail-fragment.js",
     "static/js/orders/share-contract.js",
-    "static/js/production/foms-production-steps.js",
     "static/js/runtime/erp-shell.js",
     "static/js/runtime/layout-head-init.js",
     "static/js/runtime/layout-scripts-chat.js",

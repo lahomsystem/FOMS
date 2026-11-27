@@ -33,7 +33,6 @@ FILES = {
     "home": "static/css/contexts/production/home.css",
     "notif": "static/css/components/foms-notification-center.css",
     "reason": "static/css/components/foms-reason-sheet.css",
-    "kanban": "static/css/foundation/foms-tablet-production-kanban.css",
     "grid": "static/css/contexts/orders/dashboard-grid.css",
     "landscape": "static/css/foundation/foms-tablet-landscape.css",
     "as": "static/css/foundation/foms-tablet-as-compare.css",
@@ -159,10 +158,8 @@ def test_알림_사유_그림_보기_닫기와_화살표() -> None:
     assert f"width: {TAP}" in v and f"height: {TAP}" in v
 
 
-def test_생산_보드_KPI_와_도면_카드로_보기() -> None:
-    k = _tablet_text("kanban")
-    assert f"min-height: {TAP}" in _rule(k, "body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert[data-tablet-prod-kpi]")
-    assert GAP in _rule(k, "body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alerts")
+def test_생산_첫_화면_도면_카드로_보기() -> None:
+    """옛 생산 보드 KPI 칸 규칙은 2026-11-27 보드와 함께 지웠다 — 첫 화면 [도면 카드로 보기] 칸만 남는다."""
     assert f".fph-pane__cards {{ min-height: {TAP}; }}" in _tablet_text("home")
 
 
@@ -328,7 +325,7 @@ def test_2차_바뀐_파일_핀은_20261122w() -> None:
     for f in ("../components/foms-tablet-side-sheet.css",
               "foms-tablet-drawing-gallery.css", "foms-tablet-construction.css"):
         assert f'@import url("{f}?v=20261122w")' in bundle, f
-    assert "foms-tablet-bundle.css') }}?v=20261123b" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert "foms-tablet-bundle.css') }}?v=20261127p" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     ship = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     cons = (ROOT / "templates/construction/partials/styles.html").read_text(encoding="utf-8")
     # 출고 열 · 하루치 출고표 시트는 4차가 다시 올렸다(아래 4차 핀 시험).
@@ -391,7 +388,7 @@ def test_3차_바뀐_파일_핀은_20261123a() -> None:
     bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
     for f in ("foms-tablet-landscape.css", "foms-tablet-completion-grid.css", "foms-tablet-as-compare.css"):
         assert f'@import url("{f}?v=20261123a")' in bundle, f
-    assert "foms-tablet-bundle.css') }}?v=20261123b" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert "foms-tablet-bundle.css') }}?v=20261127p" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
 
 
 # ── 4차 ────────────────────────────────────────────────────────────────────────────────────
@@ -440,7 +437,7 @@ def test_4차_실측_네이버_발송처리_띠_머리와_작은_단추() -> Non
 def test_4차_바뀐_파일_핀은_20261123b() -> None:
     bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
     assert '@import url("foms-tablet-measurement.css?v=20261123b")' in bundle
-    assert "foms-tablet-bundle.css') }}?v=20261123b" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert "foms-tablet-bundle.css') }}?v=20261127p" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     ship = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     for f in ("shipment-dashboard-columns.css", "tablet-day-sheet.css"):
         assert f + "') }}?v=20261123b" in ship, f

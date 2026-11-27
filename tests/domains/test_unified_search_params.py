@@ -216,8 +216,6 @@ def test_erp_search_placeholders_use_whole_search_label():
         "templates/orders/partials/dashboard_filters.html",
         "templates/orders/partials/dashboard_mobile_filters.html",
         "templates/orders/partials/history_dashboard_body.html",
-        "templates/production/partials/filters.html",
-        "templates/production/partials/mobile_filters.html",
         "templates/construction/partials/filters.html",
         "templates/construction/partials/mobile_filters.html",
         "templates/measurement/partials/dashboard_main.html",

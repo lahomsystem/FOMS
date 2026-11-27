@@ -1590,7 +1590,6 @@ def test_attachment_preview_modal_global_shared_partial_dedup() -> None:
         root / "templates/orders/partials/edit_order_body.html",
         root / "templates/orders/partials/order_detail_mobile_v2.html",
         root / "templates/orders/partials/dashboard_modals.html",
-        root / "templates/production/partials/modals.html",
         root / "templates/construction/partials/modals.html",
         root / "templates/orders/wizard/wizard_shell.html",
     ]
@@ -1611,21 +1610,16 @@ def test_attachment_preview_modal_global_shared_partial_dedup() -> None:
 
 
 def test_dashboard_attachment_preview_bridge_ssot() -> None:
-    """Production/construction dashboards delegate legacy openAttachmentPreviewModal to shared SSOT."""
+    """Construction dashboard delegates legacy openAttachmentPreviewModal to shared SSOT(옛 생산 보드는 2026-11-27 지움)."""
     root = Path(__file__).resolve().parents[2]
     bridge = (root / "static/js/foms/attachment-preview-modal-bridge.js").read_text(encoding="utf-8")
     open_js = (root / "static/js/foms/erp-attachment-preview-open.js").read_text(encoding="utf-8")
-    prod_body = (root / "templates/production/partials/dashboard_body.html").read_text(encoding="utf-8")
     cons_body = (root / "templates/construction/partials/dashboard_body.html").read_text(encoding="utf-8")
 
     assert "window.fomsOpenErpAttachmentPreviewModal" in open_js
     assert "window.openAttachmentPreviewModal = openAttachmentPreviewModal" in bridge
     assert "fomsOpenAttachmentPreviewFromRecord" in bridge
-    assert "attachment-preview-modal-bridge.js" in prod_body
     assert "attachment-preview-modal-bridge.js" in cons_body
-    assert "function openAttachmentPreviewModal(" not in (
-        root / "templates/production/partials/scripts.html"
-    ).read_text(encoding="utf-8")
     assert "function openAttachmentPreviewModal(" not in (
         root / "templates/construction/partials/scripts.html"
     ).read_text(encoding="utf-8")

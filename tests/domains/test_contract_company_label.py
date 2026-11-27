@@ -20,17 +20,6 @@ def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
 
-def test_old_kanban_filter_and_chip_say_contract_company_and_keep_values():
-    src = _read("templates/production/partials/tablet_kanban_body.html")
-    select = src.split("<select data-tablet-prod-factory", 1)[1].split("</select>", 1)[0]
-    assert re.findall(r'<option value="(\d?)"[^>]*>([^<]+)</option>', select) == [
-        ("", "전체"), ("1", "다른 계약"), ("2", NEW)]  # 값 · 판정(tablet-domain-sheets.js)은 그대로
-    assert 'aria-label="계약 회사"' in select
-    chip = src.split('class="foms-kanban-card__factory"', 1)[1].split("</span>", 1)[0]
-    assert f'title="{NEW} 주문"' in chip and chip.rstrip().endswith(NEW)
-    assert "2공장" not in src
-
-
 def test_drawing_change_alert_audit_and_tablet_form_labels():
     old = {"flags": {"factory2": False}}
     new = {"flags": {"factory2": True}}

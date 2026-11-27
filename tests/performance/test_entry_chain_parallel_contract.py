@@ -231,20 +231,21 @@ def test_negative_control_reinsert_on_retry_is_caught(name: str) -> None:
 
 
 SHIP_PARTIAL = "templates/shipment/partials/dashboard_scripts.html"
-KANBAN_BODY = "templates/production/partials/tablet_kanban_body.html"
+# 도메인 시트 핀 기준 = 생산 첫 화면 본문(옛 칸반 본문은 2026-11-27 지움 — 작업 시트 · 첫 화면 · 출고 CHAIN 이 같은 핀).
+KANBAN_BODY = "templates/production/partials/home_body.html"
 
 
 def _shipment_wiring_problems(partial: str, entry: str, kanban: str) -> list[str]:
-    """출고 파샬은 엔트리 1개(defer)만, 도메인 시트는 엔트리 CHAIN 이 생산 칸반과 같은 핀으로 싣는다."""
+    """출고 파샬은 엔트리 1개(defer)만, 도메인 시트는 엔트리 CHAIN 이 생산 첫 화면과 같은 핀으로 싣는다."""
     probs: list[str] = []
     tags = re.findall(r"<script\b[^>]*\bsrc\s*=[^>]*>", partial)
     if len(tags) != 1 or "js/shipment/shipment-entry.js" not in tags[0] or "defer" not in tags[0]:
         probs.append(f"partial: 엔트리 defer 1개만이어야 한다({len(tags)}개)")
     pin = re.search(r"tablet-domain-sheets\.js'\) }}\?v=([0-9a-z]+)", kanban)
     if not pin:
-        probs.append("kanban: 생산 칸반의 도메인 시트 태그를 못 찾았다")
+        probs.append("kanban: 생산 첫 화면의 도메인 시트 태그를 못 찾았다")
     elif f"'/static/js/foms/tablet-domain-sheets.js?v={pin.group(1)}'" not in entry:
-        probs.append(f"pin: 엔트리 CHAIN 의 도메인 시트 핀이 생산 칸반({pin.group(1)})과 다르다")
+        probs.append(f"pin: 엔트리 CHAIN 의 도메인 시트 핀이 생산 첫 화면({pin.group(1)})과 다르다")
     return probs
 
 

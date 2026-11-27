@@ -189,7 +189,7 @@ def test_changed_dashboard_and_tablet_scripts_are_repinned():
     # 실측 폼은 뒤 작업(2026-11-24 라홈시스템 계약 이름, 20261124f)이 정당하게 올린다 — "이 작업 핀보다 오래되지 않았다".
     measure_pin = layout.split("tablet-measure-form.js') }}?v=", 1)[1].split('"', 1)[0]
     assert measure_pin >= PIN, measure_pin
-    for rel in ("templates/construction/partials/dashboard_body.html", "templates/production/partials/dashboard_body.html"):
+    for rel in ("templates/construction/partials/dashboard_body.html",):  # 옛 생산 보드 본문은 2026-11-27 지움
         assert f"order-detail-fragment.js') }}}}?v={PIN}" in _read(rel), rel
 
 
