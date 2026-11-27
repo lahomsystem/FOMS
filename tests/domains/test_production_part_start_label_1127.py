@@ -70,7 +70,7 @@ def test_js_redraw_window_and_notice_use_the_same_word(client, cohort, tmp_path)
     out = res["out"]
     assert out[0]["cards"] == 3 and out[0]["diffs"] == []  # 서버 칸 = JS 가 다시 그린 칸([엣지 시작] 포함)
     w = out[1]["modal"]
-    assert (w["title"], w["run"]["text"], w["line"]) == ("엣지 시작할까요?", "엣지 시작", "→ 작업 중 · 박엣지")
+    assert (w["title"], w["run"]["text"], w["line"]) == ("엣지 시작할까요?", "엣지 시작", "미정 → 작업 중 · 박엣지")  # 11-27 앞말 미정
     assert w["body"] == "이 주문 첫 도면이라 제작 시작도 같이 돼요."  # 제작 시작 한 줄은 그대로
     assert out[2]["status"] == "엣지 시작했어요 · 제작 시작도 같이 됐어요" and out[2]["modal"]["hidden"] is True
     act = out[3]["card"]["act"]
