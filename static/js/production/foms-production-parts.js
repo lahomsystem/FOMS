@@ -70,6 +70,7 @@
     p.body = M.firstLine(action, cards);
     pending = { action: action === 'held' ? '' : action, cards: cards, busy: false, run: p.run, locked: !!p.locked, target: p.target };
     M.open(p, cards.map(function (card) { return listItem(card, p.line, p.tone); }), opener, cards[0]);
+    M.cancelLine(pending, p, function (act, target) { return requestFor({ action: act, cards: cards, target: target }).body; }); // 시작 취소 창 한 줄(11-27)
   }
   function closeModal() {
     if (!pending || pending.busy) { return; }

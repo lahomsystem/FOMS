@@ -4,7 +4,10 @@
 //   {do:'parity'} 모든 카드의 서버 단추 칸 ↔ JS 가 다시 그린 단추 칸 · {do:'click', key, act} 카드 단추 · {do:'modal'} 창 모습 ·
 //   {do:'notice', key} 넘김 말풍선 누름 ·
 //   {do:'run'} 실행 단추 · {do:'choice', text} 관리자 고르기 · {do:'who', index} 사람 고르기 · {do:'card', key} 카드 모습 · {do:'sync'} 받아 오기 한 번 ·
-//   {do:'timers'} 미뤄 둔 일(창 잠금 풀기 등)을 지금 돌림.
+//   {do:'timers'} 미뤄 둔 일(창 잠금 풀기 등)을 지금 돌림 · {do:'answer'} 붙잡아 둔 미리 보기 답을 지금 보냄.
+// [시작 취소] 창 미리 보기(GET …/part-marks/cancel-preview, 2026-11-27)는 쓰기 · 받아 오기 기록(calls)과 따로 previews 에 주소를 적고
+// want.previews 의 답을 차례로 준다(없으면 run_cancelled:false). 답이 '__hang' 이면 안 옴, {__hold: 답} 이면 {do:'answer'} 때 온다.
+// 카드 단추를 누른 step 은 창 모습을 적은 뒤 한 박자 기다린다(사람 손처럼 — 미리 보기 답이 온 뒤 다음 step).
 // 서버 답(posts · gets)은 파이썬이 진짜 API 로 받은 JSON 이다(가짜 글 없음). 결과는 stdout JSON {out: [...], calls: [...]}.
 'use strict';
 const fs = require('fs');
@@ -50,6 +53,10 @@ const body = deep(D.parse(html));
 const calls = [];
 const posts = (want.posts || []).slice();
 const gets = (want.gets || []).slice();
+const previews = [];
+const previewReplies = (want.previews || []).slice();
+const held = [];
+const PREVIEW_URL = '/api/production/part-marks/cancel-preview';
 const docListeners = {};
 const document = {
   body, visibilityState: 'visible',
@@ -67,6 +74,14 @@ const ctx = {
   setInterval: () => 0,
   fetch: (url, opts) => {
     const isGet = !opts || !opts.method || opts.method === 'GET';
+    if (isGet && String(url).indexOf(PREVIEW_URL) === 0) {
+      previews.push(String(url));
+      const reply = previewReplies.length ? previewReplies.shift() : { success: true, data: { run_cancelled: false } };
+      const answer = (r) => ({ ok: !(r && r.__status >= 400), status: (r && r.__status) || 200, json: () => Promise.resolve(r && r.__status ? r.body : r) });
+      if (reply === '__hang') { return new Promise(() => {}); }
+      if (reply && reply.__hold) { return new Promise((resolve) => { held.push(() => resolve(answer(reply.__hold))); }); }
+      return Promise.resolve(answer(reply));
+    }
     calls.push({ url, method: isGet ? 'GET' : opts.method, body: isGet ? null : JSON.parse(opts.body) });
     const next = isGet ? gets.shift() : posts.shift();
     const status = next && next.__status ? next.__status : 200;
@@ -146,6 +161,7 @@ function counts() {
       if (!btn) { throw new Error('no button ' + s.act + ' on ' + s.key); }
       click(btn);
       out.push({ do: 'click', modal: modalState() });
+      await tick(); await tick();
     } else if (s.do === 'modal') {
       out.push({ do: 'modal', modal: modalState() });
     } else if (s.do === 'run') {
@@ -180,10 +196,14 @@ function counts() {
     } else if (s.do === 'timers') {
       timers.splice(0).forEach((t) => t.f());
       out.push({ do: 'timers' });
+    } else if (s.do === 'answer') {
+      held.splice(0).forEach((f) => f());
+      await tick(); await tick();
+      out.push({ do: 'answer', modal: modalState() });
     } else if (s.do === 'close') {
       click(modal.querySelector('[data-pp-modal-close]'));
       out.push({ do: 'close', hidden: modal.hidden });
     }
   }
-  process.stdout.write(JSON.stringify({ out, calls }));
+  process.stdout.write(JSON.stringify({ out, calls, previews }));
 })().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

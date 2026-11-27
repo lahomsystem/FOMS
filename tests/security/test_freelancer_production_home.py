@@ -106,6 +106,7 @@ _READ_ROUTES = {
     "erp_production_page.erp_production_print_sheet": _SCOPED,   # 같은 두 겹
     "erp_production_page.erp_production_part_thumb": _DENIED,    # 도면 카드 작은 그림
     "production_part_marks.api_part_marks_since": _DENIED,       # 도면 카드 30초 받아 오기
+    "production_part_marks.api_part_mark_cancel_preview": _DENIED,  # [시작 취소] 창 미리 보기(2026-11-27 — 읽기 전용, 문은 카드 쓰기와 같다)
     "production_part_marks.api_part_sheet": _DENIED,             # PC 도면 창
     "production_part_marks.api_part_history": _DENIED,           # 바뀐 기록
 }

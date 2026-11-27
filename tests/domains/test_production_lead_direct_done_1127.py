@@ -351,7 +351,7 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name,pin", [("parts", "20261127w"), ("parts-claim", "20261127w"), ("parts-modal", "20261127w"),
+@pytest.mark.parametrize("name,pin", [("parts", "20261128b"), ("parts-claim", "20261127w"), ("parts-modal", "20261128b"),
                                       ("parts-crew", "20261127y")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
