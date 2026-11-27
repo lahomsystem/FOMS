@@ -208,8 +208,14 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .pp-view { position: fixed; inset: 0; z-index: 1065; display: flex; flex-direction: column; background: var(--fph-bg); }
 .pp-view[hidden] { display: none; }
 .foms-prod-home .pp-vtop { position: static; }
-.pp-vimg { flex: 1; min-height: 0; margin: 12px 16px; padding: 0; background: #fff; border: 1px solid var(--fph-line); border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: zoom-in; }
+.pp-vimg { flex: 1; min-height: 0; margin: 12px 16px; padding: 0; background: #fff; border: 1px solid var(--fph-line); border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: default; }
 .pp-vimg img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+/* 그 자리 손가락 확대 · 이동(2026-11-27, foms-production-parts-zoom.js) — 그림 칸 손짓은 JS 몫(화면 전체 확대 · 당겨 새로 고침 · 두 번 두드리기 확대 끔).
+   확대는 칸 안에서만(overflow: hidden — 아래 단추 줄을 안 가린다). will-change 는 두지 않는다(확대 뒤 그림을 다시 그려야 치수 글자가 또렷하다). */
+.pp-vimg { touch-action: none; -webkit-user-select: none; user-select: none; }
+.pp-vimg img { transform-origin: center center; -webkit-touch-callout: none; -webkit-user-drag: none; }
+.pp-vimg.is-zoomed { cursor: grab; }
+.pp-vimg.is-anim img { transition: transform 0.22s ease; }
 .pp-vbot { min-height: 92px; display: flex; align-items: center; gap: 10px 14px; padding: 0 16px; background: var(--fph-surface); border-top: 1px solid var(--fph-line); }
 .pp-nav { min-width: 64px; font-size: calc(20px * var(--foms-fs, 1)); }
 .pp-nav:disabled { opacity: .4; }
