@@ -186,8 +186,12 @@ def test_counts_view_is_lighter_than_a_screen_and_the_write_path_is_unchanged(cl
 
 
 def test_counts_view_door_is_the_screen_door(client, cohort):
+    """숫자 길은 화면 문(can_view_production_home)과 같은 답 — 화면을 못 보는 사람은 숫자도 못 보고, 보는 사람은 둘 다 연다.
+    팀 없는 직원은 2026-11-27 부터 첫 화면을 보기만 하므로(옛 보드 없애기 ②) 닫힌 쪽 표본은 목록 밖 팀 글자 계정이다."""
+    login(client, make_user("목록밖팀", team="WAREHOUSE"))
+    assert client.get(HOME_NONE).status_code == 403 and client.get(COUNTS).status_code == 403  # 같은 문
     login(client, make_user("팀없음", team=None))
-    assert client.get(COUNTS).status_code == 403  # 화면을 못 보는 사람은 숫자도 못 본다(같은 문)
+    assert client.get(HOME_NONE).status_code == 200 and client.get(COUNTS).status_code == 200
 
 
 def _fresh(want: dict) -> list:

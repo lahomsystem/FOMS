@@ -66,10 +66,7 @@ def test_작업_시트가_밀기_스크립트와_새_CSS_핀을_싣는다() -> N
     # 넘기기 함수(sheet-page.js)보다 뒤에 싣는다 — 단추 위임이 먼저 묶여 있어야 click() 이 넘긴다
     assert page.index("foms-production-sheet-page.js") < page.index("foms-production-sheet-swipe.js")
     assert f"css/contexts/production/sheet.css') }}}}?v={CSS_PIN}" in page
-    # 옆 시트(칸반)는 큰 그림 칸이 없어 스크립트를 싣지 않는다 — CSS 는 같은 파일이라 핀만 같이
-    body = _read("templates/production/partials/tablet_kanban_body.html")
-    assert "foms-production-sheet-swipe.js" not in body
-    assert f"css/contexts/production/sheet.css') }}}}?v={CSS_PIN}" in body
+    # (옆 시트 칸반 본문은 2026-11-27 옛 생산 보드와 함께 지웠다 — 밀기 스크립트 · 시트 CSS 를 싣는 곳은 작업 시트 하나)
 
 
 def test_큰_그림_칸은_세로_굴림과_두_손가락_확대만_브라우저에_맡긴다() -> None:

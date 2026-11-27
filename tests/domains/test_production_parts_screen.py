@@ -371,7 +371,6 @@ def test_writes_only_go_through_confirm_modal_run_button():
     assert not re.search(r"POST|fomsMutationFetch|XMLHttpRequest|sendBeacon|part-marks/basic", sync), "받아 오기 JS 는 읽기만"
 
 
-
 # --------------------------------------------------------------------------- #
 # 작은 그림 길
 # --------------------------------------------------------------------------- #
