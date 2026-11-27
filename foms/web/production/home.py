@@ -29,6 +29,7 @@ from foms.services.feature_flags import (
 from foms.services.production.factory_constants import factory_label
 from foms.services.production.factory_home import attach_factory_rows, attach_factory_stage
 from foms.services.production.factory_scope import home_factory, scene_on
+from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.home_step_panel import (
     attach_step_blocks,
@@ -66,6 +67,7 @@ from foms.services.production_home_read_model import (
     build_production_home,
     production_home_counts,
     production_home_groups,
+    production_home_mine_only,
     production_home_step_queues,
 )
 
@@ -329,6 +331,22 @@ def _require_home_user():
     return user
 
 
+def _home_order_or_404(db, order_id: int, user) -> Order:
+    """작업 시트 · 인쇄가 여는 주문 하나 — 살아 있는 ERP 주문이고 이 사람이 읽을 수 있는 주문(``user_can_read_order``)만.
+
+    회사 직원은 모든 주문을 읽으므로 지금과 같다. 켜진 프리랜서는 자기 주문(연결 표 · 내가 만든 초안)만 — 남의 주문은 없는
+    주문과 같은 404 다(있는지 알리지 않는다, 2026-11-27 옛 생산 보드 없애기 §3-2). 프리랜서 문지기가 주소 번호를 먼저 보고, 여기가 둘째 겹.
+    """
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+        .first()
+    )
+    if order is None or not user_can_read_order(user, order):
+        abort(404)
+    return order
+
+
 @erp_production_page_bp.route('/production/home')
 @login_required
 def erp_production_home():
@@ -336,6 +354,7 @@ def erp_production_home():
 
     볼 수 있는 사람 = ``home_access.can_view_production_home``(관리자 · CS · 영업 · 생산 · 도면 · 시공 · 출고), 쓰는 사람은
     더 좁다(관리자 · 생산팀, ``write_access.can_write_production``). 협력사 계정은 없다. 금액은 뷰 모델에 싣지 않는다(D7).
+    켜진 프리랜서는 자기 주문만 본다 — 행(``build_production_home``)과 묘비 두 들머리가 ``production_home_mine_only`` 를 같이 쓴다.
 
     생산 파트(설계서 §15.6, P15-5): 파트 계정 + 태블릿이면 날짜 탭의 장에 도면 카드 판을 더 그리고(지금 장은
     태블릿 가로에서만 숨김), 관리자 · 대신 · 읽기 전용 직원은 태블릿에서 날짜 장 제목 옆 [도면 카드로 보기](``?tab=parts&part=&day=``, 11-21 위 탭에서 뺐다)로 본다.
@@ -389,7 +408,7 @@ def erp_production_home():
         return response
     # 네 탭은 같은 행 집합에서 파생 — 쿼리는 묘비(취소 주문) 하나만 더한다. 묘비는 모든 탭에서 세어
     # "바뀐 것" 탭 숫자 = 받은함 장 수가 되게 한다(R2, 11-10).
-    tombstones = collect_production_tombstones(db, user, False, partner_org)
+    tombstones = collect_production_tombstones(db, user, production_home_mine_only(user), partner_org)
     # 바뀐 것 탭의 '누가 · 언제' · 확인한 것 · 더 보기(11-21)와 찾기 탭 바뀐 줄의 '누가 · 언제'는 사람 이름 읽기 1회를 더한다
     # (그 두 탭만, 읽을 사람이 없으면 0회). 날짜 · 내 공정 탭 쿼리는 그대로다.
     changes = (production_home_changes_view(db, user, rows, tombstones,
@@ -437,13 +456,7 @@ def erp_production_sheet_page(order_id: int):
     """
     db = get_db()
     user = _require_home_user()
-    order = (
-        db.query(Order)
-        .filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True))
-        .first()
-    )
-    if order is None:
-        abort(404)
+    order = _home_order_or_404(db, order_id, user)
     sheet = build_production_sheet_view(db, order, user, full=True)
     flags = production_screen_flags(user, request)
     # PC 머리 시공일 = 첫 화면 ① 칸과 같은 글(M/D (요일) · D-n · 외 n · 상차/희망일 표, 설계서 §6-3 규칙 1 · 사장님 2026-11-25
@@ -470,13 +483,7 @@ def erp_production_print_sheet(order_id: int):
     """
     db = get_db()
     user = _require_home_user()
-    order = (
-        db.query(Order)
-        .filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True))
-        .first()
-    )
-    if order is None:
-        abort(404)
+    order = _home_order_or_404(db, order_id, user)
     sheet = build_production_sheet_view(db, order, user, full=True)
     now_kst = datetime.datetime.now(_KST)
     return render_template(

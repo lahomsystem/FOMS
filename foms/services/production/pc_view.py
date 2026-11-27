@@ -20,7 +20,7 @@ from foms.services.feature_flags import pointer_hint
 from foms.services.orders.construction_dates import all_construction_dates
 from foms.services.production.home_step_panel import _hold_reason, _prev_line, _run_start_text
 from foms.services.production.late_rule import production_late_view
-from foms.services.production.part_access import steps_lock
+from foms.services.production.part_access import VIEW_NONE, part_view_mode, steps_lock
 from foms.services.production.part_holders import attach_part_holders
 from foms.services.production.ship_dates import build_day, row_due
 from foms.services.production.write_access import can_ack_production_change, can_write_production
@@ -74,7 +74,9 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
         foms-wide-surface-recover.js 가 쿠키가 심긴 뒤 한 번 다시 받는다, §12)
         · ``can_check_steps``('내 공정' [끝] · PC [고치기] 공정 [끝] — 쓰기 단추를 그리는데 공정 칸 잠금이 없을 때, 2026-11-23
         '승인 때 고친 것' 5: 파트도 반장도 아닌 생산팀은 [끝]만 빠지고 보류 · 불량 · 제작 시작/완료는 ``can_act`` 그대로)
-        · ``steps_lock_note``(그때 판 상태 줄에 둘 한 줄 — 잠금이 없으면 빈 글).
+        · ``steps_lock_note``(그때 판 상태 줄에 둘 한 줄 — 잠금이 없으면 빈 글)
+        · ``parts_read``(도면 카드 읽기 API — 표시 · 바뀐 기록 — 를 부를 수 있는 사람, ``part_view_mode != none``. 켜진 프리랜서는
+        거짓이라 작업 시트 [바뀐 기록 보기 ›]를 안 그린다, 2026-11-27 옛 생산 보드 없애기 §3-5).
     """
     now = time.time() if now_epoch is None else now_epoch
     pointer = _pointer(request)
@@ -89,6 +91,7 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
         'can_check_steps': bool(can_act and lock is None),
         'steps_lock_note': lock.message if lock else '',
         'can_ack': can_ack_production_change(user),
+        'parts_read': part_view_mode(user) != VIEW_NONE,
         'edit_on': edit_on,
         'edit_toggle': bool(writer and pc),
         'edit_now': int(now),

@@ -128,7 +128,8 @@
           </div>
           {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}{% if order.factory_sheet %}<p class="foms-prod-page__steps-note" data-foms-sheet-facline>{{ order.factory_sheet.line | factory_chips }}</p>{% endif %}
           {% if can_act %}<p class="fpp-stepmsg" data-foms-sheet-stepmsg role="status" hidden></p>{% endif %}
-          {% if order.uses_cards %}<button type="button" class="fpp-loglink" data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>
+          {# [바뀐 기록 보기 ›]는 도면 카드 읽기 API(part-history)를 부른다 — 그 API 를 못 부르는 사람(켜진 프리랜서, parts_read 거짓)에게는 안 그린다 #}
+          {% if order.uses_cards and parts_read %}<button type="button" class="fpp-loglink" data-foms-sheet-loglink aria-expanded="false" aria-controls="foms-sheet-log">바뀐 기록 보기 ›</button>
           <ul class="fpp-log" id="foms-sheet-log" data-foms-sheet-log aria-live="polite" hidden></ul>{% endif %}
           <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
         </section>
