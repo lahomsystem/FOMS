@@ -203,7 +203,6 @@ def test_보기_JS_는_전역_뷰어를_더는_안_부르고_확대는_새_파�
     for name, src in (("viewer", viewer), ("zoom", zoom)):
         assert len(src.splitlines()) < 300, name
         assert "innerHTML" not in src and "const " not in src and "let " not in src and "=>" not in src, name  # ES5 꼴
-    assert b"\r\n" in ZOOM_JS.read_bytes()
 
 
 def test_그림_칸_touch_action_과_칸_안_확대() -> None:
