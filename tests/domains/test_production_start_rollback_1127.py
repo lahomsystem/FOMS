@@ -7,7 +7,7 @@
   ``PRODUCTION_CANCELLED``(``via:'part_marks'``) · 단계 기록 "제작 시작 취소 (도면 작업 시작 취소)" · 감사 꼬리 · 버전 +1 한 번.
   [기본] → [기본 취소], 반장이 남의 시작을 취소, 반장 바로 완료 → [완료 취소], 한꺼번에 기본 뒤 한 장씩 취소도 같은 규칙.
 * 대조군(회차 그대로): 작업 시트 [제작 시작]으로 연 주문 · 다른 도면이 작업 중 / 완료 / 기본 · 다른 파트 표시 · 공정 칸 하나 켜짐 · 보류 ·
-  그 회차의 불량 기록 · 수정 제작 · 공장 완료 표지 · 시작 이벤트 없는 옛 회차 · 시작 이벤트보다 늦게 열린 회차.
+  불량 기록(옛 회차 것 포함) · 수정 제작 · 공장 완료 표지 · 시작 이벤트 없는 옛 회차 · 시작 이벤트보다 늦게 열린 회차.
 * 멱등(같은 요청 두 번 = 바뀜 없음) · 다시 [작업 시작] = 새 회차 · 쿼리 수(취소 길만 늘어남) · 알림 줄 0 · 화면 글.
 
 되돌리면 실패: [시작 취소] 뒤에도 '재단 1' · 회차가 남음 / 작업 시트로 시작한 주문 · 보류 · 불량 주문까지 닫힘 / 시작 · 완료 길 쿼리 증가.
@@ -255,7 +255,8 @@ def test_hold_keeps_run_and_hold(client):
     assert fresh(order.id).structured_data["production"]["hold"]["active"] is True  # 보류는 풀지 않는다
 
 
-def test_defect_in_this_run_keeps_run_but_older_defect_does_not(client):
+def test_order_with_any_defect_record_is_untouched(client):
+    """사장님 글자 그대로 "불량 기록이 있는 주문은 건드리지 않습니다" — 이 회차에 생긴 기록이든 옛 회차의 기록이든."""
     order = make_order(1, run=False)
     kim, lead = _kim(), _lead()
     login(client, kim)
@@ -266,16 +267,17 @@ def test_defect_in_this_run_keeps_run_but_older_defect_does_not(client):
     _kept(order, _data(_release(client, order)))
     assert len(fresh(order.id).structured_data["production"]["defects"]) == 1
 
-    old = make_order(1, run=False)  # 이 회차가 열리기 전(옛 회차)의 불량 기록만 있는 주문 = 이 회차의 기록이 아니다 → 되돌린다
+    old = make_order(1, run=False)  # 이 회차가 열리기 전(옛 회차)의 불량 기록만 있는 주문도 불량 기록이 있는 주문이다 → 그대로
     patch_sd(old.id, defects=[{"reason": "파손", "at": "2026-11-01T00:00:00+00:00", "by_name": "박반장"}])
-    mark(client, old, 0, "cut", "take", "none")
-    _rolled_back(old, _data(_release(client, old)))
-    assert len(fresh(old.id).structured_data["production"]["defects"]) == 1  # 기록은 그대로 남는다
-
-    broken = make_order(1, run=False)  # 때를 못 읽는 기록 = 있는 것으로 본다(건드리지 않는 쪽)
+    assert _data(mark(client, old, 0, "cut", "take", "none"))["run_started"] is True
+    _kept(old, _data(_release(client, old)))
+    broken = make_order(1, run=False)  # 때가 빈 기록도 기록이다
     mark(client, broken, 0, "cut", "take", "none")
     patch_sd(broken.id, defects=[{"reason": "파손", "at": None, "by_name": "박반장"}])
     _kept(broken, _data(_release(client, broken)))
+    clean = make_order(1, run=False)  # 대조 — 같은 누름, 불량 기록 없는 주문은 되돌아간다
+    mark(client, clean, 0, "cut", "take", "none")
+    _rolled_back(clean, _data(_release(client, clean)))
 
 
 def test_rework_and_factory_done_mark_keep_run(client):
@@ -476,7 +478,7 @@ def test_js_status_says_start_was_cancelled_too_and_first_drawing_line_returns(c
         {"do": "card", "key": k[0]}]})
     out, calls = res["out"], res["calls"]
     assert [c["body"] for c in calls] == [take, release]  # 화면이 보내는 몸 = 위에서 진짜 API 에 보낸 몸
-    assert out[0]["modal"]["body"] == FIRST_LINE and out[1]["status"] == "작업 시작했어요 · 제작 시작도 같이 됐어요"
+    assert out[0]["modal"]["body"] == FIRST_LINE and out[1]["status"] == "재단 시작했어요 · 제작 시작도 같이 됐어요"
     assert out[2]["modal"]["body"] == ""  # 제작이 시작돼 다른 도면도 첫 도면 안내가 없다
     assert out[5]["sent"] == 1 and out[5]["status"] == "시작 취소했어요 · 제작 시작도 같이 취소됐어요"
     assert out[6]["modal"]["body"] == FIRST_LINE  # 되돌려진 뒤에는 그 주문 모든 도면이 다시 '첫 도면'
