@@ -6,7 +6,7 @@
 
 * 대조군(지금 그대로): 남이 시작한 도면을 반장이 대신 완료 → 취소 = 그 사람 작업 중 · 반장이 [작업 시작] 뒤 따로 [완료] → 취소 = 반장
   작업 중(한 요청이 아님) · 같이 작업 도면 · 파트 계정은 남의 완료를 못 되돌림(403) · 검수 완료 뒤 앞 공정 취소 거절 · 보류 중에도 취소는 됨 ·
-  제작 시작은 되돌리지 않음.
+  도면이 연 제작 시작은 표시가 모두 미정이 되면 같이 되돌림(2026-11-27 결정 — ``test_production_start_rollback_1127.py``).
 * 화면: 창 줄 "재단 완료 → 미정" / "엣지 완료 → 미정"(화면 글은 재단도 '미정' — 11-26)(대조 "재단 완료 → 이시영 작업 중") · 끝난 뒤 알림 "재단 완료 취소했어요" · 칸이
   미정 칸으로 · 숫자 · 409 뒤 · 받아 오기 다시 그리기.
 
@@ -200,7 +200,7 @@ def test_part_account_own_undo_keeps_working(client):
     assert _names(order.id, order.keys[0]) == [("김재단", False)]
 
 
-def test_gates_stay_inspect_done_blocks_hold_allows_and_run_stays(client):
+def test_gates_stay_inspect_done_blocks_hold_allows_and_card_started_run_rolls_back(client):
     login(client, _lead())
     order = make_order(1)
     for part in ("cut", "edge", "assemble", "inspect"):
@@ -216,7 +216,9 @@ def test_gates_stay_inspect_done_blocks_hold_allows_and_run_stays(client):
     assert _check(client, waiting, 0).get_json()["data"]["run_started"] is True
     res = _undo(client, waiting, 0)
     assert res.get_json()["data"]["mark"]["state"] == "none" and res.get_json()["data"]["run_started"] is False
-    assert current_runs(waiting.id) == 1 and "제작" not in _audits(waiting.id)[-1]  # 제작 시작은 되돌리지 않는다([시작 취소]와 같음)
+    # 2026-11-27 결정: 표시가 모두 미정이 되면 도면이 연 제작 시작도 같이 되돌린다([시작 취소]와 같은 규칙 — 11-23 "그대로"를 뒤집음)
+    assert res.get_json()["data"]["run_cancelled"] is True and current_runs(waiting.id) == 0
+    assert _audits(waiting.id)[-1].endswith(" · 제작 시작 취소")
 
 
 def test_one_sheet_order_step_turns_off_and_card_is_not_locked(client):

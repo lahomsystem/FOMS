@@ -233,8 +233,11 @@ def test_first_card_starts_production_once(client):
     assert second.get_json()["data"]["run_started"] is False and n_take <= TAKE_CAP, n_take
     assert current_runs(order.id) == 1 and fresh(order.id).mutation_version == version + 1  # 회차 · 버전 그대로
     mark(client, order, 0, "cut", "release", "need")
+    assert current_runs(order.id) == 1  # 다른 도면이 아직 작업 중 — 제작 중 그대로
     mark(client, order, 1, "cut", "release", "need")
-    assert current_runs(order.id) == 1  # 맡기를 모두 취소해도 제작 중 그대로(되돌리기는 [제작 취소])
+    # 2026-11-27 사장님 결정(11-23 "취소해도 제작 중 그대로"를 뒤집음): 표시가 모두 미정이 되면 도면이 연 제작 시작도 되돌린다
+    # (규칙 · 대조군은 test_production_start_rollback_1127.py).
+    assert current_runs(order.id) == 0 and len(events(order.id, "PRODUCTION_CANCELLED")) == 1
 
 
 def test_bulk_basic_starts_each_waiting_order_in_one_write(client):
