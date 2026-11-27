@@ -2265,6 +2265,16 @@
 - 합친 뒤 시험 `5807 passed`(domains · security -k production/shipment/packing/tablet/drawing/step). 실화면 1280×720(반장 · 재단 계정): 작업 시트 셋 모두 체크 칸 0 · 보기 줄 넷 · 링크 4(재단 계정 1) · 줄 누름 → 도면 판 카드 12장 · 아래 묶음 139px · 가로 넘침 0 / 카드 높이 반장 456.5 · 재단 계정 416 한 가지씩. 콘솔: 측정 중 `ERR_NO_BUFFER_SPACE` 1건(일꾼 여럿이 같이 도는 내 컴퓨터의 소켓 부족 — 앱 오류 아님으로 봄, 스테이징에서 다시 볼 것).
 - 옛 보드 없애기: ④(opus build-lg4) 넷 `c1408b8e1` · `eb12385b3` · `c7581ed0d` · `981ae9e7c` 끝(통째 지운 파일 30 · 7,541줄, 125파일 +574/−10,751, 옛 주소 둘 404, `tablet-domain-sheets.js` 907 → 500줄 · 칸반 CSS 1,433 → 203줄). 지금 가지 전체를 세션 `0a9fcfa0d` 위로 옮기며 뒷정리 중(`_counts_response` 묘비 내 것만 · sheet.html 핀 · `test_production_parts_screen.py` 500줄 · 프리랜서 PC 죽은 단추). 그 뒤 v1 · h1 과 한 번 더 맞춰 합침.
 
+## 옛 생산 보드 없애기 합침 (11-27, 이어서)
+
+- 스테이징 `73b4d9ea3` 배포 SUCCESS · CI 넷 초록(smoke_push113 — 공정 칸 보기 줄 · 도면 카드 높이).
+- **합침**(세션 가지를 `work/lgint` 로 빨리 감기 — 14커밋, 176파일 +2,142 / −11,258): ① 프리랜서 범위(fable) `home_scope.production_home_mine_only` 를 읽기 모델 · 묘비 · 숫자 길(`?view=counts`) 세 들머리가 같이 씀 · 작업 시트 · 인쇄 `_home_order_or_404` · 문지기 허용 = 첫 화면 · 작업 시트 · 인쇄 셋 · 생산 쓰기 여덟은 내 것 403 / 남의 것 404(`CLOSED_ORDER_ENDPOINTS`) · **[확인했어요]는 유지**(사장님 "회사 영업처럼 보이게") · 도면 카드 판 없음(`part_view_mode` none) · PC 줄 공정 칸도 `parts_read` 로 가림 / ② 팀 없는 직원(STAFF · MANAGER · VIEWER, 팀 값 빔)은 보기만, [확인했어요]는 보는 팀만 / ③ 메뉴 · 바로가기 · 돌아가기 열쇠는 누구든 첫 화면, PC [보드 →] 없음 / ④ 옛 라우트 둘 · 템플릿 14 · JS 둘 · CSS 하나 · 서버 파일 셋 지움(통째 30파일 7,541줄), Blueprint 는 새 `foms/web/production/blueprint.py`, `tablet-domain-sheets.js` 907 → 500줄 · 칸반 CSS 1,433 → 203줄. 설계서 `2026-11-27-production-legacy-board-removal_SPEC.md` 2판.
+- 내가 한 것: 가지를 세션 최신(v1 · h1 포함) 위로 다시 옮김 — 겹침 = `home_styles.html` 핀(parts.css `s` · pc.css `h`) · `tablet_kanban_body.html`(지움) · 시험 일곱(옆 시트 줄 뺌 · 핀 `u`, 내가 괄호 하나를 잘못 넣어 문법 오류 → 고침) · 쓰기 표식 대조군을 도면 없는 주문으로(보기 줄 뒤로 도면 있는 주문엔 공정 칸 표식이 없음). `home.py` 495줄.
+- 시험(합친 꼴): 거의 전체 `22107 passed` 뒤 남은 셋 고쳐 관련 `6623 passed` · harness `687 passed` · APP_OK · node --check. 일꾼 쪽 전체는 `22112 passed, 0 failed`(옮기기 전 바탕).
+- 실화면(1280×720, 통합 가지): 옛 주소 `/erp/production/dashboard`(+`?focus_order=`) · `/erp/production/tablet-sheet/<id>` = **404** / '바뀐 것' [확인했어요] 4 → 누름 → 3 · 탭 숫자 5 → 3(요청 `change-ack` 1) / 작업 시트 [보류] 사유 창 · [제작 시작 취소] 창 · 불량 알리기 칩 4 / 출고 화면 줄 12 · 공용 JS 실림 / 관리자 첫 화면에 [보드 →] 없음 · 레일 '생산' = 첫 화면 / 오류 0. **켜진 프리랜서 실화면은 못 봄**(준비물 서버에 프리랜서 계정 없음 — 보안 시험 `tests/security/test_freelancer_production_home.py` 로만: 탭 다섯 × 기기 셋에서 남의 이름 · 번호 · 전화 0, 숫자 = 내 주문, 남의 번호 404, 음성 대조군). 스테이징 프리랜서 페르소나(97)로 한 번 더 볼 것.
+- 뒤에 할 것: 공정 GET `GET /api/orders/<id>/production/steps` 지우기(§6-3) · `sheet-parts.js` GET 갈래 · `foms-production-sheet-page.js:124-128` 옆 시트 갈래 · `sheet.css` `.foms-prod-sheet__*` · `step_expand.py` 등 안 타는 길 · `build_production_enriched_rows`(시험 셋만 부름) · 운영 올리기 전 §10-4 접속 기록.
+- 알릴 것: 옛 주소는 로그인 안 한 사람에게도 404(로그인 화면으로 안 보냄) · 시공팀이 옛 주소로 오면 지금처럼 출고로 302 · 프리랜서는 옛 주소에서 자기 첫 화면으로 302.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
