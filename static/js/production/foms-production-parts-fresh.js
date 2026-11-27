@@ -3,8 +3,8 @@
  *   판 칸 숫자(data-pp-count)만 고쳐, 화면을 다시 받을 때까지 옛 숫자였다. (2) 셸이 받아 둔 탭 사본(erp-shell.js 생산 첫 화면 60초 캐시)을
  *   그대로 끼워, 1분 안에 갔던 '남은 공정' 탭을 다시 누르면 쓰기 전 줄이 나왔다.
  * 그래서: 카드가 바뀌면(내 쓰기 · 받아 오기, foms:part-card-updated) 또는 내 쓰기가 성공하면(foms:prod-parts-written — parts.js) 위 탭
- *   주소 · 지금 주소의 셸 사본을 버린다(요청 0 — 다음 누름이 새로 받는다). 주문 칸이 바뀐 내 쓰기(첫 카드 = 제작 시작 · 공정 칸이 켜지고
- *   꺼짐 · 제작 완료)만 숫자 받기 한 번(GET ?view=counts — 화면 그리기 없이 숫자만, 쓰기 길에는 쿼리를 더하지 않는다).
+ *   주소 · 지금 주소의 셸 사본을 버린다(요청 0 — 다음 누름이 새로 받는다). 주문 칸이 바뀐 내 쓰기(첫 카드 = 제작 시작 · 시작 취소로
+ *   그 제작 시작이 되돌려짐(run_cancelled, 11-27 — 제작 대기로) · 공정 칸이 켜지고 꺼짐 · 제작 완료)만 숫자 받기 한 번(GET ?view=counts — 화면 그리기 없이 숫자만, 쓰기 길에는 쿼리를 더하지 않는다).
  * 셸 조각 교체로 다시 실행된다 — 문서 리스너는 한 번(.freshOnce), 지금 화면 함수(.freshApi)를 부른다. */
 (function () {
   'use strict';
@@ -31,10 +31,10 @@
     tabs().forEach(function (a) { shell.invalidateFragmentCache(a.href); });
   }
   function some(v) { return Array.isArray(v) ? v.length > 0 : !!v; }
-  // 주문 칸이 바뀐 쓰기인가 — 첫 카드 제작 시작(run_started) · 공정 칸 켜짐/꺼짐(order_step · order_steps) · 제작 완료
+  // 주문 칸이 바뀐 쓰기인가 — 첫 카드 제작 시작(run_started) · 그 시작 되돌림(run_cancelled) · 공정 칸 켜짐/꺼짐(order_step · order_steps) · 제작 완료
   function orderLevel(action, data) {
     if (ORDER_ACTIONS.indexOf(action) >= 0) { return true; }
-    return some(data.run_started) || some(data.order_step) || some(data.order_steps);
+    return some(data.run_started) || some(data.run_cancelled) || some(data.order_step) || some(data.order_steps);
   }
   function setCount(tab, n, hot) {
     tabs().forEach(function (a) {
