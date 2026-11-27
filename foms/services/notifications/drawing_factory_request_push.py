@@ -24,7 +24,7 @@ REQUEST_TITLE = "공장 도면 수정 요청"
 REJECTED_TITLE = "도면 수정 요청 반려"
 _TITLES = {REQUEST_TYPE: REQUEST_TITLE, REJECTED_TYPE: REJECTED_TITLE}
 #: 배너 본문 — §10 알림 글의 앞 문장(대상 · 사유는 싣지 않는다).
-_BODIES = {REQUEST_TYPE: "공장 도면 수정 요청이 접수되었습니다.", REJECTED_TYPE: "도면 수정 요청이 반려됐어요."}
+_BODIES = {REQUEST_TYPE: "공장 도면 수정 요청이 접수됐어요.", REJECTED_TYPE: "도면 수정 요청이 반려됐어요."}
 
 
 def _norm(notification_type: Any) -> str:
@@ -52,7 +52,7 @@ def factory_request_deep_link(notification_type: Any, order_id: Any) -> str:
 
 
 def factory_request_push_text(notification_type: Any, order_id: Any, customer_name: str) -> Tuple[str, str]:
-    """폰 배너 (제목, 본문) — ``('공장 도면 수정 요청 · 김가짜', '주문 #12 (김가짜) 공장 도면 수정 요청이 접수되었습니다.')`` 꼴.
+    """폰 배너 (제목, 본문) — ``('공장 도면 수정 요청 · 김가짜', '주문 #12 (김가짜) 공장 도면 수정 요청이 접수됐어요.')`` 꼴.
 
     Args:
         notification_type: 알림 종류(두 종류 중 하나). order_id: 주문 번호. customer_name: 다듬은 고객 이름(비면 번호만).

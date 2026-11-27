@@ -202,7 +202,7 @@ def test_production_changes_tab_gets_one_line_each(client, who):
     db_session.expire_all()
     result = collect_production_change_alerts(db_session, [db_session.get(Order, oid)], None)[oid]
     lines = [(a["label"], a["detail"], a["by_name"], a["kind"]) for a in result["alerts"] if a["label"].startswith("도면 ")]
-    assert lines == [("도면 고치는 중", "도면 2", "김도면", "drawing"), ("도면 수정 취소", "도면 2", "오도면", "drawing")]
+    assert lines == [("도면 수정 중", "도면 2", "김도면", "drawing"), ("도면 수정 취소", "도면 2", "오도면", "drawing")]
     assert all(isinstance(a["by_id"], int) for a in result["alerts"])
 
 

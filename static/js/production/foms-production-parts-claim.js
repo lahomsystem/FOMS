@@ -1,6 +1,6 @@
 /* 생산 파트 도면 카드 — 맡기 고침의 카드 칸(설계서 2026-11-23 §4-5 · §4-6 · §4-9 · §4-11 · §8-1 · 2026-11-25 multi-holder §8-2).
  * 쓰기 없음(fetch 0) — 카드 단추 그리기(foms-production-parts.js 의 renderAct)가 새 칸을 여기서 받아 그린다:
- *   손 체크 칸(카드 안 쓴 파트 · "재단 완료 · 박반장" + "작업 시트") · 막힌 칸(보류 · 도면 고치는 중 · 검수 전 · 생산 단계 아님) · 내 작업 한 층
+ *   손 체크 칸(카드 안 쓴 파트 · "재단 완료 · 박반장" + "작업 시트에서 완료") · 막힌 칸(보류 · 도면 고치는 중 · 검수 전 · 생산 단계 아님) · 내 작업 한 층
  *   [시작 취소][<파트> 완료] · 남이 작업 중인 칸(누르면 [담당 바꾸기] 창, 둘째 줄 어제부터 · 바뀜) · 다른 파트 줄 끝 "내 작업" 꼬리
  *   (같이 작업하면 "내 작업 · 이시영과 같이" — 글은 서버 data-pp-crew 의 tag). 여러 명 칸은 foms-production-parts-crew.js.
  * 막힌 칸 = button aria-disabled — 누르면 카드 키를 안 바꾸는 말풍선(.pp-why)에 서버가 그린 까닭 글. 검수 판은 30초 받아 오기로
@@ -111,13 +111,13 @@
   }
   function actBtn(cls, text, act) { var b = el('button', cls, text); b.type = 'button'; b.setAttribute('data-pp-act', act); return b; }
 
-  // renderAct(parts.js)가 먼저 부른다 — 새 칸이면 그려 넣고 true(작업 필요 · 완료 칸은 crew.render, 안 봄은 parts.js)
+  // renderAct(parts.js)가 먼저 부른다 — 새 칸이면 그려 넣고 true(안 봄 · 작업 필요 · 완료 칸은 crew.render)
   function special(card, box, c) {
     var st = attr(card, 'data-state');
     if (st === 'hand') {
       var hand = chip(card, 'pp-st-done pp-hand', attr(card, 'data-pp-hand-why'));
       hand.appendChild(el('span', '', attr(card, 'data-pp-hand')));
-      hand.appendChild(el('small', '', '작업 시트'));
+      hand.appendChild(el('small', '', '작업 시트에서 완료'));
       box.appendChild(hand);
       return true;
     }
@@ -218,11 +218,47 @@
     chipBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
+  // ── 연 주문 · 내 작업 표시(2026-11-26 결정 C69 · C71) — 그 칸들에 is-focus 테두리(parts.css), 첫 칸으로 굴림(접힌 남의 공장 묶음이면 펼침) ──
+  function focusCards(cards) {
+    if (!cards.length) { return false; }
+    [].forEach.call(root.querySelectorAll('.pp-card.is-focus'), function (c) { c.classList.remove('is-focus'); });
+    cards.forEach(function (c) { c.classList.add('is-focus'); });
+    var fold = cards[0].closest('[data-pp-fold]');
+    if (fold) { fold.open = true; }
+    cards[0].scrollIntoView({ block: 'center' });
+    return true;
+  }
+  function shownPane(key) {
+    return [].filter.call(root.querySelectorAll(key ? '[data-pp-pane="' + key + '"]' : '[data-pp-pane]') || [], function (p) { return !p.getClientRects || p.getClientRects().length > 0; })[0]; // 보이는 장만
+  }
+  // 아침 칩이 세는 장 = 어제까지 맡아 아직 작업 중인 내 칸(서버 날짜 cfg.today 기준)
+  function oldMine(pane) {
+    return [].filter.call(pane.querySelectorAll('[data-pp-card][data-state="need"][data-picked-me="1"]'), function (c) {
+      var d = dayNum(attr(c, 'data-picked-day'));
+      return d !== null && d < dayNum(TODAY);
+    });
+  }
+  // [보기]: 이미 그 날 · 그 파트 장이면 다시 읽지 않고 굴린다. 다른 날이면 링크 그대로(#pp-mine — 도착해서 아래 arrive 가 같은 표시)
+  function gotoMine(a) {
+    var u = new URL(a.href, window.location.href);
+    var pane = shownPane(u.searchParams.get('day') || '');
+    if (!pane || (u.searchParams.get('part') || cfg.part) !== cfg.part) { return false; }
+    return focusCards(oldMine(pane));
+  }
+  (function arrive() {
+    var pane = window.location && shownPane('');
+    if (!pane) { return; }
+    if (window.location.hash === '#pp-mine' && focusCards(oldMine(pane))) { return; }
+    focusCards([].slice.call(pane.querySelectorAll('.pp-card.is-focus'))); // 주소 order= (템플릿이 붙인 테두리)
+  })();
+
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== 'function') { return; }
     var why = t.closest('[data-pp-why]');
     if (why) { showWhy(why); return; }
+    var go = t.closest('[data-pp-mpop] a');
+    if (go && !e.ctrlKey && !e.metaKey && gotoMine(go)) { e.preventDefault(); setChip(false); return; }
     if (t.closest('[data-pp-mchip]')) { var pop = root.querySelector('[data-pp-mpop]'); setChip(!!pop && pop.hidden); return; }
     if (!t.closest('[data-pp-mpop]')) { setChip(false); }
     if (!t.closest('.pp-why')) { hideWhy(); }

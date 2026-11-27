@@ -5,9 +5,9 @@
 한 번씩 읽어 넘긴다.
 
 * 줄 = 확정 도면 한 장(:func:`resolve_final_drawing_files` 순서 — 도면 판 카드 · 작업 시트와 같은 번호).
-* 상태 낱말(2026-11-25 multi-holder §8-2 37 · §8-1): 재단 "안 봄" · 그 밖 "아직" · "작업 필요" · 같이 작업 중 일부 완료 "재단 1/2 완료"
+* 상태 낱말(2026-11-25 multi-holder §8-2 37 · §8-1): 손 안 댄 도면 "미정"(11-27) · "작업 필요" · 같이 작업 중 일부 완료 "재단 1/2 완료"
   (+ 작은 글 "김재단 작업 중" — 아직인 사람 모두, Q10 "PC 도면별 창은 모두") · 모두 완료 "재단 완료"(옛 "재단 끝", K4) · "기본" · 손 체크
-  "재단 완료 · 박반장" + "작업 시트". "1/2 완료" 낱말은 감사 글과 같은 함수(``part_mark_notes.state_words``) 하나. 막힘 글 · 안내 글은 서버
+  "재단 완료 · 박반장" + "작업 시트에서 완료". "1/2 완료" 낱말은 감사 글과 같은 함수(``part_mark_notes.state_words``) 하나. 막힘 글 · 안내 글은 서버
   판정 함수의 글 그대로(:mod:`~foms.services.production.part_card_state` · :mod:`~foms.services.production.part_mark_gates`).
 * 줄 글(``lines``)은 서버가 사람마다 만든다(K6) — 작업하는 사람마다 "작업 시작 이시영 · 11/25 08:10", 그 사람 몫을 완료했으면 바로 뒤에
   "완료 이시영 · 11/25 11:30"(대신 완료면 누른 반장 이름). 사람 없는 줄은 지금 글 그대로("담당 미정" — K2 · 기본 · 풀어 쓴 완료 · 손 체크는
@@ -31,14 +31,14 @@ from foms.services.orders.drawing_factory import has_second_factory, sheet_facto
 from foms.services.orders.drawing_fix import blocked
 from foms.services.production import mark_crew as mc
 from foms.services.production.factory_constants import FACTORIES, factory_label
-from foms.services.production.part_board import card_item_text, is_part_thumb_image, other_part_word
+from foms.services.production.part_board import card_item_text, is_part_thumb_image
 from foms.services.production.part_card_state import hand_cell, inspect_block, order_block
 from foms.services.production.part_constants import PART_INSPECT, PRODUCTION_PART_LABELS
 from foms.services.production.part_holders import HOLDER_NONE
 from foms.services.production.part_mark_gates import PART_USES_CARDS_MESSAGE
 from foms.services.production.part_mark_notes import state_words
 from foms.services.production.part_mark_rules import MarkSnapshot
-from foms.services.production.part_progress import marks_by_part, part_progress
+from foms.services.production.part_progress import marks_by_part, part_progress, per_sheet_only
 from foms.services.production_dashboard_display import (
     _production_first_item,
     _production_product_label,
@@ -71,12 +71,12 @@ def _who(head: str, name: Optional[str], at: Any) -> str:
 
 def state_word(part: str, state: str, hand: Optional[dict[str, Any]], crew: Any = ()) -> str:
     """상태 칸 글 — 손 체크 "재단 완료 · 박반장" · "작업 필요" · 같이 작업 중 일부 완료 "재단 1/2 완료" · "재단 완료" · "기본" ·
-    재단 "안 봄" · 그 밖 "아직"(작업 필요 · 완료 · 기본 낱말은 감사 글과 같은 함수)."""
+    손 안 댄 도면 "미정"(작업 필요 · 완료 · 기본 낱말은 감사 글과 같은 함수)."""
     if hand:
         return str(hand["text"])
     if state in ("need", "done", "basic"):
-        return state_words(part, state.upper(), crew)
-    return other_part_word(part, "none")["word"]
+        return state_words(part, state.upper(), crew).replace("작업 필요", "작업 중")  # 화면만 '작업 중'(감사 글은 그대로, 11-26 나)
+    return "미정"  # 손 안 댄 도면 — 모든 파트 "미정"(사장님 2026-11-27, 옛 재단 "안 봄" · 그 밖 "아직")
 
 
 def pending_note(state: str, crew: Any) -> Optional[str]:
@@ -149,7 +149,7 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
 
     Returns:
         ``{key, no, of, label, item, image, filename, view_url, state, word, note, lines, handed, block, act, seen,
-        undo_releases}`` — ``lines`` = 줄 글(사람마다), ``note`` = 상태 칸 아래 작은 글("작업 시트" · "김재단 작업 중"),
+        undo_releases}`` — ``lines`` = 줄 글(사람마다), ``note`` = 상태 칸 아래 작은 글("작업 시트에서 완료" · "김재단 작업 중"),
         ``block`` 은 ``{kind, text, why}``(보류 · 도면 고치는 중 · 검수 전) 또는 None. 막힌 미완료 장은 ``act`` 가 None(단추 없음 —
         막힌 표시만). ``seen`` = 화면이 본 상태([완료 처리] · [완료 취소]가 그대로 보낸다).
     """
@@ -169,7 +169,7 @@ def sheet_row(sd: dict[str, Any], entry: dict[str, Any], no: int, of: int, ctx: 
         "item": f"{name or '품목 없음'}{f' · {spec}' if spec else ''}",
         "image": is_part_thumb_image(entry), "filename": entry.get("filename") or "", "view_url": entry.get("view_url") or "",
         "state": state, "word": state_word(part, state, hand, snap.crew),
-        "note": "작업 시트" if state == "hand" else pending_note(state, snap.crew),
+        "note": "작업 시트에서 완료" if state == "hand" else pending_note(state, snap.crew),
         **_lines(state, snap, row, hand, ctx["step_at"]),
         "block": {k: block[k] for k in ("kind", "text", "why")} if block else None,
         "act": act, "seen": snap.seen_key, "undo_releases": undo_releases(state, snap, ctx["viewer_id"]),
@@ -215,8 +215,8 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
     Returns:
         ``{part, label, total, done_n, uses_cards, notice, all, hand_off, hand, rows, keys}`` —
         ``notice`` = 카드를 쓴 파트에 남은 장이 있을 때의 안내(공정 칸 체크 거절 글 그대로, 승인 때 고친 것 2),
-        ``all`` = [모두 완료 처리]를 보일지(아무도 시작하거나 완료하지 않은 파트 · 칸이 꺼짐 · 장 1장 이상 · 보류 · 도면 고치는 중
-        아님), ``hand_off`` = 손으로 통째 체크한 파트(창 머리 한 단추 [모두 완료 취소]로 끈다).
+        ``all`` = [모두 완료 처리]를 보일지(아무도 시작하거나 완료하지 않은 파트 · 칸이 꺼짐 · 보류 · 도면 고치는 중 아님 · 도면이
+        있는 주문은 늘 거짓 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기", 창은 도면 1장 이상일 때만 열리니 지금은 늘 거짓), ``hand_off`` = 손으로 통째 체크한 파트(창 머리 한 단추 [모두 완료 취소]로 끈다).
     """
     sd = sd if isinstance(sd, dict) else {}
     entries = resolve_final_drawing_files(sd)
@@ -236,7 +236,9 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
         # 보류 · 도면 고치는 중에는 통째 작업(공정 칸 켜기)을 서버가 막는다(사장님 2026-11-24 · 11-25) — [모두 완료 처리]를 안 보인다.
         # [모두 완료 취소](hand_off, 끄기)는 둘 다 된다(서버 step_cell_gate 와 같은 규칙). 도면별 막힘이면 보인다 — 같은 API 가
         # 막힌 장을 빼고 처리한다(2026-11-25 설계서 §3-6 ①)
-        "all": bool(entries) and not progress["uses_cards"] and not progress["done"] and not ctx["order_block"],
+        # 도면이 있는 주문은 통째 작업을 서버가 막는다(409 STEP_PER_SHEET, 사장님 2026-11-27 — 옛 문턱 2장 → 1장) — 도면마다 [완료 처리]만
+        "all": bool(entries) and not progress["uses_cards"] and not progress["done"] and not ctx["order_block"]
+        and not per_sheet_only(sd),
         "hand_off": bool(hand), "hand": hand["text"] if hand else None,
         "rows": rows, "keys": [entry["key"] for entry in entries],
     }

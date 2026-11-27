@@ -8,7 +8,7 @@ API(``foms/api/production/part_marks.py``)는 로그인 · 파트 문 · 몸 읽
 (:mod:`~foms.services.production.part_mark_rules`) · 막는 까닭(:mod:`~foms.services.production.part_mark_gates`) → 줄 쓰기 +
 이벤트 ``PRODUCTION_PART_MARKED`` → 주문 쓰기 한 번(누른 파트 공정 칸 동기화 + 첫 카드면 제작 시작) → 감사 한 줄.
 
-표시는 주문 JSON 밖 표라 표시만으로는 주문 ``mutation_version`` 을 올리지 않는다. 공정 칸이 바뀌거나 제작이 시작될 때만
+표시는 주문 JSON 밖 표라 표시만으로는 주문 ``mutation_version`` 을 올리지 않는다. 공정 칸이 바뀌거나 제작이 시작 · 되돌려질(11-27) 때만
 ``execute_order_mutation`` 한 번으로 쓰고 버전이 1 오른다(일괄은 바뀐 주문을 모아 한 번).
 """
 
@@ -38,6 +38,7 @@ from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import is_part_admin
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PART,
+    MARK_STATE_BASIC,
     MARK_STATE_DONE,
     MARK_STATE_NONE,
     PART_INSPECT,
@@ -73,6 +74,7 @@ from foms.services.production.part_steps_sync import (
     step_change_body,
     step_event_rows,
 )
+from foms.services.production.start_rollback import plan_start_rollback, run_tail
 from foms.services.production.start_run import (
     CARD_START_NOTE,
     PRODUCTION_START_POLICY_ID,
@@ -218,7 +220,8 @@ def step_note(changes: list[dict[str, Any]]) -> str:
 
 
 def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]], user: Any, *,
-                        parts: tuple[str, ...], starting: set[int]) -> tuple[list[dict[str, Any]], list[int]]:
+                        parts: tuple[str, ...], starting: set[int],
+                        cleared: tuple[str, ...] = (), closing: Any = None) -> tuple[list[dict[str, Any]], list[int]]:
     """표시가 바뀐 주문들의 주문 쓰기 — 누른 파트 공정 칸 동기화(§15.5, 카드를 쓴 파트만) + 첫 카드 제작 시작(§4-8).
 
     바꿀 칸도 시작할 주문도 없으면 쿼리 0 · 버전 그대로. 있으면 ``execute_order_mutation`` **한 번**(주문마다 버전 +1 한 번) —
@@ -231,12 +234,13 @@ def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]
         user: 누른 사람(켜면 칸 ``by_name`` = 그 파트에서 마지막으로 끝낸 사람).
         parts: 동기화할 파트(누른 파트).
         starting: 제작을 시작할 주문 id(잠금 아래에서 회차가 없음을 확인한 것).
+        cleared: 완료 줄이 미정이 된 파트(``part_steps_after``). closing: 도면이 연 제작 시작 되돌리기(``start_rollback``, 한 장 길).
 
     Returns:
         (바뀐 공정 칸 ``[{order_id, key, done}]``, 제작이 시작된 주문 id).
     """
-    changed = sorted({int(o.id) for o in orders if int(o.id) in starting
-                      or plan_part_step_changes(o.structured_data, marks.get(int(o.id), []), parts)})
+    changed = sorted({int(o.id) for o in orders if int(o.id) in starting or closing
+                      or plan_part_step_changes(o.structured_data, marks.get(int(o.id), []), parts, cleared)})
     if not changed:
         return [], []
     out: list[dict[str, Any]] = []
@@ -250,7 +254,7 @@ def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]
         for order in locked:
             oid = int(order.id)
             sd = copy.deepcopy(order.structured_data if isinstance(order.structured_data, dict) else {})
-            changes = plan_part_step_changes(sd, marks.get(oid, []), parts)
+            changes = plan_part_step_changes(sd, marks.get(oid, []), parts, cleared)
             apply_part_step_changes(sd, changes, at_iso=at_iso)
             events += step_event_rows(oid, changes, actor_user_id=user.id, actor_name=actor_name(user))
             out.extend(step_change_body(oid, c) for c in changes)
@@ -260,6 +264,8 @@ def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]
                 events.append(started_event_values(oid, user.id, via=VIA_PART_MARKS))
                 audits.append(card_start_audit_values(order, user))
                 started.append(oid)
+            elif closing:  # 표시가 모두 미정(11-27) — 도면이 연 회차 닫기 · 단계 기록 · 이벤트 · 감사(재대입도 거기서)
+                closing.apply(order, sd, user, events, audits)
             else:
                 order.structured_data = sd
                 flag_modified(order, "structured_data")
@@ -268,7 +274,7 @@ def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]
                 sess.execute(insert(table), rows)
         return {int(o.id): ["ORDERS_INDEX", f"ORDER_DETAIL:{o.id}"] for o in locked}
 
-    policy = PRODUCTION_START_POLICY_ID if starting else STEP_SYNC_POLICY_ID
+    policy = PRODUCTION_START_POLICY_ID if starting else closing.policy_id if closing else STEP_SYNC_POLICY_ID
     scope = hashlib.sha256(f"{policy}:part_marks:{changed}".encode("utf-8")).hexdigest()
     body = json.dumps({"orders": changed, "user": user.id, "start": sorted(starting)}, sort_keys=True)
     execute_order_mutation(db, actor_user_id=user.id, policy_id=policy, order_ids=changed, scope_hash=scope,
@@ -379,10 +385,10 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     """잠금 → 주문 · 도면 검사 → 전이 표 · 막는 까닭 → 쓰기 → 주문 쓰기 → 감사. 커밋 전 응답 자료를 돌려준다.
 
     Returns:
-        ``{mark, order_step, changed, run_started, order_ready, factory_ready, joined_late, notice, proxied}`` — 바뀐 게
-        없으면(멱등) ``changed`` False. 섞인 주문(2공장)은 ``order_ready`` 대신 ``factory_ready``(그 장 공장의 마지막 검수 장일 때 —
+        ``{mark, order_step, changed, run_started, run_cancelled, order_ready, factory_ready, joined_late, notice, proxied}``
+        — 바뀐 게 없으면(멱등) ``changed`` False. 섞인 주문(2공장)은 ``order_ready`` 대신 ``factory_ready``(그 장 공장의 마지막 검수 장일 때 —
         줄이 DONE 이 된 누름만, 검수 1/2 완료면 안 묻는다). ``joined_late`` · ``notice`` = 늦은 [작업 시작]이 같이 작업으로 넘어감(Q16
-        "{이름}이 먼저 시작했어요."), ``proxied`` = PC [완료 처리]가 대신 완료로 감(판결 2).
+        "{이름}이 먼저 시작했어요."), ``proxied`` = PC [완료 처리]가 대신 완료로 감(판결 2), ``run_cancelled`` = 제작 시작도 되돌림(11-27).
     """
     order = check_order(lock_order_row(db, req.order_id))
     entry = current_entry(order, req.key)
@@ -393,7 +399,7 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     extra = {"joined_late": decision.joined_late, "notice": decision.notice or None, "proxied": decision.proxied}
     if decision.kind != DECISION_APPLY:
         return {"mark": mark_body(row, req.order_id, req.key, req.part), "order_step": None, "changed": False,
-                "run_started": False, "order_ready": order_ready(order, rows, user, req, decision.target),
+                "run_started": False, "run_cancelled": False, "order_ready": order_ready(order, rows, user, req, decision.target),
                 "factory_ready": _factory_ready(order, entry, rows, user, req, decision.target), **extra}
     action = decision.action or req.action
     write = plan_write(order, entry, row, part=req.part, target=decision.target, user=user, action=action,
@@ -403,13 +409,17 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     if action in STARTING_ACTIONS and decision.target != MARK_STATE_NONE:
         starting = {req.order_id} - orders_with_current_run(db, [req.order_id])  # 잠금 아래 — 회차 찾기 +1
     views = after_views(rows, [write])
-    steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting)
-    write_audit(db, user, _note(req, write, decision, user) + step_note(steps) + (" · 제작 시작" if started else ""),
+    finished_before = write.before.state in (MARK_STATE_DONE, MARK_STATE_BASIC)  # 바로 완료 취소 · 기본 취소 → 미정 = 칸도 맞춘다
+    cleared = (req.part,) if finished_before and decision.target == MARK_STATE_NONE else ()
+    closing = plan_start_rollback(db, order, views[req.order_id], (req.part,), cleared, target=decision.target)  # 11-27
+    steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting, cleared=cleared,
+                                         closing=closing)
+    write_audit(db, user, _note(req, write, decision, user) + step_note(steps) + run_tail(started, closing),
                 {"key": req.key, "part": req.part, "action": action, "from": write.before.state,
-                 "to": decision.target, "override": decision.override, "order_steps": steps,
-                 "run_started": bool(started), "joined_late": decision.joined_late}, order=order)
+                 "to": decision.target, "override": decision.override, "order_steps": steps, "run_started": bool(started),
+                 "run_cancelled": bool(closing), "joined_late": decision.joined_late}, order=order)
     return {"mark": mark_body(write.view, req.order_id, req.key, req.part), "order_step": steps[0] if steps else None,
-            "changed": True, "run_started": bool(started),
+            "changed": True, "run_started": bool(started), "run_cancelled": bool(closing),
             "order_ready": order_ready(order, views.get(req.order_id, []), user, req, decision.target),
             "factory_ready": _factory_ready(order, entry, views.get(req.order_id, []), user, req, decision.target), **extra}
 

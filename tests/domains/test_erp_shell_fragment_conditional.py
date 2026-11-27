@@ -77,7 +77,7 @@ def test_fragment_etag_byte_stable_across_renders(client, monkeypatch):
     monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
     _login_erp_admin(client)
 
-    for path in ("/erp/dashboard", "/erp/production/dashboard", "/erp/shipment"):
+    for path in ("/erp/dashboard", "/erp/construction/dashboard", "/erp/shipment"):  # 옛 생산 보드 → 시공(2026-11-27 지움)
         r1 = _fragment(client, path)
         r2 = _fragment(client, path)
         assert r1.status_code == 200 and r2.status_code == 200, path

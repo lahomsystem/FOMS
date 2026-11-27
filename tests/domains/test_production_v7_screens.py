@@ -66,11 +66,11 @@ def test_PC_장은_태블릿과_같은_순서_기다림_줄에_까닭_한_줄_�
     assert '<span class="fph-dwst is-late">도면 2/3 내려옴</span>' in pane
     assert '<small><span class="is-late">마감 ' in pane and "지났어요</span> · 도면이 오면 아래로 내려가요</small>" in pane
     row = pane.split(f'data-foms-home-dayrow="{late.id}"', 1)[1].split('<div class="fpc-r', 1)[0]
-    assert '<span class="fpc-why"><b>도면 고치는 중</b> · <span>도면 장가짜</span> · <span>영업 이가짜</span></span>' in row
+    assert '<span class="fpc-why"><b>도면 수정 중</b> · <span>도면 장가짜</span> · <span>영업 이가짜</span></span>' in row
     head = pane.split(f'data-foms-home-dayrow="{late.id}"', 1)[0].rsplit("<div ", 1)[1]
     assert "fpc-r--mini is-late" in head  # 내일 시공 = 마감(어제 이전) 지남
     # 상태 칸은 마감 대비 늦음만, 까닭은 ③ 칸에 한 번(사장님 "같은 말은 한 번", 2026-11-22 §7 고침)
-    assert re.search(r"<small>늦음 — 도면 마감 \d+일 지남</small>", row) and row.count("도면 고치는 중") == 1
+    assert re.search(r"<small>늦음 — 도면 마감 \d+일 지남</small>", row) and row.count("도면 수정 중") == 1
     # 마감이 아직 먼 기다림 줄은 색 없음(옛 W ≤ 5 표라면 빠듯이었다)
     calm = _wait_order("나여유", 10, drawing_assignees=[{"id": 1, "name": "장가짜"}])
     far = (get_today_kst() + datetime.timedelta(days=10)).isoformat()
@@ -119,8 +119,9 @@ def test_PC_여러_시공일_기다림_줄_늦음은_띠와_같은_날(client, c
     row = near_pane.split(f'data-foms-home-dayrow="{oid}"', 1)[1].split('<div class="fpc-r', 1)[0]
     assert "is-late" in head and "늦음 — 도면 마감" in row and "<span>내일</span>" in row and "<small>외 1</small>" in row
     strip = get_html(client, HOME)
-    assert "마감 지남" in strip.split(f'data-foms-home-daybtn="{near}"')[1].split("</a>")[0]
-    assert "마감 지남" not in strip.split(f'data-foms-home-daybtn="{flat}"')[1].split("</a>")[0]
+    near_btn = strip.split(f'data-foms-home-daybtn="{near}"')[1].split("</a>")[0]
+    assert "fph-sd__dw is-late" in near_btn and "마감" not in near_btn  # 띠는 색만(사장님 2026-11-26)
+    assert "fph-sd__dw is-late" not in strip.split(f'data-foms-home-daybtn="{flat}"')[1].split("</a>")[0]
 
 
 def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지난_날이면_빨강(client, cohort) -> None:
@@ -135,7 +136,11 @@ def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지
     _add_order("CONFIRM", "옛날컨펌", -2)  # 시공일 지남 → 안 셈
     _add_order("DRAWING", "여유도면", 12)  # 마감 전 → 안 셈
     html = client.get(HOME + "?tab=steps").get_data(as_text=True)
-    assert "제작 대기 <b>0</b>건 · 도면 마감 지난 주문 <b>1</b>건 · 검수까지 끝난 것 <b>0</b>건" in html
+    assert "fph-stepnote" not in html  # 태블릿 안내 줄은 뺐다(사장님 2026-11-26) — 도면 마감 지난 집 수는 PC 안내 줄이 그대로 보여 준다
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    pc = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
+    assert "제작 대기 <b>0</b>건 · 도면 마감 지난 주문 <b>1</b>건 · 검수까지 끝난 것 <b>0</b>건" in pc
     edge = html.split('data-foms-home-stepq="edge"')[1].split('data-foms-home-stepq="assemble"')[0]
     row = edge.split(f'data-foms-home-qrow="{old.id}"')[1].split("</div>\n  ")[0]
     assert '<span class="fph-qr__due is-past">시공<b>' in row and "<small>3일 지남</small></span>" in row
@@ -233,7 +238,7 @@ def test_작업_시트_안_내려온_주문은_도면_칸에_까닭_담당_마�
     fix, sales, nobody, made = fix.id, sales.id, nobody.id, made.id  # 요청마다 세션이 닫혀 객체가 떨어진다 — 번호만 쓴다
     body = client.get(f"/erp/production/sheet/{fix}").get_data(as_text=True)
     box = body.split('class="foms-prod-page__nodwg is-wait" data-foms-sheet-dwwait>')[1].split("</div>")[0]
-    assert box.startswith('<b>도면이 아직 안 내려왔어요</b><span>도면 고치는 중 · 도면 장가짜 · 영업 이가짜</span><span class="is-late">마감 ')
+    assert box.startswith('<b>도면이 아직 안 내려왔어요</b><span>도면 수정 중 · 도면 장가짜 · 영업 이가짜</span><span class="is-late">마감 ')
     assert "지났어요</span>" in box and "<small>" not in box and "알림 보냄" not in body
     assert "도면 전달본이 아직 없어요." not in body
     body = client.get(f"/erp/production/sheet/{sales}").get_data(as_text=True)

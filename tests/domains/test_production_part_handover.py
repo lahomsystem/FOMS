@@ -203,7 +203,7 @@ def test_hold_and_revision_block_cards_but_allow_release_and_undo(client):
     db_session.commit()
     revising = mark(client, order, 2, "cut", "take", "none")
     assert code(revising) == "DRAWING_REVISING"
-    assert revising.get_json()["error"] == "도면을 고치는 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
+    assert revising.get_json()["error"] == "도면 수정 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
 
 
 # --------------------------------------------------------------------------- #
@@ -226,15 +226,18 @@ def test_first_card_starts_production_once(client):
     assert current_runs(order.id) == 1 and fresh(order.id).mutation_version == version + 1
     started = events(order.id, "PRODUCTION_STARTED")
     assert len(started) == 1 and started[0].payload["via"] == "part_marks" and started[0].payload["run_started"] is True
-    assert fresh(order.id).structured_data["workflow"]["history"][-1]["note"] == "제작 시작 (도면 카드 첫 맡기)"
+    assert fresh(order.id).structured_data["workflow"]["history"][-1]["note"] == "제작 시작 (도면 작업 시작)"
     audit = db_session.query(SecurityLog).filter_by(action="PRODUCTION_STARTED", target_id=order.id).one()
-    assert "도면 카드 첫 맡기" in audit.message and audit.detail["via"] == "part_marks"
+    assert "도면 작업 시작" in audit.message and audit.detail["via"] == "part_marks"
     second, n_take = _count(lambda: mark(client, order, 1, "cut", "take", "none"))
     assert second.get_json()["data"]["run_started"] is False and n_take <= TAKE_CAP, n_take
     assert current_runs(order.id) == 1 and fresh(order.id).mutation_version == version + 1  # 회차 · 버전 그대로
     mark(client, order, 0, "cut", "release", "need")
+    assert current_runs(order.id) == 1  # 다른 도면이 아직 작업 중 — 제작 중 그대로
     mark(client, order, 1, "cut", "release", "need")
-    assert current_runs(order.id) == 1  # 맡기를 모두 취소해도 제작 중 그대로(되돌리기는 [제작 취소])
+    # 2026-11-27 사장님 결정(11-23 "취소해도 제작 중 그대로"를 뒤집음): 표시가 모두 미정이 되면 도면이 연 제작 시작도 되돌린다
+    # (규칙 · 대조군은 test_production_start_rollback_1127.py).
+    assert current_runs(order.id) == 0 and len(events(order.id, "PRODUCTION_CANCELLED")) == 1
 
 
 def test_bulk_basic_starts_each_waiting_order_in_one_write(client):
@@ -316,7 +319,7 @@ def test_history_lists_events_with_names_and_filters(client):
 
 
 def test_history_resolves_names_of_old_events_in_one_query(client):
-    order = make_order(1)
+    order = make_order(0)  # 칸 켜기 이벤트를 만드는 준비 — 도면이 있으면 켜기가 409(사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
     login(client, make_user("박반장", lead=True))
     client.post(f"/api/orders/{order.id}/production/steps", json={"key": "cut", "done": True})
     for ev in events(order.id, "PRODUCTION_STEP_CHECKED"):  # 3판 전 이벤트 꼴(이름 없음)
@@ -335,7 +338,9 @@ def test_history_permissions_and_bad_queries(client):
     db_session.commit()
     login(client, make_user("협력직원", team=None, role="PARTNER", partner_org_id=org.id))
     assert client.get(HISTORY, query_string={"order_id": order.id}).status_code == 403
-    login(client, make_user("팀없음", team=None))
+    login(client, make_user("팀없음", team=None))  # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4) — 바뀐 기록은 읽는다
+    assert client.get(HISTORY, query_string={"order_id": order.id}).status_code == 200
+    login(client, make_user("다른팀", team="WAREHOUSE"))  # 목록 밖 팀 글자 = 못 봄
     assert client.get(HISTORY, query_string={"order_id": order.id}).status_code == 403
     login(client, make_user("가짜생산"))
     for bad in ({"order_id": "x"}, {}, {"order_id": order.id, "part": "paint"}):

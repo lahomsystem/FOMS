@@ -66,8 +66,8 @@ PART_THUMB_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 PART_SYNC_OVERLAP_SECONDS = 15
 
 #: 다른 파트 한 줄 낱말(D51 — 색은 ``tone`` 으로 화면이 고른다). '끝' → '완료'(2026-11-25 multi-holder K4).
-_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "중", "none": "안 봄"}
-_OTHER_WORDS = {"done": "완료", "need": "중", "none": "아직"}
+_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "작업 중", "none": "미정"}
+_OTHER_WORDS = {"done": "완료", "need": "작업 중", "none": "미정"}
 #: 여러 파트 계정(2026-11-23 §4-12 '더함')의 다른 파트 한 줄 — 그 파트도 내 파트이고 내 몫이 작업 중인 장은 "엣지 내 작업"
 #: (multi-holder §8-2 10). 파트 하나인 계정 · 관리자 · 대신에게는 생기지 않는다(다른 파트가 내 파트가 아니다).
 MINE_TONE = "mine"
@@ -86,7 +86,7 @@ def other_part_word(part: str, state_key: str, mine: bool = False) -> dict[str, 
         mine: 그 파트가 보는 사람의 파트이고 담당이 보는 사람인지(여러 파트 계정만 — :func:`mine_other` ).
 
     Returns:
-        ``{part, label, word, tone}`` — 재단은 완료 · 기본 · 중 · 안 봄, 그 밖은 완료 · 중 · 아직(D57: 안 고름 = 아직).
+        ``{part, label, word, tone}`` — 재단은 완료 · 기본 · 작업 중 · 미정, 그 밖은 완료 · 작업 중 · 미정(D57: 안 고름 = 미정).
         ``mine`` 이고 작업 필요(need)이면 "내 작업"(tone ``mine``).
     """
     if mine and state_key == "need":
@@ -244,7 +244,7 @@ def replaced_info(order_id: int, entry: dict[str, Any], current_keys: set[str], 
     snaps = {key: MarkSnapshot.from_row(r) for key, r in latest.items()}
     prev = {key: {"state": s.seen_key, "name": _prev_name(s) or None} for key, s in snaps.items()}
     mine = latest.get(part)
-    label = f"바뀐 도면 · 전 판 {_prev_word(mine)}" if mine is not None else "바뀐 도면"
+    label = f"바뀐 도면 · 전 도면 {_prev_word(mine)}" if mine is not None else "바뀐 도면"
     return {"label": label, "prev": prev}
 
 
@@ -329,13 +329,14 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
     }
 
 
-def sort_cards(cards: list[dict[str, Any]], part: str) -> list[dict[str, Any]]:
+def sort_cards(cards: list[dict[str, Any]], part: str, mine: bool = False) -> list[dict[str, Any]]:
     """카드 순서 — 모든 파트 남은 일 앞 · 완료 뒤(설계서 2026-11-23 §8-1 '판 순서', :func:`sort_rank`), 묶음 안은 주문 · 장 번호 순.
 
     재단 · 엣지 · 조립 = 미정 → 담당 → 완료, 검수 = 검수 할 수 있음 → 담당 → 검수 전 → 완료. 주문 순서는 만들 것 줄 순서
-    (``order_pos``) 그대로다.
+    (``order_pos``) 그대로다. ``mine``(파트 계정 보기)이면 내 몫이 작업 중인 장(\[내 작업] 칸이 세는 ``in_need``)이 맨 앞(2026-11-27).
     """
-    return sorted(cards, key=lambda c: (sort_rank(c, part), c["order_pos"], c["no"]))
+    first = (lambda c: 0 if c.get("in_need") else 1) if mine else (lambda c: 0)
+    return sorted(cards, key=lambda c: (first(c), sort_rank(c, part), c["order_pos"], c["no"]))
 
 
 def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
@@ -344,7 +345,7 @@ def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
         "all": len(cards),
         "need": sum(1 for c in cards if c["in_need"]),
         "done": sum(1 for c in cards if c["in_done"]),
-        "unseen": sum(1 for c in cards if c["state"] == "none"),
+        "unseen": bulk_count(cards),  # '안 본 도면 N장' = [남은 N장 모두 기본] 숫자(막힌 장 뺌, 사장님 2026-11-26)
     }
 
 
@@ -382,7 +383,7 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
                 elsewhere.append(card)
             else:
                 cards.append(card)
-    cards = sort_cards(cards, ctx["part"])
+    cards = sort_cards(cards, ctx["part"], ctx["mine"])
     elsewhere = sorted(elsewhere, key=lambda c: (c["order_pos"], c["no"]))
     wait_rows = list(pane.get("wait_rows") or [])
     return {

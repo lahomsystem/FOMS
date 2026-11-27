@@ -73,8 +73,8 @@ STALE_MESSAGE = "그사이 다른 사람이 바꿨어요. [다시 받기]를 눌
 NEW_STALE_MESSAGE = "그사이 담당이 바뀌었어요. [다시 받기]를 눌러 주세요."
 RELEASED_MESSAGE = "그사이 시작이 취소됐어요. 지금은 담당 미정이에요."
 RELEASE_NOT_HOLDER_MESSAGE = "내가 시작한 도면만 시작을 취소할 수 있어요. 직접 하려면 [담당 바꾸기]를 눌러 주세요."
-JOIN_DONE_MESSAGE = "이미 완료된 도면이에요. 다시 해야 하면 완료한 사람이 [되돌리기]를 먼저 눌러 주세요."
-RELEASE_AFTER_DONE_MESSAGE = "[{label} 완료]를 누른 도면은 시작을 취소할 수 없어요. 먼저 [되돌리기]를 눌러 주세요."
+JOIN_DONE_MESSAGE = "이미 완료된 도면이에요. 다시 해야 하면 완료한 사람이 [{label} 완료 취소]를 먼저 눌러 주세요."
+RELEASE_AFTER_DONE_MESSAGE = "[{label} 완료]를 누른 도면은 시작을 취소할 수 없어요. 먼저 [{label} 완료 취소]를 눌러 주세요."
 REMOVE_FORBIDDEN_MESSAGE = "다른 사람의 시작을 취소하는 것은 반장이나 관리자만 할 수 있어요."
 TARGET_REQUIRED_SWAP = "누구와 바꿀지 골라 주세요."
 TARGET_REQUIRED_REMOVE = "누구의 시작을 취소할지 골라 주세요."
@@ -359,13 +359,14 @@ def _utc_iso(value: Optional[datetime.datetime]) -> Optional[str]:
 
 
 def holder_rows(crew: Any) -> list[dict[str, Any]]:
-    """응답에 싣는 목록 ``[{user_id, name, done, picked_at, picked_day, done_at, done_name}]``(시작한 차례)."""
+    """응답에 싣는 목록 ``[{user_id, name, done, picked_at, picked_day, done_at, done_name, once}]``(시작한 차례 — ``once`` =
+    시작과 완료를 한 요청에서 적음, :func:`~foms.services.production.mark_crew.done_in_one_press`)."""
     out = []
     for item in crew:
         at = item.get("at")
         out.append({"user_id": item.get("uid"), "name": item.get("name"), "done": mc.is_done(item), "picked_at": at,
                     "picked_day": format_datetime_kst(at, "%Y-%m-%d") if at else None, "done_at": item.get("done_at"),
-                    "done_name": item.get("done_name") or None})
+                    "done_name": item.get("done_name") or None, "once": mc.done_in_one_press(item)})
     return out
 
 

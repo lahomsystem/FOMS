@@ -102,7 +102,7 @@ def test_생산팀_세로_하단_탭은_생산이_첫_칸이고_생산_홈으로
 def test_CS_세로_하단_탭은_그대로(client, monkeypatch) -> None:
     user = _make_user(client, "p1_cs_tabs", "CS")
     _enable_v2(monkeypatch, user.id)
-    html = client.get("/erp/production/dashboard").get_data(as_text=True)
+    html = client.get("/erp/shipment").get_data(as_text=True)  # 옛 생산 보드는 2026-11-27 없앴다 — 다른 ERP 화면의 아래 탭으로 본다
     ids, hrefs = _bottom_nav(html)
     assert ids[0] == "dashboard" and "production" not in ids
     assert not any(h.endswith("/erp/production/home") for h in hrefs)

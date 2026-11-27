@@ -1,7 +1,8 @@
 /* 생산 파트 도면 카드 — 한 도면 · 한 파트를 여러 명이 같이 작업(설계서 2026-11-25 multi-holder §5 · §8 · §10 M2, 시안 01 A ~ I · 창 셋).
  * 쓰기 없음(fetch 0) — 요청은 foms-production-parts.js 의 send() 하나. 이름 줄("이시영 · 김재단 외 1")은 서버가 카드(data-pp-crew)와
  * 응답 · 30초 받아 오기 표시(mark.crew)에 실어 준 글만 쓴다(foms/services/production/part_card_crew.py crew_view — 여기서 짓지 않는다).
- *   카드 칸(render — 작업 필요 · 완료 상태, 템플릿 home_parts.html pp_act 와 같은 규칙): 남이 작업 중 = [이름 칸 ›][같이 작업] ·
+ *   카드 칸(render — 안 봄 · 작업 필요 · 완료 상태, 템플릿 home_parts.html pp_act 와 같은 규칙): 안 봄 = [기본][재단 시작](재단) ·
+ *     [<파트> 시작](옛 [작업 시작], 11-27) + 반장 · 관리자 [<파트> 완료](11-27) · 남이 작업 중 = [이름 칸 ›][같이 작업] ·
  *     내 몫만 완료 = "재단 1/2 완료 · 김재단 작업 중"('완료' 칸, 되돌리기 줄 "재단 1/2 완료") · 반장 · 관리자 = 이름 칸(둘째 줄 "재단 1/2 완료") +
  *     [재단 완료] · 보기만 = "이시영 · 김재단 작업 중" · 완료 = "재단 완료 · 이시영 · 김재단".
  *   창 글(plan — 창 그리기 foms-production-parts-modal.js 가 먼저 부른다): [같이 작업] 창 · [담당 바꾸기] 누구와(바꿀 수 있는 사람이
@@ -66,14 +67,24 @@
   function undoRow(st, text) {
     var row = el('div', 'fph-wi pp-act pp-undo-row pp-st-' + st + ' pp-only-done');
     row.appendChild(el('span', '', text));
-    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', '되돌리기', 'undo'));
+    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소', 'undo')); // 완료 단추와 짝(사장님 2026-11-26)
     return row;
   }
   function render(card, box, o) {
     var st = attr(card, 'data-state');
     var cr = of(card);
-    var head = cr.head || (o.mine ? '다른 사람 작업 중' : '작업 필요');
+    var head = cr.head || (o.mine ? '다른 사람 작업 중' : '작업 중');
     var canUndo = o.writable && (!o.mine || attr(card, 'data-done-me') === '1');
+    if (st === 'none') { // 안 봄 · 미정 — 재단 [기본][재단 시작], 그 밖 [엣지 시작] 등([<파트> 시작], 11-27). 반장 · 관리자는 [<파트> 완료](check — 한 장씩 바로 완료, 사장님 11-27)
+      if (!o.writable) { return true; } // 보기만 = 단추 없음
+      var row = o.cut || !o.mine ? el('div', 'pp-two') : box;
+      if (o.cut) { row.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', '기본', 'basic')); }
+      // 진한 단추는 한 칸에 하나(C59) — 반장 · 관리자 재단 칸은 아래 [재단 완료]가 진하니 [재단 시작]은 옅게
+      row.appendChild(el('button', 'foms-prod-home__btn' + (o.cut ? (o.mine ? ' foms-prod-home__btn--pri' : '') : ' pp-act'), LABEL + ' 시작', 'take'));
+      if (row !== box) { box.appendChild(row); }
+      if (!o.mine) { (o.cut ? box : row).appendChild(el('button', 'fph-qr__done pp-act pp-fin is-pair', LABEL + ' 완료', 'check')); } // 재단은 둘째 줄
+      return true;
+    }
     if (st === 'need') {
       if (o.mine && attr(card, 'data-done-me') === '1') { // 내 몫만 완료(E1) — '완료' 칸
         box.appendChild(el('span', 'fph-wi pp-act pp-st-need' + (canUndo ? ' pp-not-done' : ''), half(cr) + (cr.left ? ' · ' + cr.left + ' 작업 중' : '')));
@@ -133,14 +144,14 @@
       var M = window.FomsPartsModal || {};
       var swap = left.length === 1 ? [['takeover', '담당 바꾸기', 'taken', left[0].uid]] : left.length ? [['takeover', '담당 바꾸기 ›', 'taken', null, true]] : [];
       var join = cr.me === 'none' ? [['join', '같이 작업', 'join', null, true]] : []; // Q22 — 아직 작업자가 아니면 [같이 작업] 창으로
-      var choices = swap.concat([['check', '대신 완료', 'done']], join, left.map(function (p) { // [대신 완료] = check(자기 몫 포함 남은 사람 모두)
-        return ['remove', p.name + ' 시작 취소', 'release', p.uid];
-      }));
+      // 차례 = 카드 [시작 취소][<파트> 완료]와 같이 되돌리는 쪽 먼저 · 끝내는 [대신 완료] 맨 끝(C59). [대신 완료] = check(자기 몫 포함 남은 사람 모두)
+      var choices = left.map(function (p) { return ['remove', p.name + ' 시작 취소', 'release', p.uid]; })
+        .concat(swap, join, [['check', '대신 완료', 'done']]);
       return { title: cr.d || !M.heldTitle ? cr.who + ' 작업 중' : M.heldTitle(card, cr.who), line: '', run: '', tone: 'taken', choices: choices,
         note: cr.d ? half(cr) + ' — ' + cr.done + ' 완료 · ' + cr.left + ' 작업 중' : '' }; // 한 명만 완료한 도면은 그 줄만 남긴다(다른 정보)
     }
     if (action === 'done' && cr.me === 'held' && cr.others_left) { // 내 [재단 완료] — 남이 아직(재단 1/2 완료로)
-      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' ' + (cr.d + 1) + '/' + cr.n + ' 완료 · ' + NAME,
+      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 중 → ' + LABEL + ' ' + (cr.d + 1) + '/' + cr.n + ' 완료 · ' + NAME,
         run: LABEL + ' 완료', tone: 'done',
         note: cr.others_left_subj + ' 아직 작업 중이라 ' + cr.others_left_subj + ' 완료해야 도면이 완료돼요.' };
     }
@@ -152,10 +163,13 @@
         note: rest ? '남은 사람이 모두 완료라 도면이 완료돼요.' : '' };
     }
     if (action === 'undo' && st === 'need' && cr.me === 'done') { // 내 몫 되돌리기(재단 1/2 완료 → 작업 필요) — 대상 = 본인(반장도 자기 몫만)
-      return { title: '작업 필요로 되돌릴까요?', line: half(cr) + ' → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need', target: Number(ME) };
+      return { title: LABEL + ' 완료를 취소할까요?', line: half(cr) + ' → 작업 중 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need', target: Number(ME) };
+    }
+    if (action === 'undo' && st === 'done' && cr.once && !MINE) { // 반장 · 관리자가 바로 완료한 도면(서버 표지 once) — 한 번에 미정(사장님 11-27)
+      return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 미정', run: LABEL + ' 완료 취소', tone: 'need' };
     }
     if (action === 'undo' && st === 'done' && (cr.me !== 'done' || !MINE)) { // 반장 · 관리자 대신 되돌리기 — 완료만 모두 끄고(자기 몫 포함, Q23) 작업하던 사람은 그대로
-      return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 완료 → ' + cr.who + ' 작업 중', run: '되돌리기', tone: 'need' };
+      return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → ' + cr.who + ' 작업 중', run: LABEL + ' 완료 취소', tone: 'need' };
     }
     return null;
   }

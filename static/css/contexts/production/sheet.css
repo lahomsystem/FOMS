@@ -117,7 +117,7 @@
 /* 도면 */
 .foms-prod-page__dwg { position: relative; background: var(--fpp-dwg); color: #fff; min-height: 420px; display: flex; flex-direction: column; overflow: hidden; }
 .foms-prod-page__cap { margin: 0; padding: 12px 16px 0; text-align: center; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 700; }
-.foms-prod-page__main-btn { flex: 1; min-height: 0; border: 0; background: transparent; padding: 12px 90px; cursor: zoom-in; display: flex; align-items: center; justify-content: center; }
+.foms-prod-page__main-btn { flex: 1; min-height: 0; border: 0; background: transparent; padding: 12px 90px; cursor: zoom-in; display: flex; align-items: center; justify-content: center; touch-action: pan-y pinch-zoom; } /* 가로 밀기 = 앞 · 다음 도면(foms-production-sheet-swipe.js) — 세로 굴림 · 두 손가락 확대는 브라우저 몫 */
 .foms-prod-page__main { max-width: 100%; max-height: calc(100dvh / var(--foms-ui-zoom, 1) - 64px - 160px); object-fit: contain; background: #fff; border-radius: 4px; }
 .foms-prod-page__nav {
   position: absolute;
@@ -233,6 +233,10 @@
 .foms-prod-page__step.is-now { color: var(--fpp-brand-dark); }
 .foms-prod-page__step.is-now i { border: 3px solid var(--fpp-brand); background: var(--fpp-brand-50); }
 .foms-prod-page__step:disabled { opacity: .6; cursor: wait; }
+/* 공정 칸 완료 = 초록(비평 C77 — 바로 옆 '도면 2/2 완료' 글 · 첫 화면 공정 칸과 같은 뜻 색). 터치 기기만 — PC 보기는 그대로 */
+@media (pointer: coarse) {
+  .foms-prod-page__step.is-done i { background: var(--fpp-ok-dark); border-color: var(--fpp-ok-dark); }
+}
 /* 파트 계정 = 공정 읽기 전용(설계서 §15.4) — 저장 중 흐림이 아니라 그대로 보이고, 누르면 까닭 글만(aria-disabled, 11-22) */
 .foms-prod-page__step.is-locked[aria-disabled="true"] { opacity: 1; cursor: default; }
 .foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); }
@@ -281,6 +285,16 @@
   .foms-prod-page__side { overflow: hidden; padding-bottom: 12px; }
   .foms-prod-page__side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px 4px; }
   .foms-prod-page__foot { flex-shrink: 0; margin-top: 0; padding-top: 10px; border-top: 1px solid var(--fpp-line); }
+  /* 아래 단추 묶음 = 한 흐름(비평 C64) — 작은 단추([불량 알리기] · [보류] · [패킹])와 큰 단추([제작 시작] · [제작 완료] …)가 폭이 되면 한 줄,
+     모자라면 큰 단추가 다음 줄(많아야 두 줄 — 1280×720 오른쪽 칸 463px 에 작은 단추 셋이 서면 두 줄). 단추 키 · 글은 그대로
+     (작은 56 · 큰 64, 큰 단추가 더 넓게). 불량 사유 칩 줄은 지금처럼 두 묶음 사이 제 줄. 저장 · 연결 줄은 할 말(저장 글 · '연결 끊김')이
+     있을 때만 자리를 차지하고, 평소(빈 저장 글 + '연결 좋음')는 화면에서만 빠진다(읽기 프로그램 · aria-live 는 그대로). */
+  .foms-prod-page__foot { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 8px 10px; }
+  .foms-prod-page__foot > .foms-prod-page__pair, .foms-prod-page__foot > .foms-prod-page__acts { display: contents; }
+  .foms-prod-page__pair > .foms-prod-page__btn { flex: 1 1 0; } /* 작은 단추끼리는 지금처럼 같은 폭 */
+  .foms-prod-page__acts > .foms-prod-page__btn { flex: 2 1 auto; }
+  .foms-prod-page__foot > .foms-prod-page__chips, .foms-prod-page__foot > .foms-prod-page__statusrow { flex: 1 0 100%; }
+  .foms-prod-page__statusrow:has(> .foms-prod-page__status:empty):has(> .foms-prod-page__net.is-ok) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .foms-prod-page__main-btn { padding: 12px 86px; }
   /* 왼쪽 줄(레일) — 전체 화면 시트에서만 계산기 · 회사 지식 · 알림을 숨기고 종은 위 줄로(11-21 사용자 ③, 생산 첫 화면 home.css ④ 와 같은 규칙).
      레일 조각은 고치지 않고 이 화면 몸통(.foms-prod-page-wrap)이 있을 때만 :has 로 숨긴다 — 칸은 DOM 에 남아 레일 줄이기 규칙이 그대로다.
@@ -358,6 +372,17 @@
 .foms-prod-page__step small.fpp-note { display: block; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fpp-text2); white-space: normal; word-break: keep-all; }
 .foms-prod-page__step small.fpp-note.is-miss { color: var(--fpp-amber-text); }
 .foms-prod-page__step small.fpp-note.is-ok { color: var(--fpp-ok-dark); }
+/* 도면이 있는 주문의 공정 보기 줄(사장님 2026-11-27 "도면이 주, 작업 시트는 보기") — 칸 꼴 그대로 체크 네모만 없다. 작업 중 = 남색(도면 카드
+   '작업 중'과 같은 뜻), 완료 = 위 초록, 미정 = 위 호박. 누르면 도면 화면으로 가는 줄(a)만 손가락 모양. 손 체크 칸을 끈 뒤 보일 줄은 [hidden] */
+.foms-prod-page__step small.fpp-note.is-run { color: var(--fpp-brand-dark); }
+.foms-prod-page__step.is-line { cursor: default; }
+a.foms-prod-page__step.is-line, a.foms-prod-page__step.is-line:hover, a.foms-prod-page__step.is-line:focus-visible { color: var(--fpp-text); text-decoration: none; cursor: pointer; }
+a.foms-prod-page__step.is-line.is-now { color: var(--fpp-brand-dark); }
+a.foms-prod-page__step.is-line:hover, a.foms-prod-page__step.is-line:focus-visible { background: var(--fpp-brand-50); border-radius: 8px; }
+/* 이름 칸은 한 줄 그대로, 진행 글이 길면 글 칸 안에서 두 줄로(말줄임 없음 — 글자 150% 에서 "재단"이 한 글자씩 꺾이던 것) */
+.foms-prod-page__step.is-line > span, .foms-prod-page__step.is-hand > span { flex: 0 0 auto; white-space: nowrap; }
+.foms-prod-page__step.is-line small.fpp-note, .foms-prod-page__step.is-hand small.fpp-note { flex: 1 1 auto; min-width: 0; text-align: right; }
+.foms-prod-page__step[hidden] { display: none; }
 /* 카드 쓴 파트 칸을 눌렀을 때 · 손 체크 확인 뒤 서버 글(공정 칸 묶음 아래) · [제작 완료] 까닭(상태 줄 안) — 호박 상자 */
 .fpp-stepmsg, .fpp-why { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--fpp-warn-soft); border-radius: 9px; background: var(--fpp-warn-50); color: var(--fpp-amber-text); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.4; text-align: left; word-break: keep-all; }
 .fpp-stepmsg[hidden], .fpp-why[hidden] { display: none; }
@@ -379,10 +404,12 @@
 }
 
 /* 반장 손 체크 확인 창(설계서 2026-11-23 '승인 때 고친 것' 3, templates/production/partials/sheet_step_confirm.html) — 겉모양은 공용 사유
-   시트(foms-reason-sheet.css), 여기는 본문 한 줄과 태블릿 누름 칸(보이는 44px · 틈 8px)만. 작업 시트 · 옆 시트 같은 꼴 */
-.fpp-confirm .foms-reason-sheet__actions > .foms-btn { font-size: calc(17px * var(--foms-fs, 1)); }
+   시트(foms-reason-sheet.css), 여기는 제목 · 본문 한 줄과 태블릿 누름 칸(보이는 48px · 틈 8px)만. 작업 시트 · 옆 시트 같은 꼴.
+   2026-11-27: 작업 시트 [제작 시작] · [제작 완료] · [완료 취소] · [보류 해제]도 이 창(사장님 "앱 창으로 바꾸기") — 제목 = 묻는 글이라 글자 크기를 따른다 */
+.fpp-confirm .foms-reason-sheet__title { font-size: calc(20px * var(--foms-fs, 1)); line-height: 1.4; word-break: keep-all; }
+.fpp-confirm .foms-reason-sheet__actions > .foms-btn { min-height: 48px; font-size: calc(17px * var(--foms-fs, 1)); }
 .fpp-confirm-body { margin: 0 0 14px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.5; color: var(--fpp-text); word-break: keep-all; }
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
   .fpp-confirm .foms-reason-sheet__actions { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
-  .fpp-confirm .foms-reason-sheet__actions > .foms-btn { min-height: calc(44px / var(--foms-ui-zoom, 1)); }
+  .fpp-confirm .foms-reason-sheet__actions > .foms-btn { min-height: calc(48px / var(--foms-ui-zoom, 1)); }
 }

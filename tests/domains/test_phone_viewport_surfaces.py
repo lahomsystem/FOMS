@@ -69,12 +69,7 @@ SCREENS = [
         ("erp-drawing-dashboard-desktop-card", '<section class="foms-drawing-workshop"'),
         ("dw-process-map", 'id="batchAssignModal"'),
     ),
-    (
-        "/erp/production/dashboard",
-        "templates/production/partials/dashboard_body.html",
-        ('<div class="tablet-prod-board">', '<div class="foms-production-legacy-queue">'),
-        ("foms-mobile-v2-dashboard",),
-    ),
+    # 생산 탭(옛 보드 칸반 · PC 큐 · 폰 큐)은 2026-11-27 지웠다 — 새 첫 화면은 기기마다 한 화면만 그린다.
     (
         "/erp/construction/dashboard",
         "templates/construction/partials/dashboard_body.html",
@@ -287,8 +282,10 @@ def test_fragment_version_key_material_includes_wide_viewport_bit(app) -> None:
 
 @pytest.mark.parametrize("wide_vw", ["wide", "tall"])
 def test_fragment_etag_differs_between_phone_and_wide_window(client, monkeypatch, wide_vw) -> None:
-    """좁은 창에서 받은 ETag 를 넓어진 창이 에코해도 304 가 아니라 표면이 든 전체 본문을 받는다."""
-    path = "/erp/production/dashboard"
+    """좁은 창에서 받은 ETag 를 넓어진 창이 에코해도 304 가 아니라 표면이 든 전체 본문을 받는다.
+
+    (보기 화면은 2026-11-27 옛 생산 보드에서 시공 대시보드로 옮겼다 — 같은 표면 게이트 · 같은 셸 ETag.)"""
+    path = "/erp/construction/dashboard"
     _login(client, monkeypatch, "pvs_etag_" + wide_vw)
     for name, value in SMALL_TABLET_PORTRAIT.items():
         client.set_cookie(name, value, domain="localhost")
@@ -304,9 +301,9 @@ def test_fragment_etag_differs_between_phone_and_wide_window(client, monkeypatch
     body = wide.get_data(as_text=True)
     assert MARKER_ATTR not in body
     if wide_vw == "wide":
-        assert '<div class="tablet-prod-board">' in body
+        assert '<section class="foms-construction-workmode"' in body or '<section class="foms-cons-first"' in body
     else:
-        assert '<div class="foms-production-legacy-queue">' in body
+        assert '<div class="foms-construction-legacy-queue">' in body
 
 
 # --- 5. 템플릿 ↔ JS ↔ 셸 배선 -----------------------------------------------------
@@ -365,7 +362,6 @@ def test_measurement_detail_rows_keep_shell_for_export() -> None:
 #: (경로, 뷰 모듈, 그 표면만 읽는 자료를 만드는 함수들) — 표면 게이트와 같은 판정을 뷰가 먼저 본다.
 DATA_BUILDERS = [
     ("/erp/dashboard", "foms.web.orders.dashboard", ("build_split_master_cards", "build_split_side_items")),
-    ("/erp/production/dashboard", "foms.web.production.dashboard", ("_compute_tablet_prod_kpis", "collect_production_tombstones")),
     ("/erp/shipment", "foms.web.shipment.dashboard", ("build_tablet_day_sheet", "collect_shipment_change_alerts",
                                                        "_compute_shipment_team_group_meta", "shipment_pending_requests",
                                                        "build_request_board")),

@@ -230,7 +230,7 @@ def test_request_blocks_that_drawing_at_once_for_marks_and_complete(client, sent
     login(client, who.lead)
     res = _post(client, seed.id, [1], seed=seed)
     data = res.get_json()["data"]
-    assert data["keys"] == [seed.keys[1]] and data["block"] == {"kind": "revise", "text": "도면 고치는 중", "why": REVISING_MESSAGE}
+    assert data["keys"] == [seed.keys[1]] and data["block"] == {"kind": "revise", "text": "도면 수정 중", "why": REVISING_MESSAGE}
     sd = fresh(seed.id).structured_data
     assert fx.blocked(sd).whole is False and [r["no"] for r in fx.blocked_entries(sd)] == [2]
     login(client, who.part)                                                 # 엣지 파트 계정
@@ -280,7 +280,7 @@ def test_notification_goes_to_whole_drawing_team_and_admins_like_a_sales_request
     db_session.expire_all()
     note = db_session.query(Notification).filter_by(order_id=seed.id).one()
     assert (note.notification_type, note.target_team, note.title) == ("DRAWING_FACTORY_REQUEST", "DRAWING", "공장 도면 수정 요청")
-    assert note.message == f"주문 #{seed.id} (정하늘) 공장 도면 수정 요청이 접수되었습니다. 대상: 2, 3번 도면 (2건). 사유: 측판 길이"
+    assert note.message == f"주문 #{seed.id} (정하늘) 공장 도면 수정 요청이 접수됐어요. 대상: 도면 2 · 3. 사유: 측판 길이"
     states = {s.user_id for s in db_session.query(NotificationUserState).filter_by(notification_id=note.id)}
     assert {who.drawer.id, who.drawer2.id} <= states and not states & {who.sales.id, who.lead.id, who.part.id}
     assert sent.push == [note.id]
@@ -294,7 +294,7 @@ def test_push_banner_and_bell_links_open_the_requests_section(app):
                         message="사유: 남기지 않음", is_urgent=False)
     payload = push_sender._build_payload(note, "정하늘")
     assert payload["title"] == "공장 도면 수정 요청 · 정하늘" and "사유" not in payload["body"]
-    assert payload["body"] == "주문 #5801 (정하늘) 공장 도면 수정 요청이 접수되었습니다."
+    assert payload["body"] == "주문 #5801 (정하늘) 공장 도면 수정 요청이 접수됐어요."
     assert payload["data"]["deep_link"] == "/erp/drawing-workbench/5801?tab=requests"
     assert _resolve_notification_deep_link(note, {})["deep_link_url"] == "/erp/drawing-workbench/5801?tab=requests"
     assert "DRAWING_FACTORY_REQUEST" in push_sender._HIGH_URGENCY_TYPES and "DRAWING_FACTORY_REQUEST" in push_sender._DEFAULT_P1_TYPES

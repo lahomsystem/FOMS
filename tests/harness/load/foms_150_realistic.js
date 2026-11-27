@@ -50,7 +50,7 @@ let storageConfigHintLogged = false;
 
 const dashboardRoutes = [
   { name: 'erp_dashboard', path: '/erp/dashboard' },
-  { name: 'erp_production_dashboard', path: '/erp/production/dashboard' },
+  { name: 'erp_production_home', path: '/erp/production/home' },
   { name: 'erp_construction_dashboard', path: '/erp/construction/dashboard' },
   { name: 'erp_measurement_page', path: '/erp/measurement' },
   // /erp/shipment 은 date 파라미터로 302 redirect 되므로, 기본부터 date를 붙여 불필요한 302를 제거

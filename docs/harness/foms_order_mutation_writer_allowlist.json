@@ -222,7 +222,7 @@
       "path": "foms/services/production/start_run.py",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01",
-      "reason": "제작 시작 곁일(단계 기록 · 회차 열기, 2026-11-23 self-claim §4-8) — [제작 시작] 라우트(foms/api/production/orders.py — execute_order_mutation 콜백 또는 transition_order 뒤 같은 tx)와 첫 카드 맡기(part_mark_write.py execute_order_mutation 콜백)가 부른다. 호출자가 deepcopy 한 사본을 재대입 → flag_modified 한다."
+      "reason": "제작 시작 곁일(단계 기록 · 회차 열기, 2026-11-23 self-claim §4-8) — [제작 시작] 라우트(foms/api/production/orders.py — execute_order_mutation 콜백 또는 transition_order 뒤 같은 tx)와 첫 카드 맡기(part_mark_write.py execute_order_mutation 콜백), 그 콜백 안의 도면 시작 취소 되돌리기(start_rollback.py, 2026-11-27 — 단계 기록만)가 부른다. 호출자가 deepcopy 한 사본을 재대입 → flag_modified 한다."
     },
     {
       "path": "foms/services/production/complete_order.py",

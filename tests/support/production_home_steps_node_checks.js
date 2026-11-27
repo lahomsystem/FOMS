@@ -18,7 +18,7 @@ const { fakeDom } = require('./production_fake_dom.js');
 const root = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const html = fs.readFileSync(process.argv[2], 'utf8');
-const want = JSON.parse(process.argv[3]); // {first, hold, next, key, label, me, pin, other_tab, other_url, panels: {id: 조각 파일}}
+const want = JSON.parse(process.argv[3]); // {first, hold, next, key, label, me, pin, other_tab, other_url, viewer, panels: {id: 조각 파일}}
 const D = fakeDom();
 const { dispatch, docListeners, focused } = D;
 // ── 문서 · 창 ──
@@ -119,7 +119,7 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.next}`]);
   const status = $('[data-foms-home-status]');
   assert.ok(status.classList.contains('is-undo') && status.querySelector('span').textContent === `${want.first_name} ${want.label} 완료`, status.textContent);
-  assert.strictEqual(status.querySelector('[data-foms-step-undo]').textContent, '되돌리기');
+  assert.strictEqual(status.querySelector('[data-foms-step-undo]').textContent, `${want.label} 완료 취소`);
   // 4) 새 화면(셸 교체로 이 JS 가 다시 돈다): 되돌리기 띠를 다시 그리고 [끝]은 잠깐(600ms) 잠근다 — 두 번 누름이 다음 주문에 떨어지지 않게
   calls.fetch.length = 0;
   const homeRoot = $('[data-foms-prod-home]');
@@ -146,7 +146,7 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   await flush(); await flush();
   assert.deepStrictEqual(calls.fetch, [stepCall(false)]);
   assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.first}`]);
-  assert.ok(status.textContent.startsWith('되돌렸어요') && !status.classList.contains('is-undo'), status.textContent);
+  assert.ok(status.textContent.startsWith(`취소했어요. ${want.first_name} — 다시 ${want.label} 줄로 가요`) && !status.classList.contains('is-undo'), status.textContent);
   // 6) 실패: 저장 실패 = 판 글 · 단추 풀림 · 이동 0. 되돌리기 실패 = 띠가 붉게 + 글, 단추는 남는다
   calls.fetch.length = 0;
   calls.replace.length = 0;
@@ -160,11 +160,11 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   G.api.showUndo();
   dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
   await flush(); await flush();
-  assert.ok(status.classList.contains('is-err') && status.textContent.includes('되돌리지 못했어요') && status.querySelector('[data-foms-step-undo]'), status.textContent);
+  assert.ok(status.classList.contains('is-err') && status.textContent.includes('취소하지 못했어요. ') && status.querySelector('[data-foms-step-undo]'), status.textContent);
   assert.strictEqual(calls.replace.length, 0);
   G.undo = null;
-  // 5) 그림 = 원본 뷰어(그림 원본 전부)
-  dispatch(pane(want.first).querySelector('[data-foms-step-view]'), 'click');
+  // 5) 그림 = 원본 뷰어(그림 원본 전부) — 도면 있는 판은 [끝]이 없어(사장님 2026-11-27 "도면이 주") 그림 판은 다른 공정 줄의 판(want.viewer)
+  dispatch(pane(want.viewer || want.first).querySelector('[data-foms-step-view]'), 'click');
   assert.ok(calls.viewer.length >= 1); // 4) 에서 셸 교체를 같은 루트로 흉내 내 두 번 묶였다(실제는 새 루트) — 열림만 본다
   assert.ok(calls.viewer[0].files.length >= 1 && calls.viewer[0].files.every((f) => f.view_url.startsWith('/api/files/view/')), JSON.stringify(calls.viewer));
   // 6) [불량] → 칩 → 불량 API

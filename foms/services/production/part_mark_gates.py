@@ -14,6 +14,7 @@
 ``INSPECT_DONE_FIRST``      409    그 장 검수 완료를 한 명이라도 누름("검수 1/2 완료"부터) — 앞 파트 완료 취소 · 기본 취소
 ``PART_USES_CARDS``         409    카드를 쓴 파트에 미완료 장이 있는데 공정 칸 체크(``left``)
 ``STEP_SET_BY_CARDS``       409    카드로 모두 완료한 파트의 공정 칸 끄기
+``STEP_PER_SHEET``          409    확정 도면이 1장 이상인 주문의 공정 칸 켜기(누구든 — 반장 · 관리자도, 사장님 2026-11-27)
 =========================  =====  ====================================================================
 
 글은 새로 생긴 경우의 새 글이다(지금 화면 글은 그대로 — 승인 때 고친 것 1).
@@ -42,10 +43,12 @@ from foms.services.production.part_mark_rules import (
 )
 from foms.services.production.part_progress import (
     INSPECT_PREREQ_PARTS,
+    STEP_PER_SHEET_MESSAGE,
     cards_used,
     inspect_left,
     marks_by_part,
     part_progress,
+    per_sheet_only,
 )
 
 HOLD_ACTIVE = "HOLD_ACTIVE"
@@ -55,12 +58,13 @@ INSPECT_NOT_READY = "INSPECT_NOT_READY"
 INSPECT_DONE_FIRST = "INSPECT_DONE_FIRST"
 PART_USES_CARDS = "PART_USES_CARDS"
 STEP_SET_BY_CARDS = "STEP_SET_BY_CARDS"
+STEP_PER_SHEET = "STEP_PER_SHEET"
 
 HOLD_MESSAGE = "보류된 주문이라 지금은 못 눌러요. 보류가 풀리면 다시 돼요."
-REVISING_MESSAGE = "도면을 고치는 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
+REVISING_MESSAGE = "도면 수정 중이라 지금은 못 눌러요. 새 도면이 오면 다시 돼요."
 #: 카드를 쓴 파트의 공정 칸 체크(승인 때 고친 것 2 — 글자 그대로, 숫자 = 남은 장).
 PART_USES_CARDS_MESSAGE = "도면 {left}장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
-STEP_SET_BY_CARDS_MESSAGE = "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
+STEP_SET_BY_CARDS_MESSAGE = "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [{label} 완료 취소]를 눌러 주세요."
 
 #: 보류 · 도면 고치는 중에도 되는 누름(§4-6 '되는 것' — 시작 취소 · 완료 취소 · 반장의 남의 시작 취소, multi-holder §7-3 5).
 ALLOWED_WHILE_BLOCKED: tuple[str, ...] = (ACTION_RELEASE, ACTION_UNDO, ACTION_REMOVE)
@@ -229,8 +233,12 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
       도면별 막힘은 막지 않고 공정 API 가 막힌 장을 빼고 풀어 적는다(2026-11-25 설계서 §3-6 ①, ``step_expand.expand_hand_step``).
     * 켤 때: 카드를 쓴 파트에 미완료 장이 1장 이상이면 409 ``PART_USES_CARDS`` + ``left``(쓰기 · 이벤트 없음).
       미완료 0장(확정 도면 0장 포함)이면 지금처럼 켜진다.
-    * 끌 때: 카드를 쓴 파트의 지금 장이 모두 카드로 완료면 409 ``STEP_SET_BY_CARDS``(완료 취소는 카드에서).
-    * 카드를 안 쓴 파트는 늘 지금 그대로.
+    * 켤 때: 확정 도면이 1장 이상인 주문(:func:`~foms.services.production.part_progress.per_sheet_only`)이면 409 ``STEP_PER_SHEET`` +
+      ``left`` · ``total``(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 옛 문턱 2장 이상을 1장 이상으로). 카드를 쓴 파트에 남은 장이
+      있으면 위 ``PART_USES_CARDS`` 가 먼저다(지금 글 그대로). 도면 → 공정 칸 동기화(``part_steps_sync``)는 이 문을 타지 않는다 — 막는
+      것은 사람이 공정 칸을 직접 켜는 쓰기뿐이다.
+    * 끌 때: 카드를 쓴 파트의 지금 장이 모두 카드로 완료면 409 ``STEP_SET_BY_CARDS``(완료 취소는 카드에서). 손으로 켜 둔 옛 칸 끄기는 된다.
+    * 그 밖(카드를 안 쓴 파트의 끄기 · 도면 0장 주문의 켜기)은 지금 그대로.
 
     Args:
         sd: 잠근 주문의 ``structured_data``.
@@ -246,19 +254,20 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
     if done and drawing_revision_in_progress(sd):
         return Gate(409, DRAWING_REVISING, REVISING_MESSAGE, {"part": part})
     progress = part_progress(sd, marks, part)
-    if not progress["uses_cards"] or not progress["total_n"]:
-        return None
+    cards = bool(progress["uses_cards"] and progress["total_n"])
     left = len(progress["left_keys"])
-    if done and left:
+    if done and cards and left:
         return Gate(409, PART_USES_CARDS, PART_USES_CARDS_MESSAGE.format(left=left),
                     {"part": part, "left": left, "total": progress["total_n"]})
-    if not done and not left:
-        return Gate(409, STEP_SET_BY_CARDS, STEP_SET_BY_CARDS_MESSAGE, {"part": part})
+    if done and per_sheet_only(sd):
+        return Gate(409, STEP_PER_SHEET, STEP_PER_SHEET_MESSAGE, {"part": part, "left": left, "total": progress["total_n"]})
+    if not done and cards and not left:
+        return Gate(409, STEP_SET_BY_CARDS, STEP_SET_BY_CARDS_MESSAGE.format(label=PRODUCTION_PART_LABELS[part]), {"part": part})
     return None
 
 
 __all__ = [
     "ALLOWED_WHILE_BLOCKED", "DRAWING_REVISING", "Gate", "GateRefusal", "HOLD_ACTIVE", "INSPECT_DONE_FIRST",
-    "INSPECT_NOT_READY", "PART_USES_CARDS", "STEP_SET_BY_CARDS", "STEP_SET_BY_HAND", "hand_step_gate", "inspect_gate",
+    "INSPECT_NOT_READY", "PART_USES_CARDS", "STEP_PER_SHEET", "STEP_SET_BY_CARDS", "STEP_SET_BY_HAND", "hand_step_gate", "inspect_gate",
     "order_gate", "revising_gate", "step_cell_gate",
 ]

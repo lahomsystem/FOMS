@@ -49,7 +49,8 @@ def test_gate_refuses_turning_on_while_on_hold_with_the_card_message():
     assert (gate.status, gate.code, gate.message) == (409, HOLD_ACTIVE, HOLD_MESSAGE)
     assert HOLD_MESSAGE == "보류된 주문이라 지금은 못 눌러요. 보류가 풀리면 다시 돼요."
     assert step_cell_gate(sd, [], "cut", False) is None  # 끄기는 된다
-    assert step_cell_gate({**sd, "production": {"steps": []}}, [], "cut", True) is None  # 대조군: 보류 아님
+    assert step_cell_gate({**sd, "production": {"steps": []}}, [], "cut", True).code == "STEP_PER_SHEET"  # 보류 아님 → 다음 문(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 도면이 있으면 켜기는 누구든 409 STEP_PER_SHEET)
+    assert step_cell_gate({"drawing_current_files": [], "production": {"steps": []}}, [], "cut", True) is None  # 대조군: 보류 아님 · 도면 0장
     revising = {**sd, "production": {"steps": []}, "drawing_status": "RETURNED"}
     assert step_cell_gate(revising, [], "cut", True).code == "DRAWING_REVISING"  # 도면 고치는 중도 보류처럼(사장님 2026-11-25)
 
@@ -66,7 +67,7 @@ def test_hand_check_on_held_order_is_refused_without_write(client):
 
 
 def test_uncheck_still_works_while_on_hold_and_check_works_after_release(client):
-    oid = _order("남궁하늘", 2, done=("cut",), hold="자재 기다림").id
+    oid = _order("남궁하늘", 0, done=("cut",), hold="자재 기다림").id  # 도면 0장(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 도면이 있으면 켜기는 누구든 409 STEP_PER_SHEET)
     _login(client, _user("반장"), {"foms_ptr": "coarse"})
     res = client.post(STEPS.format(oid), json={"key": "cut", "done": False})
     assert res.status_code == 200 and res.get_json()["success"] is True
@@ -79,7 +80,7 @@ def test_uncheck_still_works_while_on_hold_and_check_works_after_release(client)
 
 
 def test_order_not_on_hold_is_unchanged(client):
-    oid = _order("황보민재", 3).id
+    oid = _order("황보민재", 0).id  # 도면 0장(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 도면이 있으면 켜기는 누구든 409 STEP_PER_SHEET)
     _login(client, _user("반장"), {"foms_ptr": "coarse"})
     res = client.post(STEPS.format(oid), json={"key": "edge", "done": True})
     assert res.status_code == 200 and _state(oid)[0]["edge"] is True
@@ -93,8 +94,9 @@ def test_admin_is_refused_too(client):
 
 
 def test_pc_sheet_hides_check_all_on_held_order():
-    sd = {"drawing_current_files": [{"key": "k1"}, {"key": "k2"}], "production": {"steps": []}}
-    assert build_part_sheet(sd, [], "cut", hold_active=False)["all"] is True  # 대조군
+    sd = {"drawing_current_files": [{"key": "k1"}], "production": {"steps": []}}
+    # 옛 대조군 "도면 1장 · 보류 아님 = 참"은 거짓으로(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 도면이 있으면 켜기는 누구든 409 STEP_PER_SHEET — 창은 도면 1장 이상에서만 열리니 [모두 완료 처리]는 늘 없다)
+    assert build_part_sheet(sd, [], "cut", hold_active=False)["all"] is False
     held = build_part_sheet(sd, [], "cut", hold_active=True)
     assert held["all"] is False
     assert held["hand_off"] is False  # 손 체크한 칸이 없으니 해제 단추도 없음(있으면 그대로 — 끄기는 된다)

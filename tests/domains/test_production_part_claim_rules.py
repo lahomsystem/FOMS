@@ -45,15 +45,19 @@ def _seed(oid: int, key: str, part: str, state: str, *, holder: str | None = Non
 # §4-2 손 체크 — 카드를 한 장도 안 쓴 파트 = 칸이 기준
 # --------------------------------------------------------------------------- #
 def test_part_without_cards_hand_check_is_the_basis_and_blocks_its_cards(client):
-    order = make_order(5)
+    # 2026-11-27 "도면이 주, 작업 시트는 보기": 도면이 1장이라도 있으면 칸 켜기는 누구든 409(test_production_steps_view_only_1127) —
+    # 손 체크 칸 쓰기(via · 이벤트)는 도면 0장 주문으로 보고, "칸이 기준 · 그 파트 카드를 막음"은 손으로 켜 둔 옛 칸(도면 1장)으로 본다
+    zero = make_order(0)
     login(client, make_user("박반장", lead=True))  # 반장(관리자가 체크한 생산팀 — 승인 때 고친 것 5)
-    on = check_step(client, order.id, "cut", True)
+    on = check_step(client, zero.id, "cut", True)
     assert on.status_code == 200, on.get_json()
-    cut = step(order.id, "cut")
+    cut = step(zero.id, "cut")
     assert (cut["done"], cut["by_name"], cut["via"]) == (True, "박반장", "sheet")
-    payload = events(order.id, "PRODUCTION_STEP_CHECKED")[-1].payload
+    payload = events(zero.id, "PRODUCTION_STEP_CHECKED")[-1].payload
     assert (payload["via"], payload["by_name"], payload["done"]) == ("sheet", "박반장", True)
-    assert on.get_json()["data"]["parts"]["cut"]["uses_cards"] is False and on.get_json()["data"]["sheets"] == 5
+    assert on.get_json()["data"]["parts"]["cut"]["uses_cards"] is False and on.get_json()["data"]["sheets"] == 0
+    assert code(check_step(client, make_order(1).id, "cut", True)) == "STEP_PER_SHEET"  # 도면 1장 = 켜기 막힘
+    order = make_order(1, steps_done=("cut",))  # 손으로 켜 둔 옛 칸(박반장)
 
     login(client, make_user("김재단", part="cut"))
     take = mark(client, order, 0, "cut", "take", "none")  # 칸 먼저 → 카드 409
@@ -61,7 +65,7 @@ def test_part_without_cards_hand_check_is_the_basis_and_blocks_its_cards(client)
     assert take.get_json()["error"] == "박반장이 작업 시트에서 재단 칸을 작업 완료 처리했어요. 다시 해야 하면 박반장에게 말해 주세요."
     bulk = client.post(BULK, json={"part": "cut", "seen": "none",
                                    "items": [{"order_id": order.id, "drawing_key": k} for k in order.keys]})
-    assert [s["reason"] for s in bulk.get_json()["data"]["skipped"]] == ["STEP_SET_BY_HAND"] * 5
+    assert [s["reason"] for s in bulk.get_json()["data"]["skipped"]] == ["STEP_SET_BY_HAND"]
     assert db_session.query(ProductionPartMark).filter_by(order_id=order.id).count() == 0
 
     login(client, make_user("박반장2", lead=True))
@@ -72,13 +76,16 @@ def test_part_without_cards_hand_check_is_the_basis_and_blocks_its_cards(client)
 
 
 def test_cards_all_released_turns_part_back_to_hand_check(client):
-    """카드를 쓰다가 모두 맡기 취소(NONE 만 남음) = 카드를 안 쓴 파트 → 반장이 손으로 체크할 수 있다."""
-    order = make_order(2)
+    """카드를 쓰다가 모두 맡기 취소(NONE 만 남음) = 카드를 안 쓴 파트(손 체크 판정으로 돌아감). 2026-11-27 "도면이 주, 작업 시트는
+    보기" 뒤로는 도면이 있으면 손 체크 켜기 자체가 막혀(옛 단언 200 → 409 STEP_PER_SHEET), 카드를 다시 누르는 길만 남는다."""
+    order = make_order(1)
     login(client, make_user("김재단", part="cut"))
     assert mark(client, order, 0, "cut", "take", "none").status_code == 200
     assert mark(client, order, 0, "cut", "release", "need").status_code == 200
     login(client, make_user("박반장", lead=True))
-    assert check_step(client, order.id, "cut", True).status_code == 200
+    got = client.get(f"/api/orders/{order.id}/production/steps").get_json()["data"]
+    assert got["parts"]["cut"]["uses_cards"] is False  # NONE 만 남음 = 안 쓴 파트
+    assert code(check_step(client, order.id, "cut", True)) == "STEP_PER_SHEET"
 
 
 # --------------------------------------------------------------------------- #
@@ -133,8 +140,9 @@ def test_old_step_without_via_on_card_part_is_judged_by_cards(client):
 
 
 def test_control_order_without_cards_step_check_is_unchanged(client):
-    """대조군: 카드를 안 쓴 주문 — 켜고 끌 때마다 200 · 버전 +1 · 이벤트 하나(지금 그대로)."""
-    order = make_order(3)
+    """대조군: 카드를 안 쓴 주문 — 켜고 끌 때마다 200 · 버전 +1 · 이벤트 하나(지금 그대로 — 도면 0장 주문, 도면이 있으면 켜기가 막힌다
+    — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")."""
+    order = make_order(0)
     login(client, make_user("박반장", lead=True))
     for done in (True, False, True):
         before = fresh(order.id).mutation_version

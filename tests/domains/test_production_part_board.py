@@ -88,9 +88,9 @@ def _card(pane: dict, key: str) -> dict:
 # 낱말 · 상태별 카드
 # --------------------------------------------------------------------------- #
 def test_other_part_words_cut_has_basic_others_say_not_yet():
-    assert [other_part_word("cut", s)["word"] for s in ("done", "basic", "need", "none")] == ["완료", "기본", "중", "안 봄"]  # '끝' → '완료'(multi-holder K4)
-    assert [other_part_word("assemble", s)["word"] for s in ("done", "need", "none")] == ["완료", "중", "아직"]
-    assert other_part_word("edge", "none") == {"part": "edge", "label": "엣지", "word": "아직", "tone": "none"}
+    assert [other_part_word("cut", s)["word"] for s in ("done", "basic", "need", "none")] == ["완료", "기본", "작업 중", "미정"]  # '끝' → '완료'(multi-holder K4)
+    assert [other_part_word("assemble", s)["word"] for s in ("done", "need", "none")] == ["완료", "작업 중", "미정"]
+    assert other_part_word("edge", "none") == {"part": "edge", "label": "엣지", "word": "미정", "tone": "none"}
 
 
 def test_cards_carry_state_names_badges_and_other_part_line(app):
@@ -111,12 +111,12 @@ def test_cards_carry_state_names_badges_and_other_part_line(app):
     assert (taken["state"], taken["badge"], taken["taken_by_other"]) == ("need", "taken", True)
     assert (basic["state"], basic["badge"], basic["done_by_name"]) == ("basic", "basic", "박재단")
     assert (fresh["state"], fresh["badge"]) == ("none", None)  # 안 봄 = 배지 없음(D52)
-    assert [(o["label"], o["word"]) for o in mine["others"]] == [("엣지", "완료"), ("조립", "중"), ("검수", "아직")]
+    assert [(o["label"], o["word"]) for o in mine["others"]] == [("엣지", "완료"), ("조립", "작업 중"), ("검수", "미정")]
     assert (mine["no"], mine["of"], mine["customer_name"], mine["order_id"]) == (1, 4, "한빛", order.id)
 
-    # 엣지 계정이 보면 재단 줄 낱말이 '안 봄 · 기본 · 중' 으로 선다(그 밖 파트는 '기본' 낱말이 없다).
+    # 엣지 계정이 보면 재단 줄 낱말이 '미정 · 기본 · 작업 중' 으로 선다(그 밖 파트는 '기본' 낱말이 없다).
     edge_pane = _today(_board(edge_man))
-    assert [o["word"] for o in _card(edge_pane, "o1/d3.png")["others"]] == ["안 봄", "아직", "아직"]
+    assert [o["word"] for o in _card(edge_pane, "o1/d3.png")["others"]] == ["미정", "미정", "미정"]
     assert _card(edge_pane, "o1/d2.png")["others"][0]["word"] == "기본"
     assert _card(edge_pane, "o1/d0.png")["state"] == "done"
 
@@ -170,7 +170,8 @@ def test_part_account_ignores_requested_part_admin_and_readonly_pick(app):
     assert _board(_user("반장", team="PRODUCTION", lead=True))["mode"] == "sub"  # 반장 = 대신(2026-11-23 §4-12 · 승인 때 고친 것 5)
     assert _board(_user("보기", team="PRODUCTION"))["mode"] == "readonly"  # 파트도 반장도 아닌 생산팀 = 보기만
     assert _board(_user("도면", team="DRAWING"))["mode"] == "readonly"  # 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1)
-    assert _board(_user("팀없음", team=None)) is None  # 첫 화면을 못 보는 사람
+    assert _board(_user("팀없음", team=None))["mode"] == "readonly"  # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4)
+    assert _board(_user("다른팀", team="WAREHOUSE")) is None  # 첫 화면을 못 보는 사람(목록 밖 팀 글자)
 
 
 # --------------------------------------------------------------------------- #
@@ -188,7 +189,7 @@ def test_replaced_drawing_pairs_by_sheet_id_only(app):
     pane = _today(_board(me))
     new_a = _card(pane, "o5/new-a.png")
     assert new_a["state"] == "none"  # 새 판은 안 봄부터
-    assert new_a["replaced"]["label"] == "바뀐 도면 · 전 판 재단 완료(김재단)"
+    assert new_a["replaced"]["label"] == "바뀐 도면 · 전 도면 재단 완료(김재단)"
     assert new_a["replaced"]["prev"] == {"cut": {"state": "done", "name": "김재단"},
                                          "assemble": {"state": "need", "name": "김재단"}}
     assert _card(pane, "o5/direct-new.png")["replaced"] is None
@@ -197,7 +198,7 @@ def test_replaced_drawing_pairs_by_sheet_id_only(app):
     edge_view = _today(_board(_user("최엣지", part="edge")))
     assert _card(edge_view, "o5/new-a.png")["replaced"]["label"] == "바뀐 도면"  # 엣지 옛 진행 없음 — 짝만
     assert _card(_today(_board(_user("이조립", part="assemble"))), "o5/new-a.png")["replaced"]["label"] == \
-        "바뀐 도면 · 전 판 조립 중(김재단)"
+        "바뀐 도면 · 전 도면 조립 중(김재단)"
 
 
 # --------------------------------------------------------------------------- #
@@ -219,10 +220,10 @@ def test_cut_puts_unseen_first_then_order_and_sheet_others_keep_order(app):
     assert all(c["order_pos"] == order_of[c["order_id"]] for c in pane["cards"])
     keys = [c["key"] for c in pane["cards"]]
     # 2026-11-23 §8-1 '판 순서': 모든 파트 남은 일 앞 — 미정 → 담당 → 완료(재단만 '안 본 장 먼저'이던 것을 넓힘)
-    assert set(keys[:2]) == {"o6/d1.png", "o7/d0.png"}  # 미정(안 본 장) 먼저
-    assert keys[2] == "o6/d2.png"  # 그다음 담당
+    assert keys[0] == "o6/d2.png"  # 파트 계정 화면: 내 작업(내 몫이 작업 중)이 맨 앞(사장님 11-27)
+    assert set(keys[1:3]) == {"o6/d1.png", "o7/d0.png"}  # 그다음 미정(안 본 장)
     assert set(keys[3:]) == {"o6/d0.png", "o7/d1.png"}  # 완료 · 기본은 뒤
-    for group in (pane["cards"][:2], pane["cards"][3:]):  # 묶음 안은 주문 · 장 번호 순
+    for group in (pane["cards"][1:3], pane["cards"][3:]):  # 묶음 안은 주문 · 장 번호 순
         assert [(c["order_pos"], c["no"]) for c in group] == sorted((c["order_pos"], c["no"]) for c in group)
     edge_cards = _today(_board(edge))["cards"]  # 엣지는 모두 미정 — 주문 · 장 번호 순 그대로
     assert [(c["order_id"], c["no"]) for c in edge_cards] == \

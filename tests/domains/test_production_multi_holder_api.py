@@ -175,7 +175,7 @@ def test_join_after_all_done_is_refused(client):
     login(client, make_user("박재단", part="cut"))
     late = mark(client, order, 0, "cut", "join", "need")
     assert (late.status_code, code(late)) == (409, "JOIN_DONE")
-    assert late.get_json()["error"] == "이미 완료된 도면이에요. 다시 해야 하면 완료한 사람이 [되돌리기]를 먼저 눌러 주세요."
+    assert late.get_json()["error"] == "이미 완료된 도면이에요. 다시 해야 하면 완료한 사람이 [재단 완료 취소]를 먼저 눌러 주세요."
 
 
 def test_undo_is_own_share_only_and_lead_can_undo_for_them(client):
@@ -218,7 +218,7 @@ def test_release_rules_and_auto_complete_turns_step_on(client):
     mark(client, order, 0, "cut", "done", "need")
     after_done = mark(client, order, 0, "cut", "release", "need")  # 완료 뒤 시작 취소(Q7)
     assert (after_done.status_code, code(after_done)) == (409, "RELEASE_AFTER_DONE")
-    assert after_done.get_json()["error"] == "[재단 완료]를 누른 도면은 시작을 취소할 수 없어요. 먼저 [되돌리기]를 눌러 주세요."
+    assert after_done.get_json()["error"] == "[재단 완료]를 누른 도면은 시작을 취소할 수 없어요. 먼저 [재단 완료 취소]를 눌러 주세요."
     login(client, kim)
     left = mark(client, order, 0, "cut", "release", "need").get_json()["data"]  # 남은 사람 모두 완료 = 저절로 완료(Q6)
     assert left["mark"]["state"] == "done" and left["order_step"]["done"] is True

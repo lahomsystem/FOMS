@@ -185,15 +185,22 @@ def test_step_cell_gate_card_part_with_sheets_left_refuses_with_exact_message():
 def test_step_cell_gate_card_part_all_done_refuses_turning_off_only():
     gate = step_cell_gate(_sd(on=("cut",)), _all("cut"), "cut", False)
     assert gate.code == "STEP_SET_BY_CARDS"
-    assert gate.message == "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [되돌리기]를 눌러 주세요."
-    assert step_cell_gate(_sd(), _all("cut"), "cut", True) is None  # 미완료 0장 = 지금처럼 켜짐
+    assert gate.message == "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [재단 완료 취소]를 눌러 주세요."
+    # 미완료 0장이어도 도면이 있으면 켜기는 누구든 막힌다(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 1장 주문도,
+    # test_production_steps_view_only_1127). 옛 단언 "도면 1장 주문은 켜짐(None)"을 409 단언으로 바꿨다
+    assert step_cell_gate(_sd(1), _all("cut", n=1), "cut", True).code == "STEP_PER_SHEET"
+    assert step_cell_gate(_sd(), _all("cut"), "cut", True).code == "STEP_PER_SHEET"
 
 
 def test_step_cell_gate_never_blocks_parts_without_cards_or_zero_drawings():
-    """대조군: 카드를 안 쓴 파트(NONE 줄만 포함) · 확정 도면 0장 주문은 지금처럼 켜고 끈다."""
+    """대조군: 카드를 안 쓴 파트(NONE 줄만 포함) · 확정 도면 0장 주문은 지금처럼 켜고 끈다(켜기는 도면 0장 주문만 — 1장 이상이면
+    STEP_PER_SHEET(사장님 2026-11-27 "도면이 주, 작업 시트는 보기"), 끄기는 장 수와 무관하게 지금 그대로)."""
     for marks in ([], [_m("k1", "cut", "NONE")], _all("edge")):
         for done in (True, False):
-            assert step_cell_gate(_sd(), marks, "cut", done) is None
+            assert step_cell_gate(_sd(0), marks, "cut", done) is None
+        for n in (1, 5):
+            assert step_cell_gate(_sd(n), marks, "cut", False) is None
+            assert step_cell_gate(_sd(n), marks, "cut", True).code == "STEP_PER_SHEET"
     assert step_cell_gate(_sd(0), [_m("gone", "cut", "NEED")], "cut", True) is None
 
 

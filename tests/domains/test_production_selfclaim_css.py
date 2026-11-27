@@ -22,14 +22,17 @@ CSS_DIR = ROOT / "static/css/contexts/production"
 #: 날짜 띠 출고일 — 작은 칸 상차 · 희망일 표가 이름 뒤로 줄을 넘기는 has-ship(사장님 2026-11-25)이 또 한 번 올렸다.
 #: 2026-11-26 생산 비평 갈래 나(대비 · 색 통일 · 글자 배율 · 치우기)가 네 파일을 모두 한 번 더 올렸다(아래 셋 같이).
 #: 같은 날 '내 공정' [끝] 자리 막힘 둘(도면 칸 · 남의 공장)의 꼴이 home.css · parts.css(토큰 옮김) · pc.css 를 또 올렸다.
-PIN = "20261125sf"
+#: 2026-11-27 지방 상차 표가 '남은 공정' 줄 시공 칸 · 곧 올 것 날 칸 안에 서는 꼴(사장님 "지방은 무조건 상차일 기준")이 home.css 만 올렸다.
+PIN = "20261127g"
 #: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다 — 2026-11-25 D4 [도면 수정 요청] 단추 · 창이
 #: 한 번 더, 여러 명 같이 작업 M2(2026-11-25 multi-holder — [같이 작업] 짝 1.4 : 1 · 이름 두 줄 · 사람 고르기)가 또 한 번 올렸다.
-PARTS_PIN = "20261125u"
+PARTS_PIN = "20261127s"
 #: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 · 셋째 판)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
-PC_PIN = "20261124j"
-#: 작업 시트 sheet.css(sheet.html · tablet_kanban_body.html 같은 핀) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
-SHEET_PIN = "20261124j"
+#: 2026-11-27 옛 보드 없애기가 [보드 →] 규칙을 지우며 한 번 더 올렸다.
+PC_PIN = "20261127h"
+#: 작업 시트 sheet.css(sheet.html — 칸반 본문은 2026-11-27 지움) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
+#: 2026-11-27 m: 도면 밀어 넘기기(touch-action) · u: 도면 있는 주문 공정 보기 줄(사장님 "도면이 주, 작업 시트는 보기" — test_production_steps_view_only_1127).
+SHEET_PIN = "20261127u"
 
 
 def _css(name: str) -> str:
@@ -79,7 +82,7 @@ NEW_TOKENS = {
     "--fph-old-line": "#c2410c", "--fph-release-700": "#075985",
     # home.css — 어제부터 · 칸 아래 이름
     "--fph-old-50": "#ffedd5", "--fph-old-300": "#fdba74", "--fph-old-700": "#9a3412",
-    "--fph-holder": "#4b525d", "--fph-holder-done": "#4a55b8", "--fph-holder-none": "#626a76",  # = --fph-text3(비평 C12 2026-11-26 #6b7380 → #626a76)
+    "--fph-holder": "#4b525d", "--fph-holder-done": "#047857", "--fph-holder-none": "#626a76",  # = --fph-text3(비평 C12 2026-11-26 #6b7380 → #626a76)
     # pc.css · sheet.css — 같은 값, 자기 접두사
     "--fpc-old-700": "#9a3412",
     "--fpp-ok-dark": "#047857", "--fpp-warn-soft": "#fcd34d", "--fpp-taken-10": "#fdf2f8", "--fpp-taken-50": "#eecbda",
@@ -93,7 +96,7 @@ def test_새_토큰_값() -> None:
     # 있는 색과 같은 값은 토큰을 가리킨다(설계서 §10 '새 토큰')
     parts, home = _css("parts.css"), _css("home.css")
     assert "--fph-release-700: var(--fph-basic-700);" in parts
-    for line in ("--fph-holder: var(--fph-text2);", "--fph-holder-done: var(--fph-brand-dark);", "--fph-holder-none: var(--fph-text3);",
+    for line in ("--fph-holder: var(--fph-text2);", "--fph-holder-done: var(--fph-dw-ok);", "--fph-holder-none: var(--fph-text3);",
                  "--fph-step-w: calc(76px * var(--foms-fs, 1));"):
         assert line in home, line
     # 3단계(2공장): 공장 색은 생산 CSS 에 두지 않는다 — 공장 칩 한 곳(components/foms-factory-chip.css)의 --foms-fac1-* · --foms-fac2-* 를
@@ -277,6 +280,6 @@ def test_네_파일_핀() -> None:
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
     for name, pin in (("home.css", PIN), ("parts.css", PARTS_PIN), ("pc.css", PC_PIN)):
         assert f"production/{name}') }}}}?v={pin}" in styles, name
-    for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
+    for rel in ("templates/production/sheet.html",):
         assert f"production/sheet.css') }}}}?v={SHEET_PIN}" in (ROOT / rel).read_text(encoding="utf-8"), rel
     assert f"production/pc.css') }}}}?v={PC_PIN}" in (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")

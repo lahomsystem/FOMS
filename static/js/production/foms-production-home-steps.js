@@ -209,7 +209,7 @@
     btn.type = 'button';
     btn.className = 'foms-prod-home__undo';
     btn.setAttribute('data-foms-step-undo', '');
-    btn.textContent = u.busy ? '되돌리는 중…' : '되돌리기';
+    btn.textContent = u.busy ? '취소하는 중…' : u.label + ' 완료 취소';
     btn.disabled = !!u.busy;
     statusBox.appendChild(msg);
     statusBox.appendChild(btn);
@@ -227,13 +227,13 @@
     mutate(u.id, u.key, false).then(function (result) {
       u.busy = false;
       if (!result || !result.ok) { // 화면은 그대로(끝낸 채) — 글을 보이고 조금 더 기다린다
-        u.error = '되돌리지 못했어요. ' + failText(result);
+        u.error = '취소하지 못했어요. ' + failText(result);
         u.until = Date.now() + UNDO_MS;
         if (G.api) { G.api.showUndo(); }
         return;
       }
       G.undo = null;
-      if (G.api) { G.api.setStatus('되돌렸어요. ' + u.name + ' — 다시 ' + u.label + ' 줄로 가요'); }
+      if (G.api) { G.api.setStatus('취소했어요. ' + u.name + ' — 다시 ' + u.label + ' 줄로 가요'); }
       go(orderHref(u.id)); // 그 주문이 다시 그 공정 줄에 선다(서버가 고른 줄 · 첫 탭)
     });
   }

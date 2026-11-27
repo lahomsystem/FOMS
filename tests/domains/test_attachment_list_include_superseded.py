@@ -143,7 +143,6 @@ def test_order_edit_attachment_tab_shows_final_drawings_only():
 
 
 @pytest.mark.parametrize("rel", [
-    "templates/production/partials/scripts.html",
     "static/js/construction/dashboard.js",
     "static/js/orders/order-detail-fragment.js",
     "foms/api/share.py",

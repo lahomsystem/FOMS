@@ -1,15 +1,12 @@
 /* 생산 작업 시트 — 파트 카드 3판 칸(설계서 2026-11-23 §4-2 · §8-3, 승인 때 고친 것 2 · 3). 루트 = [data-foms-prod-sheet-page].
  * foms-production-sheet-page.js 가 이 파일(window.FomsSheetParts)이 있을 때만 부른다 — 없으면 시트는 지금 그대로다.
- *  · beforeToggle: 반장 · 관리자가 카드를 안 쓴 파트의 공정 칸을 **켤 때**(끌 때는 아님), 확정 도면이 1장 이상이면 먼저 묻는다
- *    "재단 완료할까요?" · "이 주문의 도면 5장이 모두 재단 완료로 처리돼요." [취소] [재단 완료]. 카드를 쓴 파트는 묻지 않고 보낸다
- *    (서버가 남은 장을 세어 막는다 — 409 PART_USES_CARDS). 확정 도면 0장이면 지금처럼 바로.
- *    '내 공정' [<공정> 완료](옛 [<공정> 끝] · foms-production-home-steps.js 판 · foms-production-home.js 줄, 사장님 2026-11-25 "도면이 있는 주문만 한 번
- *    묻기")도 이 함수 하나 — 단추에 서버가 실은 자료(data-foms-sheet-parts, 열쇠 = data-step-key), [취소] · Esc · 바깥이면 no().
- *    창을 연 뒤 OPEN_GUARD_MS 안의 누름은 버린다(두 번 누름의 둘째가 [작업 완료] · 바깥에 떨어지지 않게).
- *    막힌 도면이 있는 주문(서버 자료 fix — 2026-11-25 설계서 §2-4)은 본문만 "이 주문의 도면 5장 중 4장이 재단 완료로 처리돼요. 도면 2는
- *    고치는 중이라 빼요."(뒤 문장 = 서버 글 fix.tail). 응답 expanded(막힌 장을 빼고 처리됨)는 그 칸 옆 글을 서버 글(expanded.note)로,
- *    '내 공정' [<공정> 완료] 뒤 알림은 doneText(expanded) — "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."
- *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
+ *  · beforeToggle: 반장 · 관리자가 공정 칸 · '내 공정' [<공정> 완료](옛 [<공정> 끝])를 **켤 때**(끌 때는 바로 보낸다). 도면이 있는 주문(서버 자료
+ *    per_sheet — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")은 요청 없이 칸 아래에 서버 글만(새 화면은 보기 줄이라 칸이 없다 — 낡은
+ *    화면 · 옆 시트 몫). 카드를 쓴 파트 · 도면 0장 · 자료 없음은 묻지 않고 보낸다(서버가 판정 — 409 PART_USES_CARDS 가 먼저). 옛 "도면 1장이
+ *    모두 재단 완료로 처리돼요" 확인 창은 탈 길이 없어 뺐다(도면 0장 주문은 예전에도 묻지 않았다). doneText · expandedNote(막힌 장을 빼고
+ *    풀어 쓴 응답 expanded)는 이제 안 타는 길(서버가 도면 있는 주문 켜기를 막는다 — 지우기는 따로 정한다).
+ *    손으로 켜 둔 옛 칸(보기 줄 자리의 체크 칸)을 끄면 render 가 그 칸 대신 서버가 그려 둔 줄(data-foms-sheet-hand-after)을 보인다.
+ *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS · STEP_PER_SHEET)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "미완료가 있어요 — 재단 1장 · 검수 3장".
  *    카드를 안 쓴 주문은 null(시트 JS 가 지금 글을 그대로 쓴다).
  *  · [바뀐 기록 보기]: 처음 누를 때 GET /api/production/part-history 한 번, 공정 · 장마다 한 줄. 쓰기 요청은 POST 0(공정 POST 는 시트 JS).
@@ -67,28 +64,29 @@
     if (opener && document.contains(opener)) { opener.focus(); }
     if (run && yes) { yes(); } else if (!run && no) { no(); }
   }
-  function body(label, sheets, fix) {
-    if (fix && fix.tail) { return '이 주문의 도면 ' + sheets + '장 중 ' + fix.done + '장이 ' + label + ' 완료로 처리돼요. ' + fix.tail; }
-    return '이 주문의 도면 ' + sheets + '장이 모두 ' + label + ' 완료로 처리돼요.';
-  }
   function doneText(ex) { // 풀어 쓴 [<공정> 완료] 뒤 알림(판결 B) — 뒤 문장(조사 포함)은 서버 글 ex.tail, 화면은 잇기만
     return '도면 ' + ex.total_n + '장 중 ' + ex.done_n + '장을 ' + ex.part_label + ' 완료로 처리했어요. ' + ex.tail;
   }
-  function ask(label, sheets, opener, go, no, fix) {
+  // 글 + 단추 둘 창 하나 — 작업 시트 생산 단추(tablet-domain-sheets.js · sheet-factory.js, 사장님 2026-11-27 "앱 창으로 바꾸기")가 쓴다. o = {title, body, yes, no, opener, go, cancel}. 창 조각이 없으면 false(부른 쪽이 지금 길로). 본문이 없으면 숨김
+  function open(o) {
     var box = document.querySelector('[data-foms-sheet-confirm]');
-    if (!box) { go(); return; }
+    if (!box) { return false; }
     dlg.box = box;
-    dlg.yes = go;
-    dlg.no = no || null;
-    dlg.opener = opener;
+    dlg.yes = o.go;
+    dlg.no = o.cancel || null;
+    dlg.opener = o.opener || null;
     dlg.at = Date.now();
-    box.querySelector('[data-foms-sheet-confirm-title]').textContent = label + ' 완료할까요?'; // 누른 단추와 같은 말(사장님 2026-11-26)
-    box.querySelector('[data-foms-sheet-confirm-yes]').textContent = label + ' 완료';
-    box.querySelector('[data-foms-sheet-confirm-body]').textContent = body(label, sheets, fix);
+    box.querySelector('[data-foms-sheet-confirm-title]').textContent = o.title;
+    box.querySelector('[data-foms-sheet-confirm-yes]').textContent = o.yes;
+    var text = box.querySelector('[data-foms-sheet-confirm-body]');
+    text.textContent = o.body || '';
+    text.hidden = !o.body;
+    var no = box.querySelector('[data-foms-sheet-confirm-no].foms-btn');
+    if (no) { no.textContent = o.no || '취소'; }
     box.hidden = false;
     box.setAttribute('aria-hidden', 'false');
-    var no = box.querySelector('[data-foms-sheet-confirm-no].foms-btn');
     if (no) { no.focus(); }
+    return true;
   }
   function beforeToggle(page, btn, done, go, no) {
     if (!done) { go(); return; }
@@ -97,8 +95,9 @@
     load(page).then(function (info) {
       btn.disabled = false;
       var part = info && info.parts ? info.parts[key] : null;
-      if (!info || !info.sheets || !part || part.uses_cards) { go(); return; } // 카드 쓴 파트 · 도면 0장 · 자료 없음 = 서버가 판정
-      ask(LABELS[key] || key, info.sheets, btn, go, no, info.fix);
+      // 도면이 있는 주문(서버 글 per_sheet) = 묻지 않고 칸 아래에 까닭만 · 요청 0. 카드 쓴 파트 · 글 칸이 없는 화면은 서버가 답한다
+      if (info && info.per_sheet && !(part && part.uses_cards) && stepMsg(page, info.per_sheet)) { if (no) { no(); } return; }
+      go();
     });
   }
 
@@ -113,7 +112,7 @@
   function refused(page, result) {
     var body = (result && result.data) || {};
     var code = (body.data && body.data.code) || body.code;
-    if (code !== 'PART_USES_CARDS' && code !== 'STEP_SET_BY_CARDS') { return false; }
+    if (code !== 'PART_USES_CARDS' && code !== 'STEP_SET_BY_CARDS' && code !== 'STEP_PER_SHEET') { return false; }
     return stepMsg(page, body.error || body.message || result.message);
   }
   function render(page, payload) {
@@ -126,7 +125,20 @@
     info.parts = payload.parts;
     if (payload.sheets != null) { info.sheets = payload.sheets; }
     if (payload.fix) { info.fix = payload.fix; } else { delete info.fix; }
+    if (payload.per_sheet) { info.per_sheet = payload.per_sheet; } else { delete info.per_sheet; }
     h.setAttribute('data-foms-sheet-parts', JSON.stringify(info));
+    handOff(page, payload.steps || []);
+  }
+  function handOff(page, steps) { // 끈 손 체크 칸 = 그 자리에 서버가 그려 둔 보기 줄("엣지 미정"), 칸은 숨기고 공정 칸 셈에서 뺀다
+    toArr(page.querySelectorAll('[data-foms-sheet-hand-after]')).forEach(function (line) {
+      var key = line.getAttribute('data-foms-sheet-hand-after');
+      var s = steps.filter(function (x) { return x && x.key === key; })[0];
+      var btn = page.querySelector('[data-foms-sheet-step="' + key + '"]');
+      if (!s || s.done || !btn) { return; }
+      btn.hidden = true;
+      btn.removeAttribute('data-foms-sheet-step');
+      line.hidden = false;
+    });
   }
   function expandedNote(page, ex) { // 막힌 장을 빼고 처리된 파트 — 칸 옆 글 = 서버 글("도면 4/5 · 1장 미완료"), 카드 쓴 파트 글처럼 고정
     if (!ex || !ex.note) { return; }
@@ -138,10 +150,14 @@
   }
   function why(page) {
     var info = data(page);
-    if (!info || !info.parts || !ORDER.some(function (k) { return info.parts[k] && info.parts[k].uses_cards; })) { return null; }
-    if (!info.sheets) { return '도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요.'; }
-    var left = ORDER.filter(function (k) { return info.parts[k] && !info.parts[k].done; })
-      .map(function (k) { return LABELS[k] + ' ' + info.parts[k].left_n + '장'; });
+    var cards = !!(info && info.parts) && ORDER.some(function (k) { return info.parts[k] && info.parts[k].uses_cards; });
+    if (!cards && !(info && info.parts && info.per_sheet)) { return null; } // 도면 0장 · 자료 없음 = 시트 JS 지금 글(칸 이름)
+    if (cards && !info.sheets) { return '도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요.'; }
+    var notDone = ORDER.filter(function (k) { return info.parts[k] && !info.parts[k].done; });
+    if (!cards) { // 도면 있는 주문의 보기 줄 — 칸 이름이 없으니 서버 막힘 글(production_complete_block_body)과 같은 글을 서버 자료로
+      return notDone.length ? '검수까지 끝나야 제작 완료할 수 있어요. (남은 공정: ' + notDone.map(function (k) { return LABELS[k]; }).join(' · ') + ')' : null;
+    }
+    var left = notDone.map(function (k) { return LABELS[k] + ' ' + info.parts[k].left_n + '장'; });
     return left.length ? '미완료가 있어요 — ' + left.join(' · ') : null;
   }
   function showWhy(statusEl, text) {
@@ -251,6 +267,7 @@
     });
   }
   // renderLog: PC 도면 목록 창(foms-production-pc-sheet.js, 2026-11-24)이 바뀐 기록을 작업 시트와 같은 글로 그린다
+  // confirm: 작업 시트 · 생산 첫 화면의 [제작 시작] · [제작 완료] · [완료 취소] · [보류 해제] · 공장 단추 확인(위 open)
   window.FomsSheetParts = { beforeToggle: beforeToggle, refused: refused, render: render, why: why, showWhy: showWhy, renderLog: renderLog,
-    doneText: doneText };
+    doneText: doneText, confirm: open };
 })();

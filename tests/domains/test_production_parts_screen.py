@@ -167,12 +167,12 @@ def test_other_part_has_no_basic_and_no_other_part_buttons(client, cohort):
     block = _parts_block(_first_pane(html))
     assert block.count("data-pp-card ") == 5
     assert 'data-pp-act="basic"' not in block and 'data-pp-act="bulk"' not in block  # '기본'은 재단에만(D49)
-    assert block.count('data-pp-act="take"') == 5 and 'data-pp-act="take">작업 시작<' in block  # 네 파트 같은 글(§8-2 1)
+    assert block.count('data-pp-act="take"') == 5 and 'data-pp-act="take">조립 시작<' in block  # 파트마다 [<파트> 시작](11-27)
     assert "출고 3건 · 도면 나온 2건" in block  # 그 밖 파트 장 머리(시공 = 그날 주문 전부, 도면 나온 집 = 카드가 선 집)
     # 다른 파트 한 줄은 누를 수 없는 글 — 그 안에 단추 0, 재단 낱말(완료 · 기본 · 중 · 안 봄)이 선다
     for line in re.findall(r'<span class="fph-dr__by pp-by">(.*?)</span></span>\s*<div class="pp-actbox"', block, re.S):
         assert "<button" not in line and "<a " not in line
-    assert "<i>재단</i> 중" in block and "<i>재단</i> 기본" in block and "<i>재단</i> 안 봄" in block
+    assert "<i>재단</i> 작업 중" in block and "<i>재단</i> 기본" in block and "<i>재단</i> 미정" in block
     # 남의 파트 단추 0 — 카드 단추는 내 파트 동작 넷뿐이고 JS 설정의 파트는 내 파트
     acts = set(re.findall(r'data-pp-act="([a-z]+)"', html))
     assert acts <= {"take", "basic", "done", "undo", "bulk"}
@@ -218,14 +218,14 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
     picker = pane.split('class="pp-parts"')[1].split("</nav>")[0]
     assert [p for p in ("재단", "엣지", "조립", "검수") if f">{p}</a>" in picker] == ["재단", "엣지", "조립", "검수"]
     assert re.search(r'class="pp-part is-on"[^>]*tab=parts&amp;part=cut', picker)
-    # 관리자 칸 숫자 = 그 파트 전체(맡은 장 둘 · 끝난 장 둘), 남이 맡은 장도 [재단 완료] 단추가 있다(대신 완료 = check 요청)
+    # 관리자 칸 숫자 = 그 파트 전체(맡은 장 둘 · 끝난 장 둘), 남이 맡은 장 · 안 본 장(11-27 미정 바로 완료)도 [재단 완료](check) = 셋
     assert 'data-pp-count="need">2<' in pane and 'data-pp-count="done">2<' in pane
-    assert pane.count('data-pp-act="check"') == 2 and pane.count('data-pp-act="undo"') == 2 and 'data-pp-act="done"' not in pane
+    assert pane.count('data-pp-act="check"') == 3 and pane.count('data-pp-act="undo"') == 2 and 'data-pp-act="done"' not in pane
     assert html.count('id="foms-part-confirm-modal"') == 1 and "foms-production-parts.js?v=" in html
 
     html = _get(client, HOME + "?tab=parts&part=assemble")
     pane = _first_pane(html)
-    assert 'data-pp-act="take">작업 시작<' in pane and 'data-pp-act="basic"' not in pane
+    assert 'data-pp-act="take">조립 시작<' in pane and 'data-pp-act="basic"' not in pane
     assert '"part": "assemble"' in html.replace("&#34;", '"')
 
 
@@ -371,7 +371,6 @@ def test_writes_only_go_through_confirm_modal_run_button():
     assert not re.search(r"POST|fomsMutationFetch|XMLHttpRequest|sendBeacon|part-marks/basic", sync), "받아 오기 JS 는 읽기만"
 
 
-
 # --------------------------------------------------------------------------- #
 # 작은 그림 길
 # --------------------------------------------------------------------------- #
@@ -467,8 +466,9 @@ def test_thumb_refuses_other_order_old_key_non_image_and_outsiders(client, stora
     _login(client, fl)
     refused = _thumb(client, b.id, "ob/d0.png")
     assert refused.status_code in (302, 403, 404) and refused.mimetype != "image/jpeg"  # 프리랜서 문지기(남의 주문)
-    # 우리 직원이라도 생산 첫 화면을 볼 수 없으면(팀 없음 — 도면 · 시공 · 출고는 2026-11-21 보는 팀) 이 길의 문지기가 403
-    _login(client, _user("팀없는사람", team=None))
+    # 우리 직원이라도 생산 첫 화면을 볼 수 없으면(목록 밖 팀 글자 — 도면 · 시공 · 출고는 2026-11-21 보는 팀, 팀 없는 직원은
+    # 2026-11-27 부터 보기만 — 설계서 옛 생산 보드 없애기 §4) 이 길의 문지기가 403
+    _login(client, _user("다른팀사람", team="WAREHOUSE"))
     assert _thumb(client, b.id, "ob/d0.png").status_code == 403
 
 
@@ -491,7 +491,7 @@ def test_replaced_drawing_line_and_cap_notice(client, cohort, monkeypatch):
     _mark(order, "oa/old0.png", "cut", "DONE", picked=me, done=me, names=("김재단", "김재단"), sheet_id="oa-s0")
     _login(client, me)
     block = _parts_block(_first_pane(_get(client, HOME)))
-    assert block.count('class="pp-replaced"') == 1 and "바뀐 도면 · 전 판 재단 완료(김재단)" in block
+    assert block.count('class="pp-replaced"') == 1 and "바뀐 도면 · 전 도면 재단 완료(김재단)" in block
     assert 'data-pp-count="unseen">3<' in block  # 새 판은 안 봄부터
     monkeypatch.setattr("foms.services.production.part_board.PART_BOARD_CARD_CAP", 2)
     block = _parts_block(_first_pane(_get(client, HOME)))

@@ -4,8 +4,9 @@ CS · 회계 · 영업 · 도면 · 시공 · 출고 · 조회 전용 · 협력�
 (start · complete · rework · cancel · uncomplete · steps POST · defect · hold)이 403.
 한 함수(``can_write_production``)를 문지기 정책 PRODUCTION_EDIT(gate) · 라우트 데코레이터 · 화면이 같이 본다.
 
-[확인했어요](change-ack)는 개인 확인 기록이라 생산 화면을 보는 사람 모두(§13 결정 5) — ``can_ack_production_change`` 를
+[확인했어요](change-ack)는 개인 확인 기록이라 생산 화면을 보는 팀 모두(§13 결정 5) — ``can_ack_production_change`` 를
 문지기 정책 PRODUCTION_ACK(gate) · 라우트 데코레이터 · 화면이 같이 본다. 조회 전용 · 팀 없음 · 협력사는 403.
+팀 없는 직원은 2026-11-27 부터 첫 화면을 보기만 한다(설계서 옛 생산 보드 없애기 §4) — 확인은 여전히 403.
 모든 이름 · 번호는 가짜 값이다.
 """
 from __future__ import annotations
@@ -130,11 +131,11 @@ def test_partner_account_write_api_403(client):
 
 
 # --------------------------------------------------------------------------- #
-# 3. [확인했어요](change-ack) — 보는 사람 모두(§13 결정 5), 조회 전용 · 팀 없음 · 협력사는 403
+# 3. [확인했어요](change-ack) — 보는 팀 모두(§13 결정 5), 조회 전용 · 팀 없음(보기만, §4) · 협력사는 403
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("name,role,team,write,view", PEOPLE)
-def test_ack_matrix_is_view_minus_viewer_role(name, role, team, write, view):
-    want = can_ack(role, view)
+def test_ack_matrix_is_view_team_minus_viewer_role(name, role, team, write, view):
+    want = can_ack(role, team, view)
     assert can_ack_production_change(ns(role, team)) is want, name
     assert evaluate_policy(POLICY_REGISTRY["PRODUCTION_ACK"], ns(role, team)).allowed is want, name
     if write:
@@ -167,13 +168,13 @@ def test_ack_route_is_classified_as_ack_policy():
 
 @pytest.mark.parametrize("name,role,team,write,view", PEOPLE)
 def test_ack_api_matrix(client, name, role, team, write, view):
-    """보는 사람은 200 + 확인 기록 1건, 그 밖(팀 없음 · 조회 전용)은 403 + 기록 0."""
+    """보는 팀은 200 + 확인 기록 1건, 그 밖(팀 없음 — 보기만 · 조회 전용)은 403 + 기록 0."""
     user = make_user(f"pa_{name}", role, team)
     login(client, user)
     order_id = make_order().id
     resp = client.post(f"/api/orders/{order_id}/production/{ACK_PATH}", json={})
     events = db_session.query(OrderEvent).filter_by(order_id=order_id, event_type="PRODUCTION_CHANGE_ACK").count()
-    if can_ack(role, view):
+    if can_ack(role, team, view):
         assert (resp.status_code, events) == (200, 1), (name, resp.get_json())
     else:
         assert (resp.status_code, events) == (403, 0), (name, resp.status_code)

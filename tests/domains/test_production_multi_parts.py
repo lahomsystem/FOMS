@@ -148,7 +148,9 @@ ALL = PRODUCTION_PART_KEYS
     (dict(team="DRAWING"), "readonly", (), False, False),
     (dict(team="CS", role="MANAGER"), "readonly", (), False, False),  # 다른 팀 매니저 = 읽기 전용
     (dict(role="VIEWER", parts=["cut"], legacy="cut"), "readonly", (), False, False),
-    (dict(team=None), "none", (), False, False),
+    (dict(team=None), "readonly", (), False, False),  # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4, 2026-11-27)
+    (dict(team=None, parts=["cut"], legacy="cut", lead=True), "readonly", (), False, False),  # 파트 · 반장 칸은 생산팀만 뜻
+    (dict(team="WAREHOUSE"), "none", (), False, False),  # 목록 밖 팀 글자 = 못 봄
 ])
 def test_view_modes_and_write_rules_follow_the_permission_table(who, mode, parts, override, locked):
     person = _ns(**who)
@@ -212,7 +214,8 @@ def test_sub_mode_writes_any_part_finishes_and_releases_others_and_hand_checks(c
     db_session.expire_all()
     logs = [r.message for r in db_session.query(SecurityLog).filter(SecurityLog.message.like("%대신 처리%"))]
     assert len(logs) == 2 and not any("관리자 덮어쓰기" in m for m in logs), logs
-    assert check_step(client, make_order(1).id, "cut", True).status_code == 200  # 공정 칸 손 체크(잠금 없음)
+    # 공정 칸 손 체크(잠금 없음) — 도면 0장 주문(도면이 있으면 누구든 409, 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
+    assert check_step(client, make_order(0).id, "cut", True).status_code == 200
 
 
 def test_production_account_without_parts_or_lead_only_views_cards_and_steps(client):
@@ -273,10 +276,10 @@ def test_other_part_line_says_mine_only_for_my_second_part(app):
         return {c["key"]: {o["part"]: (o["word"], o["tone"]) for o in c["others"]} for c in _today(_board(user))["cards"]}
 
     mine = words(me)
-    assert mine["mo/d0.png"]["edge"] == ("내 작업", "mine") and mine["mo/d1.png"]["edge"] == ("중", "need")
+    assert mine["mo/d0.png"]["edge"] == ("내 작업", "mine") and mine["mo/d1.png"]["edge"] == ("작업 중", "need")
     for viewer in (single, admin):  # 대조군: 그 파트가 내 파트가 아니면 지금 낱말(단 하나 파트 계정은 자기가 맡았어도)
         got = words(viewer)
-        assert got["mo/d0.png"]["edge"] == ("중", "need") and got["mo/d1.png"]["edge"] == ("중", "need")
+        assert got["mo/d0.png"]["edge"] == ("작업 중", "need") and got["mo/d1.png"]["edge"] == ("작업 중", "need")
 
 
 def test_sync_words_follow_the_viewer_like_the_board(client):
@@ -290,7 +293,7 @@ def test_sync_words_follow_the_viewer_like_the_board(client):
     assert (edge["word"], edge["tone"]) == ("내 작업", "mine")
     login(client, _user("박재단", parts=["cut"]))
     edge = next(m for m in client.get(url).get_json()["data"]["marks"] if m["part"] == "edge")
-    assert (edge["word"], edge["tone"]) == ("중", "need")
+    assert (edge["word"], edge["tone"]) == ("작업 중", "need")
 
 
 # --------------------------------------------------------------------------- #
@@ -332,9 +335,9 @@ def test_two_part_account_head_picks_parts_keeps_day_and_titles_both(client, coh
     assert all(f"day={_first_day()}" in href for href in re.findall(r'href="([^"]*)"', nav))  # 같은 날
     assert '<h1 class="foms-prod-home__title">재단 · 엣지 <span class="foms-prod-home__me">김두파</span></h1>' in html
     assert _day_hrefs(html) and all("part=cut" in href for href in _day_hrefs(html))  # 날을 바꿔도 고른 파트
-    assert 'data-pp-act="take">작업 시작<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
+    assert 'data-pp-act="take">재단 시작<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
     edge = _pane(_get(client, HOME + "?part=edge"))
-    assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">작업 시작<' in edge
+    assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">엣지 시작<' in edge
     assert "pp-bulk" not in edge and "출고 1건 · 도면 나온 1건" in edge  # 엣지 판 머리 글(날짜 묶음 말 = 출고, 사장님 2026-11-25)
     assert 'data-pp-pick="cut" aria-current="page">' in _pane(_get(client, HOME + "?part=inspect"))  # 내 파트 밖 → 첫 파트
 
@@ -346,7 +349,7 @@ def test_single_part_account_head_and_links_stay_as_now(client, cohort):
     assert "pp-picks" not in html and "data-pp-pick" not in html
     assert '<h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">박재단</span></h1>' in html
     assert _day_hrefs(html) and not any("part=" in href for href in _day_hrefs(html))
-    assert 'data-pp-act="take">작업 시작<' in _pane(html)
+    assert 'data-pp-act="take">재단 시작<' in _pane(html)
 
 
 def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
@@ -361,7 +364,9 @@ def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):
     assert html.count('id="foms-part-confirm-modal"') == 1 and '&#34;mode&#34;: &#34;sub&#34;' in html
     assert 'class="pp-parts"' in pane and 'data-pp-act="take"' in pane and 'data-pp-act="join"' not in pane
     assert "<b>박재단 작업\u00a0중</b>" in pane and 'data-pp-act="check"' in pane  # 남이 맡은 장 = 관리자와 같은 칸 · [재단 완료](대신 완료 check)
-    assert "<h1 class=\"foms-prod-home__title\">생산</h1>" in html
+    # 반장 제목 = "반장 박반장", 어느 탭이든(사장님 2026-11-26 "반장도 이름 붙이기") — 날짜 탭도 같다
+    lead_title = '<h1 class="foms-prod-home__title">반장 <span class="foms-prod-home__me">박반장</span></h1>'
+    assert lead_title in html and lead_title in date and lead_title in _get(client, HOME + "?tab=all")
     _tablet(client, _user("최보기"))  # 파트도 반장도 아님 = 같은 판을 단추 없이(P1 읽기 전용 모습)
     view = _get(client, HOME + "?tab=parts&part=cut")
     assert '&#34;mode&#34;: &#34;readonly&#34;' in view and 'data-pp-act="' not in _pane(view) and "data-pp-card " in view
@@ -437,3 +442,34 @@ def test_query_counts_stay_for_two_part_date_tab_and_sub_cards_tab(client, cohor
     monkeypatch.setattr("foms.services.production.part_access.can_write_production", lambda user: False)
     _small, readonly, html = _measure(client, url, boss, (3400, 3500))
     assert 'data-pp-act="' not in html and sub == readonly == MEASURED["parts_tab"] + 1, (sub, readonly)
+
+
+def test_part_account_title_stays_on_every_tab_and_readonly_keeps_plain(client, cohort):
+    """파트 계정 제목 "재단 박재단"은 [바뀐 것] · [찾기] 탭에서도 그대로(사장님 2026-11-26). 파트도 반장도 아닌 계정은 "생산"."""
+    _order("한빛", _files("tt", 1))
+    _tablet(client, _user("박재단", parts=["cut"]))
+    title = '<h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">박재단</span></h1>'
+    for tab in ("", "?tab=changes", "?tab=all"):
+        assert title in _get(client, HOME + tab), tab
+    _tablet(client, _user("최보기"))
+    assert '<h1 class="foms-prod-home__title">생산</h1>' in _get(client, HOME + "?tab=all")
+
+
+def test_named_title_screens_drop_the_date_and_total_text(client, cohort):
+    """태블릿은 누구든(파트 계정 · 반장 · 관리자 · 그 밖) 제목 옆 "11월 26일 (목) · 전체 n건"을 뺀다(사장님 2026-11-26) — PC 는 그대로."""
+    _order("한빛", _files("dt", 1))
+
+    def bar(html: str) -> str:
+        return html.split('<header class="foms-prod-home__bar">', 1)[1].split("<nav", 1)[0]
+
+    for who in (_user("박재단", parts=["cut"]), _user("박반장", lead=True)):
+        _tablet(client, who)
+        for tab in ("", "?tab=all"):
+            head = bar(_get(client, HOME + tab))
+            assert "foms-prod-home__me" in head and "전체 " not in head and "건</span>" not in head, (who, tab)
+    _tablet(client, _user("최보기"))
+    plain = bar(_get(client, HOME))
+    assert ">생산</h1>" in plain and "전체 " not in plain and "건</span>" not in plain
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    pc = bar(_get(client, HOME))
+    assert ">생산</h1>" in pc and re.search(r" · 전체 \d+건</span>", pc)

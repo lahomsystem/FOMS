@@ -37,7 +37,7 @@ WRITE = ("data-foms-home-step-done", "data-tablet-sheet-action", "data-foms-step
          "data-foms-sheet-defect-toggle")
 ACK = 'data-kanban-action="change-ack"'
 PC_ONLY = ("data-tip=", "data-foms-pc-due", "foms-prod-home is-pc", "pc.css?v=", "foms-production-edit.js", 'class="fpc-',
-           '<nav class="erp-pro-nav"', "data-foms-home-board")
+           '<nav class="erp-pro-nav"')
 _seq = count(1)
 
 
@@ -80,7 +80,7 @@ def _no_date_order(name: str) -> Order:
 def _seed() -> dict[str, Order]:
     """재단 중(내일) · 엣지 중(모레, 재단 김재단 끝) · 보류 · 제작 대기 · 시공일 바뀐 주문 · 시공일 없음 · 여러 시공일."""
     orders = {
-        "cut": add_order("가재단", 1),
+        "cut": add_order("가재단", 1, pngs=0),  # 도면 0장(도면 있는 줄은 [끝] 자리가 막힌다 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
         "edge": add_order("나엣지", 2, done=("cut",)),
         "hold": add_order("다보류", 5, done=("cut",), hold="자재 기다림"),
         "wait": add_order("라대기", 1, run=False),
@@ -136,8 +136,8 @@ def test_화면_판정_표() -> None:
     fresh = str(now - 60)
     # PC 보기 전용 — 쓰기 없음, [확인했어요]는 보는 사람 모두(§13 결정 5, 기기 무관), [고치기]는 쓰기 팀만
     assert production_screen_flags(admin, _Req(foms_ptr="fine"), now) == {
-        "pc_view": True, "can_act": False, "can_check_steps": False, "steps_lock_note": "", "can_ack": True, "edit_on": False,
-        "edit_toggle": True, "edit_now": now, "write_omitted": False}
+        "pc_view": True, "can_act": False, "can_check_steps": False, "steps_lock_note": "", "can_ack": True,
+        "parts_read": True, "edit_on": False, "edit_toggle": True, "edit_now": now, "write_omitted": False}
     for ptr in ("fine", "coarse", "", "weird"):
         for user in (cs, _U(team="SALES"), _U(team="DRAWING"), _U(team="SHIPMENT"), prod):
             assert production_screen_flags(user, _Req(foms_ptr=ptr), now)["can_ack"] is True, (ptr, user.team)
@@ -219,10 +219,10 @@ def test_고치기_켬이면_태블릿과_같은_쓰기_단추(client, cohort, w
     # 재단 줄: 가재단(재단 중) — 같은 [끝] 계약(data-foms-home-step-done · POST /production/steps, foms-production-home.js)
     assert f'data-foms-home-step-done data-order-id="{orders["cut"].id}" data-step-key="cut"' in steps
     # 보류 줄은 [끝] 대신 보류 글
-    assert f'data-order-id="{orders["hold"].id}" data-step-key=' not in steps and "보류 중 · 자재 기다림" in steps
+    assert f'data-order-id="{orders["hold"].id}" data-step-key=' not in steps and "보류 · 자재 기다림</span>" in steps and "보류 중" not in steps
     sheet = get_html(client, _sheet(orders["edge"]))
     for mark in ('data-tablet-sheet-action="production-cancel"', 'data-tablet-sheet-action="production-hold"',
-                 'data-foms-sheet-step="cut"', "data-foms-sheet-defect-toggle", "tablet-domain-sheets.js",
+                 'data-foms-sheet-line="cut"', "data-foms-sheet-defect-toggle", "tablet-domain-sheets.js",  # 공정 = 보기 줄(도면 있는 주문)
                  "foms-reason-sheet.js"):
         assert mark in sheet, mark
     assert "data-foms-pc-editband" in sheet
@@ -346,9 +346,9 @@ def test_되돌림_JS_는_터치_기기에서만_쓰기_표식을_다시_받는�
 
 
 # --------------------------------------------------------------------------- #
-# PC 꼴 — 둘째 줄 메뉴 · [보드 →] · 시공일 칸 · 누가 · 언제 · 늦음
+# PC 꼴 — 둘째 줄 메뉴 · 시공일 칸 · 누가 · 언제 · 늦음. [보드 →] 는 2026-11-27 옛 보드와 함께 없앴다.
 # --------------------------------------------------------------------------- #
-def test_PC_에는_ERP_둘째_줄_메뉴_하나와_보드_길(client, cohort) -> None:
+def test_PC_에는_ERP_둘째_줄_메뉴_하나이고_보드_길은_없다(client, cohort) -> None:
     _seed()
     _login(client, "cs")
     set_cookies(client, PC)
@@ -357,7 +357,7 @@ def test_PC_에는_ERP_둘째_줄_메뉴_하나와_보드_길(client, cohort) ->
         assert html.count('<nav class="erp-pro-nav"') == 1, tab
         nav = html.split('<nav class="erp-pro-nav"', 1)[1].split("</nav>", 1)[0]
         assert re.search(r'class="erp-pro-nav-item active"\s+href="/erp/production/', nav), tab
-        assert 'data-foms-home-board data-foms-erp-no-shell="1" href="/erp/production/dashboard"' in html, tab
+        assert "data-foms-home-board" not in html and "/erp/production/dashboard" not in html, tab
     # 셸 조각(view=fragment + 셸 머리글)도 같은 몸통이라 같은 메뉴(parity)
     frag = get_html(client, HOME + "?view=fragment", headers={"X-FOMS-ERP-SHELL": "1"})
     assert frag.count('<nav class="erp-pro-nav"') == 1 and "pc.css?v=" in frag
@@ -496,4 +496,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261124j" in (ROOT / tpl).read_text(encoding="utf-8"), tpl  # 2026-11-24 도면 목록 창(둘째 판) · 공장 칩이 올림
+        assert "pc.css') }}?v=20261127h" in (ROOT / tpl).read_text(encoding="utf-8"), tpl  # 2026-11-27 [보드 →] 규칙 지움(옛 보드 없애기)

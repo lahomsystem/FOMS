@@ -8,7 +8,7 @@ from flask import request
 def test_mine_from_url_param(app):
     from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 
-    with app.test_request_context("/erp/production/dashboard?mine=1"):
+    with app.test_request_context("/erp/measurement?mine=1"):
         assert erp_mine_only_from_request(request) is True
 
 

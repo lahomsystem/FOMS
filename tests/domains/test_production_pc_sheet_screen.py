@@ -41,6 +41,25 @@ def test_창_틀_스크립트는_PC_날짜_찾기만_쓰기는_고치기_켬만(
     assert html.index("foms-production-sheet-parts.js") < html.index("foms-production-pc-sheet.js") < html.index("pc-sheet-write.js")
 
 
+def test_도면_카드_읽기를_못_하는_사람은_PC_공정_칸이_글만(client, cohort, monkeypatch) -> None:
+    """켜진 프리랜서처럼 ``parts_read`` 가 거짓이면(PC 도면 창 API 가 403) 칸은 누르는 칸이 아니라 글만, 창 틀도 없다(2026-11-27).
+
+    음성 대조: 같은 화면 · 같은 계정에서 플래그만 참이면 칸 넷이 창을 연다.
+    """
+    import foms.services.production.pc_view as pc_view
+    from foms.services.production.part_access import VIEW_NONE
+
+    order, _ = _seed_five()
+    url = HOME + f"?day={order.erp_construction_date}"
+    _login(client, _user("관리", role="ADMIN", team="CS"))
+    on = client.get(url).get_data(as_text=True)
+    assert on.count('data-foms-pc-sheet="') >= 4 and "data-foms-pc-sheet-box" in on
+    monkeypatch.setattr(pc_view, "part_view_mode", lambda user: VIEW_NONE)
+    off = client.get(url).get_data(as_text=True)
+    assert 'data-foms-pc-sheet="' not in off and "data-foms-pc-sheet-box" not in off
+    assert 'aria-label="공정"' in off  # 칸 글은 그대로
+
+
 def _sheet(client, oid: int) -> str:
     return client.get(f"/erp/production/sheet/{oid}").get_data(as_text=True)
 
@@ -56,8 +75,10 @@ def test_PC_로_연_작업_시트_공정_칸은_같은_창_태블릿은_그대�
     assert "pc-sheet-write.js" not in view and "data-foms-pc-sheet-ask" not in view and "data-foms-sheet-confirm" not in view
     _login(client, admin)
     _edit(client)
-    edit = _sheet(client, oid)  # [고치기] — 칸은 지금 단추 그대로에 표지만, 확인 창은 시트 것 하나(겹치지 않음)
-    assert edit.count('aria-haspopup="dialog" data-foms-pc-sheet="') == 4 and 'data-foms-sheet-step="cut"' in edit
+    edit = _sheet(client, oid)  # [고치기] — 확인 창은 시트 것 하나(겹치지 않음). 2026-11-27 "도면이 주, 작업 시트는 보기": 도면 있는 주문은
+    # [고치기]여도 칸이 보기 줄(체크 칸 없음) — 누르면 같은 도면 목록 창(옛 단언 'data-foms-sheet-step="cut"' → 없음)
+    assert edit.count('aria-haspopup="dialog" data-foms-pc-sheet="') == 4 and 'data-foms-sheet-step="cut"' not in edit
+    assert edit.count('data-foms-sheet-line="') == 4
     assert edit.count("data-foms-sheet-confirm hidden") == 1 and "pc-sheet-write.js?v=" in edit and "data-foms-pc-sheet-ask" in edit
     assert edit.index("foms-production-sheet-page.js") < edit.index("foms-production-pc-sheet.js") < edit.index("pc-sheet-write.js")
     assert "data-foms-pc-sheet" not in _sheet(client, bare_id)  # 도면 0장 = 지금 그대로(통째 손 체크)

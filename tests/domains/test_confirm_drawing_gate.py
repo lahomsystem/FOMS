@@ -176,7 +176,7 @@ def test_production_run_start_blocked_while_revision_in_flight(client):
     assert resp.status_code == 409, resp.get_json()
     body = resp.get_json()
     assert body["code"] == "DRAWING_STATUS" and body["drawing_status"] == "RETURNED"
-    assert "도면을 고치는 중" in body["message"] and f"영업 담당({sales.name})" in body["message"]
+    assert "도면 수정 중이라" in body["message"] and f"영업 담당({sales.name})" in body["message"]
     assert order_events(oid, "PRODUCTION_STARTED") == []
 
 

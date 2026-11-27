@@ -185,9 +185,9 @@ def test_factory_scoped_judgment_for_factory_done_and_complete():
 
 def test_new_words_and_particles():
     assert [fx.number_topic(n) for n in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12)] == list("은는은는는은은은는은는")
-    assert fx.fixing_label([2]) == "도면 2 고치는 중" and fx.fixing_label([2, 3]) == "도면 2 · 3 고치는 중"
-    assert fx.skip_tail([2]) == "도면 2는 고치는 중이라 빼요." and fx.skip_tail([2, 3]) == "도면 2 · 3은 고치는 중이라 빼요."
-    assert fx.expand_confirm_body(5, 4, "재단", [2]) == "이 주문의 도면 5장 중 4장이 재단 완료로 처리돼요. 도면 2는 고치는 중이라 빼요."
+    assert fx.fixing_label([2]) == "도면 2 수정 중" and fx.fixing_label([2, 3]) == "도면 2 · 3 수정 중"
+    assert fx.skip_tail([2]) == "도면 2는 수정 중이라 빼요." and fx.skip_tail([2, 3]) == "도면 2 · 3은 수정 중이라 빼요."
+    assert fx.expand_confirm_body(5, 4, "재단", [2]) == "이 주문의 도면 5장 중 4장이 재단 완료로 처리돼요. 도면 2는 수정 중이라 빼요."
 
 
 # --------------------------------------------------------------------------- #
@@ -198,24 +198,24 @@ def test_board_pc_rows_queue_row_and_badge_mark_only_that_drawing():
     files = sd["drawing_current_files"]
     row = {"id": 7, "structured_data": sd}
     assert order_block(row) is None  # 주문 통째 막힘 없음(공정 줄 · PC 창 머리)
-    assert order_block(row, files[1]) == {"kind": "revise", "text": "도면 고치는 중", "why": REVISING_MESSAGE, "code": DRAWING_REVISING}
+    assert order_block(row, files[1]) == {"kind": "revise", "text": "도면 수정 중", "why": REVISING_MESSAGE, "code": DRAWING_REVISING}
     assert order_block(row, files[0]) is None and order_block(row, files[2], fix=fx.blocked(sd)) is None
     sheet = build_part_sheet(sd, [], "cut", hold_active=False)
-    assert [r["block"]["text"] if r["block"] else None for r in sheet["rows"]] == [None, "도면 고치는 중", None]
+    assert [r["block"]["text"] if r["block"] else None for r in sheet["rows"]] == [None, "도면 수정 중", None]
     assert [r["act"] for r in sheet["rows"]] == ["check", None, "check"]
-    assert sheet["all"] is True  # 도면별이면 [모두 완료 처리](옛 [모두 작업])가 보인다(같은 API 가 막힌 장을 빼고 처리)
+    assert sheet["all"] is False  # 11-27: 도면 두 장 이상이면 [모두 완료 처리] 없음(한 장씩 완료 — 막힌 장이 있든 없든)
     whole = _sd(3, status="RETURNED")
     assert build_part_sheet(whole, [], "cut", hold_active=False)["all"] is False  # 대조군: 통째면 지금처럼 숨김
     steps = [{"key": k, "label": k, "done": False, "now": k == "cut"} for k in ("cut", "edge", "assemble", "inspect")]
     rows = [{"id": i, "home_view": "prod", "home_has_run": True, "raw_stage": "PRODUCTION", "home_steps": steps,
              "structured_data": {**s, "production": {"steps": steps}}} for i, s in ((1, sd), (2, whole), (3, _sd(3)))]
     cut = production_home_step_queues(rows)["queues"][0]["rows"]  # 표시 줄 없이(쿼리 0) — 도면별은 [끝] 그대로, 통째만 지금 막힘
-    assert [(r["revise_block"] or {}).get("text") for r in cut] == [None, "도면 고치는 중", None]
+    assert [(r["revise_block"] or {}).get("text") for r in cut] == [None, "도면 수정 중", None]
     assert all("fix_note" not in r for r in cut)  # 판에 싣기만 하고 안 그리던 칸은 없앴다(판결 D)
     board = [{"id": i, "stage": "제작중"} for i in (1, 2, 3)]
     attach_production_drawing_gate(None, board, {i: SimpleNamespace(structured_data=s, erp_stage_code="PRODUCTION")
                                                  for i, s in ((1, sd), (2, whole), (3, _sd(3)))})
-    assert board[0]["drawing_badge"] == {"label": "도면 2 고치는 중", "title": REVISING_MESSAGE, "drawing_status": "RETURNED"}
+    assert board[0]["drawing_badge"] == {"label": "도면 2 수정 중", "title": REVISING_MESSAGE, "drawing_status": "RETURNED"}
     assert board[1]["drawing_badge"]["label"] == "도면 수정 중" and board[2]["drawing_badge"] is None  # 통째는 지금 글
 
 

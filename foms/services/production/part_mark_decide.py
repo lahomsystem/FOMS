@@ -113,8 +113,8 @@ def _same_result(snap: MarkSnapshot, action: str, target: str, me: int, target_u
     """이미 그 결과이고 그 결과를 만든 사람이 나인지(멱등 — 연결이 얼어 두 번 누름. 같은 요청을 다시 보낸 것만 ``changed:false``).
 
     [작업 시작] · [같이 작업] · 담당 바꾸기 = 내가 이미 목록에 있음, 완료 = 내 몫이 이미 완료(사람 없는 완료는 끝낸 사람이 나),
-    되돌리기 = :func:`_undone_already`, 시작 취소 = :func:`_left_already` + 마지막으로 바꾼 사람이 나, PC [완료 처리] · 반장 [대신 완료]
-    (``check``) = 이미 완료 · 기본.
+    되돌리기 = :func:`_undone_already`(반장 · 관리자가 바로 완료한 도면을 되돌려 미정이 된 줄은 마지막으로 바꾼 사람이 나), 시작 취소 =
+    :func:`_left_already` + 마지막으로 바꾼 사람이 나, PC [완료 처리] · 반장 [대신 완료](``check``) = 이미 완료 · 기본.
     """
     crew, state = snap.crew, snap.state
     share = mc.share_of(crew, me)
@@ -127,6 +127,8 @@ def _same_result(snap: MarkSnapshot, action: str, target: str, me: int, target_u
         return share == mc.SHARE_DONE or (state == MARK_STATE_DONE and snap.done_by_user_id == me)
     if action == ACTION_BASIC:
         return state == MARK_STATE_BASIC and snap.done_by_user_id == me
+    if action == ACTION_UNDO and target == MARK_STATE_NEED and admin and state == MARK_STATE_NONE and not crew:
+        return last_me  # 바로 완료한 도면의 [완료 취소]를 두 번(연결이 얼어) — 이미 미정(11-27)
     if action == ACTION_UNDO and target == MARK_STATE_NEED:
         return state == MARK_STATE_NEED and _undone_already(crew, me, target_uid, seen_me, admin, last_me)
     if action in (ACTION_RELEASE, ACTION_REMOVE):
@@ -188,13 +190,16 @@ def _decide_done(snap: MarkSnapshot, p: _Press) -> MarkDecision:
 
 def _decide_undo(snap: MarkSnapshot, p: _Press, seen: str) -> MarkDecision:
     """[되돌리기] — 재단 기본은 지금 그대로, 그 밖은 본인 몫만(Q3 · Q4) · 반장 · 관리자는 남의 완료 몫(고른 사람), 대상 없이 누르면
-    자기가 같이 작업자여도 완료한 사람 모두(Q23 — 반장 자기 몫만은 자기 카드 '완료' 칸 [되돌리기] = 대상 = 본인)."""
+    자기가 같이 작업자여도 완료한 사람 모두(Q23 — 반장 자기 몫만은 자기 카드 '완료' 칸 [되돌리기] = 대상 = 본인). 반장 · 관리자가 바로 완료한
+    도면(:func:`~mark_crew.done_at_once`)은 반장 · 관리자 누구든 완료 취소 + 시작 취소를 한 번에 = 미정(사장님 2026-11-27 "한 번에 미정으로")."""
     crew = list(snap.crew)
     if seen == "basic":  # 재단 기본 되돌리기 — 지금 그대로
         owner = snap.done_by_user_id
         if owner is not None and owner != p.actor_id and not p.admin:
             return MarkDecision(DECISION_CONFLICT, message=conflict_message(snap))
         return _applied([], ACTION_UNDO, override=owner is not None and owner != p.actor_id)
+    if p.admin and mc.done_at_once(crew) and p.target_uid in (None, crew[0].get("uid")):  # 바로 완료한 도면 → 미정(완료 전 모습)
+        return _applied([], ACTION_UNDO, override=crew[0].get("uid") != p.actor_id)
     if p.admin and p.target_uid is None:  # 대상 없는 대신 되돌리기 = 완료한 사람 모두(자기 몫 포함 — Q23)
         finished = [m for m in crew if mc.is_done(m)]
         if finished:
@@ -340,7 +345,7 @@ def decide_mark(snapshot: MarkSnapshot, *, action: str, seen: str, actor_id: int
     action, seen, late = mc.late_join(action, seen, snapshot.state, crew, actor_id)
     if action != ACTION_CHECK and snapshot.seen_key != seen:
         if action == ACTION_JOIN and snapshot.state == MARK_STATE_DONE:
-            return _refuse(JOIN_DONE, JOIN_DONE_MESSAGE, action=action)
+            return _refuse(JOIN_DONE, JOIN_DONE_MESSAGE.format(label=label), action=action)
         message = new_action_conflict_message(snapshot) if action in NEW_ACTIONS else conflict_message(snapshot, action)
         return MarkDecision(DECISION_CONFLICT, message=message, action=action)
     if (seen_by is not SEEN_BY_UNSET and seen == "need" and action not in (ACTION_JOIN, ACTION_CHECK)

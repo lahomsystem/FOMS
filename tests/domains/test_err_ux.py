@@ -15,8 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 WRITE_JS = "static/js/foms/foms-write.js"
-PROD_STEPS_JS = "static/js/production/foms-production-steps.js"
-KANBAN_JS = "static/js/foms/tablet-production-kanban.js"
+# 옛 생산 보드의 폰 공정 창 JS · 태블릿 칸반 JS 는 2026-11-27 보드와 함께 지웠다(그 두 파일의 계약 시험도 함께).
 CGATE_JS = "static/js/construction/foms-complete-gate.js"
 
 
@@ -85,89 +84,6 @@ def test_write_js_mutation_fetch_never_rejects() -> None:
 
 
 # =====================================================================
-# 2) production scripts — 공용 parser 소비 + 회귀 잠금
-# =====================================================================
-
-
-def test_production_steps_uses_common_parser() -> None:
-    """toggleStep/reportDefect 가 공용 parser(mutationFetch → window.fomsMutationFetch)를
-    경유한다(ad-hoc try/catch + res.json() 직접 파싱 제거)."""
-    js = _read(PROD_STEPS_JS)
-    assert "window.fomsMutationFetch" in js
-    assert js.count("mutationFetch(") >= 3  # 정의 1 + toggleStep/reportDefect 호출 2
-
-
-def test_production_steps_ad_hoc_silent_catch_removed() -> None:
-    """이전 ad-hoc 패턴(개별 try/catch + console.error 후 뭉뚱그린 메시지)이 공용 경로로
-    대체되어 더 이상 존재하지 않는다(회귀 잠금)."""
-    js = _read(PROD_STEPS_JS)
-    assert "production step toggle error:" not in js
-    assert "production defect report error:" not in js
-
-
-def test_production_steps_visible_error_uses_classified_message() -> None:
-    """실패 시 사용자에게 분류된 메시지가 그대로 노출된다(무음 실패 금지)."""
-    js = _read(PROD_STEPS_JS)
-    assert "'공정 저장 실패: ' + result.message" in js
-    assert "'보고 실패: ' + result.message" in js
-
-
-def test_production_steps_button_reenabled_unconditionally() -> None:
-    """toggleStep: 성공/실패 무관하게 버튼이 재활성화된다(finally 대체: await 직후 무조건 실행)."""
-    js = _read(PROD_STEPS_JS)
-    fn = js.split("async function toggleStep", 1)[1]
-    fn = fn[: fn.index("\n  }\n")]
-    assert "btn.disabled = false;" in fn
-    # 재활성화가 결과 분기(if (!result.ok))보다 먼저 나와 두 경로 모두 적용됨을 보장.
-    assert fn.index("btn.disabled = false;") < fn.index("if (!result.ok)")
-
-
-def test_production_steps_never_reloads() -> None:
-    """바텀시트 컴포넌트는 어떤 결과에도 전체 새로고침을 하지 않는다(reload 0)."""
-    js = _read(PROD_STEPS_JS)
-    assert "location.reload" not in js
-
-
-# =====================================================================
-# 3) tablet-production-kanban.js — 공용 parser 소비 + HOLD_ACTIVE 회귀 보존
-# =====================================================================
-
-
-def test_kanban_uses_common_parser_with_load_order_fallback() -> None:
-    """공용 parser 우선 사용 + 로드 순서 방어 폴백(fetch 직접 라우트 제거)."""
-    js = _read(KANBAN_JS)
-    assert "window.fomsMutationFetch" in js
-    assert "function mutationFetch(url, opts)" in js
-    assert 'mutationFetch("/api/orders/' in js
-
-
-def test_kanban_hold_active_retry_business_logic_preserved() -> None:
-    """409 HOLD_ACTIVE 해제-후-재시도 전이 로직은 공용 parser 전환과 무관하게 보존된다
-    (result.status/result.data 로 동일 판정)."""
-    js = _read(KANBAN_JS)
-    assert 'result.status === 409 && data.code === "HOLD_ACTIVE"' in js
-    assert "retry.release_hold = true" in js
-
-
-def test_kanban_ad_hoc_top_level_catch_removed() -> None:
-    """이전 ad-hoc 최상위 .catch(네트워크 실패만 별도 처리)가 제거되고 공용 kind 분류로
-    흡수된다(공용 parser 는 절대 reject 하지 않으므로 최상위 .catch 자체가 불필요)."""
-    js = _read(KANBAN_JS)
-    assert "[foms-kanban] 열 이동 실패" not in js
-
-
-def test_kanban_visible_error_and_reload_only_on_success() -> None:
-    """실패 시 alert 로 분류 메시지를 보여주고, reload 는 성공(result.ok) 분기에만 있다
-    (reload 0 on error)."""
-    js = _read(KANBAN_JS)
-    assert 'window.alert("오류: " + result.message)' in js
-    fn = js.split("function submitMove", 1)[1]
-    fn = fn[: fn.index("\n  }\n")]
-    assert fn.count("location.reload") == 1
-    assert fn.index("if (result.ok)") < fn.index("location.reload")
-
-
-# =====================================================================
 # 4) foms-complete-gate.js — 공용 parser 소비 + 기존 낙관 rollback 보존
 # =====================================================================
 
@@ -223,14 +139,12 @@ def test_cgate_ad_hoc_manual_json_parsing_removed() -> None:
 
 
 def test_all_four_scripts_wired_deferred_with_bumped_cachebuster() -> None:
-    """4개 스크립트 모두 defer + ?v= 를 유지하고, 기존 파일 변경이라 ?v 가 구 버전에서
+    """남은 스크립트 모두(처음 넷 중 옛 생산 보드 둘은 2026-11-27 지움) defer + ?v= 를 유지하고, 기존 파일 변경이라 ?v 가 구 버전에서
     범프됐다(SW staticCacheFirst 회귀 방지, project_sw_stale_js_version_bump).
     (layout_head 의 foms-write.js 는 v3 셸 전용 로드였다 — 2026-09-28 v3 삭제로 빠졌고,
     v2 는 foms_app_shell.html 이 싣는다.)"""
     checks = (
         ("templates/partials/shared/foms_app_shell.html", "foms-write.js", "20260713b"),
-        ("templates/production/partials/dashboard_body.html", "foms-production-steps.js", "20260713b"),
-        ("templates/partials/shared/layout_scripts.html", "tablet-production-kanban.js", "20260724c"),
         ("templates/construction/partials/dashboard_body.html", "foms-complete-gate.js", "20260712a"),
     )
     for rel, name, old_version in checks:

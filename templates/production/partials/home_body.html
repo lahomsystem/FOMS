@@ -9,16 +9,18 @@
   <section class="foms-prod-home{% if step_panel %} fph-has-sp{% endif %}{% if pc_view %} is-pc{% if edit_on %} is-editing{% endif %}{% endif %}" data-foms-prod-home data-foms-home-tab="{{ tab }}">
     <header class="foms-prod-home__bar">
       <h1 class="foms-prod-home__title">{% if part_title %}{{ part_title[0] }} <span class="foms-prod-home__me">{{ part_title[1] }}</span>{% else %}생산{% endif %}</h1>
-      <span class="foms-prod-home__date">{% if factory_now %}<b class="fph-fac-now">{{ factory_now | factory_chips }}</b> · {% endif %}{{ today_label }} · 전체 {{ total }}건</span>
+      {# 태블릿은 누구든(파트 계정 · 반장 · 관리자) 날짜 · 전체 건수 글을 빼고 공장 표만(사장님 2026-11-26 — 큰 글자에서 잘림). PC 는 그대로 #}
+      {% if not pc_view %}{% if factory_now %}<span class="foms-prod-home__date"><b class="fph-fac-now">{{ factory_now | factory_chips }}</b></span>{% endif %}
+      {% else %}<span class="foms-prod-home__date">{% if factory_now %}<b class="fph-fac-now">{{ factory_now | factory_chips }}</b> · {% endif %}{{ today_label }} · 전체 {{ total }}건</span>{% endif %}
       <nav class="foms-prod-home__nav" aria-label="화면">
         {# 위 탭 = 날짜 · 내 공정 · 바뀐 것 · 찾기(시안 안 3, 11-21 사용자 ②). '도면 카드' 화면(?tab=parts)은 날짜 장 제목 옆
            [도면 카드로 보기]로 들어가는 날짜 탭의 다른 모습이라 날짜가 켜진다(누르면 예전 탭처럼 날짜 첫 화면으로).
-           옛 보드(칸반)로 가는 [보드 →] 는 태블릿에서 뺐다 — PC(마우스)에는 탭 끝에 남긴다(home_pc_board_link.html,
-           설계서 2026-11-21-production-pc-viewer §10 R0 · R2 에서 뺀다). PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
+           옛 보드(칸반)로 가는 [보드 →] 는 없다 — 옛 보드를 없앴다(2026-11-27 사장님 "legacy 보드 없애").
+           PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
         <a class="foms-prod-home__navtab{% if tab in ('date', 'parts') %} is-on{% endif %}" href="{{ home_href(None, nav_part) }}"{% if tab in ('date', 'parts') %} aria-current="page"{% endif %}>날짜</a>
         {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>남은 공정 <small>{{ counts.making }}</small></a>
 {% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ home_href('changes', nav_part) }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
-        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>{% if pc_view %}{% include 'production/partials/home_pc_board_link.html' %}{% endif %}
+        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>
       </nav>
       {# 오른쪽 묶음 — 줄이 넘치면 같이 다음 줄로 간다(단추 하나만 떨어져 한 줄이 비지 않게, 사용자 11-10 ②). 알림 종은 가로 태블릿만(11-21 ③) #}
       <div class="foms-prod-home__tools">
@@ -42,19 +44,19 @@
       {% include 'production/partials/home_date.html' %}
     {% endif %}
 {% if part_board %}    {% include 'production/partials/home_parts_overlays.html' %}
-{% endif %}{% if pc_view and tab in ('date', 'all') %}{# PC 공정 칸 → 도면 목록 창(2026-11-24, 줄이 공정 칸을 그리는 두 탭만) #}{% include 'production/partials/home_pc_sheet.html' %}
+{% endif %}{% if pc_view and parts_read and tab in ('date', 'all') %}{# PC 공정 칸 → 도면 목록 창(2026-11-24, 줄이 공정 칸을 그리는 두 탭만 · 도면 카드 읽기를 하는 사람만 — 켜진 프리랜서는 그 API 가 403) #}{% include 'production/partials/home_pc_sheet.html' %}
 {% elif tab == 'steps' and can_check_steps %}{# '내 공정' [<공정> 끝] 확인 창(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") = 작업 시트와 같은 조각 —
    화면 안(셸 조각 교체 때 창도 같이 바뀐다 · 줄 [끝] · 판 [끝] · PC 줄 [끝]이 같이 쓴다) #}{% include 'production/partials/sheet_step_confirm.html' %}
 {% endif %}  </section>
   {% if (tab == 'changes' and can_ack) or (step_panel and can_act) %}
-  {# [확인했어요] = 옆 시트·묘비와 같은 change-ack 배선 · '내 공정' 판의 [보류](tablet-domain-sheets.js, 이 화면은 기기 무관) #}
-  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261126a" defer></script>
+  {# [확인했어요] = 작업 시트와 같은 change-ack 배선 · '내 공정' 판의 [보류](tablet-domain-sheets.js, 이 화면은 기기 무관) #}
+  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261127p" defer></script>
   {% endif %}{% if step_panel and can_act %}
-  {# '내 공정' 판(설계서 2026-11-21-production-my-steps-panel §3-5): [보류] 사유 창 = 공용 사유 시트 세트(조각 · CSS · JS, 칸반 tablet_kanban_body.html 과 같다),
+  {# '내 공정' 판(설계서 2026-11-21-production-my-steps-panel §3-5): [보류] 사유 창 = 공용 사유 시트 세트(조각 · CSS · JS, 작업 시트와 같다),
      [불량] 칩 · 최근 불량 = 작업 시트 JS — 문서 리스너를 달므로 data-foms-run-once(셸 교체로 온 새 판은 그 파일이 foms:erp-shell-fragment-swapped 로 묶는다). #}
   {% include 'partials/shared/foms_reason_sheet.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">
-  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124k" defer data-foms-run-once="prod-sheet-page"></script>
+  <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261124l" defer data-foms-run-once="prod-sheet-page"></script>
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   {% endif %}{% if step_panel_omitted %}{# 터치인데 좁은 창(세로)이라 판을 뺐다 — 가로로 돌리면 화면을 다시 받는다(wide_surface_omitted_marker 계약) #}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if write_omitted and tab == 'steps' %}{# 쿠키 없는 첫 요청이라 [끝]을 뺐다 — 터치 기기면 다시 받는다(write_omitted_marker.html) #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
 </div>

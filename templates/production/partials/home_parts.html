@@ -17,39 +17,50 @@
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
 {% set is_cut = pb.part == 'cut' %}
+{#- 알림 · 검색 바로가기로 연 주문(주소 order= · 옛 focus_order=, 2026-11-26 결정 C69) — 그 주문 도면 칸에 is-focus 테두리, 첫 칸으로 굴림(parts-claim.js) -#}
+{% set pp_focus = (request.args.get('order') or request.args.get('focus_order') or '0') | int(0) %}
 {% macro pp_block(c) -%}
 <button type="button" class="fph-wi pp-act pp-st-{{ c.block.kind }}" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.block.why }}">{{ c.block.text }}</button>
 {%- endmacro %}
 {% macro pp_held(c, head, note, more='') -%}
 <button type="button" class="fph-wi pp-act pp-st-{{ 'taken' if c.badge == 'taken' else 'need pp-not-need' }}{{ more }} pp-held" data-pp-act="held" aria-label="{{ head }}{% if note %} · {{ note }}{% endif %}"><span class="pp-held__who"><b>{{ head }}</b>{% if note %}<small>{{ note }}</small>{% endif %}</span><span class="pp-held__go" aria-hidden="true">›</span></button>
 {%- endmacro %}
+{% macro pp_fin_now(pb) -%}
+<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">{{ pb.part_label }} 완료</button>
+{%- endmacro %}
 {% macro pp_act(c, pb, is_cut) %}
 {#- 이름 줄 = 서버 c.crew(part_card_crew.crew_view — "이시영 · 김재단 외 1"), 반만 완료 = "재단 1/2 완료"(도면 한 장 자리만, Q11) -#}
 {%- set cr = c.crew or {} -%}
-{%- set head = cr.head or ('다른 사람 작업 중' if pb.mine else '작업 필요') -%}
+{%- set head = cr.head or ('다른 사람 작업 중' if pb.mine else '작업 중') -%}
 {%- set half = (pb.part_label ~ ' ' ~ cr.d ~ '/' ~ cr.n ~ ' 완료') if cr.d else '' -%}
 {%- set can_undo = pb.writable and (c.done_by_me or not pb.mine) -%}
 {%- if c.state == 'hand' -%}
-<button type="button" class="fph-wi pp-act pp-st-done pp-hand" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.hand.why }}"><span>{{ c.hand.text }}</span><small>작업 시트</small></button>
+<button type="button" class="fph-wi pp-act pp-st-done pp-hand" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.hand.why }}"><span>{{ c.hand.text }}</span><small>작업 시트에서 완료</small></button>
 {%- elif c.state == 'none' -%}
+  {#- 반장 · 관리자(파트 계정 아님)는 미정 · 안 본 도면에 [<파트> 완료](= check — 한 장씩 바로 완료, 사장님 2026-11-27 "두 번으로 줄이기"):
+     재단은 [기본][재단 시작] 아래 둘째 줄, 그 밖은 [엣지 시작][엣지 완료] 한 줄. 막힌 칸은 지금 그대로(pp_block).
+     진한 단추는 한 칸에 하나 — 반장 · 관리자 칸은 끝내는 [<파트> 완료]만 진하고 [<파트> 시작]은 옅은 테두리(비평 C59).
+     시작 단추 글 = [<파트> 시작](사장님 2026-11-27 "재단 탭 = 재단 시작, 엣지 탭 = 엣지 시작" — 옛 [작업 시작], 완료 단추와 같은 파트 이름) -#}
   {%- if pb.writable and c.block -%}{{ pp_block(c) }}
   {%- elif pb.writable and is_cut -%}
-<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="take">작업 시작</button></div>
+<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %}" data-pp-act="take">{{ pb.part_label }} 시작</button></div>{% if not pb.mine %}{{ pp_fin_now(pb) }}{% endif %}
+  {%- elif pb.writable and not pb.mine -%}
+<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>{{ pp_fin_now(pb) }}</div>
   {%- elif pb.writable -%}
-<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">작업 시작</button>
+<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>
   {%- endif -%}
 {%- elif c.state == 'need' -%}
   {%- if c.mine_row -%}
 <div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">시작 취소</button>{% if c.block %}{{ pp_block(c) }}{% else %}<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="done">{{ pb.part_label }} 완료</button>{% endif %}</div>
   {%- elif pb.mine and c.done_by_me -%}{#- 내 몫만 완료(E1) — '완료' 칸 · 되돌리기 줄 "재단 1/2 완료"(Q12) -#}
 <span class="fph-wi pp-act pp-st-need{% if can_undo %} pp-not-done{% endif %}">{{ half }}{% if cr.left %} · {{ cr.left }} 작업 중{% endif %}</span>
-    {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>{%- endif -%}
+    {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ pb.part_label }} 완료 취소</button></div>{%- endif -%}
   {%- elif c.badge == 'taken' -%}
     {%- if c.block -%}{{ pp_block(c) }}{%- else -%}<div class="pp-two pp-two--join">{{ pp_held(c, head, c.held_note) }}<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="join">같이 작업</button></div>{%- endif -%}
   {%- elif pb.writable -%}{#- 반장 · 관리자(G) — 이름 칸(고르기 창) + [재단 완료](= 대신 완료 check — 남은 사람 몫 모두, 같이 작업자면 자기 몫 포함).
      같이 작업해 자기 몫을 완료한 "1/2 완료"면 '완료' 칸에 자기 몫 되돌리기 줄(파트 계정과 같은 자리, 11-25 판결) -#}
 {{ pp_held(c, head, half or c.held_note, ' pp-not-done' if c.done_by_me else '') }}<button type="button" class="fph-qr__done pp-act pp-fin pp-only-need" data-pp-act="check">{{ pb.part_label }} 완료</button>
-    {%- if c.done_by_me -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>{%- endif -%}
+    {%- if c.done_by_me -%}<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>{{ half }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ pb.part_label }} 완료 취소</button></div>{%- endif -%}
   {%- else -%}
 <span class="fph-wi pp-act pp-st-need">{{ head }}</span>
   {%- endif -%}
@@ -57,19 +68,20 @@
   {%- set by = (cr.done or c.done_by_name) if c.state == 'done' else c.done_by_name -%}
   {%- set word = ((pb.part_label ~ ' 완료') if c.state == 'done' else '기본') ~ (' · ' ~ by if by else '') -%}
 <span class="fph-wi pp-act pp-st-{{ c.state }}{% if can_undo %} pp-not-done{% endif %}">{{ word }}</span>
-  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>{%- endif -%}
+  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '기본 취소' }}</button></div>{%- endif -%}
 {%- endif -%}
 {% endmacro %}
 {% macro pp_tag(c) -%}
 {%- if c.tag -%}<span class="pp-tag" data-pp-tag aria-label="{{ c.tag.aria }}">내 작업{% if c.tag.crew %} · {{ c.tag.crew }}{% endif %}{% if c.tag.old %} · <span class="is-old">{{ c.tag.old }}</span>{% endif %}{% if c.tag.chg %} · <span class="is-chg">{{ c.tag.chg }}</span>{% endif %}</span>{%- endif -%}
 {%- endmacro %}
-<div class="fph-parts" data-pp-pane="{{ d.key }}">
+{#- pp-finrow = 반장 · 관리자 재단 판(미정 도면 단추가 두 줄 — [기본][재단 시작] 아래 [재단 완료]). 카드 키를 그 두 줄 꼴에 맞춘다(parts.css 끝, 2026-11-27 "높이 일괄") -#}
+<div class="fph-parts{% if pb.writable and is_cut and not pb.mine %} pp-finrow{% endif %}" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
     {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}건</small>{% endif %}</h2>
     {% if part_morning %}{# 아침 칩(설계서 2026-11-23 §4-9) — 밤 넘긴 내 작업(multi-holder §8-2 11). 누르면 시공일마다 [보기](그 날 장).
        여러 파트 계정은 내 파트 전부를 세고 줄마다 파트 이름 · [보기]는 그 파트 판(§4-12) #}
-    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 작업" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ home_href(None, dd.part or pb.url_part, dd.key) }}" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
+    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 작업" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ home_href(None, dd.part or pb.url_part, dd.key) }}#pp-mine" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
     {% endif %}
     {% if pb.mode != 'part' %}
     <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('parts', p.key, d.key, factory=pb.url_factory) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
@@ -96,7 +108,7 @@
     {% endif %}
     <div class="pp-grid" data-pp-grid>
       {% for c in pp.cards %}
-      <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic', 'hand') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}"
+      <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic', 'hand') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}{% if pp_focus and c.order_id == pp_focus %} is-focus{% endif %}"
                data-pp-card data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}"
                data-state="{{ c.state }}" data-picked-me="{{ '1' if c.picked_by_me else '0' }}" data-done-me="{{ '1' if c.done_by_me else '0' }}"
                data-picked-name="{{ c.picked_by_name or '' }}" data-done-name="{{ c.done_by_name or '' }}"
@@ -129,11 +141,12 @@
     <p class="pp-empty" data-pp-empty{% if pp.cards %} hidden{% endif %}>{% if pp.no_drawing_rows or pp.wait_count %}아직 확정 도면이 없어요.{% else %}이 날은 만들 도면이 없어요.{% endif %}</p>
     {% if pp.hidden %}<p class="pp-cap">{{ pp.hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요.</p>{% endif %}{% if pp.elsewhere %}{# 남의 공장 카드(설계서 2026-11-23 §4-13 · §8-1 · C6) — 판 뒤 묶음, 색 칸 없이 글 한 줄 + 칩, 그림만 흐림, 누름 없음
        (누르면 까닭 말풍선). data-pp-card 가 없어 칸 숫자 · 일괄 기본 · 쓰기 밖이고, 30초 받아 오기는 글만 고친다(parts-sync). '전체 도면' 칸에서만 보인다(parts.css). #}
-    <section class="pp-elsewhere" aria-label="{{ pp.elsewhere_head }}">
-      <h3 class="pp-otherg">{{ pp.elsewhere_head | factory_chips }}</h3>
+    <section class="pp-elsewhere" aria-label="{{ pp.elsewhere_head }}">{# 처음엔 접힌 한 줄 "1공장 작업 14장 ›" — 누르면 펼침(2026-11-26 결정 ⑦ C57, 새 JS 없음) #}
+      <details class="pp-fold" data-pp-fold>
+      <summary class="pp-fold__sum"><h3 class="pp-otherg">{{ pp.elsewhere_head | factory_chips }} <span class="pp-fold__go" aria-hidden="true">›</span></h3></summary>
       <div class="pp-grid pp-grid--elsewhere">
         {% for c in pp.elsewhere %}
-        <article class="pp-card is-elsewhere" data-pp-elsewhere data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}" data-factory="{{ c.elsewhere.factory }}">
+        <article class="pp-card is-elsewhere{% if pp_focus and c.order_id == pp_focus %} is-focus{% endif %}" data-pp-elsewhere data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}" data-factory="{{ c.elsewhere.factory }}">
           {% if c.is_image %}<span class="pp-img"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt=""></span>
           {% else %}<span class="pp-img pp-file"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></span>{% endif %}
           <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · 도면 {{ c.no }}/{{ c.of }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">도면 {{ c.no }}/{{ c.of }}</span></a>
@@ -144,6 +157,7 @@
         </article>
         {% endfor %}
       </div>
+      </details>
     </section>
     {% endif %}
     {% if pp.done_count %}
@@ -152,4 +166,4 @@
     {% endif %}
   </div>
 </div>
-{% if tab == 'parts' %}<p class="pp-rotate">도면은 태블릿을 가로로 두면 보여요.</p>{% endif %}
+{% if part_board %}<p class="pp-rotate">도면은 태블릿을 가로로 두면 보여요.</p>{% endif %}

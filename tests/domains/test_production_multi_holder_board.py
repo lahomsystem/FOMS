@@ -157,7 +157,7 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     kim = _page(client, p.kim)
     a = _act(_card(kim, k[0]))  # A — [기본][작업 시작]
     assert ('data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" '
-            'data-pp-act="take">작업 시작</button></div>') in a
+            'data-pp-act="take">재단 시작</button></div>') in a
     b = _card(kim, k[1])  # B — 이시영 작업 중 + [같이 작업]
     assert 'class="pp-card is-other"' in b and '<div class="pp-two pp-two--join">' in _act(b)
     assert f"<b>이시영 작업{NBSP}중</b>" in _act(b) and 'data-pp-act="join">같이 작업</button></div>' in _act(b)
@@ -176,7 +176,7 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     assert 'data-in-need="0" data-in-done="1"' in e1 and 'class="pp-card"' in e1
     assert '<span class="fph-wi pp-act pp-st-need pp-not-done">재단 1/2 완료 · 김재단 작업 중</span>' in _act(e1)
     assert ('<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>재단 1/2 완료</span><button type="button" '
-            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>') in _act(e1)
+            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">재단 완료 취소</button></div>') in _act(e1)
     assert 'data-pp-count="need">2<' in lee and 'data-pp-count="done">2<' in lee  # 1/2 완료도 내 '완료' 칸(Q12)
 
     park = _page(client, p.park)
@@ -192,7 +192,7 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     assert ro.strip().startswith(f'<span class="fph-wi pp-act pp-st-need">이시영 · 김재단 작업{NBSP}중</span>') and "<button" not in ro
 
     insp = _card(_page(client, p.insp), k[2])  # H — 검수 판: 재단 1/2 완료 = 미완료, 다른 파트 낱말 '완료'
-    assert ">재단 미완료</button>" in _act(insp) and "<i>재단</i> 중" in insp and "<i>엣지</i> 완료" in insp and "<i>조립</i> 완료" in insp
+    assert ">재단 미완료</button>" in _act(insp) and "<i>재단</i> 작업 중" in insp and "<i>엣지</i> 완료" in insp and "<i>조립</i> 완료" in insp
 
     _press(client, p.kim, p.order, 1, "join", "need")  # C — 내 화면 · 둘이 작업
     c = _card(_page(client, p.kim), k[1])
@@ -262,14 +262,14 @@ def test_js_join_window_and_late_start_notice(client, cohort, tmp_path) -> None:
     assert [c["body"] for c in calls] == [join, took]  # 몸 = 본 내 몫 · 본 담당(옛 호환) · 넘김은 서버가
     c = out[2]["card"]
     assert (c["state"], c["in_need"], c["tag"]) == ("need", "1", "내 작업 · 이시영과 같이") and "is-mine" in c["cls"]
-    assert out[3]["modal"]["title"] == "재단 작업을 시작할까요?" and out[3]["modal"]["run"]["text"] == "작업 시작"
+    assert out[3]["modal"]["title"] == "재단 시작할까요?" and out[3]["modal"]["run"]["text"] == "재단 시작"
     e0 = out[5]["card"]  # E0 — 늦은 사람도 같이 작업 + 서버 글 그대로, 단추 칸이 아니라 그림 칸 아래쪽 안
     assert e0["notice"] == "이시영이 먼저 시작했어요." and e0["notice_in_img"] and e0["why"] is None
     assert e0["tag"] == "내 작업 · 이시영과 같이" and e0["picked_me"] == "1"
     assert out[6] == {"do": "notice", "hidden": True, "stopped": True, "viewer_open": False}  # 누르면 바로 닫힘 · 크게 보기 안 열림
     out = out[1:]
     done = out[6]["modal"]  # 남은 사람이 있는 내 [재단 완료]
-    assert done["line"] == "작업 필요 → 재단 1/3 완료 · 김재단"
+    assert done["line"] == "작업 중 → 재단 1/3 완료 · 김재단"
     assert done["note"] == "이시영 · 최재단이 아직 작업 중이라 이시영 · 최재단이 완료해야 도면이 완료돼요."
     rel = out[8]["modal"]
     assert (rel["title"], rel["line"], rel["run"]["text"]) == ("시작을 취소할까요?", "이시영 · 김재단 외 1 작업 중 → 이시영 · 최재단 작업 중",
@@ -312,8 +312,8 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     assert (w2["title"], w2["note"], w2["line"], w2["close"]) == (
         "이시영 · 김재단 작업 중", "재단 1/2 완료 — 이시영 완료 · 김재단 작업 중", "", "닫기")  # 제목 한 줄(사장님 2026-11-26) — 한 명만 완료한 줄은 남긴다
     assert [(c["text"], c["choice"], c["target"], c["next"]) for c in w2["choices"]] == [
-        ("담당 바꾸기", "takeover", str(p.kim.id), False), ("대신 완료", "check", None, False), ("같이 작업", "join", None, True),
-        ("김재단 시작 취소", "remove", str(p.kim.id), False)]
+        ("김재단 시작 취소", "remove", str(p.kim.id), False), ("담당 바꾸기", "takeover", str(p.kim.id), False),
+        ("같이 작업", "join", None, True), ("대신 완료", "check", None, False)]  # 되돌리는 쪽 먼저 · 끝내는 쪽 끝(C59)
     assert w2["choices_cls"] == "pp-mchoices pp-mchoices--two" and "pp-mgo--join" in w2["choices"][2]["cls"]  # 넷 = 2 × 2
     w1 = out[1]["modal"]  # 반장 [같이 작업] = 파트 계정과 같은 확인 창(Q22)
     assert out[1]["sent"] == 0 and (w1["title"], w1["line"], w1["run"]["text"]) == (
@@ -335,7 +335,7 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
     res = _node(page, {"sync": True, "gets": [synced], "steps": [{"do": "sync"}, {"do": "card", "key": k[1]},
                                                               {"do": "click", "key": k[2], "act": "release"}, {"do": "close"},
                                                               {"do": "click", "key": k[3], "act": "undo"}]})
-    assert res["out"][4]["modal"]["line"] == "재단 완료 → 작업 필요 · 김재단"  # 파트 계정 본인 몫 되돌리기 = 지금 꼴(H 대조군)
+    assert res["out"][4]["modal"]["line"] == "재단 완료 → 작업 중 · 김재단"  # 파트 계정 본인 몫 되돌리기 = 지금 꼴(H 대조군)
     rel = res["out"][2]["modal"]  # 내 [시작 취소] — 남은 이시영이 완료 = 저절로 완료(Q6), 바뀐 뒤는 완료 칸 글
     assert (rel["title"], rel["line"], rel["note"]) == ("시작을 취소할까요?", "이시영 · 김재단 작업 중 → 재단 완료 · 이시영",
                                                         "남은 사람이 모두 완료라 도면이 완료돼요.")
@@ -346,7 +346,7 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
     page.write_text(_page(client, p.lee), encoding="utf-8")
     res = _node(page, {"steps": [{"do": "click", "key": k[2], "act": "undo"}]})
     undo = res["out"][0]["modal"]
-    assert (undo["title"], undo["line"]) == ("작업 필요로 되돌릴까요?", "재단 1/2 완료 → 작업 필요 · 이시영")
+    assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 1/2 완료 → 작업 중 · 이시영")
 
 
 def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_path) -> None:
@@ -369,12 +369,12 @@ def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_
         {"do": "click", "key": k[3], "act": "undo"}]})
     out, calls = res["out"], res["calls"]
     undo = out[7]["modal"]  # H — 반장 되돌리기 = 완료한 사람 모두 되돌림, 작업하던 사람은 그대로(누른 반장 이름이 아니다)
-    assert (undo["title"], undo["line"]) == ("작업 필요로 되돌릴까요?", "재단 완료 → 이시영 · 김재단 작업 중") and "박반장" not in undo["line"]
+    assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 완료 → 이시영 · 김재단 작업 중") and "박반장" not in undo["line"]
     two = out[0]["modal"]["choices"]
-    assert [(c["text"], c["next"]) for c in two][:3] == [("담당 바꾸기 ›", True), ("대신 완료", False), ("같이 작업", True)]
+    assert [(c["text"], c["next"]) for c in two if c["choice"] != "remove"] == [("담당 바꾸기 ›", True), ("같이 작업", True), ("대신 완료", False)]
     assert out[1]["sent"] == 0 and out[1]["modal"]["title"] == "누구와 담당을 바꿀까요?"  # 둘 = 고르기 창
     mine = [c["text"] for c in out[3]["modal"]["choices"]]  # 반장이 이미 작업자(완료) — [같이 작업] 없음
-    assert "같이 작업" not in mine and mine[:2] == ["담당 바꾸기 ›", "대신 완료"]
+    assert "같이 작업" not in mine and mine[-2:] == ["담당 바꾸기 ›", "대신 완료"]
     assert out[6]["sent"] == 1 and [c["body"] for c in calls] == [swap]  # 하나 = 고르기 없이 바로(지금 동작)
 
     seed = mixed_order(3, f2=(2,))  # 남의 공장(2공장) 도면 = 누름 칸 · 고르기 창 없음(서버 문 그대로)

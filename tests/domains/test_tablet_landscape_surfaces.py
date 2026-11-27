@@ -53,14 +53,7 @@ TABS = [
         "static/css/foundation/foms-tablet-construction.css",
         "body.erp-mobile-v2-layout .foms-construction-legacy-queue",
     ),
-    (
-        "/erp/production/dashboard",
-        "templates/production/partials/dashboard_body.html",
-        '<div class="foms-production-legacy-queue">',
-        ('<div class="tablet-prod-board">',),
-        "static/css/foundation/foms-tablet-production-kanban.css",
-        "body.erp-mobile-v2-layout .foms-production-legacy-queue",
-    ),
+    # 생산 탭(옛 보드 PC 큐 · 칸반)은 2026-11-27 지웠다 — 새 첫 화면은 기기마다 한 화면만 그린다.
     (
         "/erp/measurement",
         "templates/measurement/partials/dashboard_main.html",

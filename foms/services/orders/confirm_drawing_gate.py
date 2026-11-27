@@ -59,7 +59,7 @@ _SALES_REASONS = {
 _SALES_REASON_DEFAULT = "도면 수령 확정 기록이 없습니다. 도면 전달과 수령 확정을 먼저 해 주세요."
 
 _PRODUCTION_REASONS = {
-    "RETURNED": "도면을 고치는 중이라 아직 제작을 시작할 수 없어요. 영업 담당({names})이 새 도면을 수령 확정하면 시작할 수 있어요.",
+    "RETURNED": "도면 수정 중이라 아직 제작을 시작할 수 없어요. 영업 담당({names})이 새 도면을 수령 확정하면 시작할 수 있어요.",
     "TRANSFERRED": "새 도면이 도착했지만 영업 담당({names})이 아직 수령 확정하지 않았어요. 확정되면 시작할 수 있어요.",
 }
 _PRODUCTION_REASON_DEFAULT = "도면 수령 확정 기록이 없어 제작을 시작할 수 없어요. 영업 담당({names})에게 도면 확정을 요청해 주세요."

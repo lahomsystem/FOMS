@@ -131,7 +131,11 @@ def test_steps_api_carries_factory_readiness_only_for_mixed_orders(client):
     login(client, factory_user("강반장", factory=2, lead=True))
     html = _sheet(client, seed.id)
     assert 'data-foms-sheet-factory="2" data-done="1"' in html and "2공장에 미완료가 있어요 — 검수 1장" in html  # 회색 + 까닭
-    data = client.post(f"/api/orders/{seed.id}/production/steps", json={"key": "inspect", "done": True}).get_json()["data"]
+    # 섞인 주문은 도면이 여러 장 — 공정 칸 켜기는 거절(409 STEP_PER_SHEET, 사장님 2026-11-27), 거절에는 공장 자료 없음
+    refused = client.post(f"/api/orders/{seed.id}/production/steps", json={"key": "inspect", "done": True})
+    assert refused.status_code == 409 and "factories" not in refused.get_json()["data"]
+    seed = mixed_order(2, f2=(1,), steps_done=("cut", "edge", "assemble", "inspect"))  # 네 칸이 이미 켜진 섞인 주문
+    data = client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]
     assert data["factories"]["2"] == {"ready": True, "why": "", "done": False}
     off = client.post(f"/api/orders/{seed.id}/production/steps", json={"key": "inspect", "done": False}).get_json()["data"]
     assert off["factories"]["2"]["ready"] is False and off["factories"]["2"]["why"] == "2공장에 미완료가 있어요 — 검수 1장"

@@ -9,6 +9,14 @@
 * PC 공정 칸 창 [모두 완료 처리] 확인 창이 서버 ``fix`` 로 새 본문(막힌 도면 없는 주문은 지금 글).
 
 되돌리면 실패: 확인 창이 지금 글 · 알림이 "끝냈어요" · 되돌리기가 남음 · 알림이 안 지워짐 · PC 창이 fix 를 버림. 이름은 지어낸 값.
+
+2026-11-27 사장님 "도면 두 장 이상이면 막기": 막힌 도면이 있는 도면 여러 장 주문은 이제 [끝] · [모두 완료 처리] 자리가 막혀(통째 켜기
+409 ``STEP_PER_SHEET``) 위 창 · 알림이 화면에 나올 길이 없다. 여기 시험은 ① 그 줄 · 판 · PC 창에 [끝] · [모두 완료 처리]가 없음 ② 낡은 화면
+(도면 1장일 때 그린 [끝])을 누르면 서버 거절 글이 그 화면의 지금 실패 자리에 그대로 · 다시 받기 0 · 되돌리기 0 ③ 도면 1장 주문의 PC
+[모두 완료 처리] 확인 창은 지금 글 그대로(대조군)를 지킨다.
+
+같은 날 뒤 결정(사장님 2026-11-27 "도면이 주, 작업 시트는 보기"): 도면 1장 주문도 [끝] · [모두 완료 처리]가 없다 — 낡은 화면은 "도면 0장일 때 그린 [끝]"(묻지 않고 바로 보냄)으로,
+③은 "도면 1장 주문도 [모두 완료 처리] 없음"으로 바꿨다.
 """
 from __future__ import annotations
 
@@ -20,9 +28,12 @@ from pathlib import Path
 
 import pytest
 
+from db import db_session
+from foms.services.production.part_progress import STEP_PER_SHEET_MESSAGE
 from foms.services.production.pc_view import EDIT_COOKIE
-from tests.domains.test_production_my_steps_confirm import NODE_CHECK, PHONE
-from tests.domains.test_production_step_expand import ASK, DONE, PC, _fixing
+from models import Order
+from tests.domains.test_production_my_steps_confirm import PHONE
+from tests.domains.test_production_step_expand import PC, _fixing
 from tests.support.production_home_step_panel_seed import HOME, SHELL, TABLET, add_order, get_html, set_cookies
 from tests.support.production_home_step_panel_seed import login as home_login
 from tests.support.production_part_claim_seed import check_step, login, make_user
@@ -47,22 +58,30 @@ def _node(tmp_path, script: str, *args: str) -> None:
     assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
 
 
+def _grow(oid: int, n: int) -> None:
+    """도면을 ``n`` 장으로 늘린다(낡은 화면 만들기 — 그린 뒤 도면팀이 장을 더 보냄)."""
+    db_session.expire_all()
+    order = db_session.get(Order, oid)
+    sd = dict(order.structured_data)
+    name = order.customer_name
+    sd["drawing_current_files"] = [{"key": f"orders/x/drawing/{name}_{j}.png", "filename": f"{name}-도면{j + 1}.png"} for j in range(n)]
+    order.structured_data = sd
+    db_session.commit()
+
+
 def test_node_my_steps_row_dialog_shows_the_new_body(client, cohort, tmp_path):
+    """막힌 도면이 있는 도면 3장 줄 — [끝] · 확인 창 자료 없이 여러 장 막힘 칸(누르면 그 주문 도면 판, 글 = 서버 거절 글)."""
     ready = add_order("가짜고침집", 1, pngs=3).id
     _fixing(ready, 1)
     bare = add_order("가짜빈집", 2, pngs=0).id
     home_login(client)
     set_cookies(client, PHONE)
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
-    path = tmp_path / "row.html"
-    path.write_text(page, encoding="utf-8")
-    want = {"mode": "row", "first": ready, "bare": bare, "key": "cut", "title": "재단 완료할까요?", "text": ASK}
-    node = shutil.which("node")
-    if node is None:
-        pytest.skip("node 없음")
-    proc = subprocess.run([node, str(NODE_CHECK), str(path), json.dumps(want, ensure_ascii=False)], capture_output=True,
-                          text=True, encoding="utf-8", timeout=60)
-    assert proc.returncode == 0 and proc.stdout.strip().endswith("OK"), proc.stdout + proc.stderr
+    row = page.split(f'data-foms-home-qrow="{ready}"', 1)[1].split('data-foms-home-qrow="', 1)[0]
+    assert "data-foms-home-step-done" not in row and "data-foms-sheet-parts" not in row
+    assert (f'<a class="fph-qr__hold is-cards" href="/erp/production/home?tab=parts&amp;part=cut&amp;order={ready}" data-foms-step-cards '
+            f'title="{STEP_PER_SHEET_MESSAGE}">재단 0/3 · 3장 미완료</a>') in row
+    assert f'data-foms-home-step-done data-order-id="{bare}"' in page  # 대조군 — 도면 없는 줄은 [끝] 그대로
 
 
 _RUN = """
@@ -117,58 +136,49 @@ def _run_js(tmp_path, page: str, answer: dict, scripts: list[str], steps: str) -
 
 
 def test_node_row_finish_after_expand_shows_the_done_words_keeps_the_row_and_no_undo(client, cohort, tmp_path):
-    """판결 B — 폰 · PC 줄 [끝]: 서버 글 재료로 알림 "도면 3장 중 2장을 …", 줄은 그 자리에서 [끝] → "도면 2 고치는 중"(다시 받기 0)."""
-    ready = add_order("가짜고침집", 1, pngs=3).id
-    _fixing(ready, 1)
+    """낡은 폰 줄 [끝](도면 0장일 때 그림 — 묻지 않음) — 그사이 도면이 3장이 된 주문: [재단 완료] → 진짜 409 STEP_PER_SHEET 글이
+    상태 줄에 그대로 · [끝]은 다시 누를 수 있게 남음 · 다시 받기 0."""
+    ready = add_order("가짜고침집", 1, pngs=0).id
     home_login(client)
     set_cookies(client, PHONE)
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
-    answer = check_step(client, ready, "cut", True).get_json()  # 진짜 응답(같은 주문 — 화면은 누르기 전 조각)
+    _grow(ready, 3)
+    res = check_step(client, ready, "cut", True)  # 진짜 응답(같은 주문 — 화면은 누르기 전 조각)
+    assert res.status_code == 409 and res.get_json()["data"]["code"] == "STEP_PER_SHEET"
     steps = f"""
   const btn = $('[data-foms-home-step-done][data-order-id="{ready}"]');
-  btn.click(); await flush(); await flush();
-  assert.ok(!dlg().hidden);
-  assert.strictEqual(dlg().querySelector('[data-foms-sheet-confirm-body]').textContent, {json.dumps(ASK, ensure_ascii=False)});
-  await sleep(450);
-  dlg().querySelector('[data-foms-sheet-confirm-yes]').click(); await flush(); await flush(); await flush();
+  btn.click(); await flush(); await flush(); await flush();
+  assert.ok(!dlg() || dlg().hidden, '도면 0장 때 그린 [끝] = 묻지 않는다');
   assert.strictEqual(calls.fetch.filter((c) => c.method === 'POST').length, 1);
-  assert.strictEqual($('[data-foms-home-status]').textContent, {json.dumps(DONE, ensure_ascii=False)});
-  assert.strictEqual(calls.reload, 0, '줄은 그 자리 — 다시 받기 없음');
-  const row = $('[data-foms-home-qrow="{ready}"]');
-  assert.ok(!row.querySelector('[data-foms-home-step-done]') && row.classList.contains('is-revise'));
-  assert.strictEqual(row.querySelector('.fph-qr__hold').textContent, '도면 2 고치는 중');
-  const clock = slow.filter((t) => t.ms === 8000);
-  assert.strictEqual(clock.length, 1, '알림 글 시계 = 8초(되돌리기와 같다)');
-  clock[0].f();
-  assert.strictEqual($('[data-foms-home-status]').textContent, '', '8초 뒤 알림 글을 지운다');
+  assert.strictEqual($('[data-foms-home-status]').textContent, {json.dumps(STEP_PER_SHEET_MESSAGE, ensure_ascii=False)});
+  assert.strictEqual(calls.reload, 0, '다시 받기 없음');
+  assert.ok(btn.isConnected !== false && !btn.disabled, '[끝]은 그 자리에 남는다');
 """
-    _run_js(tmp_path, page, {f"/api/orders/{ready}/production/steps": answer},
+    _run_js(tmp_path, page, {f"/api/orders/{ready}/production/steps": res.get_json()},
             ["static/js/production/foms-production-home.js", "static/js/production/foms-production-sheet-parts.js"], steps)
 
 
 def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(client, cohort, tmp_path):
-    """판결 B — 가로 판 [<공정> 완료]: 8초 [되돌리기] 없음 · 상태 줄 "{이름} {공정} 완료" 대신 알림 글."""
-    ready = add_order("가짜고침집", 1, pngs=3).id
-    nxt = add_order("가짜다음집", 2, pngs=0).id
-    _fixing(ready, 1)
+    """낡은 가로 판 [<공정> 완료](도면 0장일 때 그림) — 그사이 도면이 3장이 된 주문: 진짜 409 STEP_PER_SHEET 글이 판 상태 줄에 그대로 ·
+    [되돌리기] 없음 · 다음 손님으로 안 넘어감."""
+    ready = add_order("가짜고침집", 1, pngs=0).id
+    add_order("가짜다음집", 2, pngs=0)
     home_login(client)
     set_cookies(client, TABLET)
     page = get_html(client, f"{HOME}?tab=steps&order={ready}&view=fragment", SHELL)
+    _grow(ready, 3)
     answer = check_step(client, ready, "cut", True).get_json()
+    assert answer["data"]["code"] == "STEP_PER_SHEET"
     steps = f"""
-  const fin = $('[data-foms-step-pane="{ready}"]').querySelector('[data-foms-step-finish]');
-  fin.click(); await flush(); await flush();
-  assert.strictEqual(dlg().querySelector('[data-foms-sheet-confirm-body]').textContent, {json.dumps(ASK, ensure_ascii=False)});
-  await sleep(450);
-  dlg().querySelector('[data-foms-sheet-confirm-yes]').click(); await flush(); await flush(); await flush();
+  const pane = $('[data-foms-step-pane="{ready}"]');
+  pane.querySelector('[data-foms-step-finish]').click(); await flush(); await flush(); await flush();
+  assert.ok(!dlg() || dlg().hidden, '묻지 않는다');
+  const line = pane.querySelector('[data-foms-sheet-status]');
+  assert.strictEqual(line.textContent, {json.dumps(STEP_PER_SHEET_MESSAGE, ensure_ascii=False)});
+  assert.ok(line.classList.contains('is-bad'));
   const status = $('[data-foms-home-status]');
-  assert.strictEqual(status.textContent, {json.dumps(DONE, ensure_ascii=False)});
-  assert.ok(!status.querySelector('[data-foms-step-undo]') && !status.classList.contains('is-undo'), '되돌리기 없음');
-  assert.ok(calls.replace.length === 1 && calls.replace[0].indexOf('order={nxt}') > 0, '다음 손님으로');
-  const clock = slow.filter((t) => t.ms > 7000 && t.ms <= 8000);
-  assert.strictEqual(clock.length, 1, '알림 글도 되돌리기와 같은 8초 시계');
-  clock[0].f();
-  assert.strictEqual(status.textContent, '', '8초 뒤 알림 글을 지운다');
+  assert.ok(!status.querySelector('[data-foms-step-undo]'), '되돌리기 없음');
+  assert.strictEqual(calls.replace.length, 0, '다음 손님으로 안 넘어간다');
 """
     scripts = ["static/js/production/foms-production-home-steppane.js", "static/js/production/foms-production-home-steps.js",
                "static/js/production/foms-production-home.js", "static/js/production/foms-production-sheet-parts.js"]
@@ -176,23 +186,29 @@ def test_node_panel_finish_after_expand_has_no_undo_and_says_what_was_done(clien
 
 
 def test_node_pc_window_all_button_asks_with_the_new_body(client, cohort, tmp_path):
-    """판결 C — PC 공정 칸 창 [모두 완료 처리]: 서버 자료 fix 가 확인 창까지 간다(막힌 도면 없는 주문은 지금 글). PC 로 연 작업 시트에서."""
+    """판결 C 이던 것 — PC 공정 칸 창: 도면 3장 주문(막힌 도면 있음 · 없음 둘 다)은 [모두 완료 처리]가 없고(사장님 2026-11-27), 도면 1장
+    주문도 없다(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 옛 대조군 "1장은 확인 창 글 그대로"를 없음 단언으로). PC 로 연 작업 시트에서."""
     ready, plain = add_order("가짜고침집", 1, pngs=3).id, add_order("가짜도면집", 2, pngs=3).id
+    one = add_order("가짜한장집", 3, pngs=1).id
     _fixing(ready, 1)
     login(client, make_user("가짜관리", team="CS", role="ADMIN"))
     set_cookies(client, PC)
     client.set_cookie(EDIT_COOKIE, str(int(time.time())), domain="localhost", path="/erp/production")
     scripts = ["static/js/production/foms-production-sheet-parts.js", "static/js/production/foms-production-pc-sheet-write.js",
                "static/js/production/foms-production-pc-sheet.js"]
-    for oid, text in ((ready, ASK), (plain, "이 주문의 도면 3장이 모두 재단 완료로 처리돼요.")):
+    for oid, text in ((ready, None), (plain, None), (one, None)):
         page = get_html(client, f"/erp/production/sheet/{oid}")
         answer = {f"/api/production/part-sheet?order_id={oid}&part=cut":
                   client.get(f"/api/production/part-sheet?order_id={oid}&part=cut").get_json()}
         assert ("fix" in answer[next(iter(answer))]["data"]) is (oid == ready)
+        assert answer[next(iter(answer))]["data"]["all"] is (text is not None)
         steps = f"""
   ctx.FomsPcSheet.open($('[data-foms-pc-sheet="cut"]'));
   await flush(); await flush(); await flush();
-  const all = $('[data-foms-pc-sheet-act="all"]');
+  const all = $('[data-foms-pc-sheet-act="all"]');"""
+        steps += """
+  assert.strictEqual(all, null, '도면 여러 장 = [모두 완료 처리] 없음');
+""" if text is None else f"""
   assert.ok(all, '[모두 작업] 단추');
   all.click(); await flush(); await flush();
   assert.ok(!dlg().hidden);

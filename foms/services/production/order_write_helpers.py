@@ -102,7 +102,7 @@ def _hold_block_response(sd: dict[str, Any], release_hold: bool):
     active, hold = _hold_active(sd)
     if not active or release_hold:
         return None
-    message = "보류 중인 주문입니다."
+    message = "보류 중인 주문이에요."
     reason = hold.get("reason")
     if reason:
         message += f" (사유: {reason})"
@@ -239,6 +239,19 @@ def _close_current_production_run(db: Any, order_id: int) -> None:
         return
     run.status = "COMPLETED"
     run.is_current = False
+
+
+def _supersede_production_run(run: ProductionRun | None) -> Any:
+    """제작 시작 취소의 회차 닫기 — 그 회차를 SUPERSEDED + is_current=False 로 닫고 회차 id 를 돌려준다(없으면 None).
+
+    [제작 시작 취소] API 와 도면이 연 제작 시작 되돌리기(``start_rollback``, 2026-11-27)가 같이 쓴다. 닫으면 버킷(단계 + 회차)이
+    제작 대기로 돌아간다. 회차는 부르는 쪽이 잠금 아래에서 읽어 넘긴다(:func:`_current_production_run`).
+    """
+    if run is None:
+        return None
+    run.status = "SUPERSEDED"
+    run.is_current = False
+    return run.id
 
 
 def _merge_event_payload(db: Any, event_id: Any, extra: dict[str, Any]) -> None:

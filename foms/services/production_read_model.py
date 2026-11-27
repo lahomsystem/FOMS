@@ -1,8 +1,8 @@
-"""ERP 생산 대시보드 read-model (Batch 4 production 구조-추출, 동작 보존).
+"""ERP 생산 read-model — 생산 첫 화면 · 묘비 · 보드 상태 칸이 함께 쓰는 SQL 쿼리 빌드 · 단계 버킷 · 정렬 · 첨부 수.
 
-`erp_production_dashboard()`의 SQL 쿼리 빌드·단계 버킷 카운트·KPI/프로세스맵 배지 집계·
-첨부 카운트·페이지네이션을 분리한다. 필터 적용 순서, 전체셋 KPI 스캔(의도적; 페이지 50건과
-무관, 성능 최적화는 별도 웨이브), 정렬/페이지 규칙을 원본과 1:1 동일하게 유지한다.
+옛 생산 보드(``/erp/production/dashboard``, 2026-11-27 지움)에서 갈라 나온 모듈이다. 그 보드만 쓰던 숫자판 캐시 ·
+페이지 넘김 · 조각 캐시 키는 보드와 함께 지웠다(설계서 2026-11-27-production-legacy-board-removal §6-1).
+``build_production_orders_query`` 의 ``f_stage`` · ``f_q`` 갈래는 서명을 지키려 남긴다(§13).
 row DTO 조립/표시는 production_dashboard_display가 담당한다(한 슬라이스 한 경계).
 flat 모듈(subpackage __init__ 순환 회피).
 """
@@ -17,19 +17,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import Query
 
 from models import Order, ProductionRun
-from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.common.partner_order_filter import partner_order_clause
-from foms.services.common.dashboard_cache import KEY_VERSION as DASHBOARD_CACHE_KEY_VERSION
-from foms.services.common.dashboard_cache import build_dashboard_cache_key
 from foms.services.drawing_confirm_cleanup import (
     discount_superseded_drawing_rows,
     load_structured_data_by_order,
 )
 from foms.services.erp_display import _ensure_dict, _erp_alerts, _erp_get_stage
 
-PRODUCTION_DASHBOARD_PAGE_SIZE = 50
-# 태블릿 칸반은 페이지 윈도가 아닌 정렬 전량을 렌더한다(시공일 변경 카드 소실 회귀 방지).
-# 이 캡을 넘으면 상위 N건만 렌더하고 kanban_capped 로 노출(silent 축소 금지).
+# 생산 첫 화면이 한 번에 읽는 행 상한(지난 주문 채우기 몫, production_home_read_model). 이름의 KANBAN 은 옛 칸반에서 온 것이다.
 PRODUCTION_KANBAN_MAX_ROWS = 300
 
 # 버킷 축 = 단계 + current production run(2026-09-17 CONFIRM→PRODUCTION 재설계).
@@ -230,26 +225,6 @@ def compute_production_kpis_and_badges(
     return kpi_rows, kpis
 
 
-def compute_production_summary_blob(_q: Query) -> dict[str, Any]:
-    """KPI + step_stats + total for micro-cache.
-
-    단계 버킷 집계는 flat 컬럼 erp_stage_code(index=True)를 직접 참조한다
-    (production_stage_bucket_expr, JSONB path cast 제거 → ix_orders_erp_stage_code 스캔).
-    """
-    stage_bucket_expr = production_stage_bucket_expr()
-    step_stats = empty_production_step_stats()
-    fill_production_step_counts(_q, stage_bucket_expr, step_stats)
-    kpi_rows, kpis = compute_production_kpis_and_badges(_q, step_stats)
-    return {
-        "step_stats": step_stats,
-        "kpis": kpis,
-        # W3-3 판단(유지): total_orders=len(kpi_rows). compute_production_kpis_and_badges가
-        # 뱃지 집계로 rows 전행을 이미 파이썬 루프 순회하므로 별도 _q.count() 쿼리는
-        # 이중조회 낭비다. W3-2 전환 후 필터셋이 소량이라 hydrate 비용도 작아 len 유지가 최적.
-        "total_orders": len(kpi_rows),
-    }
-
-
 def fetch_production_attachment_counts(db: Any, page_rows: list[Any]) -> dict[int, int]:
     att_counts: dict[int, int] = {}
     if not page_rows:
@@ -308,21 +283,8 @@ def fetch_production_current_run_starts(db: Any, page_rows: list[Any]) -> dict[i
     return {int(r.order_id): r.started_at for r in rows}
 
 
-def paginate_production_rows(
-    _q: Query, page_raw: int | None, total_orders: int
-) -> tuple[int, int, list[Any]]:
-    """페이지 인덱스·총 페이지 수·현재 페이지 행."""
-    page = page_raw or 1
-    if page < 1:
-        page = 1
-    per_page = PRODUCTION_DASHBOARD_PAGE_SIZE
-    total_pages = (total_orders + per_page - 1) // per_page
-    page_rows = _q.offset((page - 1) * per_page).limit(per_page).all()
-    return page, total_pages, page_rows
-
-
 def apply_production_dashboard_sort(_q: Query, sort: str, sort_dir: str) -> Query:
-    """생산 대시보드 목록 정렬(렌더와 렌더 전 304 키가 같은 순서를 쓴다).
+    """생산 목록 정렬(첫 화면 일거리 줄 순서, ``build_production_home``).
 
     기본은 시공일 빠른 순(YYYY-MM-DD String(10) 사전순=시간순, index 있음) — 미정(NULL)은 뒤로,
     동률/미정은 created_at 최신 순. 사용자가 실측일/시공일 헤더를 눌렀을 때만 그 컬럼·방향으로
@@ -340,45 +302,3 @@ def apply_production_dashboard_sort(_q: Query, sort: str, sort_dir: str) -> Quer
         sort_column.desc() if sort_dir == 'desc' else sort_column.asc(),
         Order.created_at.desc(),
     )
-
-
-def production_summary_slice_key(user: Any, f_stage: str, f_q: str, erp_mine_only: bool, partner_org: str = '') -> str:
-    """숫자판 조각(``production/summary_counts``) 캐시 키 — 렌더와 렌더 전 304 키가 같은 키를 읽는다.
-
-    켜진 프리랜서는 "내 것" 이 연결 표라 표시를 하나 더 넣는다(FCOMM-01 §6.3 겹 3) — 같은 계정이 프리랜서로
-    지정된 직후 이름 판정으로 채운 숫자(같은 사용자 · 같은 mine)를 받지 않는다. 다른 사용자의 열쇠는 그대로다.
-    """
-    fingerprint = {
-        "v": DASHBOARD_CACHE_KEY_VERSION,
-        "uid": user.id if user else None,
-        "role": getattr(user, "role", None) if user else None,
-        "mine": bool(erp_mine_only),
-        "stage": f_stage or "",
-        "q": f_q or "",
-    }
-    if partner_org:
-        fingerprint["partner_org"] = partner_org
-    if is_list_freelancer(user):
-        fingerprint["freelancer"] = True
-    return build_dashboard_cache_key("production", "summary_counts", fingerprint)
-
-
-def production_attachment_slice_key(
-    user: Any, f_stage: str, f_q: str, erp_mine_only: bool, order_ids: list[int]
-) -> str:
-    """첨부 수 조각(``production/attachment_counts``) 캐시 키 — 그리는 행 id 집합에 묶인다."""
-    fingerprint = {
-        "v": DASHBOARD_CACHE_KEY_VERSION,
-        "uid": user.id if user else None,
-        "mine": bool(erp_mine_only),
-        "stage": f_stage or "",
-        "q": f_q or "",
-        "ids": sorted(order_ids),
-    }
-    return build_dashboard_cache_key("production", "attachment_counts", fingerprint)
-
-
-def production_attachment_slice_value(db: Any, rows: list[Any]) -> dict[str, int]:
-    """첨부 수 조각 값(JSON DTO). ``rows`` 는 ``id`` 만 있으면 된다."""
-    raw = fetch_production_attachment_counts(db, rows)
-    return {str(k): int(v) for k, v in raw.items()}

@@ -1288,9 +1288,6 @@ def test_erp_pages_use_canonical_erp_permissions_imports() -> None:
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
             "build_mine_sql_filter": namespaced_erp_permissions.build_mine_sql_filter,
         },
-        "foms.web.production.dashboard": {
-            "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
-        },
         "foms.web.shipment.dashboard": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
@@ -1646,7 +1643,6 @@ def test_erp_pages_use_canonical_erp_display_imports() -> None:
     import foms.web.orders.dashboard as erp_dashboard
     import foms.web.drawing.workbench as erp_drawing_workbench
     from foms.web.measurement import dashboard as erp_measurement_dashboard
-    from foms.web.production import dashboard as erp_production_page
     from foms.web.construction import dashboard as erp_construction_dashboard
     from foms.web.orders import trash as order_trash
     import foms.web.shipment.dashboard as erp_shipment_page
@@ -1710,11 +1706,6 @@ def test_erp_pages_use_canonical_erp_display_imports() -> None:
         erp_measurement_dashboard.self_measurement_four_checks_done
         is namespaced_erp_display.self_measurement_four_checks_done
     )
-
-    assert erp_production_page._ensure_dict is namespaced_erp_display._ensure_dict
-    assert erp_production_page._erp_get_stage is namespaced_erp_display._erp_get_stage
-    assert erp_production_page._erp_has_media is namespaced_erp_display._erp_has_media
-    assert erp_production_page._erp_alerts is namespaced_erp_display._erp_alerts
 
     assert erp_shipment_page._ensure_dict is namespaced_erp_display._ensure_dict
     assert (
@@ -1905,12 +1896,17 @@ def test_cs_completion_dashboard_template_path_exists() -> None:
 
 
 def test_wave8_erp_production_page_legacy_bridge_retired_canonical_smoke() -> None:
-    """W8-B5: apps.erp_production_page shim removed; canonical production dashboard is authoritative."""
+    """W8-B5: apps.erp_production_page shim removed; canonical production Blueprint is authoritative.
+
+    옛 생산 보드 모듈(``foms.web.production.dashboard``)은 2026-11-27 지웠고 Blueprint 는 ``blueprint`` 모듈로 옮겼다.
+    """
     assert find_spec_or_none("apps.erp_production_page") is None
-    from foms.web.production import dashboard as canonical
+    assert find_spec_or_none("foms.web.production.dashboard") is None
+    from foms.web.production import blueprint as canonical
+    from foms.web.production import home
 
     assert canonical.erp_production_page_bp is not None
-    assert canonical.erp_production_dashboard is not None
+    assert home.erp_production_home is not None
 
 
 def test_wave8_remaining_direct_import_bridges_retired() -> None:
@@ -1923,8 +1919,9 @@ def test_wave8_remaining_direct_import_bridges_retired() -> None:
 
 
 def test_production_dashboard_template_path_exists() -> None:
-    """Canonical production dashboard template must exist (Wave 4 namespace)."""
-    assert (_REPO_ROOT / "templates" / "production" / "dashboard.html").is_file()
+    """Canonical production page template(첫 화면) must exist; 옛 보드 템플릿은 2026-11-27 지움."""
+    assert (_REPO_ROOT / "templates" / "production" / "home.html").is_file()
+    assert not (_REPO_ROOT / "templates" / "production" / "dashboard.html").exists()
 
 
 def test_strict_canonical_root_erp_dashboard_thin_wrappers_removed() -> None:

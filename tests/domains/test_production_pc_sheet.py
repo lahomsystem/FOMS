@@ -3,7 +3,7 @@
 * 칸: 확정 도면 1장 이상인 줄의 PC 공정 칸만 누름 칸(role=button · data-foms-pc-sheet) — 모양 · 글 · 쿼리 수는 그대로, 도면 0장 줄 ·
   태블릿 출력은 하나도 안 바뀐다(음성 대조).
 * 창 자료 ``GET /api/production/part-sheet``: 상태 글(안 봄 · 아직 · 작업 필요 · 재단 완료(옛 재단 끝 — 2026-11-25 K4) · 기본 · 손 체크
-  "재단 완료 · 박반장" + "작업 시트") · 줄 글(사람마다 "작업 시작 …" · "완료 …" — K6) · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절
+  "재단 완료 · 박반장" + "작업 시트에서 완료") · 줄 글(사람마다 "작업 시작 …" · "완료 …" — K6) · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절
   글 그대로) · [모두 완료 처리] 조건 ·
   쓰기 가능(관리자 · 반장) · 그 줄 공정 칸 HTML(첫 화면과 같은 매크로 — 바이트까지 같음). 쿼리 3(+ 로그인 사용자).
 * 쓰기는 있는 길만(part-marks · 공정 API) — 창 JS 가 부르는 대로([완료 처리] = check 한 요청, [완료 취소] = undo(→ 시작 취소), 공정 칸 켜기)
@@ -182,7 +182,7 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     assert d["notice"] == "도면 3장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."  # 거절 글 그대로(승인 때 고친 것 2)
     rows = d["rows"]
     assert [r["label"] for r in rows] == [f"도면 {i}/5" for i in range(1, 6)]
-    assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 필요", "안 봄", "안 봄"]  # 옛 "재단 끝"(K4)
+    assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 중", "미정", "미정"]  # 옛 "재단 끝"(K4)
     assert [r["act"] for r in rows] == ["uncheck", "uncheck", "check", "check", "check"]
     # 줄 글 = 사람마다 "작업 시작 …" · "완료 …"(옛 한 명짜리 줄 — 요약 칸에서 푼 목록, K6)
     assert rows[0]["lines"] == ["작업 시작 김재단 · 11/24 08:10", "완료 김재단 · 11/24 09:16"]
@@ -195,9 +195,11 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     # 그 줄 공정 칸 = 첫 화면이 그린 칸과 바이트까지 같다(체크 뒤 그대로 바꿔 끼운다)
     page = _row(client.get(_day(order)).get_data(as_text=True), order.id)
     assert d["cells_html"] in page and d["status_html"] in page and d["late"] in (None, "late", "tight")
-    # 다른 파트 = "아직", 담당 미정
+    # 다른 파트 = "미정"(11-27), 담당 미정
     edge = _get(client, order, "edge").get_json()["data"]
-    assert {r["word"] for r in edge["rows"]} == {"아직"} and edge["all"] is True and edge["notice"] is None
+    # 아무도 안 시작한 파트라도 도면 5장 주문 = [모두 완료 처리] 없음(사장님 2026-11-27 "도면 두 장 이상이면 막기") · 도면마다 [완료 처리]는 그대로
+    assert {r["word"] for r in edge["rows"]} == {"미정"} and edge["all"] is False and edge["notice"] is None
+    assert {r["act"] for r in edge["rows"]} == {"check"}
 
 
 def test_제작_회차_없는_주문은_창_머리_한_줄_태블릿과_같은_글(client, cohort) -> None:
@@ -237,7 +239,7 @@ def test_손_체크_파트는_도면_판_손_체크_글과_통째_해제(client,
     _login(client, _user("반장"))
     d = _get(client, order, "cut").get_json()["data"]
     assert d["hand_off"] is True and d["all"] is False and d["hand"] == "재단 완료 · 박반장"
-    assert {(r["word"], r["note"], r["act"]) for r in d["rows"]} == {("재단 완료 · 박반장", "작업 시트", None)}
+    assert {(r["word"], r["note"], r["act"]) for r in d["rows"]} == {("재단 완료 · 박반장", "작업 시트에서 완료", None)}
     assert d["rows"][0]["lines"] == ["완료 박반장 · 11/24 10:20"] and d["can_write"] is True
 
 
@@ -259,15 +261,17 @@ def test_막힘은_서버_글_그대로(client, cohort) -> None:
 
 
 @pytest.mark.parametrize("who,status,write", [("admin", 200, True), ("boss", 200, True), ("part", 200, False),
-                                              ("plain", 200, False), ("cs", 200, False), ("noteam", 403, False),
-                                              ("partner", 403, False)])
+                                              ("plain", 200, False), ("cs", 200, False), ("noteam", 200, False),
+                                              ("otherteam", 403, False), ("partner", 403, False)])
 def test_권한_보기는_생산_화면_보는_직원_쓰기는_관리자_반장(client, cohort, who, status, write) -> None:
     order, _ = _seed_five()
     # plain = 파트도 반장도 아닌 생산팀(보기만) — 반장 따로 지정 뒤 단추 없음(공정 칸 잠금 steps_lock 과 같은 한 규칙)
     user = {"admin": lambda: _user("관리", role="ADMIN", team="CS"), "boss": lambda: _user("반장"),
             "plain": lambda: _user("생산보기"),
             "part": lambda: _user("재단", part="cut"), "cs": lambda: _user("상담", team="CS"),
-            "noteam": lambda: _user("팀없음", team=None), "partner": lambda: _partner()}[who]()
+            # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4, 2026-11-27) · 목록 밖 팀 글자 = 못 봄
+            "noteam": lambda: _user("팀없음", team=None), "otherteam": lambda: _user("다른팀", team="WAREHOUSE"),
+            "partner": lambda: _partner()}[who]()
     _login(client, user)
     resp = _get(client, order, "cut")
     assert resp.status_code == status, resp.get_json()
@@ -277,7 +281,7 @@ def test_권한_보기는_생산_화면_보는_직원_쓰기는_관리자_반장
 
 def test_창_단추_권한은_쓰기_길과_한_규칙_보기만_생산팀은_둘_다_막힘(client, cohort) -> None:
     """can_write(단추) = 공정 칸 손 체크([모두 체크] · 통째 해제) = 도면마다 [체크] — 반장 · 관리자만(반장 따로 지정 뒤)."""
-    oid = _order("가온", 2).id
+    oid = _order("가온", 1).id  # 도면 1장(여러 장은 공정 칸 켜기가 막힌다 — 사장님 2026-11-27)
     key = "orders/pcs/가온_0.png"
     _login(client, _user("생산보기"))
     assert _get(client, oid, "cut").get_json()["data"]["can_write"] is False
@@ -288,7 +292,9 @@ def test_창_단추_권한은_쓰기_길과_한_규칙_보기만_생산팀은_�
     assert _get(client, oid, "cut").get_json()["data"]["can_write"] is True
     assert _post(client, "/api/production/part-marks", {"order_id": oid, "drawing_key": key, "part": "cut", "action": "take",
                                                        "seen": "none"}).status_code == 200
-    assert _post(client, f"/api/orders/{oid}/production/steps", {"key": "edge", "done": True}).status_code == 200
+    # 공정 칸 켜기 = 권한 문은 지나고(403 아님) 도면이 있어 409 STEP_PER_SHEET(사장님 2026-11-27 "도면이 주, 작업 시트는 보기", 옛 단언 200)
+    edge = _post(client, f"/api/orders/{oid}/production/steps", {"key": "edge", "done": True})
+    assert edge.status_code == 409 and edge.get_json()["data"]["code"] == "STEP_PER_SHEET"
 
 
 def test_질의가_틀리면_400_없는_주문_404_쿼리_셋(client, cohort) -> None:
@@ -331,17 +337,22 @@ def test_완료_처리_한_요청_뒤_칸이_3_5_그리고_완료_취소(client,
     mark(key, "undo", "done")  # [완료 취소] — 나 혼자 시작 + 완료한 장이라 창 JS 는 시작 취소까지 잇는다
     mark(key, "release", "need", seen_by=d["me"])
     d = _get(client, oid, "cut").get_json()["data"]
-    assert (d["rows"][3]["word"], d["rows"][3]["lines"]) == ("안 봄", ["담당 미정"])
+    assert (d["rows"][3]["word"], d["rows"][3]["lines"]) == ("미정", ["담당 미정"])
     assert d["rows"][2]["word"] == "재단 완료" and ">재단 3/5</span>" in d["cells_html"]
 
 
 def test_모두_체크는_공정_칸_길_그대로이고_칸이_채워진다(client, cohort) -> None:
-    oid = _order("제갈하늘", 3, done=("cut",)).id
+    """2026-11-27 사장님 "도면이 주, 작업 시트는 보기": 도면이 있는 주문은 창에 [모두 완료 처리]가 없고 공정 칸 켜기도 409(옛 단언 — [모두 완료
+    처리] 참 · 켜기 200 · 칸 둘 채움 — 를 막힘 단언으로). 손으로 켜 둔 옛 칸(재단)은 창 머리 [모두 완료 취소](끄기) 길이 그대로 남는다."""
+    oid = _order("제갈하늘", 1, done=("cut",)).id
     _login(client, _user("반장"))
     before = _get(client, oid, "edge").get_json()["data"]
-    assert before["all"] is True and 'class="fpc-s is-done"' in before["cells_html"]  # 재단은 이미 칸 체크(손)
+    assert before["all"] is False and 'class="fpc-s is-done"' in before["cells_html"]  # 재단은 이미 칸 체크(손)
     resp = _post(client, f"/api/orders/{oid}/production/steps", {"key": "edge", "done": True})
-    assert resp.status_code == 200, resp.get_json()
+    assert resp.status_code == 409 and resp.get_json()["data"]["code"] == "STEP_PER_SHEET"
     after = _get(client, oid, "edge").get_json()["data"]
-    assert after["hand_off"] is True and after["all"] is False and after["hand"].startswith("엣지 완료 · ")
-    assert after["cells_html"].count('class="fpc-s is-done"') == 2 and "조립 중" in after["status_html"]
+    assert after["hand_off"] is False and after["all"] is False and after["cells_html"].count('class="fpc-s is-done"') == 1
+    cut = _get(client, oid, "cut").get_json()["data"]
+    assert cut["hand_off"] is True and cut["hand"].startswith("재단 완료 · 박반장")  # 옛 손 칸 끄기 길
+    off = _post(client, f"/api/orders/{oid}/production/steps", {"key": "cut", "done": False})
+    assert off.status_code == 200 and _get(client, oid, "cut").get_json()["data"]["hand_off"] is False

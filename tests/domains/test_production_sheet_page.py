@@ -110,11 +110,11 @@ def test_생산팀은_전체_화면_시트에서_도면_연락처_공정_단추�
     assert html.count("data-foms-sheet-dwg-th=") == 2
     assert html.count("파일 열기") == 1
     assert "도면 1 / 2" in html and "/api/files/view/drawings/a.png" in html
-    # 공정 4줄(도장 없음, D15): 재단 끝(누가·몇 시), 엣지가 지금 여기
-    assert html.count("data-foms-sheet-step=") == 4
-    assert 'data-foms-sheet-step="cut" aria-pressed="true"' in html
-    assert "이철호 · 11/9 09:12" in html
-    assert 'is-now' in html and ">1/4<" in html
+    # 공정 4줄(도장 없음, D15): 재단 끝(누가·몇 시), 엣지가 지금 여기. 2026-11-27 사장님 "도면이 주, 작업 시트는 보기": 도면 있는 주문은
+    # 체크 칸 대신 보기 줄 넷 — 손으로 켜 둔 옛 재단 칸은 "완료 · 이철호 11/9 09:12 · 작업 시트에서 완료"(반장 아닌 생산팀은 끄는 길 없음)
+    assert html.count("data-foms-sheet-step=") == 0 and html.count("data-foms-sheet-line=") == 4
+    assert '<span>재단</span> <small class="fpp-note is-ok">완료 · 이철호 11/9 09:12 · 작업 시트에서 완료</small>' in html
+    assert 'is-now" data-foms-sheet-line="edge"' in html and ">1/4<" in html
     # 불량: 최근 1줄 + 칩 4
     assert "최근 불량 · 파손" in html
     assert html.count("data-foms-sheet-defect-reason=") == 4
@@ -144,24 +144,17 @@ def test_제작대기_주문은_제작_시작_단추를_보인다(client) -> Non
 
 
 def test_팀_없으면_403_없는_주문은_404(client) -> None:
-    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(팀 없음)이다.
+    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(목록 밖 팀 글자)이다.
+    # 팀 없는 직원은 2026-11-27 부터 보기만(설계서 옛 생산 보드 없애기 §4) — 작업 시트도 연다.
     _make_user(client, "sheet_drawing_staff", "DRAWING")
     order = _seed_order()
     assert client.get(SHEET_URL.format(id=order.id)).status_code == 200
     _make_user(client, "sheet_noteam_staff", None)
+    assert client.get(SHEET_URL.format(id=order.id)).status_code == 200
+    _make_user(client, "sheet_other_team_staff", "WAREHOUSE")
     assert client.get(SHEET_URL.format(id=order.id)).status_code == 403
     _make_user(client, "sheet_prod_staff3", "PRODUCTION")
     assert client.get(SHEET_URL.format(id=order.id + 999)).status_code == 404
-
-
-def test_옆_시트는_그대로_그린다(client) -> None:
-    """뷰 모델을 서비스로 옮겼어도 옆 시트 fragment 는 같은 키로 그린다."""
-    _make_user(client, "sheet_side_admin", "CS", role="ADMIN")
-    order = _seed_order()
-    html = client.get(f"/erp/production/tablet-sheet/{order.id}").get_data(as_text=True)
-    assert "foms-prod-sheet" in html and "김하늘" in html
-    assert 'data-tablet-sheet-action="production-complete"' in html
-    assert "/api/files/view/drawings/a.png" in html
 
 
 def test_템플릿에_인라인_style_script_없음() -> None:
@@ -255,8 +248,10 @@ def test_아래_단추_줄_지금_여기_치수_연결_한_줄(client) -> None:
     assert foot.index("data-foms-sheet-defect-reasons") < foot.index('data-tablet-sheet-action="production-complete"')
     assert foot.index('data-tablet-sheet-action="production-complete"') < foot.index("data-foms-sheet-status")
     assert "data-foms-sheet-net>연결 좋음<" in foot
-    # 공정: 지금 칸(엣지) 옆 '지금 여기', 끝난 칸은 누가 · 몇 시
-    assert html.count("지금 여기") == 1 and "이철호 · 11/9 09:12" in html
+    # 공정: 지금 칸(엣지)은 줄 색(is-now), 끝난 칸은 누가 · 몇 시. 도면 있는 주문의 보기 줄은 '지금 여기' 대신 진행 글("엣지 미정" —
+    # 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
+    assert html.count("지금 여기") == 0 and "완료 · 이철호 11/9 09:12 · 작업 시트에서 완료" in html
+    assert 'is-now" data-foms-sheet-line="edge"' in html and '<span>엣지</span> <small class="fpp-note is-miss">미정</small>' in html
     # 만들 것: 품목마다 'W×D×H · 수량'(시드는 가로만 있어 W 만)
     assert "<span>거실장</span><span>W3100 · 1</span>" in html and "<span>W2160 · 1</span>" in html
 
@@ -302,15 +297,13 @@ def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다()
     # 지금 여기 · 연결 한 줄은 전체 화면 시트에만(옆 시트에는 data-foms-sheet-net 이 없다)
     assert "var nowText = netEl ? '지금 여기' : '';" in js and "(isNow ? nowText : '')" in js
     assert "navigator.onLine !== false && !netFailed" in js
-    side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
-    assert "data-foms-sheet-net" not in side
-    assert "data-foms-sheet-complete" in side and "foms-prod-sheet__btn--off" in side  # 옆 시트도 검수 전 회색(11-21)
+    # 옆 시트 템플릿은 2026-11-27 옛 생산 보드와 함께 지웠다(JS 의 옆 시트 갈래는 sheet-page.js 몫 — 뒤에 정리).
 
 
 def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> None:
     """11-21 사용자 결정 — 바닥 단추 줄을 고정해(53d1c5bb6) 굴러가는 칸이 작아졌고, 공정 칸을 켜야 [제작 완료]가
-    풀리므로 공정 4칸 줄을 맨 위로. 마크업 순서 = 읽기 · 키보드 순서(CSS order 아님). 보류 사유는 바뀐 것 다음,
-    특이사항은 만들 것 다음. 옆 시트(tablet_sheet.html)는 그대로(고객 → … → 공정)."""
+    풀리므로 공정 4칸 줄을 위로. 마크업 순서 = 읽기 · 키보드 순서(CSS order 아님). 보류 사유는 공정 바로 위(11-26 사장님
+    결정 — 첫 화면에서 보이게), 바뀐 것 → 만들 것 → 특이사항 → 고객. 옆 시트(tablet_sheet.html)는 그대로(고객 → … → 공정)."""
     from foms.services.datetime_kst import now_utc_naive
     _make_user(client, "sheet_prod_order", "PRODUCTION")
     order = _seed_order()
@@ -326,17 +319,14 @@ def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> 
     db_session.commit()
     html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
     scroll = html.split('class="foms-prod-page__side-scroll"', 1)[1].split('class="foms-prod-page__foot"', 1)[0]
-    marks = ['aria-label="공정"', 'aria-label="변경 알림"', "보류 사유 <strong>자재 기다림</strong>",
+    marks = ["보류 · <strong>자재 기다림</strong>", 'aria-label="공정"', 'aria-label="변경 알림"',
              'aria-label="만들 것"', 'aria-label="특이사항"', 'aria-label="고객"']
     pos = [scroll.find(m) for m in marks]
     assert -1 not in pos, dict(zip(marks, pos))
     assert pos == sorted(pos), dict(zip(marks, pos))
-    # 공정이 굴러가는 칸의 첫 상자다(앞에 다른 상자 · 안내 줄이 없다)
-    head = scroll[: pos[0]]
-    assert head.count("<section") == 1 and "foms-prod-page__callout" not in head and "<p" not in head
+    # 보류 사유 줄이 굴러가는 칸의 맨 앞이고, 공정이 첫 상자다(그 사이에 다른 상자 · 안내 줄이 없다)
+    head = scroll[: pos[1]].rsplit("<section", 1)[0]  # 공정 상자 여는 글자 앞까지
+    assert head.count("<section") == 0 and head.count("<p") == 1 and "callout--hold" in head
     # 순서는 마크업으로 — CSS order 로 바꾸지 않는다
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
     assert not re.search(r"(?<![\w-])order\s*:", css)
-    # 옆 시트는 범위 밖 — 규격이 공정보다 먼저(그대로)
-    side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
-    assert 0 <= side.find('aria-label="규격"') < side.find('aria-label="공정"')

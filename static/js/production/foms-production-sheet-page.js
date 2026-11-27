@@ -109,7 +109,8 @@
       mainImg.src = t.getAttribute('data-foms-erp-attachment-view-url') || '';
       mainImg.alt = label;
       thumbs.forEach(function (x, k) { x.classList.toggle('is-on', k === dwgIndex); });
-      if (cap) { cap.textContent = '도면 ' + (dwgIndex + 1) + ' / ' + thumbs.length + (label ? ' · ' + label : ''); }
+      var title = t.getAttribute('data-foms-sheet-dwg-title') || ''; // 제목 = 품목 이름(파일 이름 아님)
+      if (cap) { cap.textContent = '도면 ' + (dwgIndex + 1) + ' / ' + thumbs.length + (title ? ' · ' + title : ''); }
     }
     function openViewer() {
       var viewer = window.GlobalImageViewer;

@@ -102,7 +102,10 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     assert "data-foms-fs-ctl" in html and ">이번 주<" not in html
     for label in (">날짜</a>", ">남은 공정 <small>1</small></a>", ">바뀐 것 <small>0</small></a>", ">찾기</a>"):
         assert label in html, label
-    assert "전체 9건" in html  # 머리 숫자 = 실제 총계
+    assert "전체 9건" not in html  # 태블릿은 제목 옆 날짜 · 전체 건수 글이 없다(사장님 2026-11-26)
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    assert "전체 9건" in client.get(HOME).get_data(as_text=True)  # PC 는 그대로 — 머리 숫자 = 실제 총계
+    client.delete_cookie("foms_ptr", domain="localhost")
     # 띠: 지난 7일(오늘까지) + 내일부터 11일 + 그 뒤 = 13줄, 아래 지난 출고일·출고일 없음 = 단추 15. 오늘 날 줄은 없다
     assert html.count('data-foms-home-daybtn="') == 15
     today_key = today.isoformat()
@@ -110,7 +113,11 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     first_key = (today + datetime.timedelta(days=1)).isoformat()
     first_btn = html.split(f'data-foms-home-daybtn="{first_key}"')[1].split("</a>")[0]
     assert 'aria-current="true"' in first_btn and "<b>1</b><small> / 2</small>" in first_btn
-    assert '<rect class="is-p"' in first_btn and '<rect class="is-x"' in first_btn  # 막대: 만드는 중 + 도면 기다림
+    assert "<rect" not in first_btn and "fph-sd__bar" not in first_btn  # 태블릿 띠는 막대를 뺐다(사장님 2026-11-26) — 글 · 숫자만
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    pc_btn = client.get(HOME).get_data(as_text=True).split(f'data-foms-home-daybtn="{first_key}"')[1].split("</a>")[0]
+    assert '<rect class="is-p"' in pc_btn and '<rect class="is-x"' in pc_btn  # PC 는 막대 그대로: 만드는 중 + 도면 기다림
+    client.delete_cookie("foms_ptr", domain="localhost")
     # 날 단추 = 진짜 링크(스크립트 전에 눌러도 그 날로 간다) · 셸 조각 교체 제외(날 고르기 JS 가 받는다)
     next_key = (today + datetime.timedelta(days=2)).isoformat()
     next_btn = re.search(rf'<a [^>]*data-foms-home-daybtn="{next_key}"[^>]*>', html).group(0)
@@ -123,20 +130,20 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     pane = _pane(html, first_key)
     # 제목 작은 글 끝 = 도면 x/n 내려옴(띠와 같은 색 — 내일 시공 도면 주문은 마감이 지나 빨강, 설계서 2026-11-22 §5-2)
     assert '출고 2건 · 만들 것 1 · <span class="fph-dwst is-late">도면 1/2 내려옴</span>' in pane
-    assert "내일엣지" in pane and "엣지 중" in pane and "내일도면" in pane
+    assert "내일엣지" in pane and "엣지 작업 중" in pane and "내일도면" in pane
     assert pane.count("fph-dr__st is-done") == 1 and pane.count("fph-dr__st is-now") == 1  # 재단 끝 · 엣지 지금
     # 순서 = 기다림(안 내려옴) → 만들 것(내려옴) → 제작 완료, 그날 주문만(미리 보기 · 밀린 것 없음)
     assert pane.index(">도면·컨펌 기다림 1 <small>") < pane.index(">만들 것 1</h3>")
     assert "미리 보기" not in pane and "사흘뒤대기" not in pane and "사흘전대기" not in pane and "모레완료" not in pane
     # 띠: 시공 있는 줄마다 막대 밑 도면 글(지난 7일 · 그 뒤 포함, §5-1 · §14 답 2), 시공 없는 줄 · 아래 단추는 글 없음
-    assert '<span class="fph-sd__dw is-late">도면 1/2 마감 지남</span>' in first_btn
+    assert '<span class="fph-sd__dw is-late">도면 1/2</span>' in first_btn
     recent_btn = html.split('data-foms-home-daybtn="recent"')[1].split("</a>")[0]
     assert '<span class="fph-sd__dw is-ok">도면 2/2 다 내려옴</span>' in recent_btn  # 사흘전대기 + 오늘대기
     later_btn = html.split('data-foms-home-daybtn="later"')[1].split("</a>")[0]
     assert '<span class="fph-sd__dw is-calm">도면 0/1</span>' in later_btn
     empty_key = (today + datetime.timedelta(days=4)).isoformat()
     empty_btn = html.split(f'data-foms-home-daybtn="{empty_key}"')[1].split("</a>")[0]
-    assert "fph-sd__dw" not in empty_btn and "fph-sd__mid" not in empty_btn
+    assert "fph-sd__dw" not in empty_btn and '<span class="fph-sd__mid"></span>' in empty_btn  # 태블릿: 막대도 도면 글도 없는 날은 빈 가운데 칸만(숫자 자리를 지킨다)
     for key in ("past", "none"):
         assert "fph-sd__dw" not in html.split(f'data-foms-home-daybtn="{key}"')[1].split("</a>")[0], key
     # 다른 날 = 같은 주소 + view=day 조각: 그 날 장 하나만(셸 · 띠 · 머리 없음), 머리글로 받은 날을 알린다
@@ -212,7 +219,9 @@ def test_내_공정_탭은_첫_미완_공정으로_줄을_세우고_보류는_�
     assert "조립에 와 있는 주문이 없어요." in assemble_q and "엣지차례" in assemble_q.split("fph-q__nextlist")[1]
     # 줄 밖 숫자: 제작 대기 1 · 검수 완료 1. 도면 주문은 아예 없음
     # 가운데 '도면 마감 지난 집'(2026-11-22 §5-4) — 도면중은 시공 8일 뒤라 마감 전
-    assert "제작 대기 <b>1</b>건 · 도면 마감 지난 주문 <b>0</b>건 · 검수까지 끝난 것 <b>1</b>건" in html
+    assert "fph-stepnote" not in html  # 태블릿 '남은 공정' 맨 위 안내 줄은 뺐다(사장님 2026-11-26)
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    assert "제작 대기 <b>1</b>건 · 도면 마감 지난 주문 <b>0</b>건 · 검수까지 끝난 것 <b>1</b>건" in client.get(HOME + "?tab=steps").get_data(as_text=True)  # PC 는 그대로
     assert "도면중" not in html
     # 일의 양(판 장수) 글자 없음(D11)
     assert "판 " not in html
@@ -277,10 +286,12 @@ def test_날짜_띠_규칙() -> None:
     assert by["none"]["label"] == "출고일 없음"
     # 미리 보기는 없다(2026-11-22 §5-2 — 그날 주문만). 띠 · 장 도면 글 = 내려옴 x / 그 줄 n(제작 완료 포함) + 마감 상태
     assert all("previews" not in b for b in days["panes"])
-    assert thu["arrival"] == {"x": 4, "n": 5, "state": "late", "strip": "도면 4/5 마감 지남", "pane": "도면 4/5 내려옴"}
+    assert thu["arrival"] == {"x": 4, "n": 5, "state": "late", "strip": "도면 4/5", "group": "도면 4/5 마감 지남",
+                              "pane": "도면 4/5 내려옴"}
     # 11/13(금) 출고 = 마감 11/11(수) = 오늘 → 빠듯. 그 뒤 줄 11/23(월) 출고 = 마감 11/19(목) — 여유(남색, 글은 x/n 만)
-    assert by["2026-11-13"]["arrival"]["strip"] == "도면 0/1 마감 오늘"
-    assert by["2026-11-14"]["arrival"] == {"x": 1, "n": 1, "state": "ok", "strip": "도면 1/1 다 내려옴", "pane": "도면 1/1 내려옴"}
+    assert by["2026-11-13"]["arrival"]["group"] == "도면 0/1 마감 오늘"
+    assert by["2026-11-14"]["arrival"] == {"x": 1, "n": 1, "state": "ok", "strip": "도면 1/1 다 내려옴", "group": "도면 1/1 다 내려옴",
+                                              "pane": "도면 1/1 내려옴"}
     assert by["later"]["arrival"]["state"] == "calm" and by["later"]["arrival"]["strip"] == "도면 0/1"
     assert by["2026-11-15"]["arrival"] is None and by["none"]["arrival"]["strip"] == "도면 0/1"  # 출고일 없음 = 여유(마감 없음)
     # 기다림 묶음 머리: 하루 장 = 그날 마감, 시공일 없음 장 = 마감 없음 글, 여러 날 장 · 기다림 없는 장 = 없음(칸마다 마감)
@@ -329,8 +340,8 @@ def test_받은함과_공정_줄_규칙() -> None:
 def test_액션_JS_게이트와_핀이_같다() -> None:
     js = (ROOT / "static/js/foms/tablet-domain-sheets.js").read_text(encoding="utf-8")
     assert '[data-foms-prod-sheet-page], [data-foms-prod-home]' in js
-    kanban = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
-    pin = kanban.split("tablet-domain-sheets.js') }}?v=")[1].split('"')[0]
+    home = (ROOT / "templates/production/partials/home_body.html").read_text(encoding="utf-8")  # 칸반 본문은 2026-11-27 지움
+    pin = home.split("tablet-domain-sheets.js') }}?v=")[1].split('"')[0]
     for rel in ("templates/production/sheet.html", "templates/production/partials/home_body.html"):
         assert f"tablet-domain-sheets.js') }}}}?v={pin}" in (ROOT / rel).read_text(encoding="utf-8"), rel
     for rel in ("templates/production/partials/home_all.html", "templates/production/partials/home_date.html",

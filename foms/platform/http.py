@@ -303,7 +303,8 @@ def register_http_bootstrap(
             or path.startswith("/erp/completion")
             or path.startswith("/erp/history")
             # 생산 보기 화면(첫 화면 · 작업 시트 · 인쇄 · 카드 그림) — 시공팀도 보기만(설계서 2026-11-21-production-pc-viewer
-            # §9-1 · §13 결정 5). 그 화면 문지기(can_view_production_home)가 따로 본다. 옛 보드는 그대로 돌려보낸다.
+            # §9-1 · §13 결정 5). 그 화면 문지기(can_view_production_home)가 따로 본다. 옛 보드 주소는 라우트째 지웠다
+            # (2026-11-27) — 이 목록 밖 /erp/ 주소라 시공팀은 아래에서 출고로 간다(없는 주소와 같은 답).
             or path.startswith(PRODUCTION_VIEW_PATH_PREFIXES)
         ):
             return None

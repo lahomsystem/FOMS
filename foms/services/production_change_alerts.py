@@ -73,7 +73,7 @@ _STAGE_MOVE_EVENT_TYPES = ("STAGE_CHANGED", "STAGE_OVERRIDE", "CUSTOMER_CONFIRME
 SHEET_FACTORY_CHANGE_EVENT = "DRAWING_SHEET_FACTORY_CHANGED"
 #: 도면팀 [수정 시작] · [수정 취소] · 공장 요청 [요청 반려](설계서 2026-11-25 §6 — '바뀐 것' 한 줄). ``drawing_fix_marks`` ·
 #: ``drawing_fix_requests`` 의 이벤트와 같은 값.
-DRAWING_FIX_LINE_LABELS: dict[str, str] = {FIX_STARTED_EVENT: "도면 고치는 중", FIX_STOPPED_EVENT: "도면 수정 취소",
+DRAWING_FIX_LINE_LABELS: dict[str, str] = {FIX_STARTED_EVENT: "도면 수정 중", FIX_STOPPED_EVENT: "도면 수정 취소",
                                            REJECT_EVENT: "도면 수정 요청 반려"}
 _RELEVANT_EVENT_TYPES = (
     "PRODUCTION_CHANGE_ACK",
@@ -82,7 +82,7 @@ _RELEVANT_EVENT_TYPES = (
     SHEET_FACTORY_CHANGE_EVENT,
     *DRAWING_FIX_LINE_LABELS,
 )
-#: 변경 감지가 읽는 이벤트 종류 — 렌더 전 304 키(production_fragment_version)가 같은 필터로 지문을 뜬다.
+#: 변경 감지가 읽는 이벤트 종류(바깥에서 같은 필터를 쓸 때 이 이름으로 읽는다).
 PRODUCTION_CHANGE_EVENT_TYPES = _RELEVANT_EVENT_TYPES
 
 

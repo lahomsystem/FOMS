@@ -100,7 +100,7 @@ def test_warm_list_covers_erp_tab_bodies() -> None:
         "orders/partials/dashboard_grid.html",
         "measurement/partials/dashboard_main.html",
         "drawing/partials/workbench_dashboard_body.html",
-        "production/partials/dashboard_body.html",
+        # 생산 칸 본문(옛 보드 dashboard_body)은 2026-11-27 지웠다 — 새 첫 화면 본문은 실측 뒤에 더한다.
         "shipment/partials/dashboard_main.html",
         "cs/partials/as_dashboard_body.html",
         "orders/partials/history_dashboard_body.html",

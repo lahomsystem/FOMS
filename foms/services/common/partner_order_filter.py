@@ -12,10 +12,11 @@ from models import Order, PartnerOrg
 PARTNER_FILTER_KEY = "partner_org"
 PARTNER_FILTER_COOKIE = "foms_partner_org"
 #: 협력사 거르기를 먹는 화면. 생산 첫 화면(/erp/production/home)은 2026-11-21 더함 — 읽기 모델이 같은 거르기 인자를 받는다
-#: (설계서 2026-11-21-production-pc-viewer §9-11). JS 사본: static/js/foms/partner-order-filter.js.
+#: (설계서 2026-11-21-production-pc-viewer §9-11). 옛 생산 보드는 2026-11-27 없앴다(뺌).
+#: JS 사본: static/js/foms/partner-order-filter.js(같이 고친다 — 내용 해시 핀이라 손 핀 없음).
 PARTNER_FILTER_PATHS = frozenset({
     "/", "/erp/dashboard", "/erp/dashboard/", "/erp/measurement", "/erp/drawing-workbench",
-    "/erp/production/dashboard", "/erp/production/home", "/erp/shipment", "/erp/as", "/erp/construction/dashboard",
+    "/erp/production/home", "/erp/shipment", "/erp/as", "/erp/construction/dashboard",
     "/erp/completion", "/erp/settlement", "/erp/history/",
 })
 

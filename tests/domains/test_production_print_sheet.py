@@ -50,23 +50,25 @@ def test_생산팀은_작업지시서를_뽑는다(client) -> None:
 
 
 def test_팀_없으면_403_없는_주문_404(client) -> None:
-    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(팀 없음)이다.
+    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(목록 밖 팀 글자)이다.
+    # 팀 없는 직원은 2026-11-27 부터 보기만(설계서 옛 생산 보드 없애기 §4) — 인쇄도 연다.
     _make_user(client, "print_drawing_staff", "DRAWING")
     order = _seed_order()
     assert client.get(PRINT_URL.format(id=order.id)).status_code == 200
     _make_user(client, "print_noteam_staff", None)
+    assert client.get(PRINT_URL.format(id=order.id)).status_code == 200
+    _make_user(client, "print_other_team_staff", "WAREHOUSE")
     assert client.get(PRINT_URL.format(id=order.id)).status_code == 403
     _make_user(client, "print_prod_staff2", "PRODUCTION")
     assert client.get(PRINT_URL.format(id=order.id + 999)).status_code == 404
 
 
 def test_시트_두_곳에_인쇄_링크(client) -> None:
+    """작업 시트에 인쇄 링크(옆 시트는 2026-11-27 옛 보드와 함께 지움)."""
     _make_user(client, "print_prod_links", "PRODUCTION")
     order = _seed_order()
     page = client.get(f"/erp/production/sheet/{order.id}").get_data(as_text=True)
-    side = client.get(f"/erp/production/tablet-sheet/{order.id}").get_data(as_text=True)
-    for html in (page, side):
-        assert f"/erp/production/print/{order.id}" in html and ">인쇄</a>" in html
+    assert f"/erp/production/print/{order.id}" in page and ">인쇄</a>" in page
 
 
 def test_인쇄_템플릿은_인라인_style_script_없음() -> None:

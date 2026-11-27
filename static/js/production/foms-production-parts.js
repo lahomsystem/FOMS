@@ -82,12 +82,12 @@
   }
 
   // ── 카드 · 칸 숫자 고치기(그 자리에서) ──
-  // unseen = [남은 N장 모두 기본] 숫자(막힌 안 본 장은 뺀다 — 창 목록 bulkCards 와 같은 기준), look = '안 본 도면 N장' 글(모두)
+  // unseen = [남은 N장 모두 기본] 숫자(막힌 안 본 장은 뺀다 — 창 목록 bulkCards 와 같은 기준), look = '안 본 도면 N장' 글(같은 기준, 11-26)
   function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block'); }
   function membership(card) {
     var st = attr(card, 'data-state');
     return { need: attr(card, 'data-in-need') === '1' ? 1 : 0, done: attr(card, 'data-in-done') === '1' ? 1 : 0,
-      unseen: bulkable(card) ? 1 : 0, look: st === 'none' ? 1 : 0 };
+      unseen: bulkable(card) ? 1 : 0, look: bulkable(card) ? 1 : 0 };
   }
   function bumpCounts(pane, before, after) {
     ['need', 'done', 'unseen'].forEach(function (k) {
@@ -109,19 +109,15 @@
     var bulk = pane.querySelector('[data-pp-act="bulk"]');
     if (bulk) { bulk.hidden = !left; }
   }
-  // 카드 단추 칸 — 템플릿(home_parts.html pp_act)과 같은 규칙. 새 칸(손 체크 · 막힘 · 내 작업 한 층)은 claim, 작업 필요 · 완료 칸은
-  // crew(여러 명 — 이름 줄은 서버 글)가 먼저 그린다. 여기는 안 봄 칸([기본][작업 시작] — 네 파트 같은 글, multi-holder §8-2 1)만.
+  // 카드 단추 칸 — 템플릿(home_parts.html pp_act)과 같은 규칙. 새 칸(손 체크 · 막힘 · 내 작업 한 층)은 claim, 안 봄 · 작업 필요 · 완료 칸은
+  // crew(여러 명 — 이름 줄은 서버 글, 안 봄 = [기본][작업 시작] + 반장 · 관리자 [<파트> 완료] 11-27)가 그린다.
   function renderAct(card) {
     var box = card.querySelector('[data-pp-actbox]');
-    var opts = { writable: WRITABLE, mine: MINE, label: cfg.label || '' };
+    var opts = { writable: WRITABLE, mine: MINE, label: cfg.label || '', cut: IS_CUT };
     toArr(box.children).forEach(function (n) { if (!n.classList.contains('pp-why')) { box.removeChild(n); } });
     if (claim.renderTag) { claim.renderTag(card, WRITABLE); }
     if (claim.special && claim.special(card, box, opts)) { return; }
-    if (crew.render && crew.render(card, box, opts)) { return; }
-    if (attr(card, 'data-state') !== 'none' || !WRITABLE) { return; }
-    var two = IS_CUT ? el('div', 'pp-two') : box;
-    if (IS_CUT) { two.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', '기본', 'basic')); box.appendChild(two); }
-    two.appendChild(el('button', 'foms-prod-home__btn ' + (IS_CUT ? 'foms-prod-home__btn--pri' : 'pp-act'), '작업 시작', 'take'));
+    if (crew.render) { crew.render(card, box, opts); }
   }
   // 받은 표시 → 카드. 내 몫(작업 중 · 완료)은 서버가 준 mark.crew.me — 내 몫만 완료("재단 1/2 완료")는 파트 계정 '완료' 칸(Q12)
   function applyMark(card, mark) {
@@ -159,7 +155,7 @@
   }
   // 주문 막힘 칸(서버 sync_blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 글은 서버 글) → 카드 단추 칸 · 칸 숫자. 받아 오기 · 제작 완료 응답(C06 · C09)
   var BLOCK_ATTR = { kind: 'data-pp-block', text: 'data-pp-block-text', why: 'data-pp-block-why', code: 'data-pp-block-code' };
-  var SAID = { '같이 작업': '같이 작업 시작했어요', '기본으로': '기본으로 했어요', '되돌리기': '되돌렸어요', '담당 바꾸기': '담당 바꿨어요' };
+  var SAID = { '같이 작업': '같이 작업 시작했어요', '기본으로': '기본으로 했어요', '담당 바꾸기': '담당 바꿨어요' };
   var STOP_CODES = ['HOLD_ACTIVE', 'DRAWING_REVISING', 'NOT_IN_PRODUCTION']; // 이 거절이면 그 주문 카드를 바로 다시 받는다
   function setBlock(card, b) {
     var keys = Object.keys(BLOCK_ATTR);
@@ -212,10 +208,11 @@
     if (skipped.length > 1) { text += (text ? ' · ' : '') + skipped.length + '장은 그사이 다른 사람이 바꿨어요'; }
     return { text: text, bad: skipped.length > 0 };
   }
-  function started(data) { // 첫 카드 = 제작 시작(§4-8) — 그 집 카드의 첫 카드 표지를 뗀다
+  function started(data) { // 첫 카드 = 제작 시작(§4-8) — 그 집 카드의 첫 카드 표지를 뗀다. 표시가 모두 미정이 돼 그 시작이 되돌려지면(11-27) 다시 붙인다
     var ids = Array.isArray(data.run_started) ? data.run_started : (data.run_started && data.mark ? [data.mark.order_id] : []);
     ids.forEach(function (id) { findCard(id).forEach(function (c) { c.removeAttribute('data-pp-first'); }); });
-    return ids.length ? ' · 제작 시작도 같이 됐어요' : '';
+    if (data.run_cancelled && data.mark) { findCard(data.mark.order_id).forEach(function (c) { c.setAttribute('data-pp-first', '1'); }); }
+    return ids.length ? ' · 제작 시작도 같이 됐어요' : data.run_cancelled ? ' · 제작 시작도 같이 취소됐어요' : '';
   }
   function handle(p, result) {
     var body = result.data || {};
@@ -228,6 +225,7 @@
       if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
       done.text += asks ? '' : started(data);
+      document.dispatchEvent(new CustomEvent('foms:prod-parts-written', { detail: { action: p.action, data: data } })); // 위 탭 숫자 · 탭 사본(parts-fresh)
       setBusy(false);
       var fac = data.factory_ready;
       // 검수 마지막 장 → 같은 창에서 "제작 완료할까요?"(섞인 주문은 공장마다). 시작 취소로 남은 사람이 모두 완료돼 저절로 완료된

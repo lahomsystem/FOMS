@@ -92,11 +92,12 @@ def crew_view(holders: Optional[list[dict[str, Any]]], viewer_id: Any, viewer_na
 
     Returns:
         ``{n, d, me, who, head, left, others_left, done, with, tag, join, who_subj, done_subj, others_left_subj, at, day, sig,
-        people}`` — ``me`` = 내 몫(none · held · done), ``who`` = 모두, ``head`` = 칸 글("이시영 · 김재단 외 1 작업 중" — "외 n" ·
+        once, people}`` — ``me`` = 내 몫(none · held · done), ``who`` = 모두, ``head`` = 칸 글("이시영 · 김재단 외 1 작업 중" — "외 n" ·
         "작업 중"은 안 쪼개짐), ``left`` = 아직인 사람, ``others_left`` = 나 빼고 아직인 사람, ``done`` = 완료한 사람(대신 완료면 반장),
         ``with`` = 나 빼고 모두, ``tag`` = 내 작업 꼬리 문장("이시영과 같이" · "이시영 · 최재단 외 1명과 같이" · 남이 완료했으면
         "이시영 완료"), ``join`` = 나를 더한 줄, ``*_subj`` = 문장 속 이름 줄 + 이/가("이시영 · 김재단 외 2명이" — 창 안내 글),
-        ``at`` · ``day`` = 첫 사람이 시작한 때, ``sig`` = 받아 오기 견줌 표지("31:1,44:0"), ``people`` = 사람마다(:func:`_person`).
+        ``at`` · ``day`` = 첫 사람이 시작한 때, ``sig`` = 받아 오기 견줌 표지("31:1,44:0"), ``once`` = 바로 완료한 도면(한 사람이
+        시작과 완료를 한 요청에서 — [완료 취소] 한 번에 미정, 11-27), ``people`` = 사람마다(:func:`_person`).
     """
     rows = [h for h in (holders or []) if isinstance(h, dict)]
     viewer_name = (viewer_name or "").strip()
@@ -119,6 +120,7 @@ def crew_view(holders: Optional[list[dict[str, Any]]], viewer_id: Any, viewer_na
         "join": _line([*_names(rows), viewer_name]) if me == mc.SHARE_NONE and viewer_name else who,
         "at": first.get("picked_at"), "day": first.get("picked_day"),
         "sig": ",".join(f"{h.get('user_id')}:{1 if h.get('done') else 0}" for h in rows),
+        "once": len(rows) == 1 and bool(rows[0].get("once")),  # 바로 완료한 도면(mark_crew.done_at_once) — [완료 취소] 창 줄 "→ 미정"
         "people": [_person(rows, h, viewer_id, viewer_name) for h in rows],
     }
 

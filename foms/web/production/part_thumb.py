@@ -11,7 +11,7 @@
   로컬 저장소는 비공개 저장을 받지 않으므로(``put_private_bytes``) 매번 만든다(개발용).
 * 응답 ``Cache-Control: private, max-age=2592000, immutable`` — 같은 기기는 장마다 처음 한 번만 서버에 온다.
 
-``dashboard.py`` 와 같은 Blueprint(``erp_production_page``)에 라우트만 더한다 — ``foms/web/production/__init__.py`` 가 import.
+``blueprint.py`` 의 Blueprint(``erp_production_page``)에 라우트만 더한다 — ``foms/web/production/__init__.py`` 가 import.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from foms.services.production.home_access import can_view_production_home
 from foms.services.production.part_board import is_part_thumb_image
 from foms.services.storage import get_storage
 from foms.web.auth import login_required
-from foms.web.production.dashboard import erp_production_page_bp
+from foms.web.production.blueprint import erp_production_page_bp
 from models import Order
 
 #: 작은 그림 긴 변(px) · JPEG 품질 · 저장 이름 접두.
@@ -97,7 +97,7 @@ def _thumb_bytes(key: str) -> Optional[bytes]:
 @erp_production_page_bp.route('/production/parts/thumb/<int:order_id>')
 @login_required
 def erp_production_part_thumb(order_id: int):
-    """도면 카드 작은 그림(긴 변 720px JPEG). 볼 수 없는 사람 403, 지금 확정 도면이 아니거나 그림이 아니면 404."""
+    """도면 카드 작은 그림(긴 변 720px JPEG). 생산 화면을 볼 수 없는 사람 403, 읽을 수 없는 주문 · 지금 확정 도면이 아닌 key · 그림이 아니면 404."""
     user = getattr(g, 'current_user', None)
     if not can_view_production_home(user):
         abort(403)
@@ -106,10 +106,9 @@ def erp_production_part_thumb(order_id: int):
         .filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True))
         .first()
     )
-    if order is None:
+    # 읽을 수 없는 주문(협력사 밖 · 켜진 프리랜서의 남의 주문)은 없는 주문과 같은 404 — 있는지 알리지 않는다(작업 시트 · 인쇄와 같은 답).
+    if order is None or not user_can_read_order(user, order):
         abort(404)
-    if not user_can_read_order(user, order):
-        abort(403)
     key = (request.args.get('key') or '').strip()
     entry = _current_entry(order, key) if key else None
     if entry is None or not is_part_thumb_image(entry):

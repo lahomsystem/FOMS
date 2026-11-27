@@ -103,7 +103,7 @@ def test_pc_window_rows_are_one_piece_per_person(client, cohort) -> None:
     _login(client, boss)
     d = _sheet(client, oid)
     rows = d["rows"]
-    assert [r["word"] for r in rows] == ["재단 완료", "재단 1/2 완료", "작업 필요", "안 봄", "재단 완료"]
+    assert [r["word"] for r in rows] == ["재단 완료", "재단 1/2 완료", "작업 중", "미정", "재단 완료"]
     assert [r["note"] for r in rows] == [None, "김재단 작업 중", None, None, None]
     assert [r["act"] for r in rows] == ["uncheck", "check", "check", "check", "uncheck"]
     assert _like(rows[0]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단", "완료 김재단"])  # 모두 보임 — 사람마다
@@ -114,9 +114,10 @@ def test_pc_window_rows_are_one_piece_per_person(client, cohort) -> None:
     assert [r["undo_releases"] for r in rows] == [False, False, False, False, True]  # 나 혼자 시작 + 완료한 장만
     for r in rows:  # 한 명짜리 옛 칸(담당 · 완료 · 본 담당)은 PC 창 자료에서 뺐다 — 줄 글은 lines 하나
         assert not {"holder", "done", "seen_by"} & set(r), r
-    # 작업 시트 공정 칸 옆 글은 도면 수 그대로 — "1/2 완료"는 도면 한 장 자리에만(Q11)
+    # 작업 시트 공정 줄은 도면 수 그대로 — "1/2 완료"는 도면 한 장 자리에만(Q11). 2026-11-27 "도면이 주, 작업 시트는 보기": 칸 옆 글
+    # "도면 2/5 · 3장 미완료" 대신 보기 줄 "재단 2/5 완료 · …"(test_production_steps_view_only_1127)
     sheet = client.get(f"/erp/production/sheet/{oid}").get_data(as_text=True)
-    assert "도면 2/5 · 3장 미완료" in sheet and "1/2 완료" not in sheet
+    assert '<span>재단</span> <small class="fpp-note is-run">2/5 완료 · ' in sheet and "1/2 완료" not in sheet
 
 
 def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohort, tmp_path) -> None:
@@ -149,9 +150,10 @@ def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohor
     assert [p["body"]["action"] for p in out["undoPosts"]] == ["undo"]  # 같이 작업한 장은 완료 취소만
     assert [(p["body"]["action"], p["body"]["seen"], p["body"].get("seen_by")) for p in out["minePosts"]] == [
         ("undo", "done", None), ("release", "need", me)]  # 나 혼자 시작 + 완료한 장 = 시작 취소까지
-    assert out["allTools"] == ["모두 완료 처리"] and out["confirmOpen"] is True and out["confirmClosed"] is True
-    assert (out["confirmTitle"], out["confirmYes"]) == ("조립 완료할까요?", "조립 완료")  # 확인 창 글 그대로
-    assert out["postsAfterCancel"] == 4  # [취소] = 공정 칸 쓰기 0
+    # 도면 5장 주문 = 아무도 안 시작한 파트도 [모두 완료 처리] 없음 · 확인 창 0 · 공정 칸 쓰기 0(사장님 2026-11-27 "도면 두 장 이상이면 막기" —
+    # 1장 주문의 [모두 완료 처리] 확인 창은 test_production_per_sheet_only_1127)
+    assert out["allTools"] == [] and out["confirmOpen"] is False
+    assert out["postsAfterCancel"] == 4
     assert out["handTools"] == ["모두 완료 취소"] and {r["word"] for r in out["handRows"]} == {"엣지 완료 · 박반장"}
     # 바뀐 기록 낱말(§8-2 24 · §8-1) — 도면마다 한 줄
     log = out["log"]
@@ -169,11 +171,11 @@ def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohor
     assert after[1]["word"] == "재단 완료" and after[1]["note"] is None
     assert _like(after[1]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단", "완료 박반장"])
     assert not any(line.startswith("작업 시작 박반장") for r in after[:4] for line in r["lines"])
-    # 반장 [완료 취소] 둘(JS 몸 그대로) — 나 혼자 한 장은 시작 취소까지 이어 "안 봄 · 담당 미정"
+    # 반장 [완료 취소] 둘(JS 몸 그대로) — 나 혼자 한 장은 시작 취소까지 이어 "미정 · 담당 미정"
     for body in [p["body"] for p in out["minePosts"]]:
         assert client.post(ONE, json=body).status_code == 200, body
     mine = _sheet(client, oid)["rows"][4]
-    assert (mine["word"], mine["lines"]) == ("안 봄", ["담당 미정"])
+    assert (mine["word"], mine["lines"]) == ("미정", ["담당 미정"])
     # 대신 완료 기록 줄 — "완료"(check) 낱말
     items = client.get(HISTORY, query_string={"order_id": oid, "part": "cut"}).get_json()["data"]["items"]
     again = _node(page, {"log_only": [i for i in items if i["drawing_key"] == k[1]], "keys": sheets["cut"]["keys"]})
@@ -244,13 +246,17 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
     from tests.domains.test_production_my_steps_confirm import PC as STEPS_PC, WORDS, _node as steps_node, _seed as steps_seed
     from tests.support.production_home_step_panel_seed import SHELL, get_html, login as steps_login, pane_html, set_cookies
 
+    # 2026-11-27 "도면이 주, 작업 시트는 보기": 도면 있는 줄은 [재단 완료]가 없다 — [재단 완료]가 남는 도면 0장 줄 둘로 잰다
+    from tests.support.production_home_step_panel_seed import add_order
+
     drawn, bare, _revising, _held = steps_seed()
+    add_order("가짜빈집둘", 5, pngs=0)  # 판 아래 '끝내면 다음은' 손님(막히지 않은 다음 줄)
     steps_login(client)
     set_cookies(client, TABLET)
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
-    assert "끝내면 다음은 <b>" in pane_html(page, drawn.id)  # 판 아래 다음 손님 글 그대로
-    steps_node(tmp_path, page, {"mode": "panel", "first": drawn.id, "sheets": 3, "next": bare.id, **WORDS,
-                                "done_status": f"{drawn.customer_name} 재단 완료"})
+    assert "끝내면 다음은 <b>가짜빈집둘</b>" in pane_html(page, bare.id)  # 판 아래 다음 손님 글 그대로
+    steps_node(tmp_path, page, {"mode": "panel", "first": bare.id, "sheets": 0, **WORDS,
+                                "done_status": f"{bare.customer_name} 재단 완료"})
     set_cookies(client, STEPS_PC)
     client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")
     page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
@@ -260,7 +266,7 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
 
 def test_finished_rows_say_inspect_done_and_my_steps_button_says_done(client, cohort) -> None:
     full = _order("다솜", 2, done=("cut", "edge", "assemble", "inspect"))
-    cutting = _order("라온", 2)
+    cutting = _order("라온", 0)  # 도면 0장(도면 있는 줄은 [재단 완료] 자리가 막힌다 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
     fid, cid, day = full.id, cutting.id, full.erp_construction_date
     boss = make_user("박반장", lead=True)
     _login(client, boss)
@@ -268,7 +274,7 @@ def test_finished_rows_say_inspect_done_and_my_steps_button_says_done(client, co
     row = pc.split(f'data-foms-home-dayrow="{fid}"', 1)[1].split('<div class="fpc-r', 1)[0]
     assert re.search(r'<span class="fpc-st is-f"[^>]*><b>검수 완료</b>', row)  # 완료 색 + 새 글
     other = pc.split(f'data-foms-home-dayrow="{cid}"', 1)[1].split('<div class="fpc-r', 1)[0]
-    assert re.search(r'<span class="fpc-st is-p"[^>]*><b>재단 중</b>', other)  # 대조
+    assert re.search(r'<span class="fpc-st is-p"[^>]*><b>재단 작업 중</b>', other)  # 대조
     _login(client, boss, TABLET)
     tab = client.get(f"{HOME}?day={day}").get_data(as_text=True)
     trow = tab.split(f'data-foms-home-dayrow="{fid}"', 1)[0].rsplit("<a ", 1)[1]

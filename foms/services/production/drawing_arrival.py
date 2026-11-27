@@ -36,7 +36,7 @@ BLOCKER_LABELS: dict[str, str] = {
     'sales_check': '영업 확인 기다림',
     'customer': '고객 컨펌 기다림',
     'no_owner': '도면 담당 없음',
-    'fixing': '도면 고치는 중',
+    'fixing': '도면 수정 중',
     'drawing': '도면 그리는 중',
 }
 _WEEKDAY_KO = '월화수목금토일'
@@ -243,8 +243,9 @@ def arrival_line(rows: list[dict[str, Any]], today: datetime.date) -> dict[str, 
         today: KST 오늘.
 
     Returns:
-        ``{'x', 'n', 'state', 'strip', 'pane'}`` — ``strip`` = '도면 5/6 마감 지남' · '도면 3/7 마감 내일' · '도면 5/5 다 내려옴' ·
-        '도면 0/4', ``pane`` = '도면 5/6 내려옴'. 여러 날을 담은 줄은 주문마다 상태를 매겨 가장 급한 것(§4-3).
+        ``{'x', 'n', 'state', 'strip', 'group', 'pane'}`` — ``strip``(왼쪽 띠) = '도면 5/6' · '도면 5/5 다 내려옴'('마감 …' 글 없이
+        숫자 + 색만 — 사장님 2026-11-26 "마감 … 글 모두 빼기"), ``group``(찾기 묶음 머리) = '도면 5/6 마감 지남' · '도면 3/7 마감 내일' ·
+        '도면 5/5 다 내려옴' · '도면 0/4', ``pane`` = '도면 5/6 내려옴'. 여러 날을 담은 줄은 주문마다 상태를 매겨 가장 급한 것(§4-3).
     """
     total = len(rows)
     if not total:
@@ -259,8 +260,9 @@ def arrival_line(rows: list[dict[str, Any]], today: datetime.date) -> dict[str, 
         if state == SOON:
             nearest = min(d for s, d in waiting if s == SOON and d is not None)
             suffix = f" 마감 {soon_word(nearest, today)}"
-    return {'x': arrived, 'n': total, 'state': state,
-            'strip': f"도면 {arrived}/{total}{suffix}", 'pane': f"도면 {arrived}/{total} 내려옴"}
+    count = f"도면 {arrived}/{total}"
+    return {'x': arrived, 'n': total, 'state': state, 'strip': count + (suffix if state == ALL_IN else ''),
+            'group': count + suffix, 'pane': f"{count} 내려옴"}
 
 
 def wait_head_for_day(day: datetime.date, today: datetime.date) -> dict[str, Any]:

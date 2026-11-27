@@ -1,6 +1,7 @@
 /* 생산 파트 도면 카드 — 보는 쪽(쓰기 없음). 설계서 §15.6 칸 단추 · '크게 보기'(시안 f63), P15-5.
  * 읽기 전용 직원도 싣는다(D55): 칸 단추 셋(보이기/숨기기만, 새 요청 없음) · 크게 보기(원본 한 장 · 같은 주문 장끼리 ◀ ▶ ·
- * 그림을 한 번 더 누르면 GlobalImageViewer 손가락 확대) · 그림을 못 받으면(원본 없음 404) 깨진 그림 대신 글.
+ * 그 자리에서 손가락 확대 · 이동 — foms-production-parts-zoom.js, 사장님 2026-11-27 두 번째 확대 화면 없앰) ·
+ * 그림을 못 받으면(원본 없음 404) 깨진 그림 대신 글.
  * 날 고르기 · 날 주소('도면 카드' 탭 포함)는 foms-production-home-days.js — 받아 끼운 장도 화면(root) 위임이라 그대로 묶여 있다.
  * 크게 보기의 큰 단추는 카드 단추를 대신 누른다(같은 확인 창 — 쓰기는 foms-production-parts.js 몫, 이 파일엔 fetch 없음).
  * 설정은 data-foms-parts-config(safeJsonParse). 셸 조각 교체로 다시 실행된다(11-14): 화면(root) 리스너는 화면마다 한 번
@@ -141,12 +142,18 @@
     });
     fillActions(card);
   }
+  // 그림 칸 확대(zoom 파일) — 장을 열 · 넘길 · 닫을 때 1배(reset), 같은 장을 다시 그린 뒤 경계만 다시(refit)
+  function zoomCall(name) {
+    var z = window.FomsPartsZoom;
+    if (z && typeof z[name] === 'function') { z[name](); }
+  }
   function openViewer(card, opener) {
     if (!viewer) { return; }
     state.list = orderCards(card);
     state.index = Math.max(0, state.list.indexOf(card));
     state.opener = opener || null;
     viewer.hidden = false;
+    zoomCall('reset');
     render();
     var close = viewer.querySelector('[data-pp-v-close]');
     if (close) { close.focus(); }
@@ -154,23 +161,15 @@
   function closeViewer() {
     if (!viewer || viewer.hidden) { return; }
     viewer.hidden = true;
+    zoomCall('reset');
     vImg.removeAttribute('src');
     if (state.opener && typeof state.opener.focus === 'function') { state.opener.focus(); }
   }
-  function zoom() {
+  // 그림 칸 한 번 누름: 그림 장은 아무 것도 열지 않는다(확대는 그 자리 손짓). 그림이 아닌 파일 장만 새 창으로 연다(있던 길).
+  function openFile() {
     var card = state.list[state.index];
-    if (!card) { return; }
-    if (!card.querySelector('[data-pp-open]')) {
-      window.open(card.getAttribute('data-view-url') || '', '_blank', 'noopener');
-      return;
-    }
-    var files = state.list.filter(function (c) { return !!c.querySelector('[data-pp-open]'); });
-    var gv = window.GlobalImageViewer;
-    if (!gv || typeof gv.open !== 'function') { return; }
-    gv.open(files.map(function (c) {
-      return { key: c.getAttribute('data-key'), view_url: c.getAttribute('data-view-url'),
-        filename: cardText(c, '.fph-dr__nm b') + ' ' + cardText(c, '.fph-dr__nm small') + ' ' + c.getAttribute('data-no') + '/' + c.getAttribute('data-of') };
-    }), Math.max(0, files.indexOf(card)));
+    if (!card || card.querySelector('[data-pp-open]')) { return; }
+    window.open(card.getAttribute('data-view-url') || '', '_blank', 'noopener');
   }
   function proxy(btn) {
     var card = state.list[state.index];
@@ -187,9 +186,9 @@
     if (open) { openViewer(open.closest('[data-pp-card]'), open); return; }
     if (!viewer || viewer.hidden || !viewer.contains(t)) { return; }
     var step = t.closest('[data-pp-v-step]');
-    if (step && !step.disabled) { state.index += Number(step.getAttribute('data-pp-v-step')); render(); return; }
+    if (step && !step.disabled) { state.index += Number(step.getAttribute('data-pp-v-step')); zoomCall('reset'); render(); return; }
     if (t.closest('[data-pp-v-close]')) { closeViewer(); return; }
-    if (t.closest('[data-pp-v-zoom]')) { zoom(); return; }
+    if (t.closest('[data-pp-v-zoom]')) { openFile(); return; }
     var px = t.closest('[data-pp-proxy]');
     if (px) { proxy(px); }
   });
@@ -207,7 +206,7 @@
     if (img.complete && img.naturalWidth === 0) { markBroken(img); }
   });
   // 쓰기 쪽이 카드를 고치면 열린 크게 보기도 같은 상태로
-  function onCardUpdated() { if (viewer && !viewer.hidden) { render(); } }
+  function onCardUpdated() { if (viewer && !viewer.hidden) { render(); zoomCall('refit'); } } // 확대는 그대로(30초마다 1배로 안 돌아감)
 
   window.FomsPartsBoard = { cfg: cfg, root: root, applyView: applyView, paneOf: paneOf, cardsOf: cardsOf, closeViewer: closeViewer,
     onEscape: onEscape, onCardUpdated: onCardUpdated };

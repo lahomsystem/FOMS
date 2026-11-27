@@ -58,12 +58,6 @@ CROSS_SURFACE_CASES = (
         id="construction",
     ),
     pytest.param(
-        "/erp/production/dashboard",
-        ".foms-mobile-v2-dashboard.erp-production-mobile-v2",
-        (".foms-shell-fab",),
-        id="production",
-    ),
-    pytest.param(
         "/erp/shipment",
         ".foms-mobile-v2-dashboard.erp-shipment-mobile-v2",
         (".foms-shell-fab",),

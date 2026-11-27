@@ -40,7 +40,7 @@ CHECK = ROOT / "tests/support/production_multi_holder_node_checks.js"
 CUT_ADMIN = HOME_NONE + "&tab=parts&part=cut"
 STALE = "그사이 다른 사람이 바꿨어요. [다시 받기]를 눌러 주세요."
 UNDO_ROW = ('<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>재단 1/2 완료</span><button type="button" '
-            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>')
+            'class="foms-prod-home__btn pp-undo" data-pp-act="undo">재단 완료 취소</button></div>')
 
 
 @pytest.fixture
@@ -100,7 +100,7 @@ def test_lead_proxy_finish_after_joining_finishes_everyone_left_including_own(cl
     assert (_last(order)["override"], _last(order)["holder_name"]) == (True, "김재단")  # '대신' 대상 = 대신 완료된 남만
     item = _history_last(client, order)  # 바뀐 기록 "박반장 (김재단 대신) 완료"(check = '완료' 낱말)
     assert (item["kind"], item["by_name"], item["holder_name"]) == ("check", "박반장", "김재단")
-    assert "생산 파트 체크: 재단 재단 1/3 완료 → 재단 완료 (대신 처리) · 공정 재단 켬" in _audit(order)
+    assert "생산 파트 작업: 재단 재단 1/3 완료 → 재단 완료 (대신 처리) · 공정 재단 켬" in _audit(order)
 
 
 def test_lead_own_finish_is_own_share_then_proxy_finish_still_works(client):
@@ -181,14 +181,14 @@ def test_lead_half_done_card_has_own_undo_row_and_js_sends_check_and_self_target
     assert res["diffs"] == [], res["diffs"]  # 서버 칸 = JS 가 다시 그린 칸(새 줄 · check 단추 포함)
     one = _node(page, {"posts": [undone], "steps": [{"do": "click", "key": order.keys[0], "act": "undo"}, {"do": "run"},
                                                     {"do": "card", "key": order.keys[0]}]})
-    assert (one["out"][0]["modal"]["title"], one["out"][0]["modal"]["line"]) == ("작업 필요로 되돌릴까요?", "재단 1/2 완료 → 작업 필요 · 박반장")
+    assert (one["out"][0]["modal"]["title"], one["out"][0]["modal"]["line"]) == ("재단 완료를 취소할까요?", "재단 1/2 완료 → 작업 중 · 박반장")
     assert [c["body"] for c in one["calls"]] == [undo]  # 대상 = 본인(자기 몫만 — 판결 3)
     assert one["out"][2]["card"]["picked_me"] == "1" and one["out"][2]["card"]["in_done"] == "0"
     two = _node(page, {"posts": [finished], "steps": [
         {"do": "click", "key": order.keys[0], "act": "check"}, {"do": "close"},
         {"do": "click", "key": order.keys[0], "act": "held"}, {"do": "choice", "text": "대신 완료"}, {"do": "card", "key": order.keys[0]}]})
     w = two["out"][0]["modal"]  # 반장 칸 [재단 완료] = 같은 확인 창 글(지금 글)
-    assert (w["title"], w["line"], w["run"]["text"]) == ("재단 완료로 바꿀까요?", "작업 필요 → 재단 완료 · 박반장", "재단 완료")
+    assert (w["title"], w["line"], w["run"]["text"]) == ("재단 완료로 바꿀까요?", "작업 중 → 재단 완료 · 박반장", "재단 완료")
     assert [c["body"] for c in two["calls"]] == [check]  # [대신 완료] = check 한 요청
     assert two["out"][3]["status"] == "대신 완료했어요" and two["out"][4]["card"]["state"] == "done"
 
@@ -233,7 +233,7 @@ def test_lead_undo_without_target_reverts_everyone_including_own_share(client):
     assert (back["mark"]["state"], back["mark"]["done_n"], back["mark"]["holder_n"]) == ("need", 0, 2)
     assert _crew(order) == [("이시영", False, None), ("박반장", False, None)]
     assert (_last(order)["override"], _last(order)["holder_name"]) == (True, "이시영")  # 반장 자신은 '대신' 대상이 아니다
-    assert "생산 파트 체크: 재단 재단 완료 → 작업 필요 (대신 처리)" in _audit(order)
+    assert "생산 파트 작업: 재단 재단 완료 → 작업 필요 (대신 처리)" in _audit(order)
     _ok(client, lee, order, "done", "need", seen_me="held")
     _ok(client, boss, order, "done", "need", seen_me="held")
     mine = _ok(client, boss, order, "undo", "done", seen_me="done", target_user_id=boss.id)  # 자기 몫만 = 대상 본인
@@ -287,15 +287,15 @@ def test_changed_drawing_cell_says_n_others_without_myeong_and_names_from_the_li
     t = mc.to_iso(datetime.datetime(2026, 11, 25, 0, 0))
     three = [mc.member(1, "이시영", t), mc.member(2, "김재단", t), mc.member(3, "박재단", t)]
     info = replaced_info(1, {"key": "new", "sheet_id": "sh"}, {"new"}, {(1, "sh"): [_old_row(5, three)]}, "cut")
-    assert info["label"] == "바뀐 도면 · 전 판 재단 중(이시영 · 김재단 외 1)"  # 칸 글 — "외 1명" 아님
+    assert info["label"] == "바뀐 도면 · 전 도면 재단 중(이시영 · 김재단 외 1)"  # 칸 글 — "외 1명" 아님
     assert info["prev"]["cut"] == {"state": "need", "name": "이시영 · 김재단 외 1"}  # 첫 사람 한 명이 아니라 목록
     two_done = [mc.member(1, "이시영", t, done_at=t, done_uid=1, done_name="이시영"),
                 mc.member(2, "김재단", t, done_at=t, done_uid=9, done_name="박반장")]
     done = replaced_info(1, {"key": "new", "sheet_id": "sh"}, {"new"}, {(1, "sh"): [_old_row(6, two_done)]}, "cut")
-    assert done["label"] == "바뀐 도면 · 전 판 재단 완료(이시영 · 박반장)" and done["prev"]["cut"]["name"] == "이시영 · 박반장"
+    assert done["label"] == "바뀐 도면 · 전 도면 재단 완료(이시영 · 박반장)" and done["prev"]["cut"]["name"] == "이시영 · 박반장"
     one = [mc.member(1, "김재단", t)]  # 대조 — 한 명짜리 줄은 지금 글 그대로
     single = replaced_info(1, {"key": "new", "sheet_id": "sh"}, {"new"}, {(1, "sh"): [_old_row(7, one)]}, "cut")
-    assert single["label"] == "바뀐 도면 · 전 판 재단 중(김재단)" and single["prev"]["cut"]["name"] == "김재단"
+    assert single["label"] == "바뀐 도면 · 전 도면 재단 중(김재단)" and single["prev"]["cut"]["name"] == "김재단"
 
 
 # --------------------------------------------------------------------------- #

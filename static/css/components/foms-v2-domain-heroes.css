@@ -1,7 +1,7 @@
 /* =========================================================================
    FOMS v2 모바일 — 도메인 히어로/스탯 스트립 (v3 페르소나 홈의 v2 이식본)
    소비처(각 도메인 모바일 v2 큐 상단):
-     A3) 생산  templates/production/partials/mobile_queue.html   .foms-v2dh-strip
+     (A3 생산 큐 .foms-v2dh-strip 은 옛 생산 보드와 함께 2026-11-27 지움 — 스트립 규칙은 쓰는 곳 없음)
      A5) 실측  templates/measurement/partials/mobile_list.html   .foms-v2dh-hero (오늘 동선)
      A6) 시공  templates/construction/partials/mobile_queue.html .foms-v2dh-hero (오늘 배차)
    스테이지 색은 아래 --foms-v2dh-st-* 토큰으로 자체 정의(옛 v3 셸 라이트 값과 동일,

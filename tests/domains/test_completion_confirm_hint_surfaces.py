@@ -173,41 +173,12 @@ def _seed_production() -> tuple[int, int]:
     return two, one
 
 
-def test_production_pc_table_row_carries_split_note(client, monkeypatch):
-    """PC 생산 대시보드 표 — 줄 뿌리에 [제작 완료] 글."""
-    _login(client, monkeypatch, v2=False)
-    two, one = _seed_production()
-    _hints(client, **PC)
-    html = _get(client, "/erp/production/dashboard")
-    _assert_hint(html, marker='class="erp-main-row"', attr=SPLIT_ATTR, text=SPLIT_TEXT, with_hint=two, control=one)
-    assert REMAIN_ATTR not in html                    # 제작 완료에는 "남은 시공" 글을 쓰지 않는다(늘 뜬다)
-
-
-def test_production_phone_card_carries_split_note(client, monkeypatch):
-    """휴대폰 생산 목록 카드 — 공용 카드 뿌리에 [제작 완료] 글."""
-    _login(client, monkeypatch, v2=True)
-    two, one = _seed_production()
-    _hints(client, **PHONE)
-    html = _get(client, "/erp/production/dashboard")
-    _assert_hint(html, marker="foms-queue-card-v2", attr=SPLIT_ATTR, text=SPLIT_TEXT, with_hint=two, control=one)
-
-
-def test_production_tablet_kanban_card_carries_split_note(client, monkeypatch):
-    """태블릿 생산 칸반 — 카드 뿌리에 [제작 완료] 글."""
-    _login(client, monkeypatch, v2=True)
-    two, one = _seed_production()
-    _hints(client, **TABLET)
-    html = _get(client, "/erp/production/dashboard")
-    _assert_hint(html, marker="foms-kanban-card", attr=SPLIT_ATTR, text=SPLIT_TEXT, with_hint=two, control=one)
-
-
 def test_production_side_sheet_and_sheet_page_carry_split_note(client, monkeypatch):
-    """생산 옆 시트 · 전체 화면 시트 — 시트 뿌리에 [제작 완료] 글(대조군 시트에는 없음)."""
+    """전체 화면 시트 — 시트 뿌리에 [제작 완료] 글(대조군 시트에는 없음). 옆 시트는 2026-11-27 옛 보드와 함께 지움."""
     _login(client, monkeypatch, v2=False)
     _hints(client, **TABLET)  # 전체 화면 시트의 [제작 완료]는 태블릿에서만(PC 보기 전용, 설계서 2026-11-21-production-pc-viewer §5)
     two, one = _seed_production()
-    for url, marker in (("/erp/production/tablet-sheet/{id}", 'class="foms-prod-sheet"'),
-                        ("/erp/production/sheet/{id}", "data-foms-prod-sheet-page")):
+    for url, marker in (("/erp/production/sheet/{id}", "data-foms-prod-sheet-page"),):
         with_hint = client.get(url.format(id=two)).get_data(as_text=True)
         control = client.get(url.format(id=one)).get_data(as_text=True)
         hit = _root_tags(with_hint, two, marker)
@@ -248,23 +219,23 @@ def test_construction_confirm_builders_read_the_row_note():
 
 
 @pytest.mark.parametrize("rel", [
-    "templates/production/partials/scripts.html",
-    "static/js/foms/tablet-production-kanban.js",
     "static/js/foms/tablet-domain-sheets.js",
 ])
 def test_production_confirm_builders_append_the_split_note(rel):
-    """[제작 완료] 확인 글 셋 모두 뿌리의 글을 찾아 뒤에 붙인다 — 기존 글은 그대로 둔다."""
+    """[제작 완료] 확인 글은 뿌리의 글을 찾아 뒤에 붙인다 — 기존 글은 그대로 둔다(옛 보드 둘은 2026-11-27 지움)."""
     src = _read(rel)
     assert '[data-production-split-note][data-order-id="' in src
     assert "function productionSplitNote(orderId)" in src
     assert "productionSplitNote(orderId)" in src.replace("function productionSplitNote(orderId)", "")
-    assert "제작을 완료하시겠습니까" in src
+    assert ("제작을 완료할까요?" if rel.endswith("tablet-domain-sheets.js") else "제작을 완료하시겠습니까") in src  # 11-26 큰 단추 글만 맞춤
 
 
 def test_production_split_note_is_only_added_to_complete_action():
-    """칸반의 [제작 시작] · [수정 제작] 확인 글에는 붙이지 않는다(대조군)."""
-    src = _read("static/js/foms/tablet-production-kanban.js")
-    assert 'spec.confirm + (action === "complete" ? productionSplitNote(orderId) : "")' in src
+    """[제작 시작] · [수정 제작] 확인 글에는 붙이지 않는다(대조군). 옛 칸반 JS 는 2026-11-27 지웠다 — 도메인 시트 JS 로 본다."""
+    src = _read("static/js/foms/tablet-domain-sheets.js")
+    assert src.replace("function productionSplitNote(orderId)", "").count("productionSplitNote(orderId)") == 1
+    complete = src[src.index("function productionComplete("):src.index("function openReasonSheetAndSubmit(")]
+    assert "productionSplitNote(orderId)" in complete
 
 
 def test_no_new_endpoint_or_js_file_for_the_hint():

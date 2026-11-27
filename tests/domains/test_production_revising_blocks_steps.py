@@ -58,12 +58,13 @@ def test_step_cell_gate_is_the_same_table_as_the_card_gate(sd, on, off_card):
     assert (gate.status, gate.code, gate.message) == (409, *on)
     assert order_gate(sd, "done").code == off_card  # 도면 한 장 누름과 같은 차례 · 같은 코드
     assert step_cell_gate(sd, [], "cut", False) is None and order_gate(sd, "undo") is None  # 끄기 · 완료 취소는 된다
-    assert step_cell_gate({**SD, "drawing_status": "CONFIRMED"}, [], "cut", True) is None  # 대조군: 새 도면이 옴
+    assert step_cell_gate({**SD, "drawing_status": "CONFIRMED"}, [], "cut", True).code == "STEP_PER_SHEET"  # 새 도면이 옴 → 다음 문(사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
+    assert step_cell_gate({**SD, "drawing_current_files": [], "drawing_status": "CONFIRMED"}, [], "cut", True) is None  # 대조군: 도면 0장
 
 
 @pytest.mark.parametrize("who", ["반장", "관리자"])
 def test_turning_on_while_revising_is_refused_without_write_and_turning_off_works(client, who):
-    oid = _order("가짜고침", 2, done=("edge",)).id
+    oid = _order("가짜고침", 0, done=("edge",)).id  # 도면 0장(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 도면이 있으면 고친 뒤에도 켜기는 409 STEP_PER_SHEET)
     _revise(oid)
     user = _user("반장") if who == "반장" else _user("정관리", role="ADMIN", team="CS")
     _login(client, user, {"foms_ptr": "coarse"})
@@ -79,7 +80,8 @@ def test_turning_on_while_revising_is_refused_without_write_and_turning_off_work
 
 
 def test_pc_sheet_hides_all_while_revising_but_keeps_turn_off():
-    assert build_part_sheet(SD | {"drawing_current_files": [{"key": "a"}, {"key": "b"}]}, [], "cut", hold_active=False)["all"] is True
+    # 옛 대조군 "도면 1장 = 참"은 거짓으로(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" — 도면 있는 주문의 창에는 [모두 완료 처리]가 늘 없다)
+    assert build_part_sheet(SD | {"drawing_current_files": [{"key": "a"}]}, [], "cut", hold_active=False)["all"] is False
     sd = {"drawing_current_files": [{"key": "a"}, {"key": "b"}], "drawing_status": "RETURNED",
           "production": {"steps": [{"key": "edge", "label": "엣지", "done": True, "at": None, "by_name": "박반장", "via": "sheet"}]}}
     assert build_part_sheet(sd, [], "cut", hold_active=False)["all"] is False
@@ -97,12 +99,12 @@ def test_pc_sheet_api_while_revising_has_no_all(client, cohort):
 def test_my_steps_rows_panel_and_pc_rows_show_the_reason_instead_of_finish(client, cohort):
     first = add_order("가짜고침줄", 1)
     _revise(first.id)
-    free = add_order("가짜다음줄", 2)
+    free = add_order("가짜다음줄", 2, pngs=0)  # 대조군 = 도면 0장(도면이 있으면 [끝] 자리가 막힘 칸 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
     login(client)  # 반장
     client.set_cookie("foms_ptr", "coarse", domain="localhost")
     phone = queue_html(get_html(client, HOME + "?tab=steps"), "cut")  # 판 없는 꼴(폰 · 세로)
     row = phone.split(f'data-foms-home-qrow="{first.id}"', 1)[1].split('data-foms-home-qrow="', 1)[0]
-    assert '<span class="fph-qr__hold">도면 고치는 중</span>' in row and "data-foms-home-step-done" not in row
+    assert '<span class="fph-qr__hold">도면 수정 중</span>' in row and "data-foms-home-step-done" not in row
     assert f'<div class="fph-qr is-revise" data-foms-home-qrow="{first.id}">' in phone  # 보류 줄처럼 흐림(2026-11-25 검토)
     assert f'is-revise" data-foms-home-qrow="{free.id}"' not in phone  # 대조군: 막히지 않은 줄은 흐리지 않는다
     assert f'data-foms-home-step-done data-order-id="{free.id}"' in phone  # 대조군: 막히지 않은 줄은 [끝]
@@ -111,7 +113,7 @@ def test_my_steps_rows_panel_and_pc_rows_show_the_reason_instead_of_finish(clien
     html = get_html(client, HOME + "?tab=steps")
     assert 'data-foms-step-pane="%d"' % free.id in html and 'data-foms-step-pane="%d"' % first.id not in html  # 처음 고른 줄 = 막히지 않은 줄
     pane = pane_html(get_html(client, f"{HOME}?tab=steps&order={first.id}"), first.id)
-    assert f'<div class="fph-sp__hold"><b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>도면 고치는 중</b><span>{REVISING_MESSAGE}</span></div>' in pane  # 보류와 같은 멈춤 그림
+    assert f'<div class="fph-sp__hold"><b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>도면 수정 중</b><span>{REVISING_MESSAGE}</span></div>' in pane  # 보류와 같은 멈춤 그림
     assert f'<section class="fph-sp is-revise" data-foms-step-pane="{first.id}"' in get_html(client, f"{HOME}?tab=steps&order={first.id}")
     assert "data-foms-step-finish" not in pane
     for key, value in {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}.items():
@@ -119,7 +121,7 @@ def test_my_steps_rows_panel_and_pc_rows_show_the_reason_instead_of_finish(clien
     client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")  # [고치기] 켬(2시간 안)
     pc = get_html(client, HOME + "?tab=steps")
     pc_row = pc.split(f'data-foms-home-qrow="{first.id}"', 1)[1].split('data-foms-home-qrow="', 1)[0]
-    assert '<span class="fpc-hold">도면 고치는 중</span>' in pc_row and "data-foms-home-step-done" not in pc_row
+    assert '<span class="fpc-hold">도면 수정 중</span>' in pc_row and "data-foms-home-step-done" not in pc_row
     assert re.search(rf'<div class="fpc-q[^"]* is-revise[^"]*" data-foms-home-qrow="{first.id}"', pc)  # PC 줄도 보류(is-hold)와 같은 자리에 표지
     assert f'data-foms-home-step-done data-order-id="{free.id}"' in pc  # 대조군: [고치기] 켬이라 막히지 않은 줄은 [끝]
 
@@ -152,5 +154,5 @@ def test_revising_rows_look_like_held_rows_and_do_not_come_next():
     rows = [row(1), row(2, hold_active=True), row(3, sd={"drawing_status": "RETURNED"})]
     queues = production_home_step_queues(rows)
     cut, edge = queues["queues"][0], queues["queues"][1]
-    assert [r["id"] for r in cut["rows"]] == [1, 2, 3] and cut["rows"][2]["revise_block"]["text"] == "도면 고치는 중"
+    assert [r["id"] for r in cut["rows"]] == [1, 2, 3] and cut["rows"][2]["revise_block"]["text"] == "도면 수정 중"
     assert [r["id"] for r in edge["incoming"]] == [1]  # 보류 · 도면 고치는 중은 멈춰 있어 다음 공정으로 오지 않는다

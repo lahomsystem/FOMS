@@ -1,8 +1,8 @@
-"""ERP 생산 대시보드 행 DTO·표시 헬퍼 (Batch 4 production 구조-추출, 동작 보존).
+"""ERP 생산 행 DTO·표시 헬퍼 — 주문 → 목록 행 dict 변환(첫 화면 ``build_production_home_enriched_rows``).
 
-`erp_production_dashboard()`의 현재 페이지 주문 → 목록 행 dict 변환과 프로세스맵 카드
-상단 단계 바 조립을 분리한다. 단계 라벨 매핑·퀘스트/영업 승인 판정·표시 필드·썸네일은
-원본과 1:1 동일(캐시 아님). 쿼리/카운트/KPI/pagination은 production_read_model이 담당한다.
+옛 생산 보드(2026-11-27 지움)에서 갈라 나온 모듈이다. 보드만 쓰던 프로세스맵 단계 바 조립은 보드와 함께 지웠다.
+``build_production_enriched_rows``(도면 단계 행을 빼는 갈래)는 지금 화면에서 부르지 않지만 시험이 행 변환 계약을
+이것으로 고정하므로 남긴다. 쿼리/카운트/KPI는 production_read_model이 담당한다.
 flat 모듈(subpackage __init__ 순환 회피).
 """
 from __future__ import annotations
@@ -27,13 +27,12 @@ from foms.services.orders.manager_names import manager_label_from_parties
 
 __all__ = [
     "build_production_enriched_rows",
-    "build_production_process_steps",
 ]
 
 
 # --- 태블릿 칸반 카드 표시용 경량 파생 ---------------------------------------
 # 기존 enriched 행에 카드 표시 필드만 추가한다(신규 쿼리 없음, 이미 로드된
-# structured_data에서 파생). 소비처 = production/partials/tablet_kanban_body.html.
+# structured_data에서 파생). 처음 소비처는 옛 태블릿 칸반(2026-11-27 지움), 지금은 첫 화면 행.
 # 키 이름의 v3_ 접두는 옛 v3 셸(2026-09-28 삭제)에서 처음 만든 흔적이다.
 
 
@@ -327,13 +326,3 @@ def build_production_home_enriched_rows(
         row['raw_stage'] = raw_stage
         enriched.append(row)
     return enriched
-
-
-def build_production_process_steps(
-    step_stats: dict[str, dict[str, int]]
-) -> list[dict[str, Any]]:
-    """프로세스 맵 카드용 상단 2단계(제작대기·제작중)."""
-    return [
-        {'label': '제작대기', 'display': '제작대기', **step_stats['제작대기']},
-        {'label': '제작중', 'display': '제작중', **step_stats['제작중']},
-    ]

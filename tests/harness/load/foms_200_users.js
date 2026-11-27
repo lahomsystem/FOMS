@@ -12,7 +12,7 @@ const SESSION_COOKIE = __ENV.SESSION_COOKIE || '';
 
 const DASHBOARD_PATHS = [
   '/erp/dashboard',
-  '/erp/production/dashboard',
+  '/erp/production/home',
   '/erp/construction/dashboard',
   '/erp/measurement',
   '/erp/shipment',

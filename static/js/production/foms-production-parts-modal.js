@@ -43,15 +43,16 @@
     var many = crew && card ? crew.plan(action, card) : null;
     if (many) { return many; }
     if (action === 'take') {
-      return { title: LABEL + ' 작업을 시작할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 필요 · ' + NAME, run: '작업 시작', tone: 'need' };
+      return { title: LABEL + ' 시작할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 중 · ' + NAME, run: LABEL + ' 시작', tone: 'need' }; // 카드 단추 [재단 시작]과 같은 낱말(11-27)
     }
     if (action === 'basic') { return { title: '기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: '기본으로', tone: 'basic' }; }
-    if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두)
-      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 필요 → ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
+    if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두 · 미정 도면은 바로 완료 11-27)
+      var from = card && attr(card, 'data-state') === 'none' ? (IS_CUT ? '안 봄 ' : '') : '작업 중 '; // 미정 = [<파트> 시작] 창처럼 재단만 "안 봄"
+      return { title: LABEL + ' 완료로 바꿀까요?', line: from + '→ ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
-    if (card && attr(card, 'data-state') === 'basic') { return { title: '안 봄으로 되돌릴까요?', line: '기본 → 안 봄', run: '되돌리기', tone: 'unbasic' }; }
-    return { title: '작업 필요로 되돌릴까요?', line: LABEL + ' 완료 → 작업 필요 · ' + NAME, run: '되돌리기', tone: 'need' };
+    if (card && attr(card, 'data-state') === 'basic') { return { title: '기본을 취소할까요?', line: '기본 → 안 봄', run: '기본 취소', tone: 'unbasic' }; }
+    return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 작업 중 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need' };
   }
   function bulkPlan(cards) {
     return { title: cards.length + '장을 기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: cards.length + '장 기본으로', tone: 'basic' };
@@ -79,7 +80,7 @@
         note: heldSince(card) + (attr(card, 'data-picked-name') ? ' 바꾸기 전에 ' + holder + '에게 말해 주세요.' : '') };
     }
     return { title: heldTitle(card, holder), line: '', run: '', tone: 'taken',
-      choices: [['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done'], ['release', '시작 취소', 'release']] };
+      choices: [['release', '시작 취소', 'release'], ['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done']] }; // 되돌리는 쪽 왼쪽 · 끝내는 쪽 오른쪽(C59)
   }
   // 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12)이 남이 작업 중이거나 완료한 장을 누를 때 한 줄 더(D55, §8-2 14 · 34)
   function ownerNote(card) {
@@ -96,7 +97,7 @@
   }
   function firstLine(action, cards) {
     var first = cards.some(function (c) { return attr(c, 'data-pp-first') === '1'; });
-    return first && (action === 'take' || action === 'basic' || action === 'bulk') ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : '';
+    return first && ['take', 'basic', 'bulk', 'check'].indexOf(action) >= 0 ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : ''; // check = 반장 미정 바로 완료(11-27)
   }
 
   // ── 창 그리기 ──

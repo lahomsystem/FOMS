@@ -65,14 +65,15 @@ def test_줄_글_x_n_과_가장_급한_상태() -> None:
     assert da.arrival_line([], tue) is None
     # 하루 줄: 제작 완료도 n 에 든다
     line = da.arrival_line([_made(1, "2026-11-25"), _made(2, "2026-11-25", "done"), _wait(3, "2026-11-25")], tue)
-    assert line == {"x": 2, "n": 3, "state": "late", "strip": "도면 2/3 마감 지남", "pane": "도면 2/3 내려옴"}
-    assert da.arrival_line([_made(1, "2026-11-26"), _wait(2, "2026-11-26")], tue)["strip"] == "도면 1/2 마감 오늘"
-    assert da.arrival_line([_wait(2, "2026-11-27")], tue)["strip"] == "도면 0/1 마감 내일"
+    assert line == {"x": 2, "n": 3, "state": "late", "strip": "도면 2/3", "group": "도면 2/3 마감 지남",
+                    "pane": "도면 2/3 내려옴"}  # 띠(strip)는 '마감 …' 글 없이 숫자 + 색(사장님 2026-11-26)
+    assert da.arrival_line([_made(1, "2026-11-26"), _wait(2, "2026-11-26")], tue)["group"] == "도면 1/2 마감 오늘"
+    assert da.arrival_line([_wait(2, "2026-11-27")], tue)["group"] == "도면 0/1 마감 내일"
     assert da.arrival_line([_wait(2, "2026-11-30")], tue)["strip"] == "도면 0/1"
     assert da.arrival_line([_made(1, "2026-11-25"), _made(2, "2026-11-25", "done")], tue)["strip"] == "도면 2/2 다 내려옴"
     # 여러 날 줄: 주문마다 매겨 가장 급한 것(늦음 > 빠듯 > 여유). 빠듯끼리는 가장 이른 마감의 '언제'
     many = [_wait(1, "2026-12-03"), _wait(2, "2026-11-27"), _wait(3, "2026-11-26"), _made(4, "2026-11-20")]
-    assert da.arrival_line(many, tue)["strip"] == "도면 1/4 마감 오늘"
+    assert da.arrival_line(many, tue)["group"] == "도면 1/4 마감 오늘" and da.arrival_line(many, tue)["strip"] == "도면 1/4"
     assert da.arrival_line(many + [_wait(5, "2026-11-25")], tue)["state"] == "late"
     # 시공일 없음 줄은 마감이 없어 다 내려옴 또는 여유만
     assert da.arrival_line([_wait(1, None)], tue)["state"] == "calm"
@@ -91,11 +92,11 @@ def test_줄_글_x_n_과_가장_급한_상태() -> None:
     ({"drawing_status": "RETURNED"}, "no_owner", "도면 담당 없음"),  # 고치는 중이라도 담당이 없으면 도면 담당 없음
     ({"drawing_status": "PENDING"}, "no_owner", "도면 담당 없음"),
     ({}, "no_owner", "도면 담당 없음"),
-    ({"drawing_status": "RETURNED", "drawing_assignees": [{"id": 7, "name": "장미래"}]}, "fixing", "도면 고치는 중"),
+    ({"drawing_status": "RETURNED", "drawing_assignees": [{"id": 7, "name": "장미래"}]}, "fixing", "도면 수정 중"),
     ({"drawing_status": "PENDING", "drawing_assignees": [{"id": 7, "name": "장미래"}]}, "drawing", "도면 그리는 중"),
     ({"drawing_assignees": [{"id": 7, "name": "장미래"}]}, "drawing", "도면 그리는 중"),  # 빈 값
     ({"drawing_status": "WHATEVER", "assignments": {"drawing_assignee_user_ids": [7]}}, "drawing", "도면 그리는 중"),  # 모르는 값 · id 만
-    ({"drawing": {"status": "returned"}, "shipment": {"drawing_managers": ["오가람"]}}, "fixing", "도면 고치는 중"),  # 중첩 · 옛 이름 칸
+    ({"drawing": {"status": "returned"}, "shipment": {"drawing_managers": ["오가람"]}}, "fixing", "도면 수정 중"),  # 중첩 · 옛 이름 칸
 ])
 def test_막힌_까닭_다섯(sd: dict, key: str, label: str) -> None:
     got = da.drawing_blocker(sd)
@@ -140,7 +141,7 @@ def test_붙이기는_기다림_행만_날짜마다_한_번(monkeypatch) -> None
     rows[0]["manager_name"] = "이하늘"
     da.attach_drawing_arrival(rows, tue)
     assert calls == [D(2026, 11, 25)]  # 같은 날 두 행 = 한 번
-    assert rows[0]["dw_blocker"]["label"] == "도면 고치는 중" and rows[0]["dw_people"]["text"] == "도면 장미래 · 영업 이하늘"
+    assert rows[0]["dw_blocker"]["label"] == "도면 수정 중" and rows[0]["dw_people"]["text"] == "도면 장미래 · 영업 이하늘"
     assert rows[0]["dw_state"] == "late" and rows[0]["dw_deadline_md"] == "11/23"
     assert rows[1]["dw_blocker"]["none"] is True and rows[1]["dw_people"]["text"] == ""
     assert rows[2]["dw_deadline"] is None and rows[2]["dw_deadline_md"] == "" and rows[2]["dw_state"] == "calm"

@@ -90,7 +90,7 @@ def test_admin_parts_tab_and_readonly_day_fragment(client, cohort):
     assert f'href="{HOME}?tab=parts&amp;part=edge&amp;day={_day(2)}"' in link
     frag = _get(client, HOME + f"?tab=parts&part=edge&day={_day(2)}&view=day")
     assert _pane_keys(frag) == [_day(2)] and frag.count("data-pp-card ") == 4
-    assert 'class="fph-pane__now"' not in frag and 'data-pp-act="take">작업 시작<' in frag  # '도면 카드' 탭 = 판만, 고른 파트
+    assert 'class="fph-pane__now"' not in frag and 'data-pp-act="take">엣지 시작<' in frag  # '도면 카드' 탭 = 판만, 고른 파트
     assert re.search(r'class="pp-part is-on"[^>]*part=edge&amp;day=' + _day(2), frag)
 
     _login(client, _user("상담", team="CS"))  # 읽기 전용 — 조각에도 쓰기 단추가 없다
@@ -235,15 +235,16 @@ def test_day_links_are_not_swapped_by_shell_and_reload_bypasses_cache():
 # --------------------------------------------------------------------------- #
 def test_shell_swaps_and_prefetches_production_home():
     """2026-11-21(설계서 production-pc-viewer §9-5): 생산 첫 화면이 9탭의 생산 칸이 되어 fresh(60초 · 하트비트 50초)로 받고,
-    보이는 링크 장치(LINKED_FRESH)는 비었다 — 둘 다에 두면 하트비트가 한 주소를 두 번 받는다. 옛 보드는 하위 조각(바꿔 끼우기만)."""
+    보이는 링크 장치(LINKED_FRESH)는 비었다 — 둘 다에 두면 하트비트가 한 주소를 두 번 받는다. 옛 보드 하위 조각(LEGACY_SWAP)은
+    2026-11-27 옛 보드와 함께 없앴다 — 셸이 옛 주소를 조각으로 부르지 않는다."""
     src = SHELL_JS.read_text(encoding="utf-8")
     assert "var LINKED_FRESH_PATHS = [];" in src
-    assert "var LEGACY_SWAP_PATHS = ['/erp/production/dashboard'];" in src
+    assert "LEGACY_SWAP_PATHS" not in src and "/erp/production/dashboard" not in src
     fresh_block = src.split("var FRESH_TTL_PATHS = [", 1)[1].split("];", 1)[0]
     assert "'/erp/production/home'" in fresh_block and "'/erp/production/dashboard'" not in fresh_block
     sub = src[src.index("function isSubordinateShellFragmentPath(url)"):src.index("function isShellFragmentSwapUrl(url)")]
-    assert "LINKED_FRESH_PATHS.indexOf(p) >= 0 || LEGACY_SWAP_PATHS.indexOf(p) >= 0" in sub  # 하위 조각 교체 대상
-    assert "LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS" in src  # 장치는 남는다(옛 보드도 fresh TTL)
+    assert "if (LINKED_FRESH_PATHS.indexOf(p) >= 0) {" in sub  # 하위 조각 교체 대상(장치는 남는다)
+    assert "LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS" in src  # 장치는 남는다
     linked = src[src.index("function visibleLinkedFreshPaths()"):src.index("function isFragmentReadyPath(url)")]
     assert "getClientRects().length > 0" in linked and "p === cur" in linked  # 보이는 링크 · 지금 화면 제외
     idle = src[src.index("function scheduleIdlePrimaryPrefetch()"):src.index("function onAnchorHoverFocus(ev)")]
@@ -258,7 +259,7 @@ def test_shell_swaps_and_prefetches_production_home():
     assert "/erp/production/home" in enc.ERP_FRAGMENT_READY_PATHS
     assert "/erp/production/dashboard" not in enc.ERP_FRAGMENT_READY_PATHS
     layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20261122s" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261127h" in layout  # 2026-11-27 옛 보드 하위 조각 지움
 
 
 def test_rail_production_button_goes_to_home_href():

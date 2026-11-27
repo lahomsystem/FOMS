@@ -18,7 +18,7 @@ from models import Order, User
 EMPTY_TEXT = "데이터가 없습니다."
 BOARDS = {
     # 화면 주소: (주문 status, 단계 원문 — 단계 SQL 필터가 erp_stage_code 를 읽는다)
-    "/erp/production/dashboard": ("PRODUCTION", "생산"),
+    # 생산 PC 표(옛 생산 보드)는 2026-11-27 지움
     "/erp/construction/dashboard": ("CONSTRUCTION", "CONSTRUCTION"),
 }
 

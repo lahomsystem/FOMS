@@ -20,6 +20,7 @@ from foms.services.production_read_model import (
     production_stage_bucket_expr,
 )
 from models import Order, ProductionRun, User
+from tests.support.production_home_step_panel_seed import TABLET, set_cookies
 from tests.support.production_steps_seed import mark_order_inspected
 
 
@@ -187,22 +188,23 @@ def test_rework_mints_a_new_run_round(client):
 
 
 # --------------------------------------------------------------------------- #
-# 3. 시트 — run 유무로 [제작 시작]/[제작 취소] 를 가른다
+# 3. 시트 — run 유무로 [제작 시작]/[제작 취소] 를 가른다(작업 시트 · 터치 태블릿 — 옆 시트는 2026-11-27 지움)
 # --------------------------------------------------------------------------- #
 def test_sheet_buttons_follow_run_presence(client):
     _login(client, _make_user("board_sheet"))
+    set_cookies(client, TABLET)
     waiting_id = _make_order("PRODUCTION").id
     running_id = _make_order("PRODUCTION").id
     _mint_run(running_id)
 
-    waiting = client.get(f"/erp/production/tablet-sheet/{waiting_id}")
+    waiting = client.get(f"/erp/production/sheet/{waiting_id}")
     assert waiting.status_code == 200
     html = waiting.get_data(as_text=True)
     assert 'data-tablet-sheet-action="production-start"' in html
     assert 'data-tablet-sheet-action="production-cancel"' not in html
     assert "고객 컨펌 전" not in html  # PRODUCTION 은 이미 컨펌된 주문이다
 
-    running = client.get(f"/erp/production/tablet-sheet/{running_id}")
+    running = client.get(f"/erp/production/sheet/{running_id}")
     assert running.status_code == 200
     html = running.get_data(as_text=True)
     assert 'data-tablet-sheet-action="production-cancel"' in html
@@ -213,8 +215,9 @@ def test_sheet_buttons_follow_run_presence(client):
 def test_sheet_unapproved_confirm_shows_muted_label(client):
     """호환 경로: 단계 CONFIRM + quest 미승인이면 시트는 '고객 컨펌 전'(시작 버튼 없음)."""
     _login(client, _make_user("board_sheet_confirm"))
+    set_cookies(client, TABLET)
     order_id = _make_order("CONFIRM", sd={"quests": [_confirm_quest(approved=False)]}).id
-    html = client.get(f"/erp/production/tablet-sheet/{order_id}").get_data(as_text=True)
+    html = client.get(f"/erp/production/sheet/{order_id}").get_data(as_text=True)
     assert "고객 컨펌 전" in html
     assert 'data-tablet-sheet-action="production-start"' not in html
 

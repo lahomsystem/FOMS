@@ -36,7 +36,9 @@ def _run(tmp_path, html: str, want: dict) -> None:
 @pytest.mark.parametrize("done", [("cut",), ("cut", "edge")])
 def test_회색_제작_완료를_누르면_남은_공정을_알리고_요청은_없다_4칸이면_파랑_Node(client, tmp_path, done) -> None:
     login(client, lead=True)  # 공정 칸을 손으로 체크하는 반장(설계서 2026-11-23 '승인 때 고친 것' 5)
-    order = add_order("가람집", 1, done=done)
+    # 도면 0장 — 도면 있는 주문은 칸 대신 보기 줄이라 칸 이름 글이 없다(사장님 2026-11-27 "도면이 주, 작업 시트는 보기" · 그 주문의 회색
+    # [제작 완료] 글은 test_production_steps_view_only_1127 의 why)
+    order = add_order("가람집", 1, done=done, pngs=0)
     set_cookies(client, TABLET)
     html = get_html(client, f"/erp/production/sheet/{order.id}")
     btn = re.search(r'<button [^>]*data-foms-sheet-complete[^>]*>', html).group(0)
@@ -46,7 +48,7 @@ def test_회색_제작_완료를_누르면_남은_공정을_알리고_요청은_
 
 def test_파트_계정의_잠긴_공정_칸을_누르면_잠금_글_요청은_없다_Node(client, tmp_path) -> None:
     login(client, "김재단", part="cut")
-    order = add_order("가람집", 1, done=("cut",))
+    order = add_order("가람집", 1, done=("cut",), pngs=0)  # 도면 0장 — 체크 칸 잠금 꼴(도면 있으면 보기 줄, 사장님 2026-11-27)
     set_cookies(client, TABLET)
     html = get_html(client, f"/erp/production/sheet/{order.id}")
     cells = re.findall(r'<button [^>]*data-foms-sheet-step="\w+"[^>]*>', html)
@@ -58,7 +60,7 @@ def test_시트_JS_는_aria_disabled_로_막고_진짜_disabled_를_쓰지_않�
     js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
     assert "completeBtn.disabled = !ready" not in js and "completeBtn.setAttribute('aria-disabled', 'true')" in js
     assert "e.stopPropagation();" in js and "completeBlockedText()" in js and len(js.splitlines()) <= 300
-    for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_sheet.html"):
+    for rel in ("templates/production/sheet.html",):  # 옆 시트는 2026-11-27 옛 보드와 함께 지움
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert "disabled aria-disabled" not in text, rel
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")

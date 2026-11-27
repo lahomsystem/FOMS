@@ -46,6 +46,11 @@ _RAIL_ICONS: dict[str, str] = {
 _CONSTRUCTION_RAIL_IDS: frozenset[str] = frozenset(
     {"shipment", "construction", "completion", "history"}
 )
+#: 생산팀 계정 태블릿 레일(2026-11-27 사장님 결정): 장갑 낀 손의 잘못 누름을 막으려 이 다섯만 보인다(차례는 계약 차례 그대로).
+#: 빠진 화면은 주소로 열면 그대로 열린다 — 메뉴 칸만 숨긴다. 폰 아래 메뉴 · 더보기 · PC 메뉴는 이 값을 쓰지 않는다.
+_PRODUCTION_RAIL_IDS: frozenset[str] = frozenset(
+    {"drawing_workbench", "production", "shipment", "as", "construction"}
+)
 #: 생산 탭의 모든 화면(보드 · 첫 화면 · 전체 화면 시트 · 인쇄)이 이 아래에 있다 — 레일 강조 판정 접두어.
 _PRODUCTION_RAIL_PREFIX = "/erp/production"
 _CALCULATOR_ITEM: dict[str, str] = {
@@ -110,6 +115,20 @@ def _is_construction_team(user: Any) -> bool:
     return (getattr(user, "team", None) or "") == "CONSTRUCTION"
 
 
+def _is_production_team(user: Any) -> bool:
+    """생산팀 계정(협력사 아님 · 관리자 아님)인지 — erp_mobile_shell.html 의 ``_production_team`` 과 같은 판정.
+
+    관리자(ADMIN)는 팀이 무엇이든 전체 레일을 그대로 본다.
+    """
+    if user is None:
+        return False
+    if (getattr(user, "role", None) or "") == "ADMIN":
+        return False
+    if getattr(user, "partner_org_id", None):
+        return False
+    return (getattr(user, "team", None) or "") == "PRODUCTION"
+
+
 def _is_active_freelancer(user: Any) -> bool:
     """켜진 프리랜서인지(FCOMM-01 겹 5 메뉴). 요청 밖(순수 함수 시험)이거나 직원 · 영업팀이 아니면 설정을 읽지 않는다."""
     return has_request_context() and could_be_freelancer(user) and is_freelancer_user(user)
@@ -152,22 +171,25 @@ def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") ->
             for it in freelancer_menu_items()
         ]
     construction = _is_construction_team(user)
+    production_team = _is_production_team(user)
     items: list[dict[str, Any]] = []
     for path, tab_id in zip(ERP_PRIMARY_NAV_PATHS, ERP_TAB_IDS):
         if construction and tab_id not in _CONSTRUCTION_RAIL_IDS:
+            continue
+        if production_team and tab_id not in _PRODUCTION_RAIL_IDS:
             continue
         items.append(
             {
                 "id": tab_id,
                 "label": _RAIL_LABELS[tab_id],
                 "icon": _RAIL_ICONS[tab_id],
-                # 생산 칸은 사람마다(설계서 2026-11-21-production-pc-viewer §9-4): 첫 화면을 여는 사람은 첫 화면(계약 경로),
-                # 그 밖(첫 화면을 못 보는 사람 · 사용자 없음)은 옛 보드. PC 메뉴 · 폰 메뉴와 같은 한 함수.
+                # 생산 칸(설계서 2026-11-21-production-pc-viewer §9-4): 누구든 첫 화면(2026-11-27 옛 보드 없앰).
+                # PC 메뉴 · 폰 메뉴와 같은 한 함수.
                 "href": production_nav_href(user) if tab_id == "production" else path,
                 "active": tab_id == active_id,
             }
         )
-    if not construction:
+    if not construction and not production_team:
         items.append({**_CALCULATOR_ITEM, "active": active_id == "calculator"})
     return items
 
