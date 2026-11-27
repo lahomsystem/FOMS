@@ -25,6 +25,9 @@
 {% macro pp_held(c, head, note, more='') -%}
 <button type="button" class="fph-wi pp-act pp-st-{{ 'taken' if c.badge == 'taken' else 'need pp-not-need' }}{{ more }} pp-held" data-pp-act="held" aria-label="{{ head }}{% if note %} · {{ note }}{% endif %}"><span class="pp-held__who"><b>{{ head }}</b>{% if note %}<small>{{ note }}</small>{% endif %}</span><span class="pp-held__go" aria-hidden="true">›</span></button>
 {%- endmacro %}
+{% macro pp_fin_now(pb) -%}
+<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">{{ pb.part_label }} 완료</button>
+{%- endmacro %}
 {% macro pp_act(c, pb, is_cut) %}
 {#- 이름 줄 = 서버 c.crew(part_card_crew.crew_view — "이시영 · 김재단 외 1"), 반만 완료 = "재단 1/2 완료"(도면 한 장 자리만, Q11) -#}
 {%- set cr = c.crew or {} -%}
@@ -34,9 +37,13 @@
 {%- if c.state == 'hand' -%}
 <button type="button" class="fph-wi pp-act pp-st-done pp-hand" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.hand.why }}"><span>{{ c.hand.text }}</span><small>작업 시트에서 완료</small></button>
 {%- elif c.state == 'none' -%}
+  {#- 반장 · 관리자(파트 계정 아님)는 미정 · 안 본 도면에 [<파트> 완료](= check — 한 장씩 바로 완료, 사장님 2026-11-27 "두 번으로 줄이기"):
+     재단은 [기본][작업 시작] 아래 둘째 줄, 그 밖은 [작업 시작][엣지 완료] 한 줄. 막힌 칸은 지금 그대로(pp_block) -#}
   {%- if pb.writable and c.block -%}{{ pp_block(c) }}
   {%- elif pb.writable and is_cut -%}
-<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="take">작업 시작</button></div>
+<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="take">작업 시작</button></div>{% if not pb.mine %}{{ pp_fin_now(pb) }}{% endif %}
+  {%- elif pb.writable and not pb.mine -%}
+<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">작업 시작</button>{{ pp_fin_now(pb) }}</div>
   {%- elif pb.writable -%}
 <button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">작업 시작</button>
   {%- endif -%}

@@ -328,3 +328,28 @@ def test_join_while_last_person_releases_becomes_plain_take(pg_engine, pg_app):
     assert out["status"] == 200, out["json"]
     assert (out["json"]["data"]["joined_late"], out["json"]["data"]["notice"]) == (False, None)  # 판결 1 — 글 없음
     assert _crew(pg_engine, order_id, key) == ("NEED", ["최가은"])
+
+
+@pytest.mark.parametrize("mode", ["lock", "plain"])
+def test_lead_direct_done_on_unseen_versus_take(pg_engine, pg_app, monkeypatch, mode):
+    """반장이 미정 도면에 [엣지 완료](A — ``check`` · 본 상태 none, 사장님 2026-11-27) 대 박엣지 [작업 시작](B 먼저) — A 는 잠금 아래
+    B 의 결과를 보고 대신 완료(판결 2 그대로 — 반장은 목록에 안 들어감, 박엣지 몫을 반장 이름으로 완료)."""
+    order_id, key, who = _seed(pg_engine, mark_state=None)
+    a_read = _arm_plain(monkeypatch, mode)
+
+    def take(s, _mark):  # B = 박엣지가 먼저 [작업 시작](새 코드가 쓰는 꼴 — 목록 + 요약 칸)
+        now = now_utc_naive()
+        crew = [mark_crew.member(who["park"][0], "박엣지", mark_crew.to_iso(now))]
+        s.add(ProductionPartMark(order_id=order_id, drawing_key=key, part="edge", holders=crew,
+                                 updated_by_user_id=who["park"][0], updated_at=now, **mark_crew.summarize(crew)))
+
+    out = _race(pg_engine, pg_app, order_id, key, take, who["foreman"], "/api/production/part-marks",
+                {"order_id": order_id, "drawing_key": key, "part": "edge", "action": "check", "seen": "none", "seen_me": "none"},
+                a_read)
+    if mode == "lock":
+        assert out["status"] == 200, out["json"]
+        assert (out["json"]["data"]["proxied"], out["json"]["data"]["mark"]["state"]) == (True, "done")
+        assert _finished_by(pg_engine, order_id, key) == ("DONE", [("박엣지", "박반장")])
+    else:  # 음성 대조 — 낡은 '미정' 으로 판정해 새 줄을 넣다가 유일 제약에 걸린다(대신 완료로 안 넘어감)
+        assert out["status"] == 409 and out["json"]["data"]["code"] == "MARK_CONFLICT"
+        assert _crew(pg_engine, order_id, key) == ("NEED", ["박엣지"])

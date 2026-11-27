@@ -111,7 +111,7 @@
   }
   function actBtn(cls, text, act) { var b = el('button', cls, text); b.type = 'button'; b.setAttribute('data-pp-act', act); return b; }
 
-  // renderAct(parts.js)가 먼저 부른다 — 새 칸이면 그려 넣고 true(작업 필요 · 완료 칸은 crew.render, 안 봄은 parts.js)
+  // renderAct(parts.js)가 먼저 부른다 — 새 칸이면 그려 넣고 true(안 봄 · 작업 필요 · 완료 칸은 crew.render)
   function special(card, box, c) {
     var st = attr(card, 'data-state');
     if (st === 'hand') {

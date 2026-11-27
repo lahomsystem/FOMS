@@ -46,8 +46,9 @@
       return { title: LABEL + ' 작업을 시작할까요?', line: (IS_CUT ? '안 봄 ' : '') + '→ 작업 중 · ' + NAME, run: '작업 시작', tone: 'need' };
     }
     if (action === 'basic') { return { title: '기본으로 할까요?', line: '안 봄 → 기본 · ' + NAME, run: '기본으로', tone: 'basic' }; }
-    if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두)
-      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 중 → ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
+    if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두 · 미정 도면은 바로 완료 11-27)
+      var from = card && attr(card, 'data-state') === 'none' ? (IS_CUT ? '안 봄 ' : '') : '작업 중 '; // 미정 = [작업 시작] 창처럼 재단만 "안 봄"
+      return { title: LABEL + ' 완료로 바꿀까요?', line: from + '→ ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
     if (card && attr(card, 'data-state') === 'basic') { return { title: '기본을 취소할까요?', line: '기본 → 안 봄', run: '기본 취소', tone: 'unbasic' }; }
@@ -96,7 +97,7 @@
   }
   function firstLine(action, cards) {
     var first = cards.some(function (c) { return attr(c, 'data-pp-first') === '1'; });
-    return first && (action === 'take' || action === 'basic' || action === 'bulk') ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : '';
+    return first && ['take', 'basic', 'bulk', 'check'].indexOf(action) >= 0 ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : ''; // check = 반장 미정 바로 완료(11-27)
   }
 
   // ── 창 그리기 ──

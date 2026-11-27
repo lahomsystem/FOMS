@@ -196,7 +196,9 @@ def test_basic_and_step_undo_buttons_are_paired_names():
 def test_confirm_and_pc_state_words_say_working_but_audit_keeps_need():
     """사장님 2026-11-26 나 "화면 글만 '작업 중'으로" — 확인 창 · 빈 이름 자리 · PC 상태 칸. 감사 글은 "작업 필요" 그대로."""
     modal = _read(JS / "foms-production-parts-modal.js")
-    assert "'→ 작업 중 · ' + NAME" in modal and "line: '작업 중 → ' + LABEL" in modal and "' 완료 → 작업 중 · ' + NAME" in modal
+    assert "'→ 작업 중 · ' + NAME" in modal and "' 완료 → 작업 중 · ' + NAME" in modal
+    # [완료] 창 앞말 = 작업 중(미정 도면 바로 완료는 재단만 "안 봄" — 11-27): "작업 중 → 재단 완료 · 박반장"
+    assert "(IS_CUT ? '안 봄 ' : '') : '작업 중 ';" in modal and "line: from + '→ ' + LABEL + ' 완료 · ' + NAME" in modal
     crew = _read(JS / "foms-production-parts-crew.js")
     assert "line: '작업 중 → ' + LABEL" in crew and "half(cr) + ' → 작업 중 · ' + NAME" in crew
     assert "(o.mine ? '다른 사람 작업 중' : '작업 중')" in crew

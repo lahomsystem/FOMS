@@ -109,19 +109,15 @@
     var bulk = pane.querySelector('[data-pp-act="bulk"]');
     if (bulk) { bulk.hidden = !left; }
   }
-  // 카드 단추 칸 — 템플릿(home_parts.html pp_act)과 같은 규칙. 새 칸(손 체크 · 막힘 · 내 작업 한 층)은 claim, 작업 필요 · 완료 칸은
-  // crew(여러 명 — 이름 줄은 서버 글)가 먼저 그린다. 여기는 안 봄 칸([기본][작업 시작] — 네 파트 같은 글, multi-holder §8-2 1)만.
+  // 카드 단추 칸 — 템플릿(home_parts.html pp_act)과 같은 규칙. 새 칸(손 체크 · 막힘 · 내 작업 한 층)은 claim, 안 봄 · 작업 필요 · 완료 칸은
+  // crew(여러 명 — 이름 줄은 서버 글, 안 봄 = [기본][작업 시작] + 반장 · 관리자 [<파트> 완료] 11-27)가 그린다.
   function renderAct(card) {
     var box = card.querySelector('[data-pp-actbox]');
-    var opts = { writable: WRITABLE, mine: MINE, label: cfg.label || '' };
+    var opts = { writable: WRITABLE, mine: MINE, label: cfg.label || '', cut: IS_CUT };
     toArr(box.children).forEach(function (n) { if (!n.classList.contains('pp-why')) { box.removeChild(n); } });
     if (claim.renderTag) { claim.renderTag(card, WRITABLE); }
     if (claim.special && claim.special(card, box, opts)) { return; }
-    if (crew.render && crew.render(card, box, opts)) { return; }
-    if (attr(card, 'data-state') !== 'none' || !WRITABLE) { return; }
-    var two = IS_CUT ? el('div', 'pp-two') : box;
-    if (IS_CUT) { two.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', '기본', 'basic')); box.appendChild(two); }
-    two.appendChild(el('button', 'foms-prod-home__btn ' + (IS_CUT ? 'foms-prod-home__btn--pri' : 'pp-act'), '작업 시작', 'take'));
+    if (crew.render) { crew.render(card, box, opts); }
   }
   // 받은 표시 → 카드. 내 몫(작업 중 · 완료)은 서버가 준 mark.crew.me — 내 몫만 완료("재단 1/2 완료")는 파트 계정 '완료' 칸(Q12)
   function applyMark(card, mark) {
