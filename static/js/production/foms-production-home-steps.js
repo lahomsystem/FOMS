@@ -175,10 +175,7 @@
         return;
       }
       if (line) { line.textContent = ''; }
-      var ex = ((result.data || {}).data || {}).expanded; // 막힌 도면을 빼고 처리됨 — 알림 글만, [되돌리기] 없음(판결 B)
-      var sp = window.FomsSheetParts;
-      G.undo = ex && sp && sp.doneText ? { notice: sp.doneText(ex), until: Date.now() + UNDO_MS }
-        : { id: job.id, key: job.key, name: job.name, label: job.label, until: Date.now() + UNDO_MS, busy: false, error: '' };
+      G.undo = { id: job.id, key: job.key, name: job.name, label: job.label, until: Date.now() + UNDO_MS, busy: false, error: '' };
       G.guardNext = true; // 새 화면이 뜨면 GUARD_MS 동안 [끝] 잠금
       showUndo();
       // 끝낸 주문은 다음 공정 줄로 간다 — '끝내면 다음은' 손님이 고른 줄이 된다(없으면 이 탭 첫 줄, 탭은 기억됨)
@@ -193,12 +190,11 @@
   function showUndo() {
     var u = G.undo;
     if (!statusBox || !u || Date.now() >= u.until) { return; }
-    window.clearTimeout(G.undoTimer); // 알림 글(풀어 쓴 [끝])도 [되돌리기]와 같은 시계로 지운다(둘째 판 2)
+    window.clearTimeout(G.undoTimer);
     G.undoTimer = window.setTimeout(function () {
       if (G.undo === u && !u.busy) { G.undo = null; }
       if (G.api) { G.api.clearUndo(u); }
     }, u.until - Date.now());
-    if (u.notice) { setStatus(u.notice); return; }
     statusBox.textContent = '';
     statusBox.classList.remove('is-bad');
     statusBox.classList.add('is-undo');
@@ -215,7 +211,7 @@
     statusBox.appendChild(btn);
   }
   function clearUndo(u) {
-    var shown = statusBox && (statusBox.classList.contains('is-undo') || (u.notice && statusBox.textContent === u.notice));
+    var shown = statusBox && statusBox.classList.contains('is-undo');
     if (shown && (!G.undo || G.undo !== u)) { setStatus(''); }
   }
   function undo() {

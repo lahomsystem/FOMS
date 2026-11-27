@@ -20,7 +20,7 @@ def _read(rel: str) -> str:
 def test_시트_공통_JS_를_싣고_도메인_시트_핀이_같다() -> None:
     page = _read("templates/production/sheet.html")
     assert "js/production/foms-production-sheet-page.js') }}?v=" in page
-    assert "css/contexts/production/sheet.css') }}?v=20261127u" in page
+    assert "css/contexts/production/sheet.css') }}?v=20261127x" in page
     js = _read("static/js/production/foms-production-sheet-page.js")
     assert "foms:erp-shell-fragment-swapped" in js and "data-foms-sheet-init" in js
     # 도메인 시트 핀 lockstep(첫 화면 = 작업 시트 = 출고 CHAIN — 옛 칸반 본문은 2026-11-27 지움)

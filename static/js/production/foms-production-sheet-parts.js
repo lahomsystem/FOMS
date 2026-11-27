@@ -2,9 +2,9 @@
  * foms-production-sheet-page.js 가 이 파일(window.FomsSheetParts)이 있을 때만 부른다 — 없으면 시트는 지금 그대로다.
  *  · beforeToggle: 반장 · 관리자가 공정 칸 · '내 공정' [<공정> 완료](옛 [<공정> 끝])를 **켤 때**(끌 때는 바로 보낸다). 도면이 있는 주문(서버 자료
  *    per_sheet — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")은 요청 없이 칸 아래에 서버 글만(새 화면은 보기 줄이라 칸이 없다 — 낡은
- *    화면 · 옆 시트 몫). 카드를 쓴 파트 · 도면 0장 · 자료 없음은 묻지 않고 보낸다(서버가 판정 — 409 PART_USES_CARDS 가 먼저). 옛 "도면 1장이
- *    모두 재단 완료로 처리돼요" 확인 창은 탈 길이 없어 뺐다(도면 0장 주문은 예전에도 묻지 않았다). doneText · expandedNote(막힌 장을 빼고
- *    풀어 쓴 응답 expanded)는 이제 안 타는 길(서버가 도면 있는 주문 켜기를 막는다 — 지우기는 따로 정한다).
+ *    화면 몫). 카드를 쓴 파트 · 도면 0장 · 자료 없음은 묻지 않고 보낸다(서버가 판정 — 409 PART_USES_CARDS 가 먼저). 옛 "도면 1장이
+ *    모두 재단 완료로 처리돼요" 확인 창은 탈 길이 없어 뺐다(도면 0장 주문은 예전에도 묻지 않았다). 자료는 화면에 실린 것만 읽는다(공정
+ *    GET 없음 — 그 GET 을 쓰던 옆 시트는 2026-11-27 지웠다). 막힌 장을 빼고 풀어 쓴 응답(expanded) 글도 탈 길이 없어 뺐다(2026-11-27).
  *    손으로 켜 둔 옛 칸(보기 줄 자리의 체크 칸)을 끄면 render 가 그 칸 대신 서버가 그려 둔 줄(data-foms-sheet-hand-after)을 보인다.
  *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS · STEP_PER_SHEET)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "미완료가 있어요 — 재단 1장 · 검수 3장".
@@ -32,18 +32,6 @@
   }
   function holder(page) { return page.hasAttribute('data-foms-sheet-parts') ? page : page.querySelector('[data-foms-sheet-parts]'); }
   function data(page) { var h = holder(page); return h ? safeJsonParse(h.getAttribute('data-foms-sheet-parts'), null) : null; }
-  // 옆 시트는 자료가 안 실려 있다 — 칸을 켤 때만 공정 API GET 한 번(읽기)
-  function load(page) {
-    var have = data(page);
-    if (have) { return Promise.resolve(have); }
-    var url = '/api/orders/' + encodeURIComponent(page.getAttribute('data-order-id') || '') + '/production/steps';
-    try {
-      return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-        .then(function (res) { return res.ok ? res.json() : null; })
-        .then(function (body) { return body && body.success === true ? body.data : null; })
-        .catch(function () { return null; });
-    } catch (e) { return Promise.resolve(null); }
-  }
 
   // ── 반장 손 체크 확인 창 ──
   // 창 상태 · 문서 리스너는 문서에 하나 — 셸 조각 교체로 이 파일이 다시 돌아도 리스너(한 번)는 마지막으로 돈 함수(S.api)와 같은 창 상태를
@@ -63,9 +51,6 @@
     dlg.no = null;
     if (opener && document.contains(opener)) { opener.focus(); }
     if (run && yes) { yes(); } else if (!run && no) { no(); }
-  }
-  function doneText(ex) { // 풀어 쓴 [<공정> 완료] 뒤 알림(판결 B) — 뒤 문장(조사 포함)은 서버 글 ex.tail, 화면은 잇기만
-    return '도면 ' + ex.total_n + '장 중 ' + ex.done_n + '장을 ' + ex.part_label + ' 완료로 처리했어요. ' + ex.tail;
   }
   // 글 + 단추 둘 창 하나 — 작업 시트 생산 단추(tablet-domain-sheets.js · sheet-factory.js, 사장님 2026-11-27 "앱 창으로 바꾸기")가 쓴다. o = {title, body, yes, no, opener, go, cancel}. 창 조각이 없으면 false(부른 쪽이 지금 길로). 본문이 없으면 숨김
   function open(o) {
@@ -91,14 +76,11 @@
   function beforeToggle(page, btn, done, go, no) {
     if (!done) { go(); return; }
     var key = btn.getAttribute('data-foms-sheet-step') || btn.getAttribute('data-step-key'); // 공정 칸 · '내 공정' [<공정> 완료]
-    btn.disabled = true;
-    load(page).then(function (info) {
-      btn.disabled = false;
-      var part = info && info.parts ? info.parts[key] : null;
-      // 도면이 있는 주문(서버 글 per_sheet) = 묻지 않고 칸 아래에 까닭만 · 요청 0. 카드 쓴 파트 · 글 칸이 없는 화면은 서버가 답한다
-      if (info && info.per_sheet && !(part && part.uses_cards) && stepMsg(page, info.per_sheet)) { if (no) { no(); } return; }
-      go();
-    });
+    var info = data(page);
+    var part = info && info.parts ? info.parts[key] : null;
+    // 도면이 있는 주문(서버 글 per_sheet) = 묻지 않고 칸 아래에 까닭만 · 요청 0. 카드 쓴 파트 · 글 칸이 없는 화면은 서버가 답한다
+    if (info && info.per_sheet && !(part && part.uses_cards) && stepMsg(page, info.per_sheet)) { if (no) { no(); } return; }
+    go();
   }
 
   // ── 서버 거절 글 · 응답 뒤 자료 ──
@@ -120,7 +102,6 @@
     stepMsg(page, '');
     var h = holder(page);
     var info = data(page);
-    expandedNote(page, payload && payload.expanded);
     if (!h || !info || !payload || !payload.parts) { return; }
     info.parts = payload.parts;
     if (payload.sheets != null) { info.sheets = payload.sheets; }
@@ -139,14 +120,6 @@
       btn.removeAttribute('data-foms-sheet-step');
       line.hidden = false;
     });
-  }
-  function expandedNote(page, ex) { // 막힌 장을 빼고 처리된 파트 — 칸 옆 글 = 서버 글("도면 4/5 · 1장 미완료"), 카드 쓴 파트 글처럼 고정
-    if (!ex || !ex.note) { return; }
-    var cell = page.querySelector('[data-foms-sheet-step="' + ex.part + '"] [data-foms-sheet-step-meta]');
-    if (!cell) { return; }
-    cell.textContent = ex.note;
-    cell.setAttribute('data-foms-sheet-cardnote', '');
-    cell.classList.add('fpp-note', 'is-miss');
   }
   function why(page) {
     var info = data(page);
@@ -269,5 +242,5 @@
   // renderLog: PC 도면 목록 창(foms-production-pc-sheet.js, 2026-11-24)이 바뀐 기록을 작업 시트와 같은 글로 그린다
   // confirm: 작업 시트 · 생산 첫 화면의 [제작 시작] · [제작 완료] · [완료 취소] · [보류 해제] · 공장 단추 확인(위 open)
   window.FomsSheetParts = { beforeToggle: beforeToggle, refused: refused, render: render, why: why, showWhy: showWhy, renderLog: renderLog,
-    doneText: doneText, confirm: open };
+    confirm: open };
 })();

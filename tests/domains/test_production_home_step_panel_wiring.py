@@ -237,7 +237,7 @@ def test_핀과_화면_HTML(client, cohort) -> None:
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
     assert "home.css') }}?v=20261127g" in styles and "{% if part_board %}" in styles  # parts.css = 도면 카드 판만(11-22 확인 창 뺌)
     early = (ROOT / "templates/production/partials/home_early.html").read_text(encoding="utf-8")
-    assert f"filename='{STEPS_JS}') }}}}?v=20261126b" in early
+    assert f"filename='{STEPS_JS}') }}}}?v=20261127x" in early
     login(client)
     seed_cut_queue()
     set_cookies(client, TABLET)
