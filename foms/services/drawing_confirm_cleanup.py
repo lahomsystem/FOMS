@@ -93,7 +93,7 @@ def _normalize_file_entry(entry: dict[str, Any]) -> dict[str, str]:
 def resolve_final_drawing_files(structured_data: Any) -> list[dict[str, str]]:
     """확정본 도면 목록 — 전달 API 가 이미 계산해 둔 ``drawing_current_files`` 를 정규화만 한다.
 
-    생산 시트 썸네일(``foms/web/production/dashboard.py``)도 이 함수를 쓴다. 확정 목록과 같은
+    생산 작업 시트 썸네일(``foms/services/production_sheet_view.py``)도 이 함수를 쓴다. 확정 목록과 같은
     답이어야 생산이 영업이 확정한 도면을 본다.
 
     Args:

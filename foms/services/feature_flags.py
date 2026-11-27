@@ -312,11 +312,11 @@ def wants_desktop_queue_surfaces(request: "Request | None" = None) -> bool:
     """PC 작업 큐처럼 **태블릿 가로에서 CSS 가 끄는** 데스크톱 표면을 렌더해야 하는지 판정한다.
 
     대상(태블릿 화면이 대신하는 PC 표면): 주문 PC 작업 목록(``.erp-dashboard-workqueue``) ·
-    시공/생산 PC 작업 큐(``.foms-construction-legacy-queue``/``.foms-production-legacy-queue``) ·
+    시공 PC 작업 큐(``.foms-construction-legacy-queue``) ·
     실측 PC 표(``.erp-measurement-desktop-shell``). 은닉 규칙은 모두
     ``body.erp-mobile-v2-layout`` 아래 ``(min-width: 992px) and (orientation: landscape) and
     (pointer: coarse)`` 한 식이다(foms-tablet-landscape.css · foms-tablet-construction.css ·
-    foms-tablet-production-kanban.css · foms-tablet-measurement.css). 그래서 템플릿은 반드시
+    foms-tablet-measurement.css). 그래서 템플릿은 반드시
     ``erp_mobile_v2_enabled`` 와 함께 쓴다(코호트 밖은 은닉 CSS 자체가 없다).
 
     이 판정은 ``foms_ptr=coarse`` **그리고** ``foms_vw=wide``(992 이상 가로)일 때만 False 다 —

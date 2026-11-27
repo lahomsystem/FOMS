@@ -82,7 +82,7 @@ _RELEVANT_EVENT_TYPES = (
     SHEET_FACTORY_CHANGE_EVENT,
     *DRAWING_FIX_LINE_LABELS,
 )
-#: 변경 감지가 읽는 이벤트 종류 — 렌더 전 304 키(production_fragment_version)가 같은 필터로 지문을 뜬다.
+#: 변경 감지가 읽는 이벤트 종류(바깥에서 같은 필터를 쓸 때 이 이름으로 읽는다).
 PRODUCTION_CHANGE_EVENT_TYPES = _RELEVANT_EVENT_TYPES
 
 

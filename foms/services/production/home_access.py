@@ -30,7 +30,7 @@ PRODUCTION_HOME_PATH = "/erp/production/home"
 #: 볼 수 있는 팀(능력 이름 — 별칭 팀도 ``team_has_capability`` 가 같이 판정한다). 도면 · 시공 · 출고는 2026-11-21 더함(§9-1).
 PRODUCTION_HOME_TEAMS = ("CS", "SALES", "PRODUCTION", "DRAWING", "CONSTRUCTION", "SHIPMENT")
 #: 이 문지기(:func:`can_view_production_home`)가 지키는 보기 화면 주소 앞부분 — 첫 화면 · 전체 화면 작업 시트 · 인쇄 · 도면 카드 그림.
-#: 시공팀 화면 이동 제한(``foms/platform/http.py`` ``_erp_construction_team_restrict``)이 이 주소들만 열어 준다(옛 보드는 그대로 막음).
+#: 시공팀 화면 이동 제한(``foms/platform/http.py`` ``_erp_construction_team_restrict``)이 이 주소들만 열어 준다(그 밖 /erp/ 주소는 출고로).
 PRODUCTION_VIEW_PATH_PREFIXES = (
     PRODUCTION_HOME_PATH,
     "/erp/production/sheet/",

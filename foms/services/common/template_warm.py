@@ -39,9 +39,7 @@ WARM_TEMPLATES: Sequence[str] = (
     "shipment/partials/dashboard_main.html",            # 93ms
     "cs/partials/as_dashboard_body.html",               # 68ms
     "partials/shared/erp_mobile_queue_card_v2.html",    # 59ms
-    "production/partials/tablet_kanban_body.html",      # 59ms
     "cs/partials/as_card_macros.html",                  # 48ms
-    "production/partials/filters_grid.html",            # 46ms
     "drawing/partials/workbench_dashboard_body.html",   # 45ms
     "measurement/partials/mobile_list.html",            # 44ms
     "cs/partials/as_mobile_order_card.html",            # 38ms
@@ -53,7 +51,6 @@ WARM_TEMPLATES: Sequence[str] = (
     "measurement/partials/naver_dispatch_strip.html",   # 24ms
     "cs/partials/tablet_as_compare_body.html",          # 24ms
     "drawing/partials/tablet_gallery_body.html",        # 24ms
-    "production/partials/mobile_queue.html",            # 23ms
     "orders/partials/tablet_workqueue_grid.html",       # 23ms
     "orders/partials/dashboard_mobile_filter_sheet.html",  # 22ms
     "orders/partials/dashboard_mobile_v2_body.html",    # 22ms
@@ -61,7 +58,6 @@ WARM_TEMPLATES: Sequence[str] = (
     "shipment/partials/shipment_mobile_queue.html",     # 19ms
     "cs/partials/as_mobile_controls.html",              # 18ms
     "partials/shared/erp_mobile_shell.html",            # 17ms
-    "production/partials/dashboard_body.html",          # 16ms
     "orders/partials/dashboard_mobile_tower.html",      # 16ms
     "cs/partials/tablet_completion_grid_body.html",     # 15ms
     # 아래는 2026-09-12 목록(수집 워크벤치·실측·레이아웃).
