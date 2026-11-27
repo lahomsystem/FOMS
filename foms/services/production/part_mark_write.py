@@ -38,6 +38,7 @@ from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import is_part_admin
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PART,
+    MARK_STATE_BASIC,
     MARK_STATE_DONE,
     MARK_STATE_NONE,
     PART_INSPECT,
@@ -405,7 +406,8 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     if action in STARTING_ACTIONS and decision.target != MARK_STATE_NONE:
         starting = {req.order_id} - orders_with_current_run(db, [req.order_id])  # 잠금 아래 — 회차 찾기 +1
     views = after_views(rows, [write])
-    cleared = (req.part,) if write.before.state == MARK_STATE_DONE and decision.target == MARK_STATE_NONE else ()  # 바로 완료 취소
+    finished_before = write.before.state in (MARK_STATE_DONE, MARK_STATE_BASIC)  # 바로 완료 취소 · 기본 취소 → 미정 = 칸도 맞춘다
+    cleared = (req.part,) if finished_before and decision.target == MARK_STATE_NONE else ()
     steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting, cleared=cleared)
     write_audit(db, user, _note(req, write, decision, user) + step_note(steps) + (" · 제작 시작" if started else ""),
                 {"key": req.key, "part": req.part, "action": action, "from": write.before.state,

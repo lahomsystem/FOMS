@@ -165,7 +165,7 @@
       return { title: LABEL + ' 완료를 취소할까요?', line: half(cr) + ' → 작업 중 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need', target: Number(ME) };
     }
     if (action === 'undo' && st === 'done' && cr.once && !MINE) { // 반장 · 관리자가 바로 완료한 도면(서버 표지 once) — 한 번에 미정(사장님 11-27)
-      return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → ' + (cfg.part === 'cut' ? '안 봄' : '미정'), run: LABEL + ' 완료 취소', tone: 'need' };
+      return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 미정', run: LABEL + ' 완료 취소', tone: 'need' };
     }
     if (action === 'undo' && st === 'done' && (cr.me !== 'done' || !MINE)) { // 반장 · 관리자 대신 되돌리기 — 완료만 모두 끄고(자기 몫 포함, Q23) 작업하던 사람은 그대로
       return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → ' + cr.who + ' 작업 중', run: LABEL + ' 완료 취소', tone: 'need' };
