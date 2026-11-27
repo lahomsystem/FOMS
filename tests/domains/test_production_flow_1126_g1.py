@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CSS = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
 TPL = (ROOT / "templates/production/partials/home_parts.html").read_text(encoding="utf-8")
 CLAIM_JS = ROOT / "static/js/production/foms-production-parts-claim.js"
-PIN = "20261126g"
+PIN = "20261127f"  # parts.css 핀(11-27 크게 보기 손가락 확대로 올림)
 
 
 def _rule(selector: str) -> str:
