@@ -80,7 +80,7 @@ def _no_date_order(name: str) -> Order:
 def _seed() -> dict[str, Order]:
     """재단 중(내일) · 엣지 중(모레, 재단 김재단 끝) · 보류 · 제작 대기 · 시공일 바뀐 주문 · 시공일 없음 · 여러 시공일."""
     orders = {
-        "cut": add_order("가재단", 1, pngs=1),  # 도면 1장(여러 장 줄은 [끝] 자리가 막힌다 — 사장님 2026-11-27)
+        "cut": add_order("가재단", 1, pngs=0),  # 도면 0장(도면 있는 줄은 [끝] 자리가 막힌다 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
         "edge": add_order("나엣지", 2, done=("cut",)),
         "hold": add_order("다보류", 5, done=("cut",), hold="자재 기다림"),
         "wait": add_order("라대기", 1, run=False),
@@ -222,7 +222,7 @@ def test_고치기_켬이면_태블릿과_같은_쓰기_단추(client, cohort, w
     assert f'data-order-id="{orders["hold"].id}" data-step-key=' not in steps and "보류 · 자재 기다림</span>" in steps and "보류 중" not in steps
     sheet = get_html(client, _sheet(orders["edge"]))
     for mark in ('data-tablet-sheet-action="production-cancel"', 'data-tablet-sheet-action="production-hold"',
-                 'data-foms-sheet-step="cut"', "data-foms-sheet-defect-toggle", "tablet-domain-sheets.js",
+                 'data-foms-sheet-line="cut"', "data-foms-sheet-defect-toggle", "tablet-domain-sheets.js",  # 공정 = 보기 줄(도면 있는 주문)
                  "foms-reason-sheet.js"):
         assert mark in sheet, mark
     assert "data-foms-pc-editband" in sheet

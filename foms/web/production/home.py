@@ -302,6 +302,19 @@ def _counts_response(db, user, rows: list, partner_org: str):
     return response
 
 
+def _sheet_drawing_link(user) -> dict | None:
+    """작업 시트 공정 보기 줄을 누르면 갈 도면 화면(사장님 2026-11-27 "도면이 주, 작업 시트는 보기") — 도면 판이 있는 기기(태블릿 v2 터치 +
+    긴 변 992 이상, 날짜 장 [도면 카드로 보기]와 같은 문)만. 관리자 · 반장 · 읽기 전용 = '도면 카드' 화면(``?tab=parts&part=&order=`` — '남은
+    공정' 판 막힘 칸과 같은 주소), 파트 계정 = 날짜 탭 판(``?part=&order=``, 내 파트 줄만). 그 밖(PC · 폰 · 파트도 반장도 아닌 생산팀)은 None
+    — 줄은 글만(PC 는 줄을 누르면 지금 도면 목록 창)."""
+    if not (_tablet_part_surface(user) and wants_wide_only_surfaces()):
+        return None
+    mode = part_view_mode(user)
+    if mode in _PARTS_TAB_MODES:
+        return {'tab': 'parts', 'parts': None}
+    return {'tab': None, 'parts': list(part_account_parts(user))} if mode == VIEW_PART else None
+
+
 def selected_day_pane(days: dict) -> dict:
     """고른 날(주소 ``day=`` 또는 자동으로 고른 날)의 장 하나. ``production_home_days`` 의 ``selected`` 는 늘 장 열쇠다."""
     return next((p for p in days['panes'] if p['key'] == days['selected']), days['panes'][0])
@@ -444,6 +457,7 @@ def erp_production_sheet_page(order_id: int):
         is_admin=bool(user and user.role == 'ADMIN'),
         defect_reasons=_PRODUCTION_DEFECT_REASONS,
         pc_sheet_due=due,
+        sheet_dw_link=_sheet_drawing_link(user) if sheet.get('step_lines') else None,
         **flags,
     )
 

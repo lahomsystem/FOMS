@@ -56,8 +56,10 @@ def test_PC_로_연_작업_시트_공정_칸은_같은_창_태블릿은_그대�
     assert "pc-sheet-write.js" not in view and "data-foms-pc-sheet-ask" not in view and "data-foms-sheet-confirm" not in view
     _login(client, admin)
     _edit(client)
-    edit = _sheet(client, oid)  # [고치기] — 칸은 지금 단추 그대로에 표지만, 확인 창은 시트 것 하나(겹치지 않음)
-    assert edit.count('aria-haspopup="dialog" data-foms-pc-sheet="') == 4 and 'data-foms-sheet-step="cut"' in edit
+    edit = _sheet(client, oid)  # [고치기] — 확인 창은 시트 것 하나(겹치지 않음). 2026-11-27 "도면이 주, 작업 시트는 보기": 도면 있는 주문은
+    # [고치기]여도 칸이 보기 줄(체크 칸 없음) — 누르면 같은 도면 목록 창(옛 단언 'data-foms-sheet-step="cut"' → 없음)
+    assert edit.count('aria-haspopup="dialog" data-foms-pc-sheet="') == 4 and 'data-foms-sheet-step="cut"' not in edit
+    assert edit.count('data-foms-sheet-line="') == 4
     assert edit.count("data-foms-sheet-confirm hidden") == 1 and "pc-sheet-write.js?v=" in edit and "data-foms-pc-sheet-ask" in edit
     assert edit.index("foms-production-sheet-page.js") < edit.index("foms-production-pc-sheet.js") < edit.index("pc-sheet-write.js")
     assert "data-foms-pc-sheet" not in _sheet(client, bare_id)  # 도면 0장 = 지금 그대로(통째 손 체크)

@@ -95,14 +95,17 @@ def test_steps_api_refuses_an_order_whose_sheets_are_all_in_the_other_factory(cl
     assert client.get(f"/api/orders/{mixed.id}/production/steps").get_json()["data"]["locked"] is False
     set_cookies(client, TABLET)  # 공정 칸이 단추로 그려지는 기기(터치)
     sheet = client.get(f"/erp/production/sheet/{only2.id}").get_data(as_text=True)
-    assert f"data-foms-sheet-steps-locked>{ELSEWHERE_WHY}</p>" in sheet and 'data-foms-sheet-step="cut" aria-pressed="false" aria-disabled="true"' in sheet
+    # 도면 있는 주문의 공정 칸 = 보기 줄(사장님 2026-11-27 "도면이 주, 작업 시트는 보기") — 잠금 글은 그대로, 누를 체크 칸 없음
+    assert f"data-foms-sheet-steps-locked>{ELSEWHERE_WHY}</p>" in sheet and 'data-foms-sheet-line="cut"' in sheet
+    assert "data-foms-sheet-step=" not in sheet.split('aria-label="공정"', 1)[1].split("</section>", 1)[0]
     assert "data-foms-sheet-steps-locked" not in client.get(f"/erp/production/sheet/{mixed.id}").get_data(as_text=True)
     # 섞인 주문 = 공장 문은 지나간다(판결 A) — 도면이 여러 장이라 그다음 문에서 막힌다(409 STEP_PER_SHEET, 사장님 2026-11-27)
     assert code(check_step(client, mixed.id, "cut", True)) == "STEP_PER_SHEET"
     login(client, factory_user("최반장", factory=2, lead=True))
-    assert check_step(client, only2.id, "cut", True).status_code == 200  # 그 공장 반장은 된다
+    # 그 공장 반장 · 관리자(두 공장)는 공장 문을 지나 다음 문 — 도면이 있어 409 STEP_PER_SHEET(사장님 2026-11-27 "도면이 주, 작업 시트는 보기", 옛 단언 200)
+    assert code(check_step(client, only2.id, "cut", True)) == "STEP_PER_SHEET"
     login(client, make_user("오관리", role="ADMIN", team="CS"))
-    assert check_step(client, only2.id, "edge", True).status_code == 200  # 관리자는 두 공장
+    assert code(check_step(client, only2.id, "edge", True)) == "STEP_PER_SHEET"
     login(client, make_user("한상담", team="CS"))  # 보기만 — 공장 글 없음(지금 그대로)
     assert "data-foms-sheet-steps-locked" not in client.get(f"/erp/production/sheet/{only2.id}").get_data(as_text=True)
 
@@ -126,8 +129,8 @@ def test_whole_step_expand_on_an_other_factory_order_is_refused_before_writing(c
 
 
 def test_my_steps_screen_draws_no_finish_for_other_factory_orders_and_puts_them_last(client, cohort):
-    only2 = mixed_order(1, f2=(0,))  # 도면 1장(여러 장 주문은 [끝] 자리가 막힌다 — 사장님 2026-11-27)
-    mine = mixed_order(1, f2=())
+    only2 = mixed_order(1, f2=(0,))  # 도면 1장 — 공장 막힘("2공장 작업")이 도면 막힘보다 먼저
+    mine = make_order(0)  # 대조군 — [끝]이 남는 도면 0장 주문(사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
     login(client, factory_user("박반장", lead=True))
     page = _page(client, STEPS)
     cut = page.split('data-foms-home-stepq="cut"', 1)[1].split('data-foms-home-stepq="edge"', 1)[0]
@@ -142,8 +145,9 @@ def test_my_steps_screen_draws_no_finish_for_other_factory_orders_and_puts_them_
     client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")  # [고치기] 켬
     pc = client.get(STEPS).get_data(as_text=True)
     assert f'data-foms-home-step-done data-order-id="{only2.id}"' not in pc and f'<span class="fpc-hold is-elsewhere" title="{ELSEWHERE_WHY}">' in pc
-    login(client, make_user("오관리", role="ADMIN", team="CS"))  # 관리자 = 두 공장 — [끝] 그대로
-    assert f'data-foms-home-step-done data-order-id="{only2.id}"' in _row(_page(client, STEPS), only2.id)
+    login(client, make_user("오관리", role="ADMIN", team="CS"))  # 관리자 = 두 공장 — 공장 막힘 없음(도면이 있어 [끝] 자리는 막힘 칸, 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
+    admin_row = _row(_page(client, STEPS), only2.id)
+    assert "is-elsewhere" not in admin_row and ">재단 0/1 · 1장 미완료</a>" in admin_row
 
 
 # --------------------------------------------------------------------------- #
@@ -153,7 +157,7 @@ def test_part_that_uses_cards_shows_left_sheets_and_links_to_the_board(client, c
     order = make_order(3)
     kim = make_user("김재단", part="cut")
     put_mark(order, 0, "cut", "DONE", kim)
-    bare = make_order(1)  # 대조군 — 도면 칸을 안 쓴 주문(도면 1장 — 여러 장은 [끝] 자리가 막힌다, 사장님 2026-11-27)
+    bare = make_order(0)  # 대조군 — 도면 칸을 안 쓴 주문(도면 0장 — 도면이 있으면 [끝] 자리가 막힌다, 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
     login(client, make_user("박반장", lead=True))
     refused = check_step(client, order.id, "cut", True)
     assert refused.status_code == 409 and code(refused) == "PART_USES_CARDS"
