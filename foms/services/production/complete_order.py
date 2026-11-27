@@ -206,7 +206,7 @@ def complete_production(db: Any, order_id: int, user: Any, user_id: Any, body: d
         # 첫 조회부터 행 잠금 — 카드 쓰기(같은 행을 잠근다)와 줄 세워 표시 줄 판정이 낡지 않게(§4-3).
         order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "message": "주문을 찾을 수 없어요."}), 404
         release_hold = body.get("release_hold") is True
         err = admin_override_error(user, body)
         if err is not None:
@@ -234,7 +234,7 @@ def complete_production(db: Any, order_id: int, user: Any, user_id: Any, body: d
             record_admin_override_event(db, order, override=override, gates=punched, route=route, axis="MAIN",
                                         from_value=from_stage, to_value="CONSTRUCTION")
         db.commit()
-        return jsonify({"success": True, "message": "제작이 완료되었습니다. (시공 대기 상태로 변경)", "new_status": "CONSTRUCTION"})
+        return jsonify({"success": True, "message": "제작이 완료됐어요. (시공 대기로 바뀜)", "new_status": "CONSTRUCTION"})
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500
@@ -247,7 +247,7 @@ def _complete_gates(db: Any, order: Order, sd: dict[str, Any], release_hold: boo
     if order.erp_stage_code not in ("생산", "PRODUCTION"):
         if override is None:
             return jsonify({"success": False, "code": "INVALID_STAGE",
-                            "message": "제작중 상태에서만 제작을 완료할 수 있습니다."}), 409
+                            "message": "제작 중일 때만 제작을 완료할 수 있어요."}), 409
         punched.append("INVALID_STAGE")
     blocked = _punch_or_return(_hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
     if blocked is not None:

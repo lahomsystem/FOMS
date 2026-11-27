@@ -144,7 +144,7 @@ def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         user = get_user_by_id(session.get("user_id"))
         if not user:
-            return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
+            return jsonify({"success": False, "error": "로그인이 필요해요."}), 401
         if _can_edit_production_steps(user):
             return f(*args, **kwargs)
         return jsonify({"success": False, "error": PRODUCTION_WRITE_DENIED_MESSAGE}), 403
@@ -162,7 +162,7 @@ def _production_change_ack_required(f: Callable[..., Any]) -> Callable[..., Any]
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         user = get_user_by_id(session.get("user_id"))
         if not user:
-            return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
+            return jsonify({"success": False, "error": "로그인이 필요해요."}), 401
         if can_ack_production_change(user):
             return f(*args, **kwargs)
         return jsonify({"success": False, "error": PRODUCTION_ACK_DENIED_MESSAGE}), 403
@@ -509,10 +509,10 @@ def api_production_start(order_id):
     (a) PRODUCTION·run 없음 — 단계는 그대로, ``execute_order_mutation``(REV-00) 안에서
         history("제작 시작")·보류 해제·run 발급·감사 + ``PRODUCTION_STARTED`` OrderEvent 직접
         add. mutation_version +1, ``order.status`` 무변경. 응답에 ``run_started: True``.
-        current run 이 이미 있으면 409 INVALID_STAGE("이미 제작중인 주문입니다.").
+        current run 이 이미 있으면 409 INVALID_STAGE("이미 제작 중인 주문이에요.").
     (b) CONFIRM(호환 — 승인이 단계를 못 넘긴 옛 주문) — 기존 그대로 CONFIRM quest 게이트 뒤
         ``transition_order(PRODUCTION_START, CONFIRM→PRODUCTION)`` + 같은 side-effect.
-    (c) 그 밖 — 409 INVALID_STAGE("제작대기 상태에서만 제작을 시작할 수 있습니다.").
+    (c) 그 밖 — 409 INVALID_STAGE("제작 대기일 때만 제작을 시작할 수 있어요.").
 
     공통 게이트 순서: 존재(404) → team 권한(데코레이터 403) → 단계(409) → 보류(HOLD_ACTIVE
     409, release_hold 예외) → [(b) 만] CONFIRM quest 완료(QUEST_INCOMPLETE 409 — CONFIRM quest
@@ -524,7 +524,7 @@ def api_production_start(order_id):
         # 첫 조회부터 행 잠금 — 보류·퀘스트·도면 게이트를 모두 잠금 아래 sd 로 판정한다(2a-2).
         order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "message": "주문을 찾을 수 없어요."}), 404
 
         body = request.get_json(silent=True) or {}
         release_hold = body.get("release_hold") is True
@@ -554,7 +554,7 @@ def api_production_start(order_id):
                 # 중복 run 발급은 권한 문제가 아니라 잘못된 데이터다 — 관리자도 못 뚫는다.
                 if _current_production_run(db, order_id) is not None:
                     return jsonify({"success": False, "code": "INVALID_STAGE",
-                                    "message": "이미 제작중인 주문입니다."}), 409
+                                    "message": "이미 제작 중인 주문이에요."}), 409
                 blocked = _punch_or_return(
                     _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
                 if blocked is not None:
@@ -583,7 +583,7 @@ def api_production_start(order_id):
                     return blocked
             elif override is None:
                 return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "제작대기 상태에서만 제작을 시작할 수 있습니다."}), 409
+                                "message": "제작 대기일 때만 제작을 시작할 수 있어요."}), 409
             else:
                 # 단계 전제를 뚫었으면 고객컨펌 호환 경로와 같은 게이트를 돌되 함께 건너뛴다.
                 punched.append("INVALID_STAGE")
@@ -620,7 +620,7 @@ def api_production_start(order_id):
                     route="erp_orders_production.api_production_start", axis="MAIN",
                     from_value="", to_value="")
             db.commit()
-            return jsonify({"success": True, "message": "제작이 시작되었습니다.",
+            return jsonify({"success": True, "message": "제작이 시작됐어요.",
                             "new_status": "PRODUCTION", "run_started": True})
 
         # (b) CONFIRM 호환 경로 — 엔진 전이 CONFIRM→PRODUCTION + same-tx side-effect.
@@ -646,7 +646,7 @@ def api_production_start(order_id):
                 route="erp_orders_production.api_production_start", axis="MAIN",
                 from_value=from_stage, to_value="PRODUCTION")
         db.commit()
-        return jsonify({"success": True, "message": "제작이 시작되었습니다.", "new_status": "PRODUCTION"})
+        return jsonify({"success": True, "message": "제작이 시작됐어요.", "new_status": "PRODUCTION"})
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500
@@ -701,7 +701,7 @@ def api_production_rework(order_id: int):
         # 첫 조회부터 행 잠금 — 도면·보류 게이트를 잠금 아래 sd 로 판정한다(제작 시작과 같다).
         order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "message": "주문을 찾을 수 없어요."}), 404
 
         body = request.get_json(silent=True) or {}
         release_hold = body.get("release_hold") is True
@@ -730,7 +730,7 @@ def api_production_rework(order_id: int):
                         {
                             "success": False,
                             "code": "INVALID_STAGE",
-                            "message": "제작완료 상태에서만 수정 제작을 시작할 수 있습니다.",
+                            "message": "제작 완료일 때만 수정 제작을 시작할 수 있어요.",
                         }
                     ),
                     409,
@@ -828,7 +828,7 @@ def api_production_rework(order_id: int):
                 from_value=from_stage, to_value="PRODUCTION")
         db.commit()
         return jsonify(
-            {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": order.status}
+            {"success": True, "message": "수정 제작을 시작했어요.", "new_status": order.status}
         )
     except Exception as exc:
         db.rollback()
@@ -846,7 +846,7 @@ def api_production_cancel(order_id: int):
     **보류 게이트를 적용하지 않는다** — 보류는 전진(시작·완료·수정 제작)만 막는 배지이며,
     되돌리기는 보류가 걸린 채로도 허용한다(단, 아래처럼 정리한다). 가드는 404 →
     INVALID_STAGE(제작중이 아니면 409) → INVALID_STAGE(current run 없으면 409, "제작 시작 전
-    주문은 취소할 수 없습니다.") 순서. transition_order 를 타지 않고
+    주문은 취소할 수 없어요.") 순서. transition_order 를 타지 않고
     ``execute_order_mutation``(REV-00) 으로 감싸 row lock·mutation_version++·idempotency
     receipt 를 보장하며, ``PRODUCTION_CANCELLED`` OrderEvent 는 직접 add 한다(단계 축이
     안 움직이므로 STAGE_NOTIFICATION 오발송 없음). 응답 ``new_status`` 는 "PRODUCTION".
@@ -865,7 +865,7 @@ def api_production_cancel(order_id: int):
     try:
         order = db.get(Order, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "message": "주문을 찾을 수 없어요."}), 404
 
         body = request.get_json(silent=True) or {}
         reason_raw = body.get("reason")
@@ -890,13 +890,13 @@ def api_production_cancel(order_id: int):
             if order.erp_stage_code not in ("생산", "PRODUCTION"):
                 if override is None:
                     return jsonify({"success": False, "code": "INVALID_STAGE",
-                                    "message": "제작중 상태에서만 제작을 취소할 수 있습니다."}), 409
+                                    "message": "제작 중일 때만 제작 시작을 취소할 수 있어요."}), 409
                 punched.append("INVALID_STAGE")
             if _current_production_run(db, order_id) is None:
                 # 닫을 run 이 없는 것은 권한 문제가 아니라 없는 일을 되돌리라는 요청이다 —
                 # 관리자도 못 뚫는다(중복 발급 계열과 같은 축).
                 return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "제작 시작 전 주문은 취소할 수 없습니다."}), 409
+                                "message": "제작 시작 전 주문은 취소할 수 없어요."}), 409
 
         def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
             target = orders[0]
@@ -923,7 +923,7 @@ def api_production_cancel(order_id: int):
         db.commit()
         return jsonify({
             "success": True,
-            "message": "제작을 취소했습니다. (제작대기 복귀)",
+            "message": "제작을 취소했어요. (제작 대기 복귀)",
             "new_status": "PRODUCTION",
         })
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
@@ -954,7 +954,7 @@ def api_production_uncomplete(order_id: int):
     try:
         order = db.get(Order, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "message": "주문을 찾을 수 없어요."}), 404
 
         body = request.get_json(silent=True) or {}
         idem_key = _idempotency_key(body)
@@ -977,7 +977,7 @@ def api_production_uncomplete(order_id: int):
             if order.erp_stage_code not in ("시공", "CONSTRUCTION"):
                 if override is None:
                     return jsonify({"success": False, "code": "INVALID_STAGE",
-                                    "message": "제작완료 상태에서만 완료 취소할 수 있습니다."}), 409
+                                    "message": "제작 완료일 때만 완료 취소할 수 있어요."}), 409
                 punched.append("INVALID_STAGE")
 
         try:
@@ -1005,7 +1005,7 @@ def api_production_uncomplete(order_id: int):
         db.commit()
         return jsonify({
             "success": True,
-            "message": "완료를 취소했습니다. (제작중 복귀)",
+            "message": "완료를 취소했어요. (제작 중 복귀)",
             "new_status": "PRODUCTION",
         })
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
@@ -1039,7 +1039,7 @@ def api_production_change_ack(order_id: int):
     try:
         order = db.get(Order, order_id)
         if order is None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "message": "주문을 찾을 수 없어요."}), 404
 
         body = request.get_json(silent=True) or {}
         idem_key = _idempotency_key(body)
@@ -1102,11 +1102,11 @@ def api_production_steps(order_id: int):
         key = payload.get("key")
         done = payload.get("done")
         if key not in _PRODUCTION_STEP_KEYS or not isinstance(done, bool):
-            return jsonify({"success": False, "error": "key 또는 done 값이 올바르지 않습니다."}), 400
+            return jsonify({"success": False, "error": "key 또는 done 값이 올바르지 않아요."}), 400
 
         order = db.get(Order, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "error": "주문을 찾을 수 없어요."}), 404
 
         user_id = session.get("user_id")
         captured: dict[str, Any] = {}
@@ -1189,11 +1189,11 @@ def api_production_defect(order_id: int):
         payload = request.get_json(silent=True) or {}
         reason = payload.get("reason")
         if reason not in _PRODUCTION_DEFECT_REASONS:
-            return jsonify({"success": False, "error": "불량 사유 값이 올바르지 않습니다."}), 400
+            return jsonify({"success": False, "error": "불량 사유 값이 올바르지 않아요."}), 400
 
         order = db.get(Order, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "error": "주문을 찾을 수 없어요."}), 404
 
         user = get_user_by_id(session.get("user_id"))
         user_id = session.get("user_id")
@@ -1331,13 +1331,13 @@ def api_production_hold(order_id: int):
         payload = request.get_json(silent=True) or {}
         active = payload.get("active")
         if not isinstance(active, bool):
-            return jsonify({"success": False, "error": "active 값(bool)이 올바르지 않습니다."}), 400
+            return jsonify({"success": False, "error": "active 값(bool)이 올바르지 않아요."}), 400
         reason_raw = payload.get("reason")
         reason = reason_raw.strip() if isinstance(reason_raw, str) else ""
 
         order = db.get(Order, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "error": "주문을 찾을 수 없어요."}), 404
 
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
@@ -1398,7 +1398,7 @@ def api_set_logistics_status(order_id: int):
         payload = request.get_json(silent=True) or {}
         target = payload.get("status")
         if not isinstance(target, str) or not target.strip():
-            return jsonify({"success": False, "error": "status 값이 올바르지 않습니다."}), 400
+            return jsonify({"success": False, "error": "status 값이 올바르지 않아요."}), 400
         target = target.strip()
 
         user_id = session.get("user_id")
@@ -1409,7 +1409,7 @@ def api_set_logistics_status(order_id: int):
 
         order = db.get(Order, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+            return jsonify({"success": False, "error": "주문을 찾을 수 없어요."}), 404
 
         try:
             transition_order(

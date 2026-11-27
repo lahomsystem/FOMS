@@ -147,7 +147,7 @@ def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *,
         return (
             jsonify({
                 "success": False, "code": "QUEST_INCOMPLETE", "reason": "QUEST_MISSING",
-                "message": f"{stage_label} 승인이 먼저 필요합니다.", "missing_teams": missing,
+                "message": f"{stage_label} 승인이 먼저 필요해요.", "missing_teams": missing,
             }),
             409,
         )
@@ -159,7 +159,7 @@ def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *,
     return (
         jsonify({
             "success": False, "code": "QUEST_INCOMPLETE",
-            "message": "필수 승인이 완료되지 않아 전이할 수 없습니다.", "missing_teams": missing,
+            "message": "필수 승인이 완료되지 않아 다음 단계로 넘길 수 없어요.", "missing_teams": missing,
         }),
         409,
     )

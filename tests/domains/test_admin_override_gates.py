@@ -352,7 +352,7 @@ def test_already_in_production_is_not_punchable(client):
     resp = client.post(f"/api/orders/{oid}/production/start", json=_punch())
 
     assert resp.status_code == 409, resp.get_data(as_text=True)
-    assert resp.get_json()["message"] == "이미 제작중인 주문입니다."
+    assert resp.get_json()["message"] == "이미 제작 중인 주문이에요."
     db_session.expire_all()
     assert db_session.query(ProductionRun).filter_by(order_id=oid).count() == 1
     assert _override_events(oid) == []

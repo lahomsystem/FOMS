@@ -116,7 +116,7 @@ def test_제작_취소는_제작중이_아니면_평소처럼_막힌다(client):
     resp = client.post(f"/api/orders/{oid}/production/cancel", json={})
 
     assert resp.status_code == 409, resp.get_data(as_text=True)
-    assert "제작중 상태에서만" in resp.get_json()["message"]
+    assert resp.get_json()["message"] == "제작 중일 때만 제작 시작을 취소할 수 있어요."
     assert _override_events(oid) == []
 
 

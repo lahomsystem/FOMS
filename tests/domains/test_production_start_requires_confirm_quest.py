@@ -98,7 +98,7 @@ def test_confirm_without_quest_is_rejected_with_quest_missing(client):
     assert body["code"] == "QUEST_INCOMPLETE"
     assert body["reason"] == "QUEST_MISSING"
     assert body["missing_teams"] == ["CS", "SALES"]
-    assert body["message"] == "고객컨펌 승인이 먼저 필요합니다."  # 문구 SSOT = STAGE_LABELS["CONFIRM"]
+    assert body["message"] == "고객컨펌 승인이 먼저 필요해요."  # 문구 SSOT = STAGE_LABELS["CONFIRM"]
 
     saved = _saved(order_id)
     assert saved.erp_stage_code == "CONFIRM"
