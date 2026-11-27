@@ -2403,6 +2403,15 @@
 - 스테이징 `b0565c00d`(기록, smoke_push122 · CI 초록 · 배포 SUCCESS) · 운영 `09eddee21`(#932). 다음 올리기 로그 `smoke_push123`.
 - **도는 일꾼**: build-z4(fable, `foms-w-b2` work/z4, 바탕 `b0565c00d`, 핀 `20261128c`, 포트 5650, 그림 `scratchpad/crit/z4/`, 새 시험 `test_production_cancel_stale_1127.py`, 재는 스크립트 `z4_check.py`) — 쓰기 몸에 창이 보여 준 값(예 `seen_cancel`)을 싣고, 서버 판정과 다르면 409(예 `CANCEL_NOTICE_STALE`, 글 "그 사이 이 주문이 바뀌었어요. 다시 확인해 주세요.") · 아무것도 안 씀. 값 없는 쓰기(PC 창 · 옛 화면 사본)는 그대로. 줄 수가 빡빡함(`part_mark_write.py` 498 · `parts-modal.js` 298 · `parts.js` 297 — 미리 안내 조각을 새 JS 파일로 옮길 수 있음). 설계서 §4-8 에 "덧붙임 둘" 문단을 일꾼이 같이 씀. 끝나면 diff → cherry-pick → 시험 → 5647 실화면 → 원장 → `safe_push.sh` → **운영은 사장님이 말씀하실 때만**.
 
+## 운영에 안 올라간 것 체크 (11-27 밤, 사장님 "이 세션작업 중 운영 안 올라간거 체크해")
+
+- 방법: 세션 커밋 원장(`session_commit_ledger.json`, 이 세션 801커밋)이 건드린 파일 가운데 문서(`docs/`) 뺀 **699개**를 `origin/production`(`09eddee21`) 과 `origin/deploy`(`b0565c00d`) 의 파일 내용(blob)으로 하나씩 견줌. 커밋 번호 · patch-id 로 세면 문서가 섞인 커밋 때문에 "안 올라감 27"로 틀리게 나옴(전부 내용은 운영에 있음) — **내용 대조가 정본**.
+- 결과: **695개 같음**(그중 25개는 양쪽 다 지워짐) · 다름 4개.
+  - 다른 창 것 3: `templates/partials/shared/layout_head.html` · `templates/drawing/wizard.html`(긴급 알림 핀 — 운영 `20261019a` 가 스테이징 `20261016a` 보다 새것) · `tests/conftest.py`(CI 조각 나누기, 스테이징에만).
+  - **내 것 1**: `tests/domains/test_post_auth_navigation.py` 의 시험 둘 `test_production_root_redirects_to_production_home` · `test_cs_desktop_login_is_unchanged_by_production_landing`(11-09 `366b76cb0` — 운영 사본 `50280dc3a` 에서 빠짐. 기능 코드는 운영에 있음, 그 파일에는 다른 창의 10-30 시험 고침 `0591f24e8` 도 운영에 없음).
+- 사장님 답(글자 그대로): **"다음 운영 올릴 때 같이 (Recommended)"** — 어긋남 막기를 운영에 올릴 때 이 시험 둘만 운영 가지 파일에 손으로 넣는다(다른 창의 고침은 넣지 않는다).
+- 그 밖에 운영에 없는 것: 문서(원장 · 설계서 — 올릴 때마다 일부러 뺌) · 지금 만드는 어긋남 막기(build-z4, 아직 합치지 않음) · 세션에만 있는 기록 커밋 둘(`8de48a5b9` 와 이 절 — 다음 올릴 때 같이).
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
