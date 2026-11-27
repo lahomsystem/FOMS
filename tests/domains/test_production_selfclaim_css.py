@@ -80,7 +80,7 @@ NEW_TOKENS = {
     "--fph-old-line": "#c2410c", "--fph-release-700": "#075985",
     # home.css — 어제부터 · 칸 아래 이름
     "--fph-old-50": "#ffedd5", "--fph-old-300": "#fdba74", "--fph-old-700": "#9a3412",
-    "--fph-holder": "#4b525d", "--fph-holder-done": "#4a55b8", "--fph-holder-none": "#626a76",  # = --fph-text3(비평 C12 2026-11-26 #6b7380 → #626a76)
+    "--fph-holder": "#4b525d", "--fph-holder-done": "#047857", "--fph-holder-none": "#626a76",  # = --fph-text3(비평 C12 2026-11-26 #6b7380 → #626a76)
     # pc.css · sheet.css — 같은 값, 자기 접두사
     "--fpc-old-700": "#9a3412",
     "--fpp-ok-dark": "#047857", "--fpp-warn-soft": "#fcd34d", "--fpp-taken-10": "#fdf2f8", "--fpp-taken-50": "#eecbda",
@@ -94,7 +94,7 @@ def test_새_토큰_값() -> None:
     # 있는 색과 같은 값은 토큰을 가리킨다(설계서 §10 '새 토큰')
     parts, home = _css("parts.css"), _css("home.css")
     assert "--fph-release-700: var(--fph-basic-700);" in parts
-    for line in ("--fph-holder: var(--fph-text2);", "--fph-holder-done: var(--fph-brand-dark);", "--fph-holder-none: var(--fph-text3);",
+    for line in ("--fph-holder: var(--fph-text2);", "--fph-holder-done: var(--fph-dw-ok);", "--fph-holder-none: var(--fph-text3);",
                  "--fph-step-w: calc(76px * var(--foms-fs, 1));"):
         assert line in home, line
     # 3단계(2공장): 공장 색은 생산 CSS 에 두지 않는다 — 공장 칩 한 곳(components/foms-factory-chip.css)의 --foms-fac1-* · --foms-fac2-* 를
