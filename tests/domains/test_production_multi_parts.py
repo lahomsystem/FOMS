@@ -332,9 +332,9 @@ def test_two_part_account_head_picks_parts_keeps_day_and_titles_both(client, coh
     assert all(f"day={_first_day()}" in href for href in re.findall(r'href="([^"]*)"', nav))  # 같은 날
     assert '<h1 class="foms-prod-home__title">재단 · 엣지 <span class="foms-prod-home__me">김두파</span></h1>' in html
     assert _day_hrefs(html) and all("part=cut" in href for href in _day_hrefs(html))  # 날을 바꿔도 고른 파트
-    assert 'data-pp-act="take">작업 시작<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
+    assert 'data-pp-act="take">재단 시작<' in pane and 'class="pp-parts"' not in pane  # 관리자 네 파트 고르기는 없다
     edge = _pane(_get(client, HOME + "?part=edge"))
-    assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">작업 시작<' in edge
+    assert 'data-pp-pick="edge" aria-current="page">엣지</a>' in edge and 'data-pp-act="take">엣지 시작<' in edge
     assert "pp-bulk" not in edge and "출고 1건 · 도면 나온 1건" in edge  # 엣지 판 머리 글(날짜 묶음 말 = 출고, 사장님 2026-11-25)
     assert 'data-pp-pick="cut" aria-current="page">' in _pane(_get(client, HOME + "?part=inspect"))  # 내 파트 밖 → 첫 파트
 
@@ -346,7 +346,7 @@ def test_single_part_account_head_and_links_stay_as_now(client, cohort):
     assert "pp-picks" not in html and "data-pp-pick" not in html
     assert '<h1 class="foms-prod-home__title">재단 <span class="foms-prod-home__me">박재단</span></h1>' in html
     assert _day_hrefs(html) and not any("part=" in href for href in _day_hrefs(html))
-    assert 'data-pp-act="take">작업 시작<' in _pane(html)
+    assert 'data-pp-act="take">재단 시작<' in _pane(html)
 
 
 def test_sub_mode_sees_cards_tab_with_buttons_like_admin(client, cohort):

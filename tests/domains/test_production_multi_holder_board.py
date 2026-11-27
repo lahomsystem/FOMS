@@ -157,7 +157,7 @@ def test_board_cards_follow_the_mockup(client, cohort) -> None:
     kim = _page(client, p.kim)
     a = _act(_card(kim, k[0]))  # A — [기본][작업 시작]
     assert ('data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" '
-            'data-pp-act="take">작업 시작</button></div>') in a
+            'data-pp-act="take">재단 시작</button></div>') in a
     b = _card(kim, k[1])  # B — 이시영 작업 중 + [같이 작업]
     assert 'class="pp-card is-other"' in b and '<div class="pp-two pp-two--join">' in _act(b)
     assert f"<b>이시영 작업{NBSP}중</b>" in _act(b) and 'data-pp-act="join">같이 작업</button></div>' in _act(b)
@@ -262,7 +262,7 @@ def test_js_join_window_and_late_start_notice(client, cohort, tmp_path) -> None:
     assert [c["body"] for c in calls] == [join, took]  # 몸 = 본 내 몫 · 본 담당(옛 호환) · 넘김은 서버가
     c = out[2]["card"]
     assert (c["state"], c["in_need"], c["tag"]) == ("need", "1", "내 작업 · 이시영과 같이") and "is-mine" in c["cls"]
-    assert out[3]["modal"]["title"] == "재단 작업을 시작할까요?" and out[3]["modal"]["run"]["text"] == "작업 시작"
+    assert out[3]["modal"]["title"] == "재단 시작할까요?" and out[3]["modal"]["run"]["text"] == "재단 시작"
     e0 = out[5]["card"]  # E0 — 늦은 사람도 같이 작업 + 서버 글 그대로, 단추 칸이 아니라 그림 칸 아래쪽 안
     assert e0["notice"] == "이시영이 먼저 시작했어요." and e0["notice_in_img"] and e0["why"] is None
     assert e0["tag"] == "내 작업 · 이시영과 같이" and e0["picked_me"] == "1"

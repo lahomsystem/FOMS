@@ -48,12 +48,12 @@ JS = ROOT / "static/js/production"
 EDGE_ADMIN = HOME_NONE + "&tab=parts&part=edge"
 INSPECT_ADMIN = HOME_NONE + "&tab=parts&part=inspect"
 CUT_LEAD_NONE = ('<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button>'
-                 '<button type="button" class="foms-prod-home__btn" data-pp-act="take">작업 시작</button></div>'
+                 '<button type="button" class="foms-prod-home__btn" data-pp-act="take">재단 시작</button></div>'
                  '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">재단 완료</button>')
-EDGE_LEAD_NONE = ('<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">작업 시작</button>'
+EDGE_LEAD_NONE = ('<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">엣지 시작</button>'
                   '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">엣지 완료</button></div>')
 CUT_PART_NONE = ('<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button>'
-                 '<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="take">작업 시작</button></div>')
+                 '<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="take">재단 시작</button></div>')
 
 
 def _box(html: str, key: str) -> str:
@@ -238,7 +238,7 @@ def test_part_account_and_view_only_boards_are_unchanged(client, cohort):
     assert _box(part_page, order.keys[0]) == CUT_PART_NONE and 'data-pp-act="check"' not in part_page
     edge_page = _page(client, make_user("박엣지", part="edge"))
     assert _box(edge_page, order.keys[0]) == (
-        '<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">작업 시작</button>')
+        '<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">엣지 시작</button>')
     assert 'data-pp-act="check"' not in edge_page
     view = _act(_card(_page(client, make_user("상담", team="CS"), CUT_ADMIN), order.keys[0]))
     assert "<button" not in view
@@ -324,8 +324,8 @@ def test_js_edge_window_409_redraw_and_synced_mark(client, cohort, tmp_path):
     w = out[0]["modal"]
     assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("엣지 완료로 바꿀까요?", "→ 엣지 완료 · 관리", "엣지 완료", "")
     assert out[1]["modal"]["lost"] is True and out[1]["modal"]["err"] == refused["body"]["error"]  # 서버 글 그대로
-    two = [{"tag": "div", "cls": "pp-two", "act": None, "text": "작업 시작엣지 완료", "kids": [
-        {"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "작업 시작", "kids": []},
+    two = [{"tag": "div", "cls": "pp-two", "act": None, "text": "엣지 시작엣지 완료", "kids": [
+        {"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "엣지 시작", "kids": []},
         {"tag": "button", "cls": "fph-qr__done pp-act pp-fin is-pair", "act": "check", "text": "엣지 완료", "kids": []}]}]
     assert out[2]["card"]["state"] == "none" and out[2]["card"]["act"] == two  # 409 뒤 서버 모습으로 다시 그려도 같은 규칙
     assert out[3]["card"]["state"] == "none" and out[3]["card"]["act"] == two  # 받아 오기 표시로 다시 그려도 같은 규칙
@@ -343,7 +343,7 @@ def test_source_contract_one_drawing_at_a_time():
     assert '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">{{ pb.part_label }} 완료</button>' in tpl
     assert "{% if not pb.mine %}{{ pp_fin_now(pb) }}{% endif %}" in tpl and "{%- elif pb.writable and not pb.mine -%}" in tpl
     assert "['take', 'basic', 'bulk', 'check'].indexOf(action) >= 0" in modal
-    assert "cut: IS_CUT" in parts and "'작업 시작', 'take'" not in parts  # 안 봄 칸 그리기는 crew 한 곳
+    assert "cut: IS_CUT" in parts and " 시작', 'take'" not in parts  # 안 봄 칸 그리기는 crew 한 곳
     # 한 장씩만 — 여러 장을 한 번에 완료하는 새 단추 · 요청 없음(일괄은 [남은 N장 모두 기본] 하나)
     assert tpl.count('data-pp-act="bulk"') == 1 and parts.count("'/api/production/part-marks/basic'") == 1
     assert tpl.count('data-pp-act="check"') == 2 and crew.count("'check')") == 2  # 반장 칸 대신 완료 + 미정 칸 바로 완료, 둘뿐
@@ -351,8 +351,8 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name,pin", [("parts", "20261127b"), ("parts-claim", "20261127b"), ("parts-modal", "20261127q"),
-                                      ("parts-crew", "20261127q")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59)을 합쳐 q
+@pytest.mark.parametrize("name,pin", [("parts", "20261127b"), ("parts-claim", "20261127b"), ("parts-modal", "20261127r"),
+                                      ("parts-crew", "20261127r")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl
