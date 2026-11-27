@@ -4,7 +4,8 @@
  * 3.2 — POST …/proposals/<id>/answer 한 번. 서버가 고침 제안 · 반영 · 카드 닫기 · 사장님 글 남기기를 한 트랜잭션에서 한다):
  *  - 회사 지식이 맞아요 = code 'knowledge_right'(글 없음).
  *  - 바깥 글이 맞아요 = code 'outside_right' + 적은 글(새 지식 글 전체). 칸에는 바깥 글이 미리 들어간다(ds-inbox-view.js
- *    outsideDraft — 지금 글을 품으면 바깥 글 그대로, 아니면 어긋난 문장을 빼고 붙임).
+ *    outsideDraft — 지금 글을 품으면 바깥 글 그대로, 아니면 어긋난 문장을 빼고 붙임). 단 카드가 생긴 뒤 지식이 바뀌었으면
+ *    (about.changed_since) 지금 지식 글만 넣고 그 사실을 한 줄로 알린다 — 그 밤의 바깥 글에는 걷어낸 옛 내용이 있을 수 있다.
  *  - 둘 다 맞아요 = code 'both_right' + 적은 한 줄(서버가 지식 글 끝에 붙인다).
  * 두 칸 아래에는 저장 전에 '바뀌는 곳'(빠지는 글 · 들어가는 글 — ds-inbox-view.js textDiff)을 보인다(설계서 2026-11-23 5.1).
  * 결정 시간(view_ms)은 카드를 보인 때부터 누를 때까지 잰다. 서버가 금액 알림(saved 거짓 · 견적 계산기가 원본인 지식에 금액을 적음)을
@@ -23,6 +24,7 @@
   var el = dom.el;
   var CODES = { knowledge: 'knowledge_right', 'outside-save': 'outside_right', 'both-save': 'both_right' };
   var SAID = { knowledge: '회사 지식이 맞아요', 'outside-save': '바깥 글이 맞아요', 'both-save': '둘 다 맞아요' };
+  var STALE_HELP = '이 카드가 생긴 뒤 지식이 바뀌었어요 — 지금 글을 보고 고칠 곳만 고쳐 주세요.';
 
   function answerButton(text, answer, cls) {
     var b = kit.button(text, null, cls || '');
@@ -65,11 +67,15 @@
     var input = el(outside ? 'textarea' : 'input', { cls: 'f-input', attrs: {
       'data-ds-answer-text': kind, rows: outside ? 3 : null, type: outside ? null : 'text', maxlength: outside ? null : 200,
       'aria-label': outside ? '새 회사 지식 글' : '어떤 경우인지 한 줄' } });
-    var draft = outside ? iv.outsideDraft(sentence, about.text) : { text: '', mixed: false };
+    // 카드가 생긴 뒤 지식이 바뀌었으면(서버 about.changed_since) 그 밤의 바깥 글을 붙이지 않는다 — 걷어낸 옛 내용이 다시 들어간다(11-27)
+    var stale = outside && about.changed_since === true;
+    var draft = !outside ? { text: '', mixed: false } : stale ? { text: about.text, mixed: false }
+      : iv.outsideDraft(sentence, about.text);
     input.value = draft.text;
     box.appendChild(el('label', { cls: 'f-field', children: [el('span', { cls: 'f-label', text: outside
       ? '새 글 — AI · 직원이 이 글로 안내해요' : '손님에게 안내할 문장으로 적어요 — 지식 글 끝에 붙어요' }), input] }));
-    if (draft.mixed) box.appendChild(el('p', { cls: 'f-help', text: '지금 글 뒤에 바깥 글을 붙였어요 — 틀린 옛 문장은 지워 주세요.' }));
+    var help = stale ? STALE_HELP : draft.mixed ? '지금 글 뒤에 바깥 글을 붙였어요 — 틀린 옛 문장은 지워 주세요.' : '';
+    if (help) box.appendChild(el('p', { cls: 'f-help', text: help }));
     box.appendChild(el('div', { cls: 'f-col f-gap4 fb-change', attrs: { 'data-ds-answer-change': kind, 'aria-live': 'polite' } }));
     box.appendChild(el('div', { cls: 'f-actions', children: [
       answerButton(outside ? '이 글로 바꾸기' : '덧붙이기', kind + '-save', 'f-btn-primary')] }));

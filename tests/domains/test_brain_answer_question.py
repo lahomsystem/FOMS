@@ -68,7 +68,7 @@ def test_knowledge_right_closes_the_card_and_keeps_the_answer_without_an_edit(wo
     before = current_object(db_session, DOOR)
     got = qa.answer_question(db_session, card.id, actor=admin, code="knowledge_right", view_ms=4200, now=LATER)
     db_session.commit()
-    assert got == {"change_id": card.id, "code": "knowledge_right", "edit": None, "saved": True}
+    assert got == {"change_id": card.id, "code": "knowledge_right", "edit": None, "saved": True, "changed_since": False}
     row = db_session.get(BrainChange, card.id)
     assert (row.status, row.reject_code, row.decided_action, row.decided_by) == ("rejected", "knowledge_right", "reject", admin.id)
     assert card_answer(row.fields) == {"code": "knowledge_right", "text": None, "edit": None, "key": DOOR}
@@ -174,7 +174,8 @@ def test_money_on_a_calculator_priced_rule_asks_once_then_saves(world):
     asked = qa.answer_question(db_session, card.id, actor=admin, code="outside_right", text=text,
                                base_version=row.version, now=LATER)
     db_session.commit()
-    assert asked == {"change_id": card.id, "saved": False, "ask": qa.ASK_MONEY, "message": qa.MONEY_ASK}
+    assert asked == {"change_id": card.id, "saved": False, "ask": qa.ASK_MONEY, "message": qa.MONEY_ASK,
+                     "changed_since": False}
     assert db_session.get(BrainChange, card.id).status == "open" and _count(BrainChange, action=ANSWER_ACTION) == 0
     assert current_object(db_session, "common/synth-calc-price").version == row.version  # 아무것도 쓰지 않았다
     saved = qa.answer_question(db_session, card.id, actor=admin, code="outside_right", text=text,
