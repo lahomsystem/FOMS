@@ -14,17 +14,22 @@
 **금액 알림(S3)**: 다루는 지식이 견적 계산기가 원본인 가격 규칙 · 옵션(:func:`calc_sourced`)이고 사장님이 적은 글에 금액 꼴
 (:data:`MONEY_RE`)이 있으면, 아무것도 쓰지 않고 알림 한 줄(:data:`MONEY_ASK`)을 돌려준다(``saved`` 거짓). 화면은 그 줄을 보이고,
 같은 글로 한 번 더 누르면 ``money_ok`` 를 실어 저장한다 — 막지는 않는다.
+
+**카드가 생긴 뒤 지식이 바뀐 답(결함 2026-11-27)**: 막지 않는다(화면이 그때는 지금 글만 칸에 넣어 사장님이 지금 글을 보고
+고친다). 응답에 ``changed_since``(:func:`.about_fresh.about_changed`) 한 칸을 싣고 로그 한 줄을 남긴다 — 뒤 분석용.
 """
 
 from __future__ import annotations
 
 import datetime
+import logging
 import re
 from typing import Any, Optional
 
 from sqlalchemy import select
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
+from foms.services.brain.about_fresh import about_changed
 from foms.services.brain.answers import ANSWER_ACTION, keep_answer
 from foms.services.brain.constants import ANSWER_CODES, PRICE_RULE_TYPE, basis_of
 from foms.services.brain.decide import (
@@ -51,6 +56,8 @@ CALC_TYPES: tuple[str, ...] = (PRICE_RULE_TYPE, "option")
 MONEY_RE = re.compile(r"\d[\d,]*(?:\.\d+)?\s*(?:[십백천만억]\s*)*원(?![본래목형칙단리])")
 ASK_MONEY = "calc_money"
 MONEY_ASK = "이 지식의 값은 견적 계산기가 원본이에요. 글에도 금액을 적을까요? 적으려면 한 번 더 눌러 주세요."
+
+logger = logging.getLogger(__name__)
 
 
 def calc_sourced(session: Any, row: BrainObject) -> bool:
@@ -95,8 +102,9 @@ def answer_question(session: Any, card_id: Any, *, actor: Any, code: str, text: 
     """질문 카드 답 하나를 한 번에 저장한다(모듈 설명). ``text`` 는 사장님이 적은 글(바깥 글이 맞아요 = 새 지식 글 전체 · 둘 다
     맞아요 = 끝에 붙일 한 줄 · 회사 지식이 맞아요 = 없음), ``base_version`` 은 화면이 본 그 지식의 판.
 
-    돌려주는 값: 저장했으면 ``{"change_id", "code", "edit", "saved": True}``, 금액 알림이면 ``{"change_id", "saved": False,
-    "ask", "message"}``(아무것도 쓰지 않음).
+    돌려주는 값: 저장했으면 ``{"change_id", "code", "edit", "saved": True, "changed_since"}``, 금액 알림이면 ``{"change_id",
+    "saved": False, "ask", "message", "changed_since"}``(아무것도 쓰지 않음). ``changed_since`` = 카드가 생긴 뒤 다루는 지식이
+    바뀌었나(다루는 지식이 없으면 거짓 — 막지 않는다).
 
     Raises:
         BrainPermissionError(결정할 수 없음 · 볼 수 없음 · 없는 카드) · BrainTargetError(닫힌 카드 · 질문 카드 아님 · 다루는 지식
@@ -111,6 +119,7 @@ def answer_question(session: Any, card_id: Any, *, actor: Any, code: str, text: 
         raise BrainTargetError(f"③ 질문 카드가 아니다: {card.id}")
     typed = text.strip() if isinstance(text, str) else ""
     about = _about(session, viewer_of(actor), card)
+    changed = about is not None and about_changed(card, about)
     edit_id: Optional[int] = None
     if code not in SAID:  # 회사 지식이 맞아요 — 지식 글은 그대로
         if typed:
@@ -125,9 +134,11 @@ def answer_question(session: Any, card_id: Any, *, actor: Any, code: str, text: 
             raise BrainConflictError(row.version)
         after = typed if code == OUTSIDE_RIGHT else f"{(row.text or '').rstrip()}\n{typed}"
         if not money_ok and MONEY_RE.search(typed) and calc_sourced(session, row):
-            return {"change_id": card.id, "saved": False, "ask": ASK_MONEY, "message": MONEY_ASK}
+            return {"change_id": card.id, "saved": False, "ask": ASK_MONEY, "message": MONEY_ASK, "changed_since": changed}
         edit_id = _rewrite(session, card, row, after, code, actor=actor, now=now)
     reject_decision(session, card.id, actor=actor, code=code, view_ms=view_ms, now=now)
     keep_answer(card, code=code, text=typed or None, edit=edit_id, key=about["key"] if about is not None else None)
     session.flush()
-    return {"change_id": card.id, "code": code, "edit": edit_id, "saved": True}
+    if changed:
+        logger.info("brain answer after target changed: card=%s code=%s edit=%s", card.id, code, edit_id)
+    return {"change_id": card.id, "code": code, "edit": edit_id, "saved": True, "changed_since": changed}

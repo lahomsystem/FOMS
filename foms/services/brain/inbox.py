@@ -23,6 +23,7 @@ from sqlalchemy import and_, case, false, func, literal, not_, or_, select, true
 from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
+from foms.services.brain.about_fresh import RECORDED, about_view
 from foms.services.brain.access import approval_problem, approver_layers, name_approver, wide_bins
 from foms.services.brain.browse import name_order, pref_name
 from foms.services.brain.card import actor_label, people_names
@@ -349,7 +350,8 @@ def price_cards(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) ->
 
 
 def about_items(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) -> dict[str, dict[str, Any]]:
-    """엇갈림 · 질문 제안 근거의 다루는 항목(``about:<키>``) → 이름 · 지금 글 · 판(볼 수 있는 것만 — ③ 질문 카드)."""
+    """엇갈림 · 질문 제안 근거의 다루는 항목(``about:<키>``) → 이름 · 지금 글 · 판(볼 수 있는 것만 — ③ 질문 카드). 지금 판 기록
+    시각은 속 칸(:data:`.about_fresh.RECORDED`)으로 — 카드마다 '생긴 뒤 바뀜' 판정에만 쓰고 화면에는 빼고 보낸다."""
     keys = sorted({e[len(ABOUT_REF):] for c in changes for e in (c.evidence or [])
                    if isinstance(e, str) and e.startswith(ABOUT_REF)})
     scopes = allowed_scopes(viewer)
@@ -357,7 +359,8 @@ def about_items(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) ->
     for key in keys:
         row = current_object(session, key)
         if row is not None and (scopes is None or row.visibility in scopes):
-            out[key] = {"key": key, "title": card_title_of(row), "text": row.text or "", "version": row.version}
+            out[key] = {"key": key, "title": card_title_of(row), "text": row.text or "", "version": row.version,
+                        RECORDED: row.recorded_at}
     return out
 
 
@@ -397,8 +400,8 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "sentence": _sentence(change, cur), "visible_to": _visible_to(change, cur),
         "prices": [{"label": p["label"], "value": p["value"], "hidden": p["value_hidden"], "exists": p["exists"]}
                    for p in ((prices or {}).get(e) for e in evidence) if p is not None],
-        "about": [a for a in ((about or {}).get(e[len(ABOUT_REF):]) for e in evidence if e.startswith(ABOUT_REF))
-                  if a is not None],
+        "about": [about_view(change, a) for a in ((about or {}).get(e[len(ABOUT_REF):]) for e in evidence
+                                                  if e.startswith(ABOUT_REF)) if a is not None],
     }
 
 
