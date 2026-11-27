@@ -61,11 +61,9 @@ FORBIDDEN = (
     "erp_production_tablet_sheet", OLD_SHEET,
 )
 
-#: 예외(파일 → 그 파일에서 Jinja 주석 안에서만 허용하는 글자). 작업 시트 템플릿은 이번 조각이 못 고친다(같은 때 다른 일꾼 몫) —
-#: 옛 칸반 템플릿 이름이 주석 글로만 남아 있다(뒤에 고친다). 주석 밖에 생기면 빨강.
-_COMMENT_ONLY: dict[str, tuple[str, ...]] = {
-    "templates/production/sheet.html": ("tablet_kanban_body.html",),
-}
+#: 예외(파일 → 그 파일에서 Jinja 주석 안에서만 허용하는 글자). 지금은 비었다 — 작업 시트 주석도 2026-11-27 고쳤다.
+#: 못 고치는 파일이 생기면 여기 적고, 주석 밖에 생기면 빨강.
+_COMMENT_ONLY: dict[str, tuple[str, ...]] = {}
 
 #: 옛 endpoint 글자 ``erp_production_dashboard`` 가 남아도 되는 곳 — 부르는 것이 아니라 값이다.
 _OLD_ENDPOINT_TEXT_OK = {
@@ -275,7 +273,8 @@ def test_확인_창_꼴_CSS는_남고_칸반_선택자는_없다() -> None:
 
 
 def test_도메인_시트_JS_핀은_싣는_곳이_같은_값() -> None:
-    """싣는 곳 셋 중 작업 시트(sheet.html)는 이번 조각이 못 고쳐 합칠 때 같은 값으로 올린다 — 여기서는 둘 + 출고 진입 핀."""
-    assert "tablet-domain-sheets.js') }}?v=20261127p" in _read("templates/production/partials/home_body.html")
+    """싣는 곳 셋(첫 화면 · 작업 시트 · 출고 CHAIN) + 출고 진입 핀."""
+    for rel in ("templates/production/partials/home_body.html", "templates/production/sheet.html"):
+        assert "tablet-domain-sheets.js') }}?v=20261127p" in _read(rel), rel
     assert "/static/js/foms/tablet-domain-sheets.js?v=20261127p" in _read("static/js/shipment/shipment-entry.js")
     assert "shipment-entry.js') }}?v=20261127p" in _read("templates/shipment/partials/dashboard_scripts.html")
