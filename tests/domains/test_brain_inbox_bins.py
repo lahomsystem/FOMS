@@ -240,7 +240,7 @@ def test_question_card_shows_the_knowledge_side_and_answer_codes_close_it(app):
     door = current_object(db_session, "common/door")
     assert card["bin"] == "decide"
     assert card["main"]["about"] == [{"key": "common/door", "title": door.name, "text": door.text or "",
-                                      "version": door.version}]  # 없는 항목은 빠진다(대조군)
+                                      "version": door.version, "changed_since": False}]  # 없는 항목은 빠진다(대조군)
     assert "2주 이내" in card["main"]["sentence"]
     # '바깥 글이 맞아요' = 지식 글 고침 제안 → 바로 승인 → 질문을 그 까닭으로 닫음(화면이 부르는 차례 그대로)
     edit = propose_update(db_session, key="common/door", base_version=door.version, after={"text": "실측 뒤 2주 안"},
