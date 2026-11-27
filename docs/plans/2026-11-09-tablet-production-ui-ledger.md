@@ -2419,7 +2419,7 @@
 - 내가 확인: 합친 뒤 넓은 시험 · harness · APP_OK · node --check · 인벤토리(아래 끝 줄). 5647 실화면 `z4_check.py`(결과 `scratchpad/crit/z4/result.json`, 그림 `2b_stopped_line_appeared.png` 내가 봄): ① 줄이 뜬 창 → 그 사이 오재단이 다른 도면 시작 → 누름 = 멈춤 · 글 · 줄 사라짐 · 내 카드 그대로 → 다시 누름 "재단 시작 취소했어요" ② 줄 없는 창 → 그 사이 남이 취소 → 멈춤 · 줄 나타남 → "… · 제작 시작도 같이 취소됐어요" ③ 반장 고르기 창 두 장면 같음 ④ 완료 취소 창 같음 ⑤ 평소 흐름은 한 번에. 가로 넘침 0 · 창 한 화면.
 - 값 없이 그 누름을 보내는 화면(그대로 둠 — 알릴 것): PC 도면 목록 창 · PC 작업 시트의 [완료 취소](`foms-production-pc-sheet-write.js`) — PC 에서는 지금처럼 미리 안내 없이 제작 시작까지 취소될 수 있고 누른 뒤에만 알 수 있음.
 - 일꾼이 승인에 없이 정한 것(알릴 것): 못 물은 창(3초 넘김)도 false 로 보내 같은 규칙 · 다시 물은 뒤에도 빨간 글은 창에 남음(성공하거나 닫을 때 사라짐) · 멈춘 동안 창 뒤 알림 줄에는 앞 누름 글이 그대로.
-- 다음: `safe_push.sh`(`smoke_push123`)로 스테이징 → 사장님께 운영 여쭘. **운영 올릴 때 빠진 시험 둘(`test_post_auth_navigation.py`)도 같이**(앞 절).
+- **지금 상태(CTX-GATE 55% — 압축 뒤 여기부터)**: 스테이징 = `f17fa1b74`(smoke_push123 · CI 넷 초록 · 배포 SUCCESS — 어긋남 막기 `60a88a35d` 포함) · 운영 = `09eddee21`(#932). **운영에 안 올라간 이 세션 코드 = `60a88a35d` 하나 + 빠진 시험 둘**(`test_post_auth_navigation.py` 의 `test_production_root_redirects_to_production_home` · `test_cs_desktop_login_is_unchanged_by_production_landing` — 운영 가지 파일에 그 둘만 손으로 넣기, 사장님 답 "다음 운영 올릴 때 같이"). 도는 일꾼 없음 · 뒤에서 도는 명령 없음. 다음 올리기 로그 `smoke_push124`. 사장님께 운영에 올릴지 여쭐 차례(운영은 말씀하실 때만). `docs/AI_STATUS.md` 20행 갱신함.
 
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
