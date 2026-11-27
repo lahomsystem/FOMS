@@ -148,6 +148,7 @@ def test_css_fits_longer_words_without_new_font_sizes_and_pins():
     rule = ".pp-two.is-mine > .pp-release, .pp-two--join > .foms-prod-home__btn { padding: 0 4px; white-space: normal; word-break: keep-all;"
     assert rule in css and "font-size" not in css[css.index(rule):css.index("\n", css.index(rule))]  # 글자 크기는 그대로
     scripts = (TPL / "home_scripts.html").read_text(encoding="utf-8")
-    for name in ("parts", "parts-claim", "parts-modal", "parts-crew"):
+    for name in ("parts", "parts-claim", "parts-modal"):
         assert f"foms-production-{name}.js') }}}}?v={PIN}" in scripts, name
+    assert "foms-production-parts-crew.js') }}?v=20261127y" in scripts  # 11-27 [<파트> 시작] 진하게로 한 번 더
     assert f"parts.css') }}}}?v={PIN}" in (TPL / "home_styles.html").read_text(encoding="utf-8")
