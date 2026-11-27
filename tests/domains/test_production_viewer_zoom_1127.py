@@ -219,7 +219,7 @@ def test_그림_칸_touch_action_과_칸_안_확대() -> None:
 
 def test_핀() -> None:
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    viewer_tag = f"js/production/foms-production-parts-viewer.js') }}}}?v={PIN}\" defer></script>"
+    viewer_tag = "js/production/foms-production-parts-viewer.js') }}?v=20261127y\" defer></script>"  # 11-27 완료 도면 창 글(test_production_start_strong_viewer_1127)
     zoom_tag = f"js/production/foms-production-parts-zoom.js') }}}}?v={PIN}\" defer></script>"
     assert viewer_tag in scripts and zoom_tag in scripts
     assert scripts.index(viewer_tag) < scripts.index(zoom_tag) < scripts.index("foms-production-parts-claim.js")

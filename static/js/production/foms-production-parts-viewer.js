@@ -105,10 +105,18 @@
     var box = viewer.querySelector('[data-pp-v-act]');
     box.textContent = '';
     var buttons = toArr(card.querySelectorAll('[data-pp-actbox] [data-pp-act]'));
-    var badge = card.querySelector('[data-pp-actbox] .fph-wi:not(.pp-only-need):not(.pp-only-done)');
-    (buttons.length ? buttons : (badge ? [badge] : [])).forEach(function (el) {
+    var badge = toArr(card.querySelectorAll('[data-pp-actbox] .fph-wi')).filter(function (el) {
+      return !el.classList.contains('pp-only-need') && !el.classList.contains('pp-only-done');
+    })[0];
+    // 완료 줄 글 — 완료된 도면의 카드가 지금 완료 줄(글 + [<파트> 완료 취소])을 보여 주면 창에도 그 글("재단 완료 · 김재단")을
+    // 단추 앞에 한 번. 단추 목록은 그대로(사장님 11-27 "단추는 그대로, 글만 더하기"). 자기 몫만 완료("재단 1/2 완료") · 기본 줄은 그대로
+    var grid = card.closest('.pp-grid');
+    var row = card.querySelector('[data-pp-actbox] .pp-undo-row');
+    var line = row && card.getAttribute('data-state') === 'done' && !(grid && grid.classList.contains('is-need')) ? row : null;
+    (buttons.length ? (line ? [line].concat(buttons) : buttons) : (badge ? [badge] : [])).forEach(function (el) {
       var copy = el.cloneNode(true);
-      copy.classList.remove('pp-only-need', 'pp-only-done', 'pp-not-need', 'pp-not-done', 'pp-act');
+      copy.classList.remove('pp-only-need', 'pp-only-done', 'pp-not-need', 'pp-not-done', 'pp-act', 'pp-undo-row');
+      if (el === line) { toArr(copy.querySelectorAll('button')).forEach(function (b) { copy.removeChild(b); }); } // 글만(단추는 아래에서 한 번)
       if (copy.hasAttribute('data-pp-act')) {
         copy.setAttribute('data-pp-proxy', copy.getAttribute('data-pp-act'));
         copy.removeAttribute('data-pp-act');
