@@ -16,9 +16,9 @@
 
   var LABELS = { cut: '재단', edge: '엣지', assemble: '조립', inspect: '검수' };
   var ORDER = ['cut', 'edge', 'assemble', 'inspect'];
-  // 바뀐 기록 낱말(2026-11-25 multi-holder §8-1 · §8-2 24) — check = PC [완료 처리](시작 + 완료 한 요청), remove = 반장의 남의 시작 취소
-  var KIND = { take: '작업 시작', join: '같이 작업', basic: '기본', done: '완료', check: '완료', undo: '완료 취소', release: '시작 취소',
-    remove: '시작 취소', step_on: '작업 완료', step_off: '작업 취소' };
+  // 바뀐 기록 낱말(multi-holder §8-1 · §8-2 24, 사장님 11-27 "단추 말과 맞추기" — 줄 머리에 공정 이름) — check = PC [완료 처리], remove = 남의 시작 취소
+  var KIND = { take: '시작', join: '같이 작업', basic: '기본', done: '완료', check: '완료', undo: '완료 취소', release: '시작 취소',
+    remove: '시작 취소', step_on: '완료', step_off: '완료 취소' };
   function toArr(list) { return [].slice.call(list || []); }
   function safeJsonParse(value, fallback) {
     try { var text = String(value || '').trim(); return text ? JSON.parse(text) : fallback; } catch (e) { return fallback; }
@@ -150,8 +150,8 @@
     var who = item.by_name || '';
     var t = d ? ' ' + stamp(d, prev) : '';
     if (item.kind === 'takeover') { return (who ? toward(who) + ' ' : '') + '바뀜' + t; }
-    if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료 — 작업 완료 처리' + t; } // 카드 동기화(사람 이름 없음)
-    if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료 — 작업 취소 처리' + t; }
+    if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료 — ' + KIND.step_on + ' 처리' + t; } // 카드 동기화(사람 이름 없음)
+    if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료 — ' + KIND.step_off + ' 처리' + t; }
     if ((item.kind === 'remove' || item.kind === 'release') && item.target_name && item.target_name !== who) { // "김재단 시작 취소 (박반장)"
       return item.target_name + ' ' + KIND[item.kind] + (who ? ' (' + who + ')' : '') + t;
     }

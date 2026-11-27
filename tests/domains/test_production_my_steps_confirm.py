@@ -40,7 +40,7 @@ NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
 PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow"}
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 CONFIRM_ATTR = re.compile(r'data-foms-sheet-parts="([^"]+)"')
-PARTS_PIN = "foms-production-sheet-parts.js?v=20261127x"
+PARTS_PIN = "foms-production-sheet-parts.js?v=20261127z"
 REASON_CSS = "css/components/foms-reason-sheet.css?v=20261122t"
 
 
