@@ -157,7 +157,7 @@
   // 주문 막힘 칸(서버 sync_blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 글은 서버 글) → 카드 단추 칸 · 칸 숫자. 받아 오기 · 제작 완료 응답(C06 · C09)
   var BLOCK_ATTR = { kind: 'data-pp-block', text: 'data-pp-block-text', why: 'data-pp-block-why', code: 'data-pp-block-code' };
   var SAID = { '기본으로': '기본으로 했어요', '담당 바꾸기': '담당 바꿨어요' }; // [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(아래 handle, 11-27)
-  var STOP_CODES = ['HOLD_ACTIVE', 'DRAWING_REVISING', 'NOT_IN_PRODUCTION']; // 이 거절이면 그 주문 카드를 바로 다시 받는다
+  var STOP_CODES = ['HOLD_ACTIVE', 'DRAWING_REVISING', 'NOT_IN_PRODUCTION', 'CANCEL_NOTICE_STALE']; // 이 거절이면 그 주문 카드를 바로 다시 받는다
   function setBlock(card, b) {
     var keys = Object.keys(BLOCK_ATTR);
     if (keys.every(function (k) { return k === 'code' || attr(card, BLOCK_ATTR[k]) === ((b && b[k]) || ''); })) { return; }
@@ -194,6 +194,7 @@
       seen: attr(card, 'data-state'), seen_me: (crew.of ? crew.of(card).me : '') || 'none' }; // 본 내 몫까지 견준다(multi-holder §7-1)
     if (body.seen === 'need') { body.seen_by = attr(card, 'data-picked-id') ? Number(attr(card, 'data-picked-id')) : null; } // 본 담당까지 견준다(§4-5)
     if (p.target != null) { body.target_user_id = p.target; } // 담당 바꾸기 · 시작 취소 대상
+    if (M.seenCancel) { M.seenCancel(p, body); } // 취소 창이 그 단추에 대해 보여 준 것(seen_cancel — 11-27 "창에 보인 대로만 된다", parts-cancel.js)
     return { url: '/api/production/part-marks', body: body };
   }
   function bulkDone(data) {
@@ -250,6 +251,7 @@
     if (result.status === 409 || result.status === 403) {
       if (data.mark && p.action !== 'bulk' && !asks) { applyMark(p.cards[0], data.mark); }
       if (STOP_CODES.indexOf(data.code) >= 0 && bound.syncTick) { bound.syncTick(true); } // 그 주문 카드를 모두 막힘 칸으로(C06)
+      if (M.staleCancel && M.staleCancel(p, data.code, text)) { return; } // 창에 보인 것과 달라 멈춤 — 창 그대로 · 서버 글 · 줄을 다시 묻는다
       M.lost(text, M.nowLine(data.mark));
       return;
     }

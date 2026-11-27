@@ -283,7 +283,7 @@ def test_js_cut_undo_window_unseen_cell_and_counts(client, cohort, tmp_path):
     assert out[0]["diffs"] == []
     w = out[2]["modal"]
     assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("재단 완료를 취소할까요?", "재단 완료 → 미정", "재단 완료 취소", "")
-    assert calls[0]["body"] == _undo_body(order, 0)
+    assert calls[0]["body"] == {**_undo_body(order, 0), "seen_cancel": False}  # 취소 창이 보여 준 것까지(줄 없음 — 11-27 "창에 보인 대로만 된다")
     assert out[3]["sent"] == 1 and out[3]["modal"]["hidden"] is True and out[3]["status"] == "재단 완료 취소했어요"
     before, after = out[1], out[4]
     assert (after["card"]["state"], after["card"]["in_done"], after["card"]["in_need"], after["card"]["crew"]) == ("none", "0", "0", {})

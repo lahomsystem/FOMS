@@ -155,7 +155,8 @@ def test_js_direct_done_undo_dialog_line_and_status(client, cohort, tmp_path):
     undo_only, undo_busy = _undo(only, seen_me="done"), _undo(busy, seen_me="done")
     no, yes = _answer(client, lead, undo_busy), _answer(client, lead, undo_only)
     assert (no["data"]["run_cancelled"], yes["data"]["run_cancelled"]) == (False, True)
-    res = _node(page, {"posts": [_post(client, lead, undo_only)], "previews": [no, yes], "steps": [
+    sent = {**undo_only, "seen_cancel": True}  # 화면이 보내는 몸 = 묻는 칸 + 창이 보여 준 것(줄 있음)
+    res = _node(page, {"posts": [_post(client, lead, sent)], "previews": [no, yes], "steps": [
         {"do": "click", "key": busy.keys[0], "act": "undo"}, {"do": "modal"}, {"do": "close"},  # 0 1 2
         {"do": "click", "key": only.keys[0], "act": "undo"}, {"do": "modal"}, {"do": "run"}]})  # 3 4 5
     out = res["out"]
@@ -166,7 +167,7 @@ def test_js_direct_done_undo_dialog_line_and_status(client, cohort, tmp_path):
     assert (shown["title"], shown["line"], shown["run"]["text"]) == ("재단 완료를 취소할까요?", "재단 완료 → 미정", "재단 완료 취소")
     assert shown["body"] == UNDO_LINE and shown["run"]["locked"] is False
     assert out[5]["sent"] == 1 and out[5]["status"] == "재단 완료 취소했어요" + CANCELLED_TAIL
-    assert [c["body"] for c in res["calls"]] == [undo_only]
+    assert [c["body"] for c in res["calls"]] == [sent]
     assert [_query(u) for u in res["previews"]] == [_as_query(undo_busy), _as_query(undo_only)]  # 묻는 칸 = 그 창이 보낼 몸
 
 
@@ -186,7 +187,8 @@ def test_js_basic_undo_dialog_and_part_account_done_undo(client, cohort, tmp_pat
     bodies = [{**q, "order_id": int(q["order_id"])} for q in asked]
     yes, no = _answer(client, kim, bodies[0]), _answer(client, kim, bodies[1])
     assert (yes["data"]["run_cancelled"], no["data"]["run_cancelled"]) == (True, False)
-    res = _node(page, {"posts": [_post(client, kim, bodies[0])], "previews": [no, yes], "steps": [
+    sent = {**bodies[0], "seen_cancel": True}
+    res = _node(page, {"posts": [_post(client, kim, sent)], "previews": [no, yes], "steps": [
         {"do": "click", "key": done.keys[0], "act": "undo"}, {"do": "modal"}, {"do": "close"},   # 0 1 2
         {"do": "click", "key": basic.keys[0], "act": "undo"}, {"do": "modal"}, {"do": "run"}]})  # 3 4 5
     out = res["out"]
@@ -195,7 +197,7 @@ def test_js_basic_undo_dialog_and_part_account_done_undo(client, cohort, tmp_pat
     shown = out[4]["modal"]
     assert (shown["title"], shown["line"], shown["run"]["text"], shown["body"]) == ("기본을 취소할까요?", "기본 → 미정", "기본 취소", UNDO_LINE)
     assert out[5]["sent"] == 1 and out[5]["status"] == "기본 취소했어요" + CANCELLED_TAIL
-    assert [c["body"] for c in res["calls"]] == [bodies[0]]
+    assert [c["body"] for c in res["calls"]] == [sent]
 
 
 def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path):
