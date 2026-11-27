@@ -32,7 +32,7 @@
       <svg class="foms-prod-home__gchev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <div class="foms-prod-home__rows" id="foms-prod-home-rows-{{ loop.index }}">
-    {% for r in g.rows %}{% if r.home_view == 'prod' %}{{ pc_row(r, job=True) }}{% else %}{{ pc_mini(r, job=True) }}{% endif %}{% endfor %}
+    {% for r in g.rows %}{% if r.home_view == 'prod' %}{{ pc_row(r, job=True, sheet=(parts_read is not defined or parts_read)) }}{% else %}{{ pc_mini(r, job=True) }}{% endif %}{% endfor %}
     </div>
   </div>
   {% endfor %}

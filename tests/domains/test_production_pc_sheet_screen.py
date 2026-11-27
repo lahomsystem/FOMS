@@ -41,6 +41,25 @@ def test_창_틀_스크립트는_PC_날짜_찾기만_쓰기는_고치기_켬만(
     assert html.index("foms-production-sheet-parts.js") < html.index("foms-production-pc-sheet.js") < html.index("pc-sheet-write.js")
 
 
+def test_도면_카드_읽기를_못_하는_사람은_PC_공정_칸이_글만(client, cohort, monkeypatch) -> None:
+    """켜진 프리랜서처럼 ``parts_read`` 가 거짓이면(PC 도면 창 API 가 403) 칸은 누르는 칸이 아니라 글만, 창 틀도 없다(2026-11-27).
+
+    음성 대조: 같은 화면 · 같은 계정에서 플래그만 참이면 칸 넷이 창을 연다.
+    """
+    import foms.services.production.pc_view as pc_view
+    from foms.services.production.part_access import VIEW_NONE
+
+    order, _ = _seed_five()
+    url = HOME + f"?day={order.erp_construction_date}"
+    _login(client, _user("관리", role="ADMIN", team="CS"))
+    on = client.get(url).get_data(as_text=True)
+    assert on.count('data-foms-pc-sheet="') >= 4 and "data-foms-pc-sheet-box" in on
+    monkeypatch.setattr(pc_view, "part_view_mode", lambda user: VIEW_NONE)
+    off = client.get(url).get_data(as_text=True)
+    assert 'data-foms-pc-sheet="' not in off and "data-foms-pc-sheet-box" not in off
+    assert 'aria-label="공정"' in off  # 칸 글은 그대로
+
+
 def _sheet(client, oid: int) -> str:
     return client.get(f"/erp/production/sheet/{oid}").get_data(as_text=True)
 
