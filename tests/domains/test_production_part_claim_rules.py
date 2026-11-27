@@ -211,7 +211,7 @@ def test_every_caller_gives_the_same_completion_answer(client, name):
 def test_zero_drawings_card_order_message(client):
     login(client, make_user("가짜생산"))
     resp = client.post(f"/api/orders/{_row_order('cards_zero_drawings')}/production/complete", json={})
-    assert resp.get_json()["message"] == "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
+    assert resp.get_json()["message"] == "도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요."
 
 
 # --------------------------------------------------------------------------- #

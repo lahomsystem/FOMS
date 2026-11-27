@@ -70,7 +70,7 @@
     nm.appendChild(el('b', '', r.label));
     nm.appendChild(el('span', '', r.item));
     if (r.factory_label) { nm.appendChild(el('em', 'foms-fac foms-fac--' + (r.factory === 2 ? 2 : 1), r.factory_label)); } // 섞인 주문 — 공장 칩(foms-factory-chip.css)
-    var meta = r.lines || []; // "작업 시작 이시영 · 11/25 08:10" · "완료 이시영 · 11/25 11:30" — 사람마다 한 조각(서버 글)
+    var meta = r.lines || []; // "시작 김재단 · 11/25 08:10" · "완료 김재단 · 11/25 11:30" — 사람마다 한 조각(서버 글)
     var m = meta.length ? main.appendChild(el('p', 'fpc-sheet__meta')) : null;
     meta.forEach(function (t) { m.appendChild(el('span', '', t)); });
     if (r.handed) { main.appendChild(el('p', 'fpc-sheet__chg', r.handed)); }
