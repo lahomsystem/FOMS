@@ -104,7 +104,7 @@ def test_revision_realtime_payload_carries_interrupt_grade(client, monkeypatch):
     assert payload["created_by_name"] == "영업담당"
     # 번호만으로는 어느 집인지 모른다 — 고객 이름이 payload·본문에 함께 실린다.
     assert payload["customer_name"] == "고객"
-    assert f"주문 #{order_id} (고객) 도면 수정 요청이 접수되었습니다." in payload["message"]
+    assert f"주문 #{order_id} (고객) 도면 수정 요청이 접수됐어요." in payload["message"]
     # 긴급 호출(P0) 과는 다른 등급이다 — 전체화면 빨강을 타지 않아야 한다.
     assert payload.get("urgent") in (None, False)
 

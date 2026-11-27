@@ -33,6 +33,7 @@ from foms.services.orders.drawing_gate_followups import (
     restore_customer_confirmation,
 )
 from foms.services.orders.drawing_fix import idents_for_keys
+from foms.services.orders.drawing_fix_requests import numbers_label
 from foms.services.orders.drawing_revision_files import MAX_REVISION_FILES, normalize_revision_files
 from foms.services.orders.drawing_revision_edit import apply_revision_edit, parse_revision_edit_body
 from foms.services.orders.drawing_revision_source import (
@@ -190,12 +191,9 @@ def api_order_request_revision(order_id):
 
         customer_name = _order_customer_name(s_data)
         msg = (notification_message_prefix(source_fields) + _order_label(order_id, customer_name)
-               + " 도면 수정 요청이 접수되었습니다.")
-        if target_drawing_numbers:
-            if len(target_drawing_numbers) == 1:
-                msg += f" 대상: {target_drawing_numbers[0]}번 도면."
-            else:
-                msg += f" 대상: {', '.join(map(str, target_drawing_numbers))}번 도면 ({len(target_drawing_numbers)}건)."
+               + " 도면 수정 요청이 접수됐어요.")
+        if target_drawing_numbers:  # 공장 요청 글과 같은 번호 꼴 "도면 2" · "도면 2 · 3"(사장님 11-27)
+            msg += f" 대상: {numbers_label(target_drawing_numbers)}."
         msg += f" 메모: {note}"
         if files:
             msg += f" (첨부 {len(files)}건)"
