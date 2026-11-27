@@ -218,7 +218,8 @@ def step_note(changes: list[dict[str, Any]]) -> str:
 
 
 def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]], user: Any, *,
-                        parts: tuple[str, ...], starting: set[int]) -> tuple[list[dict[str, Any]], list[int]]:
+                        parts: tuple[str, ...], starting: set[int],
+                        cleared: tuple[str, ...] = ()) -> tuple[list[dict[str, Any]], list[int]]:
     """표시가 바뀐 주문들의 주문 쓰기 — 누른 파트 공정 칸 동기화(§15.5, 카드를 쓴 파트만) + 첫 카드 제작 시작(§4-8).
 
     바꿀 칸도 시작할 주문도 없으면 쿼리 0 · 버전 그대로. 있으면 ``execute_order_mutation`` **한 번**(주문마다 버전 +1 한 번) —
@@ -231,12 +232,13 @@ def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]
         user: 누른 사람(켜면 칸 ``by_name`` = 그 파트에서 마지막으로 끝낸 사람).
         parts: 동기화할 파트(누른 파트).
         starting: 제작을 시작할 주문 id(잠금 아래에서 회차가 없음을 확인한 것).
+        cleared: 완료 줄이 미정이 된 파트(:func:`~foms.services.production.part_steps_sync.part_steps_after`).
 
     Returns:
         (바뀐 공정 칸 ``[{order_id, key, done}]``, 제작이 시작된 주문 id).
     """
     changed = sorted({int(o.id) for o in orders if int(o.id) in starting
-                      or plan_part_step_changes(o.structured_data, marks.get(int(o.id), []), parts)})
+                      or plan_part_step_changes(o.structured_data, marks.get(int(o.id), []), parts, cleared)})
     if not changed:
         return [], []
     out: list[dict[str, Any]] = []
@@ -250,7 +252,7 @@ def apply_order_changes(db: Any, orders: list[Order], marks: dict[int, list[Any]
         for order in locked:
             oid = int(order.id)
             sd = copy.deepcopy(order.structured_data if isinstance(order.structured_data, dict) else {})
-            changes = plan_part_step_changes(sd, marks.get(oid, []), parts)
+            changes = plan_part_step_changes(sd, marks.get(oid, []), parts, cleared)
             apply_part_step_changes(sd, changes, at_iso=at_iso)
             events += step_event_rows(oid, changes, actor_user_id=user.id, actor_name=actor_name(user))
             out.extend(step_change_body(oid, c) for c in changes)
@@ -403,7 +405,8 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest) -> dict[str, Any
     if action in STARTING_ACTIONS and decision.target != MARK_STATE_NONE:
         starting = {req.order_id} - orders_with_current_run(db, [req.order_id])  # 잠금 아래 — 회차 찾기 +1
     views = after_views(rows, [write])
-    steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting)
+    cleared = (req.part,) if write.before.state == MARK_STATE_DONE and decision.target == MARK_STATE_NONE else ()  # 바로 완료 취소
+    steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting, cleared=cleared)
     write_audit(db, user, _note(req, write, decision, user) + step_note(steps) + (" · 제작 시작" if started else ""),
                 {"key": req.key, "part": req.part, "action": action, "from": write.before.state,
                  "to": decision.target, "override": decision.override, "order_steps": steps,

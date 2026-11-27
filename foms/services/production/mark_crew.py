@@ -213,6 +213,19 @@ def unfinish(crew: Iterable[Member], uids: Optional[Iterable[Any]] = None) -> li
     return out
 
 
+def done_in_one_press(item: Member) -> bool:
+    """그 사람이 시작과 자기 몫 완료를 한 요청에서 한 번에 적었는지 — 미정 도면을 반장 · 관리자가 바로 완료(``check`` 빈 줄 · PC
+    [완료 처리]). 한 요청은 시작한 때 · 완료한 때를 같은 시각 하나로 쓰고, 따로 누른 두 요청은 같은 시각을 못 쓴다(시간 문턱 없음)."""
+    at = item.get("at")
+    return bool(at) and at == item.get("done_at") and item.get("uid") is not None and item.get("done_uid") == item.get("uid")
+
+
+def done_at_once(crew: Iterable[Member]) -> bool:
+    """바로 완료한 도면(사장님 2026-11-27 "한 번에 미정으로") — 작업한 사람이 한 명뿐이고 그 사람이 :func:`done_in_one_press`."""
+    crew = list(crew)
+    return len(crew) == 1 and done_in_one_press(crew[0])
+
+
 def swap(crew: Iterable[Member], old_uid: Any, uid: int, name: Optional[str], now: datetime.datetime) -> list[Member]:
     """고른 한 사람 자리를 나로 바꾼 새 목록(담당 바꾸기 — 자리 · 나머지 그대로, 시작한 때 = 지금)."""
     out = copy.deepcopy(list(crew))
@@ -281,7 +294,8 @@ def late_join(action: str, seen: str, state: str, crew: list[Member], uid: Any) 
 
 
 __all__ = [
-    "NAME_LINE_LIMIT", "SHARE_DONE", "SHARE_HELD", "SHARE_NONE", "SHARE_VALUES", "crew_of", "done_names", "find", "finish",
+    "NAME_LINE_LIMIT", "SHARE_DONE", "SHARE_HELD", "SHARE_NONE", "SHARE_VALUES", "crew_of", "done_at_once", "done_in_one_press",
+    "done_names", "find", "finish",
     "finish_rest", "from_iso", "is_done", "join", "late_join", "leave", "member", "name_line", "name_sentence", "names", "share_of",
     "summarize",
     "swap", "to_iso", "unfinish",

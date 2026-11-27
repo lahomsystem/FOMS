@@ -50,13 +50,16 @@ class StepChange:
     by_name: Optional[str] = None
 
 
-def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str]] = None) -> dict[str, bool]:
+def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str]] = None,
+                     cleared: Iterable[str] = ()) -> dict[str, bool]:
     """카드를 쓴 파트마다 공정 칸이 있어야 할 값.
 
     Args:
         sd: 주문 ``structured_data``(읽기만).
         marks: 그 주문의 표시 줄들(``part`` · ``drawing_key`` · ``state`` 를 읽는다 — ORM 줄 또는 같은 모양).
         parts: 맞출 파트만(None = 네 파트). 표시 쓰기는 누른 파트만 맞춘다 — 옛 칸은 그 파트의 다음 카드 쓰기 때(§4-2).
+        cleared: 이번 쓰기로 완료 줄이 미정이 된 파트(바로 완료한 도면의 [완료 취소] — 11-27). 그 파트 카드가 모두 미정이어도 카드를 쓴
+            파트로 보고 칸을 맞춘다(안 맞추면 켜진 칸이 남아 손 체크 칸으로 잠긴다).
 
     Returns:
         ``{파트 key: done}`` — 카드를 쓴 파트만. 확정 도면이 0장이면 빈 dict(건드리지 않음).
@@ -65,7 +68,7 @@ def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str
     if not keys:
         return {}
     marks = list(marks)
-    used = cards_used(marks)
+    used = cards_used(marks) | set(cleared)
     wanted = set(PRODUCTION_PART_KEYS if parts is None else parts)
     by_part = marks_by_part(marks)
     return {
@@ -94,11 +97,12 @@ def _finish_order(row: Any) -> tuple[datetime.datetime, bool, int]:
     return (getattr(row, "done_at", None) or datetime.datetime.min, row_id is None, row_id or 0)
 
 
-def plan_part_step_changes(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str]] = None) -> list[StepChange]:
-    """지금 칸과 다른 것만 — 바꿀 칸이 없으면 빈 목록(부르는 쪽은 쓰지 않는다 · 버전 그대로). ``parts`` 는
+def plan_part_step_changes(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str]] = None,
+                           cleared: Iterable[str] = ()) -> list[StepChange]:
+    """지금 칸과 다른 것만 — 바꿀 칸이 없으면 빈 목록(부르는 쪽은 쓰지 않는다 · 버전 그대로). ``parts`` · ``cleared`` 는
     :func:`part_steps_after` 와 같다."""
     marks = list(marks)
-    wanted = part_steps_after(sd, marks, parts)
+    wanted = part_steps_after(sd, marks, parts, cleared)
     if not wanted:
         return []
     current = step_done_map(sd)
