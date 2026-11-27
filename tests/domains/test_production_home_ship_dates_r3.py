@@ -28,7 +28,7 @@ from foms.services.production.ship_dates import (
     order_ship_dates,
     ship_fields,
 )
-from foms.services.production_home_read_model import build_production_home, production_home_groups
+from foms.services.production_home_read_model import build_production_home, production_home_day_plain, production_home_groups
 from tests.domains.test_production_home_ship_dates import (
     HOME,
     PC,
@@ -73,8 +73,10 @@ def test_3_화면_상차가_시공보다_뒤인_주문은_시공일_장에_상�
     wrong = _order("상차뒤가짜", _iso(3), regional=True, loading=_iso(6))
     pane = _pane(client.get(HOME + f"?day={_iso(3)}&view=day").get_data(as_text=True), _iso(3))
     row = _row_html(pane, wrong.id)
-    assert re.search(r'<span class="fph-due" data-foms-home-due><i>시공</i><b>[^<]+</b><small>D-3</small></span></span>'
-                     rf'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(6)}</b></span>', row)
+    # 남은 날은 상차일 기준(사장님 2026-11-27 "지방은 무조건 상차일 기준") — 시공일 표는 날만, 장 · 판정은 시공일 그대로
+    plain3 = production_home_day_plain(get_today_kst() + datetime.timedelta(days=3), get_today_kst())
+    assert (f'<span class="fph-due" data-foms-home-due><i>시공</i><b>{plain3}</b></span></span>'
+            f'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(6)}</b><small>D-6</small></span>') in row
     later = _pane(client.get(HOME + f"?day={_iso(6)}&view=day").get_data(as_text=True), _iso(6))
     assert f"/{wrong.id}\"" not in later  # 상차 예정일 장에는 안 선다
 

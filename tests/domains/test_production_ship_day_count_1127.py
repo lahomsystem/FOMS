@@ -2,7 +2,9 @@
 
 - 상차 예정일로 놓인 주문(``ship_kind`` '상차'): 남은 날 글(오늘 · 내일 · D-n · n일 지남)과 그 색을 상차일로 세어 상차 표 뒤에,
   시공일 표는 날만. 작은 칸 · 바뀐 것(sub=False 자리)은 시공일 표처럼 오늘 · 내일만.
-- 그대로(음성 대조군): 보통 주문 · 희망일 주문 · 상차 예정일이 시공일보다 뒤라 시공일에 놓인 주문 · PC ① 칸.
+- 그대로(음성 대조군): 보통 주문 · 희망일 주문 · PC ① 칸.
+- 뒷일(사장님 2026-11-27 "PC는 그대로" · "지방은 무조건 상차일 기준"): 상차 예정일이 시공일보다 뒤라 시공일 장에 선 지방 주문도
+  태블릿 글은 상차일 기준(장 · 판정은 시공일 그대로), '남은 공정' 줄 시공 칸 · 곧 올 것 날 칸도 날짜 탭과 같은 글.
 
 날짜는 ``get_today_kst()`` 에서 센다(CI 는 UTC — ``date.today()`` 금지).
 """
@@ -13,6 +15,7 @@ import re
 
 from app import app as flask_app
 from db import db_session
+from models import ProductionRun
 from foms.services import production_home_read_model as home_read_model
 from foms.services.datetime_kst import get_today_kst
 from foms.services.production_home_read_model import build_production_home
@@ -68,10 +71,12 @@ def test_태블릿_날짜_탭_상차_주문은_상차_표_뒤에_내일_시공�
     wish_row = _row_html(day4, wish.id)
     assert _ship(wish_row) == f'<span class="fph-due" data-foms-home-ship><i>희망일</i><b>{_md(4)}</b></span>'
     assert _due(wish_row) == '<span class="fph-due is-none" data-foms-home-due><b>시공일 없음</b></span>'
-    # 음성 대조군: 시공일에 놓인 지방 주문 — 시공 D-4 그대로, 상차 표에 남은 날 없음
+    # 상차가 시공보다 뒤라 시공일(+4) 장에 선 지방 주문 — 장은 시공일 그대로, 남은 날은 상차일 기준("지방은 무조건")
     wrong_row = _row_html(day4, wrong.id)
-    assert "<small>D-4</small>" in _due(wrong_row)
-    assert _ship(wrong_row) == f'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(6)}</b></span>'
+    assert _due(wrong_row) == f'<span class="fph-due" data-foms-home-due><i>시공</i><b>{_plain(4)}</b></span>'
+    assert _ship(wrong_row) == f'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(6)}</b><small>D-6</small></span>'
+    six = _pane(client.get(HOME + f"?day={_iso(6)}&view=day").get_data(as_text=True), _iso(6))
+    assert f"/{wrong.id}\"" not in six  # 상차 예정일 장에는 여전히 안 선다
 
 
 def test_찾기_탭도_상차_주문은_상차일_기준(client) -> None:
@@ -146,3 +151,86 @@ def test_작은_칸_자리는_오늘_내일만_D_n_은_뺀다() -> None:
                                           '<span class="fph-due" data-foms-home-ship><i>희망일</i><b>12/3</b></span>')
         plain = {"day_label": "11/30 (월)", "day_sub": "D-3", "ship_mark": None}
         assert str(mod.fph_due(plain)) == '<span class="fph-due" data-foms-home-due><i>시공</i><b>11/30 (월)</b><small>D-3</small></span>'
+
+
+# --------------------------------------------------------------------------- #
+# 뒷일 — '남은 공정' 탭 · 상차가 시공보다 늦은 지방 주문 · PC 그대로
+# --------------------------------------------------------------------------- #
+def _run(order) -> None:
+    """제작 중(회차 있음) — 재단이 첫 미완 공정이라 '남은 공정' 재단 줄에 선다."""
+    db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
+    db_session.commit()
+
+
+def _qrow(html: str, oid: int) -> str:
+    return html.split(f'data-foms-home-qrow="{oid}"', 1)[1].split('data-foms-home-qrow=', 1)[0]
+
+
+def _qdue(row: str) -> str:
+    return re.search(r'<span class="fph-qr__due[^"]*">.*?</span>(?:</span>)?', row).group(0)
+
+
+def test_남은_공정_줄과_곧_올_것도_지방_상차는_상차일_기준(client) -> None:
+    _login(client)
+    load = _order("상차줄가짜", _iso(4), regional=True, loading=_iso(1))
+    wrong = _order("늦은상차줄가짜", _iso(3), regional=True, loading=_iso(5))
+    past = _order("지난상차줄가짜", _iso(3), regional=True, loading=_iso(-2))
+    plain = _order("보통줄가짜", _iso(4))
+    plain_past = _order("지난보통줄가짜", _iso(-1))
+    for o in (load, wrong, past, plain, plain_past):
+        _run(o)
+    soon = _order("상차곧가짜", _iso(4), regional=True, loading=_iso(1))   # 회차 없음 = 제작 대기 → 재단 '곧 올 것'
+    soon_plain = _order("보통곧가짜", _iso(4))
+    html = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    cut = html.split('data-foms-home-stepq="cut"', 1)[1].split('data-foms-home-stepq=', 1)[0]
+    ship1 = f'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(1)}</b><small>내일</small></span>'
+    assert _qdue(_qrow(cut, load.id)) == f'<span class="fph-qr__due">시공<b>{_plain(4)}</b>{ship1}</span>'
+    assert _qdue(_qrow(cut, wrong.id)) == (
+        f'<span class="fph-qr__due">시공<b>{_plain(3)}</b><span class="fph-due" data-foms-home-ship><i>상차</i>'
+        f'<b>{_md(5)}</b><small>D-5</small></span></span>')
+    # 상차일이 지났으면 상차 표가 빨강(is-past) — 시공 칸은 색 없이 날만
+    assert _qdue(_qrow(cut, past.id)) == (
+        f'<span class="fph-qr__due">시공<b>{_plain(3)}</b><span class="fph-due is-past" data-foms-home-ship><i>상차</i>'
+        f'<b>{_md(-2)}</b><small>2일 지남</small></span></span>')
+    # 음성 대조군: 보통 주문은 지금 글 그대로(시공 칸에 날짜 탭 표 없음 · 지난 집은 빨강 + 'n일 지남')
+    assert _qdue(_qrow(cut, plain.id)) == f'<span class="fph-qr__due">시공<b>{_label(4)}</b></span>'
+    assert _qdue(_qrow(cut, plain_past.id)) == (
+        f'<span class="fph-qr__due is-past">시공<b>{_label(-1)}</b><small>1일 지남</small></span>')
+    # 줄 순서는 그대로 출고일 순(지난 상차 -2 · 보통 지남 -1 · 상차 +1 · 늦은 상차는 시공 +3 · 보통 +4)
+    order = [int(m) for m in re.findall(r'data-foms-home-qrow="(\d+)"', cut)]
+    assert order == [past.id, plain_past.id, load.id, wrong.id, plain.id]
+    # 곧 올 것(제작 대기 → 재단): 날 칸 = 시공일 날 + 상차 표, 보통 주문은 그대로
+    nx = cut.split('class="fph-q__nextlist"', 1)[1]
+    soon_card = nx.split(f"/{soon.id}\"", 1)[1].split("</a>", 1)[0]
+    assert f"<em>{_plain(4)}{ship1}</em>" in soon_card
+    plain_card = nx.split(f"/{soon_plain.id}\"", 1)[1].split("</a>", 1)[0]
+    assert f"<em>{_label(4)}</em>" in plain_card
+
+
+def test_시공일이_여럿인_늦은_상차_주문은_장마다_그_장의_시공일_글(client) -> None:
+    """상차(+5)가 가장 이른 시공일(+3)보다 뒤 → 시공 +3 · +8 장에 선다. 상차 표 남은 날은 둘 다 상차일, 시공일 글은 그 장의 날."""
+    _login(client)
+    two = _order("두날상차가짜", f"{_iso(3)}, {_iso(8)}", regional=True, loading=_iso(5))
+    ship5 = f'<span class="fph-due" data-foms-home-ship><i>상차</i><b>{_md(5)}</b><small>D-5</small></span>'
+    for off in (3, 8):
+        row = _row_html(_pane(client.get(HOME + f"?day={_iso(off)}&view=day").get_data(as_text=True), _iso(off)), two.id)
+        assert _due(row) == f'<span class="fph-due" data-foms-home-due><i>시공</i><b>{_plain(off)}</b></span>', off
+        assert _ship(row) == ship5, off
+
+
+def test_PC_는_늦은_상차_주문도_남은_공정도_그대로(client) -> None:
+    _login(client, role="ADMIN", team="CS")
+    wrong = _order("늦은상차PC가짜", _iso(3), regional=True, loading=_iso(5))
+    load = _order("상차공정PC가짜", _iso(4), regional=True, loading=_iso(1))
+    _run(load)
+    for k, v in PC.items():
+        client.set_cookie(k, v, domain="localhost")
+    pane = client.get(HOME + f"?day={_iso(3)}&view=day").get_data(as_text=True)
+    cell = pane.split(f'data-foms-home-dayrow="{wrong.id}"', 1)[1].split('<span class="fpc-st', 1)[0]
+    assert f"<b>{_plain(3)}</b><span>D-3</span><span>상차 {_md(5)}</span>" in cell  # 시공일 기준 D-n · 상차 표 그대로
+    assert "data-foms-home-ship" not in cell and "D-5" not in cell
+    steps = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    assert "data-foms-home-ship" not in steps and 'class="fph-qr__due' not in steps  # PC 는 PC 줄(home_pc_steps.html)
+    sheet = client.get(f"/erp/production/sheet/{load.id}").get_data(as_text=True)
+    head = re.search(r'<span class="foms-prod-page__due[^>]*data-foms-pc-due>(.*?)</span>', sheet).group(1)
+    assert head == f"시공 {_plain(4)} · <b>D-4</b> · 상차 {_md(1)}"  # PC 작업 시트 머리 그대로(시공일 기준)
