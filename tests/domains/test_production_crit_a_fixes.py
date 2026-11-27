@@ -271,7 +271,7 @@ def test_js_sync_skips_a_card_in_the_confirm_window_and_draws_it_on_the_next_syn
     assert out[4]["card"]["act"] == [hold_chip]  # 같은 주문 다른 카드는 바로
     assert out[5]["sent"] == 1 and out[5]["modal"]["hidden"]
     after = out[7]["card"]["act"][0]  # 저장이 끝난 뒤 다음 받아 오기 = 막힘 칸(내 작업 한 층 — 시작 취소는 보류에도 된다)
-    assert after["cls"] == "pp-two is-mine" and [k["text"] for k in after["kids"]] == ["시작 취소", "보류 · 자재 기다림"]
+    assert after["cls"] == "pp-two is-mine" and [k["text"] for k in after["kids"]] == ["재단 시작 취소", "보류 · 자재 기다림"]
 
 
 def test_js_refusal_redraws_every_card_of_that_order_at_once(client, cohort, tmp_path):

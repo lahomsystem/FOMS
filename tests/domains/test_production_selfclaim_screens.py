@@ -111,13 +111,13 @@ def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘�
     _login(client, me)
     html = _get(client, HOME)
     mine = _card(html, "한빛", 0)
-    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">시작 취소</button>' in mine
+    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">엣지 시작&nbsp;취소</button>' in mine
     assert '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="done">엣지 완료</button></div>' in mine
     assert '<span class="pp-tag" data-pp-tag aria-label="내 작업 · 어제부터">내 작업 · <span class="is-old">어제부터</span></span>' in mine
     assert 'class="fph-dr__by pp-by has-tag"' in mine and f'data-picked-id="{me_id}"' in mine
     other = _card(html, "한빛", 1)
     assert 'class="fph-wi pp-act pp-st-taken pp-held" data-pp-act="held"' in other and "<b>박엣지 작업\u00a0중</b>" in other
-    assert '<div class="pp-two pp-two--join">' in other and 'data-pp-act="join">같이 작업</button></div>' in other  # §8-2 6
+    assert '<div class="pp-two pp-two--join">' in other and 'data-pp-act="join">엣지 같이&nbsp;작업</button></div>' in other  # §8-2 6 · 11-27 파트 이름
     assert "pp-tag" not in other
     assert "엣지 완료 · 김민준" in _card(html, "한빛", 2) and "엣지 완료 취소</button>" in _card(html, "한빛", 2)  # '끝' → '완료'(K4)
     assert 'data-pp-act="take">엣지 시작</button>' in _card(html, "한빛", 3)  # 파트마다 [<파트> 시작](11-27)
@@ -168,7 +168,7 @@ def test_보류_주문은_완료_기본_카드에도_막힘을_싣고_되돌린_
     assert 'data-pp-act="undo"' in basic
     # 되돌린 뒤 상태의 서버 그림 = 내 작업 [시작 취소][보류 칸] · 안 본 장 = 보류 칸(단추 없음)
     mine = _card(html, "보류집", 2)
-    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">시작 취소</button><button type="button" class="fph-wi pp-act pp-st-hold"' in mine
+    assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">재단 시작&nbsp;취소</button><button type="button" class="fph-wi pp-act pp-st-hold"' in mine
     fresh = _card(html, "보류집", 3)
     assert 'class="fph-wi pp-act pp-st-hold"' in fresh and 'data-pp-act=' not in fresh
     claim = (JS / "foms-production-parts-claim.js").read_text(encoding="utf-8")
@@ -295,8 +295,8 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     assert order == sorted(order)
     # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다 — 검토 고침(11-25 [대신 완료] =
     # check · 반장 자기 몫 되돌리기 줄)이 modal · crew · parts 를 한 번 더 · 비평 C06 · C09(11-26 주문 막힘 칸)가 claim · parts · sync 를, 검토 고침(걸린 카드 건너뛰기)이 parts · sync 를 한 번 더
-    for name, pin in (("parts", "20261127t"), ("parts-claim", "20261127b"), ("parts-modal", "20261127r"),
-                      ("parts-crew", "20261127r"), ("parts-sync", "20261125u")):  # 11-27 반장 미정 바로 완료가 넷을 한 번 더 · 바로 완료 취소 한 번에 미정이 crew 를 한 번 더
+    for name, pin in (("parts", "20261127w"), ("parts-claim", "20261127w"), ("parts-modal", "20261127w"),
+                      ("parts-crew", "20261127w"), ("parts-sync", "20261125u")):  # 11-27 반장 미정 바로 완료가 넷을 한 번 더 · 바로 완료 취소 한 번에 미정이 crew 를 한 번 더
         assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v={pin}\" defer", tpl)) == 1, name
 
 

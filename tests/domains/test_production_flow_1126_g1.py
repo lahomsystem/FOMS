@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CSS = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
 TPL = (ROOT / "templates/production/partials/home_parts.html").read_text(encoding="utf-8")
 CLAIM_JS = ROOT / "static/js/production/foms-production-parts-claim.js"
-PIN = "20261127s"  # parts.css 핀(11-27 비평 시안 · 카드 키 일괄로 올림)
+PIN = "20261127w"  # parts.css 핀(11-27 비평 시안 · 카드 키 일괄 · [<파트> 같이 작업] 짝 폭으로 올림)
 
 
 def _rule(selector: str) -> str:
@@ -165,7 +165,7 @@ def test_claim_js_scrolls_to_focus_and_morning_view_in_place():
 def test_pins_bumped():
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
-    assert "foms-production-parts-claim.js') }}?v=20261127b" in scripts  # 11-27 반장 미정 바로 완료가 claim 을 한 번 더
+    assert "foms-production-parts-claim.js') }}?v=20261127w" in scripts  # 11-27 반장 미정 바로 완료 · [<파트> 시작 취소]가 claim 을 한 번 더
     assert f"parts.css') }}}}?v={PIN}" in styles
 
 

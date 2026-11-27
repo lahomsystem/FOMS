@@ -284,7 +284,16 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
    남의 작업 칸 + [같이 작업] 짝: 이름 칸 : 단추 = 1.4 : 1(지금 짝 1 : 1.4 의 반대), 이름 글은 두 줄까지 낱말에서 꺾음("작업 중" · "외 1"은
    서버가 붙인 칸 없는 띄어쓰기로 안 쪼개짐). 카드 상태 글(완료 · "재단 1/2 완료 · 김재단 작업 중")은 이름이 길면 다음 줄로(잘리지 않게).
    [담당 바꾸기] 사람 고르기(둘 이상) = 두 칸, 고른 사람은 담당 바꾸기 색(분홍 짙게). 토큰은 새로 안 만든다(무채색 없음). */
-.pp-two.pp-two--join { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+.pp-two.pp-two--join { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); } /* 11-27 1.4 → 1.2 — [<파트> 같이 작업]이 100% 에서 한 줄 */
+/* [<파트> 시작 취소] · [<파트> 같이 작업](사장님 2026-11-27 "둘 다 파트 이름") — 1280×720 글자 100 · 120 · 150% 에서 재서 맞춤:
+   내 작업 한 층 = 흐름 칸 — [시작 취소]는 제 글 폭(안 여백 8 → 4), [<파트> 완료]는 나머지(제 글 폭 아래로 안 줄어듦)라 세 배율 모두 한 줄.
+   두 단추 모두 칸이 모자라면(120 · 150% [같이 작업] · 글꼴이 넓은 기기) 파트 이름 뒤에서만 두 줄("엣지" / "같이 작업" — "시작 취소" ·
+   "같이 작업"은 칸 없는 띄어쓰기), 줄 키 1.05 라 150% 두 줄도 56px 단추 안(1.1 이면 작업 필요 칸 카드가 2px 컸다). 글자 크기는 그대로. */
+.pp-two.is-mine { display: flex; }
+.pp-two.is-mine > :not(.pp-release) { flex: 1 1 0; min-width: 0; }
+.pp-two.is-mine > .pp-fin { min-width: max-content; }
+.pp-two.is-mine > .pp-release, .pp-two--join > .foms-prod-home__btn { padding: 0 4px; white-space: normal; word-break: keep-all; line-height: 1.05; text-align: center; }
+.pp-two.is-mine > .pp-release { flex: 0 1 auto; }
 .pp-two--join .pp-held__who b, .pp-held.pp-not-need .pp-held__who b { white-space: normal; word-break: keep-all; line-height: 1.15; }
 .pp-actbox > span.fph-wi.pp-act { white-space: normal; word-break: keep-all; text-align: center; line-height: 1.25; }
 .pp-actbox .pp-undo-row > span { white-space: normal; word-break: keep-all; line-height: 1.25; }

@@ -480,7 +480,7 @@ def test_js_status_says_start_was_cancelled_too_and_first_drawing_line_returns(c
     assert [c["body"] for c in calls] == [take, release]  # 화면이 보내는 몸 = 위에서 진짜 API 에 보낸 몸
     assert out[0]["modal"]["body"] == FIRST_LINE and out[1]["status"] == "재단 시작했어요 · 제작 시작도 같이 됐어요"
     assert out[2]["modal"]["body"] == ""  # 제작이 시작돼 다른 도면도 첫 도면 안내가 없다
-    assert out[5]["sent"] == 1 and out[5]["status"] == "시작 취소했어요 · 제작 시작도 같이 취소됐어요"
+    assert out[5]["sent"] == 1 and out[5]["status"] == "재단 시작 취소했어요 · 제작 시작도 같이 취소됐어요"  # 11-27 누른 단추 [재단 시작 취소] 그대로
     assert out[6]["modal"]["body"] == FIRST_LINE  # 되돌려진 뒤에는 그 주문 모든 도면이 다시 '첫 도면'
     assert out[8]["card"]["state"] == "none"
 
