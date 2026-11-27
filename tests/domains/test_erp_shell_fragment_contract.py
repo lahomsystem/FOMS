@@ -193,7 +193,6 @@ def test_orders_dashboard_fragment_returns_fragment_header(client, monkeypatch):
         ("/erp/shipment", b"erp-mobile-shell"),
         ("/erp/as", b"erp-as"),
         ("/erp/drawing-workbench", b"dw-process-map"),
-        ("/erp/production/dashboard", b"erp-dashboard"),  # 9탭 밖 하위 조각(2026-11-21)이어도 조각 규약은 그대로
         ("/erp/production/home", b"foms-prod-home"),
         ("/erp/construction/dashboard", b"erp-dashboard"),
         ("/erp/completion", b"erp-completion"),
@@ -221,7 +220,7 @@ def test_other_erp_tab_fragments_return_fragment_header(client, monkeypatch, pat
     "path",
     [
         "/erp/drawing-workbench",
-        "/erp/production/dashboard",
+        # 옛 생산 보드(/erp/production/dashboard)는 2026-11-27 없앴다. 생산 첫 화면은 critical · heavy 단을 따로 두지 않는다.
         "/erp/construction/dashboard",
         "/erp/completion",
         "/erp/history/",
