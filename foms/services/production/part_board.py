@@ -329,13 +329,14 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
     }
 
 
-def sort_cards(cards: list[dict[str, Any]], part: str) -> list[dict[str, Any]]:
+def sort_cards(cards: list[dict[str, Any]], part: str, mine: bool = False) -> list[dict[str, Any]]:
     """카드 순서 — 모든 파트 남은 일 앞 · 완료 뒤(설계서 2026-11-23 §8-1 '판 순서', :func:`sort_rank`), 묶음 안은 주문 · 장 번호 순.
 
     재단 · 엣지 · 조립 = 미정 → 담당 → 완료, 검수 = 검수 할 수 있음 → 담당 → 검수 전 → 완료. 주문 순서는 만들 것 줄 순서
-    (``order_pos``) 그대로다.
+    (``order_pos``) 그대로다. ``mine``(파트 계정 보기)이면 내 몫이 작업 중인 장(\[내 작업] 칸이 세는 ``in_need``)이 맨 앞(2026-11-27).
     """
-    return sorted(cards, key=lambda c: (sort_rank(c, part), c["order_pos"], c["no"]))
+    first = (lambda c: 0 if c.get("in_need") else 1) if mine else (lambda c: 0)
+    return sorted(cards, key=lambda c: (first(c), sort_rank(c, part), c["order_pos"], c["no"]))
 
 
 def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
@@ -382,7 +383,7 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
                 elsewhere.append(card)
             else:
                 cards.append(card)
-    cards = sort_cards(cards, ctx["part"])
+    cards = sort_cards(cards, ctx["part"], ctx["mine"])
     elsewhere = sorted(elsewhere, key=lambda c: (c["order_pos"], c["no"]))
     wait_rows = list(pane.get("wait_rows") or [])
     return {
