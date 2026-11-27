@@ -33,6 +33,7 @@ from models import Order, ProductionPartMark
 from tests.support.production_factory_seed import factory_user, mixed_order
 from tests.support.production_home_step_panel_seed import HOME, SHELL, TABLET, add_order, get_html, login, pane_html, set_cookies
 from tests.support.production_part_claim_seed import login as login_person
+from tests.support.production_steps_read import steps_read
 
 ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
@@ -88,7 +89,7 @@ def _work_sheet_sheets(client, oid: int) -> int:
 
 
 def _api_sheets(client, oid: int) -> int:
-    return client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]["sheets"]
+    return steps_read(client, oid)["sheets"]
 
 
 CARDS = "재단 0/1 · 1장 미완료"  # 도면 있는 줄의 [끝] 자리(사장님 2026-11-27 "도면이 주, 작업 시트는 보기")

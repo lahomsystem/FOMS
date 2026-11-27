@@ -14,7 +14,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.services.erp_quest_display import resolve_current_quest
-from foms.services.production_dashboard_display import build_production_enriched_rows
+from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from models import Order, OrderEvent, ProductionRun, User
 from tests.support.confirm_seed import drawing_for_stage
 
@@ -269,7 +269,7 @@ def test_lee_daeun_reproduction_resolves_via_production_start(client):
     assert shown is not None and shown["is_done"] is True
 
     # 생산 보드: 단계 CONFIRM 이라 제작대기(호환) + 판정 SSOT 로 승인됨 → [제작 시작] 노출.
-    rows = build_production_enriched_rows([order], {}, set())
+    rows = build_production_home_enriched_rows([order], set())
     assert len(rows) == 1
     assert rows[0]["stage"] == "제작대기"
     assert rows[0]["is_sales_approved"] is True
@@ -285,4 +285,4 @@ def test_lee_daeun_reproduction_resolves_via_production_start(client):
     assert saved.structured_data["workflow"]["history"][-1]["note"] == "제작 시작"
     runs = db_session.query(ProductionRun).filter(ProductionRun.order_id == order_id).all()
     assert len(runs) == 1 and runs[0].status == "IN_PROGRESS" and runs[0].is_current is True
-    assert build_production_enriched_rows([saved], {}, {saved.id})[0]["stage"] == "제작중"
+    assert build_production_home_enriched_rows([saved], {saved.id})[0]["stage"] == "제작중"

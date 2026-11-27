@@ -30,6 +30,7 @@ from models import ProductionPartMark
 from tests.support.production_factory_seed import HOME_NONE, PC, TABLET, factory_user, mixed_order, put_mark, set_cookies
 from tests.support.production_part_claim_seed import check_step, code, fresh, login, make_order, make_user, mark, patch_sd
 from tests.domains.test_production_home_query_count import _count_queries
+from tests.support.production_steps_read import steps_read
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECK = ROOT / "tests/support/production_multi_holder_node_checks.js"
@@ -89,10 +90,10 @@ def test_steps_api_refuses_an_order_whose_sheets_are_all_in_the_other_factory(cl
         assert refused.status_code == 403 and code(refused) == "OTHER_FACTORY" and body["data"]["factory"] == 2
         assert body["error"] == ELSEWHERE_WHY + " [다시 받기]를 눌러 주세요."  # 도면 칸 남의 공장 거절과 같은 글
     assert fresh(only2.id).structured_data["production"]["steps"][0]["done"] is False  # 쓰기 0
-    # 누르기 전에 — 공정 GET(바텀시트) · 작업 시트 공정 칸도 같은 판정으로 읽기 전용 + 남의 공장 카드 글
-    got = client.get(f"/api/orders/{only2.id}/production/steps").get_json()["data"]
+    # 누르기 전에 — 공정 판정(작업 시트와 같은 조합, steps_read) · 작업 시트 공정 칸도 같은 판정으로 읽기 전용 + 남의 공장 카드 글
+    got = steps_read(client, only2.id)
     assert (got["locked"], got["locked_note"]) == (True, ELSEWHERE_WHY)
-    assert client.get(f"/api/orders/{mixed.id}/production/steps").get_json()["data"]["locked"] is False
+    assert steps_read(client, mixed.id)["locked"] is False
     set_cookies(client, TABLET)  # 공정 칸이 단추로 그려지는 기기(터치)
     sheet = client.get(f"/erp/production/sheet/{only2.id}").get_data(as_text=True)
     # 도면 있는 주문의 공정 칸 = 보기 줄(사장님 2026-11-27 "도면이 주, 작업 시트는 보기") — 잠금 글은 그대로, 누를 체크 칸 없음

@@ -1,8 +1,8 @@
 """ERP 생산 행 DTO·표시 헬퍼 — 주문 → 목록 행 dict 변환(첫 화면 ``build_production_home_enriched_rows``).
 
 옛 생산 보드(2026-11-27 지움)에서 갈라 나온 모듈이다. 보드만 쓰던 프로세스맵 단계 바 조립은 보드와 함께 지웠다.
-``build_production_enriched_rows``(도면 단계 행을 빼는 갈래)는 지금 화면에서 부르지 않지만 시험이 행 변환 계약을
-이것으로 고정하므로 남긴다. 쿼리/카운트/KPI는 production_read_model이 담당한다.
+옛 보드 갈래 ``build_production_enriched_rows``(도면 단계 행을 빼는 갈래)는 시험만 불러 2026-11-27 지웠다 — 행 변환 계약은
+시험이 첫 화면 함수로 지킨다. 쿼리/카운트/KPI는 production_read_model이 담당한다.
 flat 모듈(subpackage __init__ 순환 회피).
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ from foms.services.orders.erp_policy_quests import check_quest_approvals_complet
 from foms.services.orders.manager_names import manager_label_from_parties
 
 __all__ = [
-    "build_production_enriched_rows",
+    "build_production_home_enriched_rows",
 ]
 
 
@@ -266,37 +266,6 @@ def _enrich_one_production_order(
         ),
         'phone': (((sd.get('parties') or {}).get('customer') or {}).get('phone')) or '-',
     }
-
-
-def build_production_enriched_rows(
-    page_rows: list[Any], att_counts: dict[int, int],
-    current_run_ids: set[int] | None = None,
-) -> list[dict[str, Any]]:
-    """현재 페이지 주문만 목록용 dict로 변환.
-
-    ``current_run_ids`` 는 current production run 이 있는 주문 id 집합
-    (``fetch_production_current_run_ids``). PRODUCTION 단계는 여기 있으면 제작중, 없으면
-    제작대기다(None 이면 빈 집합 취급 — PRODUCTION 전부 제작대기).
-    """
-    enriched: list[dict[str, Any]] = []
-    run_ids = current_run_ids or set()
-    # N+1 제거: 실측담당자 연락처 map을 1회 만들어 행마다 재사용(설정 재조회 제거).
-    manager_phone_map = build_measurement_manager_phone_map()
-    for o in page_rows:
-        sd = _ensure_dict(o.structured_data)
-        raw_stage = _erp_get_stage(o, sd)
-        if not raw_stage:
-            continue
-        stage_label = _production_stage_label_from_stage(raw_stage, o.id in run_ids)
-        if not stage_label:
-            continue
-        att_n = att_counts.get(o.id, 0)
-        enriched.append(
-            _enrich_one_production_order(
-                o, sd, stage_label, att_n, manager_phone_map, raw_stage=raw_stage
-            )
-        )
-    return enriched
 
 
 def build_production_home_enriched_rows(

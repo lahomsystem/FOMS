@@ -16,7 +16,7 @@ from foms.services.production.home_step_panel import _KEYS, production_home_step
 from foms.services.production.part_board import card_item_text
 from foms.services.production_dashboard_display import (
     _production_spec_display,
-    build_production_enriched_rows,
+    build_production_home_enriched_rows,
 )
 from foms.services.production_sheet_view import _prod_item_whd
 from models import Order
@@ -110,7 +110,7 @@ def test_wizard_order_step_panel_and_kanban_show_whd(app):
                       is_erp_order=True, structured_data=sd)
         db_session.add(order)
         db_session.commit()
-        rows = build_production_enriched_rows([db_session.get(Order, order.id)], {})
+        rows = build_production_home_enriched_rows([db_session.get(Order, order.id)])
         assert len(rows) == 1
         row = rows[0]
         assert row["v3_spec_display"] == _WHD  # 옛 칸반 · 날짜 탭 · 찾기 탭이 읽는 칸

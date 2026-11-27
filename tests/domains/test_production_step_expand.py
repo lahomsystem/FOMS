@@ -50,6 +50,7 @@ from tests.support.production_factory_seed import factory_user, mixed_order, put
 from tests.support.production_home_step_panel_seed import HOME, TABLET, add_order, get_html, set_cookies
 from tests.support.production_home_step_panel_seed import login as home_login
 from tests.support.production_part_claim_seed import check_step, code, events, finish, fresh, login, make_order, make_user, step
+from tests.support.production_steps_read import steps_read
 
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 FIX = {"no": 2, "by_user_id": None, "by_name": "김도면", "at": "2026-11-25T05:10:00Z"}
@@ -149,7 +150,7 @@ def test_whole_step_skips_the_blocked_drawing_marks_each_like_a_card_in_one_stat
     _fixing(seed.id, 1)
     boss = make_user("가짜반장", lead=True)
     login(client, boss)
-    info = client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]
+    info = steps_read(client, seed.id)
     assert info["fix"] == {"done": 2, "numbers": [2], "tail": "도면 2는 수정 중이라 빼요."} and info["sheets"] == 3
     assert info["per_sheet"] == STEP_PER_SHEET_MESSAGE  # 작업 시트가 요청 없이 보이는 글
     assert fx.expand_confirm_body(info["sheets"], info["fix"]["done"], "재단", info["fix"]["numbers"]) == ASK
@@ -171,13 +172,13 @@ def test_mixed_order_expands_every_factory_so_the_other_lead_is_not_left_out(cli
     seed = mixed_order(4, f2=(2, 3))  # 도면 3 · 4 = 2공장
     _fixing(seed.id, 0)  # 도면 1(1공장) 고치는 중
     login(client, factory_user("일공장반장", lead=True))
-    assert client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]["fix"] == {
+    assert steps_read(client, seed.id)["fix"] == {
         "done": 3, "numbers": [1], "tail": "도면 1은 수정 중이라 빼요."}
     version = fresh(seed.id).mutation_version
     _refused_per_sheet(check_step(client, seed.id, "edge", True), seed.id, version)  # 도면 4장 = 통째 켜기 거절(사장님 2026-11-27)
     login(client, factory_user("이공장반장", factory=2, lead=True))
     _refused_per_sheet(check_step(client, seed.id, "edge", True), seed.id, version)  # 2공장 반장도 같다(누구든)
-    left = client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]["parts"]["edge"]
+    left = steps_read(client, seed.id)["parts"]["edge"]
     assert (left["uses_cards"], left["left_n"]) == (False, 4)  # 아무 장도 안 썼다 — 도면 화면에서 한 장씩
 
 
