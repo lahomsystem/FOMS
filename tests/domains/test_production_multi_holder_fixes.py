@@ -182,7 +182,7 @@ def test_lead_half_done_card_has_own_undo_row_and_js_sends_check_and_self_target
     one = _node(page, {"posts": [undone], "steps": [{"do": "click", "key": order.keys[0], "act": "undo"}, {"do": "run"},
                                                     {"do": "card", "key": order.keys[0]}]})
     assert (one["out"][0]["modal"]["title"], one["out"][0]["modal"]["line"]) == ("재단 완료를 취소할까요?", "재단 1/2 완료 → 작업 중 · 박반장")
-    assert [c["body"] for c in one["calls"]] == [undo]  # 대상 = 본인(자기 몫만 — 판결 3)
+    assert [c["body"] for c in one["calls"]] == [{**undo, "seen_cancel": False}]  # 대상 = 본인(자기 몫만 — 판결 3) · 창이 보여 준 것(줄 없음)
     assert one["out"][2]["card"]["picked_me"] == "1" and one["out"][2]["card"]["in_done"] == "0"
     two = _node(page, {"posts": [finished], "steps": [
         {"do": "click", "key": order.keys[0], "act": "check"}, {"do": "close"},

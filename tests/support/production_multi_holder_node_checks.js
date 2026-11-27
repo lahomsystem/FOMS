@@ -1,6 +1,6 @@
 // 생산 도면 판 — 여러 명이 같이 작업(M2) JS 를 서버가 그린 진짜 판(argv[2]) 위에서 Node 로 돌린다(설계서 2026-11-25 multi-holder §11 M2).
 // tests/domains/test_production_multi_holder_board.py 가 부른다. want = argv[3] {steps: [...], posts: [서버 답…], gets: [서버 답…]}.
-// 판 JS 다섯(viewer → claim → modal → crew → parts, 받아 오기 sync 는 want.sync 일 때)을 차례로 싣고 steps 를 차례로 한다:
+// 판 JS 여섯(viewer → claim → modal → cancel → crew → parts, 받아 오기 sync 는 want.sync 일 때)을 차례로 싣고 steps 를 차례로 한다:
 //   {do:'parity'} 모든 카드의 서버 단추 칸 ↔ JS 가 다시 그린 단추 칸 · {do:'click', key, act} 카드 단추 · {do:'modal'} 창 모습 ·
 //   {do:'notice', key} 넘김 말풍선 누름 ·
 //   {do:'run'} 실행 단추 · {do:'choice', text} 관리자 고르기 · {do:'who', index} 사람 고르기 · {do:'card', key} 카드 모습 · {do:'sync'} 받아 오기 한 번 ·
@@ -92,7 +92,7 @@ const ctx = {
 ctx.window = ctx;
 // 텍스트 노드 — appendChild 가 받는 꼴(fake DOM 의 textNode 와 같은 모양)
 vm.createContext(ctx);
-const files = ['viewer', 'claim', 'modal', 'crew', ''].concat(want.sync ? ['sync'] : []);
+const files = ['viewer', 'claim', 'modal', 'cancel', 'crew', ''].concat(want.sync ? ['sync'] : []);
 files.forEach((n) => {
   const f = path.join(root, 'static/js/production/foms-production-parts' + (n ? '-' + n : '') + '.js');
   vm.runInContext(fs.readFileSync(f, 'utf8'), ctx, { filename: f });

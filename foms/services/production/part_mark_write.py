@@ -74,7 +74,7 @@ from foms.services.production.part_steps_sync import (
     step_change_body,
     step_event_rows,
 )
-from foms.services.production.start_rollback import plan_start_rollback, run_tail
+from foms.services.production.start_rollback import check_cancel_notice, plan_start_rollback, run_tail
 from foms.services.production.start_run import (
     CARD_START_NOTE,
     PRODUCTION_START_POLICY_ID,
@@ -381,8 +381,8 @@ def _decide(db: Any, req: MarkRequest, order: Order, entry: dict[str, Any], rows
     return decision
 
 
-def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest, *, dry: bool = False) -> dict[str, Any]:
-    """잠금 → 주문 · 도면 검사 → 전이 표 · 막는 까닭 → 쓰기 → 주문 쓰기 → 감사. 커밋 전 응답 자료를 돌려준다. ``dry``(11-27 [시작 취소] 창 미리 보기) = 잠금 · 쓰기 없이 되돌림 판정까지만.
+def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest, *, dry: bool = False, seen_cancel: Optional[bool] = None) -> dict[str, Any]:
+    """잠금 → 주문 · 도면 검사 → 전이 표 · 막는 까닭 → 쓰기 → 주문 쓰기 → 감사. 커밋 전 응답 자료를 돌려준다. ``dry``(11-27 [시작 취소] 창 미리 보기) = 잠금 · 쓰기 없이 되돌림 판정까지만. ``seen_cancel`` = 취소 창이 보여 준 것(None = 안 실음 — 견주지 않음), 되돌림 판정과 다르면 409 ``CANCEL_NOTICE_STALE``.
 
     Returns:
         ``{mark, order_step, changed, run_started, run_cancelled, order_ready, factory_ready, joined_late, notice, proxied}``
@@ -415,6 +415,7 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest, *, dry: bool = F
     closing = plan_start_rollback(db, order, views[req.order_id], (req.part,), cleared, target=decision.target)  # 11-27
     if dry:  # 미리 보기 — 여기까지 읽기만. 아래 주문 쓰기 · 감사는 하지 않는다
         return {"changed": False, "run_cancelled": bool(closing)}
+    check_cancel_notice(seen_cancel, closing, MarkRefusal)  # 창에 보인 대로만(11-27 덧붙임 둘) — 다르면 409, 위 표시 쓰기는 API 가 되감는다
     steps, started = apply_order_changes(db, [order], views, user, parts=(req.part,), starting=starting, cleared=cleared,
                                          closing=closing)
     write_audit(db, user, _note(req, write, decision, user) + step_note(steps) + run_tail(started, closing),

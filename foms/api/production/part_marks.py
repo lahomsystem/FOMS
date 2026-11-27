@@ -6,6 +6,8 @@
   ``seen_by`` = 옛 화면이 본 담당 id(null = 담당 없음, 한 명일 때만 뜻) — 담당 바꾸기는 이것이나 ``target_user_id`` 를 꼭 보낸다.
   ``seen_me`` = 새 화면이 본 내 몫(none · held · done — 안 보내면 견주지 않음), ``target_user_id`` = 바꾸기 · 시작 취소 대상.
   ``check`` = PC [완료 처리](시작 + 완료를 한 요청 — 반장 · 관리자만, 판결 2).
+  ``seen_cancel``(안 보내도 됨 · true/false) = 취소 창이 그 단추에 대해 보여 준 것 — "제작 시작도 같이 취소돼요" 줄이 보였으면 true.
+  실은 누름만 견준다: 실제 되돌림 판정과 다르면 409 ``CANCEL_NOTICE_STALE``(아무것도 안 바뀜 — 사장님 2026-11-27 "창에 보인 대로만 된다").
 * ``POST /api/production/part-marks/basic`` — 재단 [남은 N장 모두 기본]. 몸 ``{part:'cut', seen:'none', items:[{order_id,
   drawing_key}…]}``(최대 200). **화면이 보낸 목록만** 바꾼다(서버가 '남은 전부'를 고르지 않는다) · 일부 성공.
 * ``GET /api/production/part-marks/cancel-preview`` — [<파트> 시작 취소] · [<파트> 완료 취소] · [기본 취소] 창을 열 때(사장님 2026-11-27
@@ -133,6 +135,14 @@ def _target_uid(body: dict[str, Any]) -> Any:
     return value
 
 
+def _seen_cancel(body: dict[str, Any]) -> Any:
+    """``seen_cancel`` — 안 보냄(None — 옛 화면 · 다른 화면, 견주지 않음) · true(줄이 보였다) · false(안 보였다). 그 밖은 400."""
+    value = body.get("seen_cancel")
+    if value is not None and not isinstance(value, bool):
+        raise MarkRefusal(400, "BAD_REQUEST", "본 취소 안내 값이 올바르지 않아요.")
+    return value
+
+
 def _actor() -> Any:
     """로그인한 사람(``_set_current_user`` 가 비활성 · 끊긴 세션은 이미 비웠다)."""
     user = getattr(g, "current_user", None)
@@ -197,13 +207,14 @@ def api_part_mark():
 
     def _handle(db: Any) -> dict[str, Any]:
         user = _actor()
-        req = _parse_one(request.get_json(silent=True) or {})
+        body = request.get_json(silent=True) or {}
+        req, shown = _parse_one(body), _seen_cancel(body)  # 몸 검사(400)는 지금처럼 파트 문(403)보다 먼저
         override = _gate_part(user, req.part)
         if req.action == ACTION_BASIC and req.part != BASIC_ALLOWED_PART:
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
         if req.action == ACTION_CHECK and not override:
             raise MarkRefusal(403, "PART_FORBIDDEN", CHECK_FORBIDDEN_MESSAGE)
-        return _with_crew(mark_one(db, user, override, req), user)
+        return _with_crew(mark_one(db, user, override, req, seen_cancel=shown), user)
 
     return _run(_handle)
 
