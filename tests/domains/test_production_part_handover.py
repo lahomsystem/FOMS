@@ -319,7 +319,7 @@ def test_history_lists_events_with_names_and_filters(client):
 
 
 def test_history_resolves_names_of_old_events_in_one_query(client):
-    order = make_order(1)
+    order = make_order(0)  # 칸 켜기 이벤트를 만드는 준비 — 도면이 있으면 켜기가 409(사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
     login(client, make_user("박반장", lead=True))
     client.post(f"/api/orders/{order.id}/production/steps", json={"key": "cut", "done": True})
     for ev in events(order.id, "PRODUCTION_STEP_CHECKED"):  # 3판 전 이벤트 꼴(이름 없음)

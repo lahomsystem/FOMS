@@ -169,7 +169,7 @@ def test_hand_step_without_a_name_leaves_the_finisher_empty(client, quiet, team,
 def test_history_of_an_old_step_event_by_a_nameless_account_is_as_before(client, quiet, team):
     """셋째 판 3 대조: 이름이 빈 계정이 공정 칸을 누른 옛 이벤트는 지금처럼 사용자 표 이름(로그인 아이디)으로 보인다."""
     from tests.support.production_part_claim_seed import check_step, make_order as prod_order, make_user as prod_user
-    seed = prod_order(1)  # 11-27: 도면 두 장 이상은 공정 칸 통째 완료가 막힌다 — 한 장 주문으로
+    seed = prod_order(0)  # 11-27: 도면이 한 장이라도 있으면 공정 칸 켜기가 막힌다("도면이 주, 작업 시트는 보기") — 도면 0장 주문으로
     lead = prod_user("", lead=True)
     login(client, lead)
     assert check_step(client, seed.id, "cut", True).status_code == 200

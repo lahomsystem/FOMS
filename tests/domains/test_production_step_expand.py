@@ -128,13 +128,14 @@ def _insert_count(fn):
 # --------------------------------------------------------------------------- #
 def test_control_mixed_order_without_block_turns_on_with_one_first_factory_lead(client):
     """판결 A 대조군이던 것 — 막힌 도면 없는 섞인 주문(도면 3장)도 이제 1공장 반장 한 번에 칸을 못 켠다(사장님 2026-11-27, 409
-    STEP_PER_SHEET · 쓰기 0). 도면 1장 주문은 지금처럼 켜진다(표시 줄 0 · 감사 줄 하나)."""
+    STEP_PER_SHEET · 쓰기 0). 도면 0장 주문은 지금처럼 켜진다(표시 줄 0 · 감사 줄 하나 — 옛 대조군 도면 1장은 사장님 2026-11-27 "도면이 주, 작업 시트는 보기" 뒤로 409)."""
     seed = mixed_order(3, f2=(2,))
     login(client, factory_user("일공장반장", lead=True))
     version = fresh(seed.id).mutation_version
     _refused_per_sheet(check_step(client, seed.id, "cut", True), seed.id, version)
     assert step(seed.id, "cut")["done"] is False
-    one = make_order(1)
+    assert code(check_step(client, make_order(1).id, "cut", True)) == STEP_PER_SHEET
+    one = make_order(0)
     res = check_step(client, one.id, "cut", True)
     assert res.status_code == 200 and "expanded" not in res.get_json()["data"] and "fix" not in res.get_json()["data"]
     assert step(one.id, "cut")["done"] is True and _marks(one.id) == {}
@@ -236,14 +237,16 @@ def test_duplicate_key_order_expands_through_the_api(client, monkeypatch):
 
 
 def test_only_blocked_drawings_is_refused_like_the_whole_block(client):
+    """지금 도면이 모두 막힌 도면 1장 주문 — 옛 답은 풀어 쓸 장이 없어 409 DRAWING_REVISING(numbers [1]). 사장님 2026-11-27 "도면이 주, 작업 시트는 보기" 뒤로는 도면이 있으면
+    풀어 쓰기 앞 문(STEP_PER_SHEET)에서 먼저 막힌다(쓰기 0 은 같다 — 풀어 쓰기 길은 이제 안 탄다)."""
     seed = make_order(1)
     _fixing(seed.id, 0)
     login(client, make_user("가짜반장", lead=True))
     before = (fresh(seed.id).mutation_version, _marks(seed.id))
     res = check_step(client, seed.id, "cut", True)
     body = res.get_json()
-    assert res.status_code == 409 and code(res) == DRAWING_REVISING and body["error"] == REVISING_MESSAGE
-    assert body["data"]["numbers"] == [1] and body["data"]["part"] == "cut"
+    assert res.status_code == 409 and code(res) == STEP_PER_SHEET and body["error"] == STEP_PER_SHEET_MESSAGE
+    assert body["data"]["part"] == "cut"
     assert (fresh(seed.id).mutation_version, _marks(seed.id)) == before and step(seed.id, "cut")["done"] is False
 
 
@@ -262,18 +265,19 @@ def test_card_parts_whole_block_and_turned_on_cells_keep_today_rules(client):
     assert code(refused) == STEP_PER_SHEET and step(on.id, "cut")["done"] is True and _marks(on.id) == {}
     one = make_order(1, steps_done=("cut",))
     _fixing(one.id, 0)
-    assert check_step(client, one.id, "cut", True).status_code == 200 and _marks(one.id) == {}  # 이미 켠 칸은 풀어 쓰지 않는다
+    refused = check_step(client, one.id, "cut", True)  # 도면 1장도 다시 켜기는 거절(사장님 2026-11-27 "도면이 주, 작업 시트는 보기"), 칸은 그대로 · 풀어 쓰지 않는다
+    assert code(refused) == STEP_PER_SHEET and step(one.id, "cut")["done"] is True and _marks(one.id) == {}
 
 
 def test_inspect_expand_passes_each_drawing_through_the_inspect_gate_or_writes_nothing(client):
     """둘째 판 3 이던 것 — 검수 통째 켜기도 도면 3장 주문이면 준비 여부와 상관없이 409 STEP_PER_SHEET · 쓰기 0(사장님 2026-11-27).
-    대조군: 도면 1장 주문의 검수 손 칸은 전과 똑같이(문 없이 칸만 켬)."""
+    대조군: 도면 0장 주문의 검수 손 칸은 전과 똑같이(문 없이 칸만 켬 — 옛 대조군 도면 1장은 사장님 2026-11-27 "도면이 주, 작업 시트는 보기" 뒤로 409)."""
     login(client, make_user("가짜반장", lead=True))
     for steps_done in ((), ("cut", "edge", "assemble")):
         many = make_order(3, steps_done=steps_done)
         _fixing(many.id, 1)
         _refused_per_sheet(check_step(client, many.id, "inspect", True), many.id, fresh(many.id).mutation_version)
-    plain = make_order(1)
+    plain = make_order(0)
     assert check_step(client, plain.id, "inspect", True).status_code == 200 and step(plain.id, "inspect")["done"] is True
     assert _marks(plain.id) == {}
 
@@ -311,9 +315,10 @@ def _row(page: str, oid: int) -> str:
 
 
 def _seed_rows(client) -> tuple[int, int, int]:
-    """재단 줄 셋 — 남은 장이 고치는 도면뿐인 주문(카드로 2장 완료) · 막힌 도면 있는 도면 3장 주문(아직) · 보통 주문(도면 1장)."""
+    """재단 줄 셋 — 남은 장이 고치는 도면뿐인 주문(카드로 2장 완료) · 막힌 도면 있는 도면 3장 주문(아직) · 보통 주문(도면 0장 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기"
+    뒤로 [끝]이 남는 줄)."""
     stuck, ready = (add_order(n, i, pngs=3).id for i, n in enumerate(("가짜끝집", "가짜고침집"), 1))
-    plain = add_order("가짜도면집", 3, pngs=1).id
+    plain = add_order("가짜도면집", 3, pngs=0).id
     _fixing(stuck, 1)
     _fixing(ready, 1)
     _done_cards(stuck, 0, 2)
@@ -331,7 +336,8 @@ def test_steps_rows_show_fixing_in_the_finish_slot_only_when_nothing_else_is_lef
         assert f'fph-qr is-revise" data-foms-home-qrow="{stuck}"' in page
         # 막힌 도면이 있어도 남은 장이 더 있는 도면 3장 주문 = [끝] 대신 여러 장 막힘 칸(사장님 2026-11-27)
         assert "data-foms-home-step-done" not in _row(page, ready) and "재단 0/3 · 3장 미완료" in _row(page, ready)
-        assert "fix" not in _confirm(_row(page, plain)) and "fph-qr__hold" not in _row(page, plain)  # 대조군(도면 1장)
+        assert "data-foms-sheet-parts" not in _row(page, plain) and "fph-qr__hold" not in _row(page, plain)  # 대조군(도면 0장 — 묻지 않음)
+        assert "data-foms-home-step-done" in _row(page, plain)
         assert "fph-qr__holdtag\">도면 2 수정 중" not in _row(page, ready)  # 남은 장이 있으면 새 표시 없이 [끝]
     pane = get_html(client, f"{HOME}?tab=steps&order={stuck}")
     assert f'<section class="fph-sp is-revise" data-foms-step-pane="{stuck}"' in pane

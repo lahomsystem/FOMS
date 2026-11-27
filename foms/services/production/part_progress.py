@@ -49,11 +49,13 @@ INSPECT_PREREQ_PARTS: tuple[str, ...] = (PART_CUT, PART_EDGE, PART_ASSEMBLE)
 CARDS_LEFT_MESSAGE = "미완료가 있어요"
 #: 카드를 쓴 주문인데 지금 확정 도면이 0장(새 글, §4-3 끝) — 칸이 기준이다.
 NO_DRAWINGS_MESSAGE = "도면이 없어요 — 공정 칸을 작업 완료로 처리하거나 관리자에게 말해 주세요."
-#: 공정 칸을 손으로 켜(그 파트를 통째로 완료) 되는 확정 도면 장 수 상한 — 넘으면 도면 화면에서 한 장씩(사장님 2026-11-27 "도면 두 장
-#: 이상이면 막기" · "각 도면을 체크하면서 완료하는 게 맞다"). 장 수 = 확인 창 "도면 n장"과 같은 :func:`current_keys`(주문 전체 — 2공장 장 포함).
-WHOLE_STEP_MAX_SHEETS = 1
-#: 그때의 거절 글(사장님 결정 글 그대로) — 공정 API 409 ``STEP_PER_SHEET`` · 작업 시트 칸 아래 · '남은 공정' 판 막힘 칸이 같이 쓴다.
-STEP_PER_SHEET_MESSAGE = "도면이 여러 장인 주문이에요. 도면 화면에서 한 장씩 완료해 주세요."
+#: 공정 칸을 손으로 켜(그 파트를 통째로 완료) 되는 확정 도면 장 수 상한 — 넘으면 도면 화면에서(사장님 2026-11-27 "도면 두 장 이상이면
+#: 막기" → 같은 날 "도면이 주, 작업 시트는 보기": "도면이 한 장뿐인 주문도 박반장이 도면 화면에서 [재단 완료]를 누릅니다. 도면이 아예 없는
+#: 주문만 지금처럼 칸을 누릅니다."). 0 = 도면이 한 장이라도 있으면 막는다. 장 수 = :func:`current_keys`(주문 전체 — 2공장 장 포함).
+WHOLE_STEP_MAX_SHEETS = 0
+#: 그때의 거절 글 — 공정 API 409 ``STEP_PER_SHEET`` · 작업 시트 칸 아래(낡은 화면) · '남은 공정' 판 막힘 칸이 같이 쓴다. 장 수와 상관없는
+#: 한 글(옛 글 "도면이 여러 장인 주문이에요. 도면 화면에서 한 장씩 완료해 주세요."는 1장 주문에 안 맞아 바꿨다).
+STEP_PER_SHEET_MESSAGE = "도면이 있는 주문은 도면 화면에서 완료해 주세요."
 
 
 def mark_finished(part: str, state: Optional[str]) -> bool:
@@ -102,8 +104,8 @@ def current_keys(sd: Any, *, factory: Optional[int] = None) -> list[str]:
 
 
 def per_sheet_only(sd: Any) -> bool:
-    """공정 칸 통째 켜기가 막힌 주문인지 — 확정 도면이 :data:`WHOLE_STEP_MAX_SHEETS` 장보다 많다(공정 API 문 · '남은 공정' 판 · PC
-    [모두 완료 처리] · 작업 시트가 같은 한 판정). 끄기 · 도면 → 공정 칸 동기화(``part_steps_sync``)와는 상관없다."""
+    """공정 칸 통째 켜기가 막힌 주문인지 — 확정 도면이 :data:`WHOLE_STEP_MAX_SHEETS` 장보다 많다(= 1장 이상, 공정 API 문 · '남은 공정'
+    판 · PC [모두 완료 처리] · 작업 시트 보기 줄이 같은 한 판정). 끄기 · 도면 → 공정 칸 동기화(``part_steps_sync``)와는 상관없다."""
     return len(current_keys(sd)) > WHOLE_STEP_MAX_SHEETS
 
 
@@ -264,8 +266,8 @@ def parts_progress(sd: Any, marks: Iterable[Any]) -> dict[str, dict[str, Any]]:
 def step_api_extras(sd: Any, marks: Iterable[Any]) -> dict[str, Any]:
     """공정 API · 작업 시트가 더 싣는 값 — 확정 도면 장 수(반장 손 체크 확인 창 "도면 5장이 모두 …") · 파트 진행.
 
-    도면이 여러 장인 주문(:func:`per_sheet_only`)은 ``per_sheet`` = 거절 글을 더 싣는다 — 작업 시트가 칸을 켜기 전에 요청 없이 글을
-    보인다(그 밖 주문은 지금 자료 그대로).
+    도면이 있는 주문(:func:`per_sheet_only`)은 ``per_sheet`` = 거절 글을 더 싣는다 — 작업 시트 · 옆 시트가 칸을 켜기 전에 요청 없이 글을
+    보인다(도면 0장 주문은 지금 자료 그대로).
 
     Returns:
         ``{sheets, parts: {part: {uses_cards, done, done_n, total_n, left_n, via}}[, per_sheet]}``.

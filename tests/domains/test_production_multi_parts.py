@@ -212,7 +212,8 @@ def test_sub_mode_writes_any_part_finishes_and_releases_others_and_hand_checks(c
     db_session.expire_all()
     logs = [r.message for r in db_session.query(SecurityLog).filter(SecurityLog.message.like("%대신 처리%"))]
     assert len(logs) == 2 and not any("관리자 덮어쓰기" in m for m in logs), logs
-    assert check_step(client, make_order(1).id, "cut", True).status_code == 200  # 공정 칸 손 체크(잠금 없음)
+    # 공정 칸 손 체크(잠금 없음) — 도면 0장 주문(도면이 있으면 누구든 409, 사장님 2026-11-27 "도면이 주, 작업 시트는 보기")
+    assert check_step(client, make_order(0).id, "cut", True).status_code == 200
 
 
 def test_production_account_without_parts_or_lead_only_views_cards_and_steps(client):
