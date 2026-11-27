@@ -165,7 +165,7 @@ def test_claim_js_scrolls_to_focus_and_morning_view_in_place():
 def test_pins_bumped():
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
-    assert f"foms-production-parts-claim.js') }}}}?v={PIN}" in scripts
+    assert "foms-production-parts-claim.js') }}?v=20261127b" in scripts  # 11-27 반장 미정 바로 완료가 claim 을 한 번 더
     assert f"parts.css') }}}}?v={PIN}" in styles
 
 

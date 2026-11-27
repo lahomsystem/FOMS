@@ -113,7 +113,7 @@ function modalState() {
   const choices = q('[data-pp-modal-choices]');
   const label = modal.querySelector('.foms-prod-change-modal__alert-label');
   return { hidden: modal.hidden, title: text(q('[data-pp-modal-title]')), note: q('[data-pp-modal-note]').hidden ? '' : text(q('[data-pp-modal-note]')),
-    line: label ? text(label) : '', err: q('[data-pp-modal-err]').hidden ? '' : text(q('[data-pp-modal-err]')),
+    line: label ? text(label) : '', body: q('[data-pp-modal-body]').hidden ? '' : text(q('[data-pp-modal-body]')), err: q('[data-pp-modal-err]').hidden ? '' : text(q('[data-pp-modal-err]')),
     run: { text: text(run), hidden: run.hidden, locked: run.getAttribute('aria-disabled') === 'true' },
     close: text(q('[data-pp-modal-close]')), choices_cls: choices.getAttribute('class'), choices_hidden: choices.hidden,
     choices: choices.children.filter((b) => b.tag).map((b) => ({ text: text(b), choice: b.getAttribute('data-pp-choice'),
