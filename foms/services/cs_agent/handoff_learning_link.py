@@ -24,7 +24,8 @@
    (``agent:cs_handoff_learning`` — 주 상한 밖, 승인 대기 ⑥ 규칙 잇기 칸 또는 ② 한 장씩).
 5. **같은 내용 · 어긋남 후보**는 잇지 않는다(합치기는 늘 사장님) — 수만 센다.
 
-로그 · 결과에는 숫자 · 코드만 싣는다(글 · 이름 · 키 없음).
+로그 · 결과에는 숫자 · 코드만 싣는다(글 · 이름 · 키 없음). 쌓인 지식 한 번 잇기(되채우기 —
+:mod:`.handoff_learning_backfill`)가 거르기 · 가름 · 넣는 길을 여기서 그대로 가져다 쓴다(공개 이름 — 규칙은 한 벌).
 """
 
 from __future__ import annotations
@@ -68,8 +69,9 @@ from models import SystemSetting
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "LEARN_AGENTS", "MAX_ITEMS", "SOURCE_TYPES", "STORE_KEY", "attach_night", "auto_block", "glyph_matches",
-    "label_owners", "night_sources", "reading_done", "run_link",
+    "LEARN_AGENTS", "MAX_ITEMS", "SOURCE_TYPES", "STORE_KEY", "asked_before", "attach_night", "auto_block",
+    "check_target", "file_link", "glyph_matches", "label_owners", "night_sources", "reading_done", "run_link",
+    "source_evidence", "why_reason",
 ]
 
 STORE_KEY = "cs_agent_handoff_learn_link"
@@ -226,7 +228,7 @@ def auto_block(kind: str, source: Any, target: Any, *, matched: bool, unique: bo
 
 
 # ── 거르기 · 넣기 ────────────────────────────────────────────────────────
-def _asked(session: Any, kind: str, from_key: str, to_key: str) -> Optional[str]:
+def asked_before(session: Any, kind: str, from_key: str, to_key: str) -> Optional[str]:
     """같은 잇기 안이 열려 있으면 ``open``, 사장님이 거절했거나 'AI 가 배운 것'에서 지웠으면 ``refused_before``."""
     same = and_(BrainChange.op == OP_LINK_ADD, BrainChange.link_kind == kind, BrainChange.link_from == from_key,
                 BrainChange.link_to == to_key)
@@ -236,7 +238,7 @@ def _asked(session: Any, kind: str, from_key: str, to_key: str) -> Optional[str]
     return "open" if CHANGE_OPEN in rows else "refused_before" if rows else None
 
 
-def _target(session: Any, source: Any, kind: str, key: str, today: datetime.date) -> tuple[Optional[str], Any]:
+def check_target(session: Any, source: Any, kind: str, key: str, today: datetime.date) -> tuple[Optional[str], Any]:
     """대상 거르기(모듈 설명 3) — (버린 까닭, 대상 지금 줄 — 바깥 정본 자리면 ``None``)."""
     if key == source.item_key:
         return "self", None
@@ -251,7 +253,7 @@ def _target(session: Any, source: Any, kind: str, key: str, today: datetime.date
         return "not_allowed", None
     if current_link(session, kind, source.item_key, key) is not None:
         return "exists", None
-    asked = _asked(session, kind, source.item_key, key)
+    asked = asked_before(session, kind, source.item_key, key)
     if asked is not None:
         return asked, None
     try:
@@ -267,7 +269,7 @@ def _only_kind(source: Any, target: Any) -> Optional[str]:
     return kinds[0] if len(kinds) == 1 else None
 
 
-def _file(session: Any, source: Any, kind: str, key: str, *, reason: str, evidence: Sequence[str], auto: Any,
+def file_link(session: Any, source: Any, kind: str, key: str, *, reason: str, evidence: Sequence[str], auto: Any,
           now: datetime.datetime, wanted_auto: bool) -> str:
     """잇기 하나 넣기(안마다 커밋) — ``auto`` (바로 반영됨) · ``proposed`` (열린 제안) · ``auto_blocked`` (바로 못 넣고 열린 채) ·
     제안 길이 막은 까닭 코드."""
@@ -304,15 +306,15 @@ def _known(session: Any, keys: Any, own: str) -> int:
         is_current(BrainObject), BrainObject.status == STATUS_ACTIVE, BrainObject.item_key.in_(sorted(wanted))))))
 
 
-def _why(value: Any) -> tuple[Optional[str], Optional[str]]:
-    """AI 근거 한 줄 → (막힌 까닭, 제안 까닭 글). 개인정보 꼴 · 가림 표시 · 한자가 있으면 넣지 않는다."""
+def why_reason(value: Any, head: str = REASON_HEAD) -> tuple[Optional[str], Optional[str]]:
+    """AI 근거 한 줄 → (막힌 까닭, 제안 까닭 글 ``<head> — <근거>``). 개인정보 꼴 · 가림 표시 · 한자가 있으면 넣지 않는다."""
     why = photo_learning._line(value, photo_learning.MAX_WHY)
     if why is None:
         return "form", None
     gates = text_gates([why], "")
     if FAIL in (gates["mask"], gates["hanja"]):
         return "mask", None
-    return None, f"{REASON_HEAD} — {why}"[:500]
+    return None, f"{head} — {why}"[:500]
 
 
 def _file_all(session: Any, raw: Sequence[dict[str, Any]], by_key: dict[str, Any], matches: dict[str, dict[str, bool]],
@@ -350,15 +352,15 @@ def _ai_links(session: Any, source: Any, links: Sequence[dict[str, Any]], found:
             code = "repeat"
         else:
             said.add((kind, key))
-            code, reason = _why(link.get("why"))
+            code, reason = why_reason(link.get("why"))
         if code is None:
-            code, target = _target(session, source, kind, key, today)
+            code, target = check_target(session, source, kind, key, today)
         if code is None and counts["auto"] + counts["proposed"] >= MAX_FILED:
             code = "cap"
         if code is None:
             wanted = auto_block(kind, source, target, matched=key in found, unique=found.get(key, False)) is None
-            code = _file(session, source, kind, key, reason=str(reason), evidence=evidence, auto=auto, now=now,
-                         wanted_auto=wanted)
+            code = file_link(session, source, kind, key, reason=str(reason), evidence=evidence, auto=auto, now=now,
+                             wanted_auto=wanted)
         _bump(counts, code)
 
 
@@ -375,16 +377,16 @@ def _glyph_only(session: Any, by_key: dict[str, Any], matches: dict[str, dict[st
             kind = _only_kind(source, target) if target is not None else None
             code = "glyph_shared" if not unique else "no_kind" if kind is None else None
             if code is None:
-                code, _row = _target(session, source, kind, key, today)
+                code, _row = check_target(session, source, kind, key, today)
             if code is None and counts["auto"] + counts["proposed"] >= MAX_FILED:
                 code = "cap"
             if code is None:  # 글자 맞춤만 있는 것 — AI 가 같은 대상을 말하지 않았으니 늘 사장님께
-                code = _file(session, source, kind, key, reason=GLYPH_REASON, evidence=evidence[source_key], auto=auto,
-                             now=now, wanted_auto=False)
+                code = file_link(session, source, kind, key, reason=GLYPH_REASON, evidence=evidence[source_key],
+                                 auto=auto, now=now, wanted_auto=False)
             _bump(counts, code)
 
 
-def _evidence(session: Any, rows: Sequence[Any]) -> dict[str, list[str]]:
+def source_evidence(session: Any, rows: Sequence[Any]) -> dict[str, list[str]]:
     """이을 지식마다 그 판을 만든 제안의 근거(사례 · 직원) — 잇기 제안의 근거 관문(서로 다른 사람 둘)이 같은 근거로 지난다."""
     ids = sorted({int(row.change_id) for row in rows if row.change_id is not None})
     found = dict(session.execute(select(BrainChange.id, BrainChange.evidence).where(BrainChange.id.in_(ids))).all()) if ids else {}
@@ -409,7 +411,7 @@ def _attach(session: Any, picked: Sequence[Any], *, cfg: Any, day: str, now: dat
     owners = label_owners(session, today)
     matches = {key: glyph_matches(row.text, key, owners) for key, row in by_key.items()}
     counts["matched"] = sum(len(found) for found in matches.values())
-    evidence = _evidence(session, list(by_key.values()))
+    evidence = source_evidence(session, list(by_key.values()))
     model, effort = model_for(EASY)  # 밤 배우기 쉬운 묶음과 같은 모델 · 세기 — 캐시는 모델마다 따로다
     params = lp.build_params(sources, lp.target_lines(lp.target_rows(session, today)), model=model, effort=effort,
                              cfg=cfg, frozen=frozen, knowledge=knowledge, ontology=ontology)
