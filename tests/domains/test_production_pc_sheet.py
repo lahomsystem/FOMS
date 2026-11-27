@@ -182,7 +182,7 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     assert d["notice"] == "도면 3장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."  # 거절 글 그대로(승인 때 고친 것 2)
     rows = d["rows"]
     assert [r["label"] for r in rows] == [f"도면 {i}/5" for i in range(1, 6)]
-    assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 중", "안 봄", "안 봄"]  # 옛 "재단 끝"(K4)
+    assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 중", "미정", "미정"]  # 옛 "재단 끝"(K4)
     assert [r["act"] for r in rows] == ["uncheck", "uncheck", "check", "check", "check"]
     # 줄 글 = 사람마다 "작업 시작 …" · "완료 …"(옛 한 명짜리 줄 — 요약 칸에서 푼 목록, K6)
     assert rows[0]["lines"] == ["작업 시작 김재단 · 11/24 08:10", "완료 김재단 · 11/24 09:16"]
@@ -195,9 +195,9 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     # 그 줄 공정 칸 = 첫 화면이 그린 칸과 바이트까지 같다(체크 뒤 그대로 바꿔 끼운다)
     page = _row(client.get(_day(order)).get_data(as_text=True), order.id)
     assert d["cells_html"] in page and d["status_html"] in page and d["late"] in (None, "late", "tight")
-    # 다른 파트 = "아직", 담당 미정
+    # 다른 파트 = "미정"(11-27), 담당 미정
     edge = _get(client, order, "edge").get_json()["data"]
-    assert {r["word"] for r in edge["rows"]} == {"아직"} and edge["all"] is True and edge["notice"] is None
+    assert {r["word"] for r in edge["rows"]} == {"미정"} and edge["all"] is True and edge["notice"] is None
 
 
 def test_제작_회차_없는_주문은_창_머리_한_줄_태블릿과_같은_글(client, cohort) -> None:
@@ -331,7 +331,7 @@ def test_완료_처리_한_요청_뒤_칸이_3_5_그리고_완료_취소(client,
     mark(key, "undo", "done")  # [완료 취소] — 나 혼자 시작 + 완료한 장이라 창 JS 는 시작 취소까지 잇는다
     mark(key, "release", "need", seen_by=d["me"])
     d = _get(client, oid, "cut").get_json()["data"]
-    assert (d["rows"][3]["word"], d["rows"][3]["lines"]) == ("안 봄", ["담당 미정"])
+    assert (d["rows"][3]["word"], d["rows"][3]["lines"]) == ("미정", ["담당 미정"])
     assert d["rows"][2]["word"] == "재단 완료" and ">재단 3/5</span>" in d["cells_html"]
 
 
@@ -344,4 +344,4 @@ def test_모두_체크는_공정_칸_길_그대로이고_칸이_채워진다(cli
     assert resp.status_code == 200, resp.get_json()
     after = _get(client, oid, "edge").get_json()["data"]
     assert after["hand_off"] is True and after["all"] is False and after["hand"].startswith("엣지 완료 · ")
-    assert after["cells_html"].count('class="fpc-s is-done"') == 2 and "조립 중" in after["status_html"]
+    assert after["cells_html"].count('class="fpc-s is-done"') == 2 and "조립 작업 중" in after["status_html"]

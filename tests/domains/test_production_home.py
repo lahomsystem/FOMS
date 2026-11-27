@@ -116,9 +116,9 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     assert "모두 펼치기" in html and "펼침 <b data-foms-home-open-count>1</b>" in html
 
     # 큰 글자 = 지금 단계
-    for label in ("도면 기다림", "조립 중", "제작 대기", "제작 완료", "컨펌 기다림"):
+    for label in ("도면 기다림", "조립 작업 중", "제작 대기", "제작 완료", "컨펌 기다림"):
         assert label in html, label
-    # 탭 숫자: 전체 5 · 생산 중 2(제작 대기 + 조립 중) · 바뀐 것 0
+    # 탭 숫자: 전체 5 · 생산 중 2(제작 대기 + 조립 작업 중) · 바뀐 것 0
     assert 'data-foms-home-view="all" aria-pressed="true">전체 <small>5</small>' in html
     assert '>생산 중 <small>2</small>' in html
     assert html.count('data-view="prod"') == 2
@@ -158,7 +158,7 @@ def test_지금_단계_글자_규칙() -> None:
     steps = production_home_steps({"production": {"steps": [{"key": "cut", "done": True}]}}, mark_now=True)
     assert [s["done"] for s in steps] == [True, False, False, False]
     assert [s["now"] for s in steps] == [False, True, False, False]
-    assert production_home_stage("PRODUCTION", True, steps, False) == ("엣지 중", "생산", "prod")
+    assert production_home_stage("PRODUCTION", True, steps, False) == ("엣지 작업 중", "생산", "prod")
     assert production_home_stage("PRODUCTION", False, steps, False) == ("제작 대기", "생산", "prod")
     assert production_home_stage("생산", True, steps, True) == ("보류", "생산", "prod")
     all_done = production_home_steps(

@@ -130,7 +130,7 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     pane = _pane(html, first_key)
     # 제목 작은 글 끝 = 도면 x/n 내려옴(띠와 같은 색 — 내일 시공 도면 주문은 마감이 지나 빨강, 설계서 2026-11-22 §5-2)
     assert '출고 2건 · 만들 것 1 · <span class="fph-dwst is-late">도면 1/2 내려옴</span>' in pane
-    assert "내일엣지" in pane and "엣지 중" in pane and "내일도면" in pane
+    assert "내일엣지" in pane and "엣지 작업 중" in pane and "내일도면" in pane
     assert pane.count("fph-dr__st is-done") == 1 and pane.count("fph-dr__st is-now") == 1  # 재단 끝 · 엣지 지금
     # 순서 = 기다림(안 내려옴) → 만들 것(내려옴) → 제작 완료, 그날 주문만(미리 보기 · 밀린 것 없음)
     assert pane.index(">도면·컨펌 기다림 1 <small>") < pane.index(">만들 것 1</h3>")
