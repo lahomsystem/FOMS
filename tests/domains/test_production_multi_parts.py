@@ -148,7 +148,9 @@ ALL = PRODUCTION_PART_KEYS
     (dict(team="DRAWING"), "readonly", (), False, False),
     (dict(team="CS", role="MANAGER"), "readonly", (), False, False),  # 다른 팀 매니저 = 읽기 전용
     (dict(role="VIEWER", parts=["cut"], legacy="cut"), "readonly", (), False, False),
-    (dict(team=None), "none", (), False, False),
+    (dict(team=None), "readonly", (), False, False),  # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4, 2026-11-27)
+    (dict(team=None, parts=["cut"], legacy="cut", lead=True), "readonly", (), False, False),  # 파트 · 반장 칸은 생산팀만 뜻
+    (dict(team="WAREHOUSE"), "none", (), False, False),  # 목록 밖 팀 글자 = 못 봄
 ])
 def test_view_modes_and_write_rules_follow_the_permission_table(who, mode, parts, override, locked):
     person = _ns(**who)

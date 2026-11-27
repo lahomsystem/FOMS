@@ -27,7 +27,14 @@ PEOPLE = [
     ("construction_staff", "STAFF", "CONSTRUCTION", False, True),
     ("shipment_staff", "STAFF", "SHIPMENT", False, True),
     ("prod_viewer", "VIEWER", "PRODUCTION", False, True),
-    ("noteam_staff", "STAFF", None, False, False),
+    # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4, 2026-11-27) — [확인했어요]도 없다(:func:`can_ack`)
+    ("noteam_staff", "STAFF", None, False, True),
+    ("noteam_manager", "MANAGER", None, False, True),
+    ("noteam_viewer", "VIEWER", None, False, True),
+    ("blank_team_staff", "STAFF", "", False, True),
+    ("space_team_staff", "STAFF", "  ", False, True),
+    # 음성 대조 — 목록 밖 팀 글자는 넓히지 않는다(§4 · §13)
+    ("other_team_staff", "STAFF", "WAREHOUSE", False, False),
 ]
 
 #: 생산 쓰기 API 여덟(관리자 · 생산팀만). [확인했어요](change-ack)는 쓰기가 아니라 개인 확인 기록이라 따로 — 보는 사람 모두(§13 결정 5).
@@ -44,9 +51,12 @@ WRITE_ENDPOINTS = [
 ACK_PATH = "change-ack"
 
 
-def can_ack(role: str, view: bool) -> bool:
-    """사람 표의 [확인했어요] 열 — 보기 열이 참이고 조회 전용(VIEWER)이 아니면 참(엔진 F-01 과 같은 답)."""
-    return view and role != "VIEWER"
+def can_ack(role: str, team: str | None, view: bool) -> bool:
+    """사람 표의 [확인했어요] 열 — 보기 열이 참이고 조회 전용(VIEWER)이 아니고, 관리자이거나 팀이 있으면 참(엔진 F-01 과 같은 답).
+
+    팀 없는 직원은 첫 화면을 보기만 한다(설계서 옛 생산 보드 없애기 §4 — 단추 없음).
+    """
+    return view and role != "VIEWER" and (role == "ADMIN" or bool(str(team or "").strip()))
 
 
 

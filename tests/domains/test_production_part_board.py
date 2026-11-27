@@ -170,7 +170,8 @@ def test_part_account_ignores_requested_part_admin_and_readonly_pick(app):
     assert _board(_user("반장", team="PRODUCTION", lead=True))["mode"] == "sub"  # 반장 = 대신(2026-11-23 §4-12 · 승인 때 고친 것 5)
     assert _board(_user("보기", team="PRODUCTION"))["mode"] == "readonly"  # 파트도 반장도 아닌 생산팀 = 보기만
     assert _board(_user("도면", team="DRAWING"))["mode"] == "readonly"  # 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1)
-    assert _board(_user("팀없음", team=None)) is None  # 첫 화면을 못 보는 사람
+    assert _board(_user("팀없음", team=None))["mode"] == "readonly"  # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4)
+    assert _board(_user("다른팀", team="WAREHOUSE")) is None  # 첫 화면을 못 보는 사람(목록 밖 팀 글자)
 
 
 # --------------------------------------------------------------------------- #

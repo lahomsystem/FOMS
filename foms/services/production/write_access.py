@@ -13,9 +13,10 @@
 파트 계정(생산팀 + 계정 파트, D50 · D53)은 이 함수로는 True 다. 그 사람이 주문 공정 칸을 직접 못 쓰고 자기 파트 카드만 쓰는
 것은 그 위에 얹힌 따로 규칙(``foms/services/production/part_access.py`` 의 ``steps_locked_for`` · ``writable_parts``)이 정한다.
 
-[확인했어요](change-ack)는 쓰기가 아니라 사람마다 남기는 확인 기록이다 — 생산 화면을 보는 사람 모두가 누른다(§13 결정 5,
-2026-11-21 사장님: PC 보기 전용에서도 허용). 판정은 :func:`can_ack_production_change` 한 곳(문지기 정책 ``PRODUCTION_ACK`` ·
-라우트 데코레이터 · 화면 단추가 같이 본다).
+[확인했어요](change-ack)는 쓰기가 아니라 사람마다 남기는 확인 기록이다 — 생산 화면을 보는 **팀**(관리자 · 보는 팀)이 누른다
+(§13 결정 5, 2026-11-21 사장님: PC 보기 전용에서도 허용). 2026-11-27 부터 첫 화면을 보기만 하는 팀 없는 직원은 확인 단추가 없다
+(설계서 옛 생산 보드 없애기 §4 — 사장님 "보기만, 단추 없음"). 켜진 프리랜서는 팀이 영업이라 회사 영업처럼 누른다(§0-1 의 2, D27).
+판정은 :func:`can_ack_production_change` 한 곳(문지기 정책 ``PRODUCTION_ACK`` · 라우트 데코레이터 · 화면 단추가 같이 본다).
 
 이 모듈은 팀 권한 판정(``order_mutation_policy.team_has_capability``)과 보기 판정(``home_access``)만 읽는다 — 정책 엔진이
 ``gate`` 문자열로 늦게 불러서 순환 import 가 없다.
@@ -26,7 +27,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.orders.order_mutation_policy import team_has_capability
-from foms.services.production.home_access import can_view_production_home
+from foms.services.production.home_access import can_view_production_home_as_team
 
 #: 생산 쓰기 팀(능력 이름). 관리자(role ADMIN)는 팀과 상관없이 쓴다.
 PRODUCTION_WRITE_TEAMS: tuple[str, ...] = ("PRODUCTION",)
@@ -60,23 +61,25 @@ def can_write_production(user: Any) -> bool:
 
 
 def can_ack_production_change(user: Any) -> bool:
-    """[확인했어요](생산 변경 확인, change-ack)를 누를 수 있는지 — 생산 화면을 보는 사람 모두(§13 결정 5).
+    """[확인했어요](생산 변경 확인, change-ack)를 누를 수 있는지 — 생산 화면을 보는 팀(§13 결정 5).
 
     확인은 주문을 바꾸지 않고 그 사람의 확인 기록(OrderEvent)만 남긴다. 그래서 쓰기 팀보다 넓다 — CS · 회계 · 영업 · 도면 ·
-    시공 · 출고도 자기 '바뀐 것' 을 비운다(기기 무관, PC 보기 전용 포함).
+    시공 · 출고도 자기 '바뀐 것' 을 비운다(기기 무관, PC 보기 전용 포함). 첫 화면을 **보기만** 하는 팀 없는 직원은 넣지 않는다
+    (설계서 옛 생산 보드 없애기 §4).
 
     Args:
         user: 사용자 객체(None 허용). ``role`` · ``team`` · ``partner_org_id`` · ``is_active`` 를 읽는다.
 
     Returns:
-        활성 · 조회 전용(VIEWER) 아님이고 :func:`~foms.services.production.home_access.can_view_production_home` 이면 True.
+        활성 · 조회 전용(VIEWER) 아님이고
+        :func:`~foms.services.production.home_access.can_view_production_home_as_team`(관리자 · 보는 팀)이면 True.
         조회 전용은 정책 엔진이 문지기보다 먼저 막는 규칙(F-01)과 같은 답을 낸다. 협력사 · 팀 없음 · 로그인 없음은 False.
     """
     if user is None or getattr(user, "is_active", None) is False:
         return False
     if str(getattr(user, "role", None) or "").strip().upper() == "VIEWER":
         return False
-    return can_view_production_home(user)
+    return can_view_production_home_as_team(user)
 
 
 __all__ = [

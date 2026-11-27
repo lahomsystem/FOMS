@@ -144,11 +144,14 @@ def test_제작대기_주문은_제작_시작_단추를_보인다(client) -> Non
 
 
 def test_팀_없으면_403_없는_주문은_404(client) -> None:
-    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(팀 없음)이다.
+    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(목록 밖 팀 글자)이다.
+    # 팀 없는 직원은 2026-11-27 부터 보기만(설계서 옛 생산 보드 없애기 §4) — 작업 시트도 연다.
     _make_user(client, "sheet_drawing_staff", "DRAWING")
     order = _seed_order()
     assert client.get(SHEET_URL.format(id=order.id)).status_code == 200
     _make_user(client, "sheet_noteam_staff", None)
+    assert client.get(SHEET_URL.format(id=order.id)).status_code == 200
+    _make_user(client, "sheet_other_team_staff", "WAREHOUSE")
     assert client.get(SHEET_URL.format(id=order.id)).status_code == 403
     _make_user(client, "sheet_prod_staff3", "PRODUCTION")
     assert client.get(SHEET_URL.format(id=order.id + 999)).status_code == 404
