@@ -79,7 +79,8 @@
       if (!o.writable) { return true; } // 보기만 = 단추 없음
       var row = o.cut || !o.mine ? el('div', 'pp-two') : box;
       if (o.cut) { row.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', '기본', 'basic')); }
-      row.appendChild(el('button', 'foms-prod-home__btn ' + (o.cut ? 'foms-prod-home__btn--pri' : 'pp-act'), '작업 시작', 'take'));
+      // 진한 단추는 한 칸에 하나(C59) — 반장 · 관리자 재단 칸은 아래 [재단 완료]가 진하니 [작업 시작]은 옅게
+      row.appendChild(el('button', 'foms-prod-home__btn' + (o.cut ? (o.mine ? ' foms-prod-home__btn--pri' : '') : ' pp-act'), '작업 시작', 'take'));
       if (row !== box) { box.appendChild(row); }
       if (!o.mine) { (o.cut ? box : row).appendChild(el('button', 'fph-qr__done pp-act pp-fin is-pair', LABEL + ' 완료', 'check')); } // 재단은 둘째 줄
       return true;
@@ -143,9 +144,9 @@
       var M = window.FomsPartsModal || {};
       var swap = left.length === 1 ? [['takeover', '담당 바꾸기', 'taken', left[0].uid]] : left.length ? [['takeover', '담당 바꾸기 ›', 'taken', null, true]] : [];
       var join = cr.me === 'none' ? [['join', '같이 작업', 'join', null, true]] : []; // Q22 — 아직 작업자가 아니면 [같이 작업] 창으로
-      var choices = swap.concat([['check', '대신 완료', 'done']], join, left.map(function (p) { // [대신 완료] = check(자기 몫 포함 남은 사람 모두)
-        return ['remove', p.name + ' 시작 취소', 'release', p.uid];
-      }));
+      // 차례 = 카드 [시작 취소][<파트> 완료]와 같이 되돌리는 쪽 먼저 · 끝내는 [대신 완료] 맨 끝(C59). [대신 완료] = check(자기 몫 포함 남은 사람 모두)
+      var choices = left.map(function (p) { return ['remove', p.name + ' 시작 취소', 'release', p.uid]; })
+        .concat(swap, join, [['check', '대신 완료', 'done']]);
       return { title: cr.d || !M.heldTitle ? cr.who + ' 작업 중' : M.heldTitle(card, cr.who), line: '', run: '', tone: 'taken', choices: choices,
         note: cr.d ? half(cr) + ' — ' + cr.done + ' 완료 · ' + cr.left + ' 작업 중' : '' }; // 한 명만 완료한 도면은 그 줄만 남긴다(다른 정보)
     }

@@ -229,6 +229,8 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .pp-vact .foms-prod-home__btn, .pp-vact .fph-qr__done { width: auto; min-width: 170px; min-height: 56px; padding: 0 22px; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; }
 .pp-vact .foms-prod-home__btn--pri { min-width: 250px; }
 .pp-vact .fph-qr__done { min-height: 56px; }
+/* 크게 보기의 [<파트> 완료]도 옆 단추와 같은 키 · 글(C59) — 카드의 짝 글(18px) · 반장 칸 키(72px)가 이 줄까지 따라와 단추마다 달랐다 */
+.foms-prod-home .pp-vact .pp-fin.fph-qr__done { min-height: 56px; font-size: calc(22px * var(--foms-fs, 1)); }
 .pp-vact .fph-wi { width: auto; min-width: 200px; min-height: 56px; padding: 0 18px; }
 
 /* ── 확인 창 — 진짜 .foms-prod-change-modal 위에 글자 · 단추 크기와 실행 단추 색만(장갑 손: 60px) ── */
@@ -300,6 +302,11 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .pp-notice[hidden] { display: none; }
 .foms-prod-home .pp-modal .pp-mgo--join { background: var(--fph-brand); border-color: var(--fph-brand); }
 .foms-prod-home .pp-modal .pp-mchoices.pp-mchoices--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* 고르기 창 무게(C59) — 진한 단추는 끝내는 [대신 완료] 하나. 나머지([시작 취소] · [담당 바꾸기] · [같이 작업])는 흰 바탕 옅은 테두리 —
+   글 · 테두리 색은 그 뜻 색 그대로(무채색 없음, [담당 바꾸기] 사람 고르기 칸 .pp-mwho 와 같은 꼴) */
+.foms-prod-home .pp-modal .pp-mchoices .pp-mgo--taken { background: var(--fph-surface); border: 2px solid var(--fph-taken-300); color: var(--fph-taken-700); }
+.foms-prod-home .pp-modal .pp-mchoices .pp-mgo--release { background: var(--fph-surface); border: 2px solid var(--fph-basic-300); color: var(--fph-release-700); }
+.foms-prod-home .pp-modal .pp-mchoices .pp-mgo--join { background: var(--fph-surface); border: 2px solid var(--fph-brand); color: var(--fph-brand-dark); }
 
 /* ── 아침 칩(설계서 2026-11-23 §4-9) — 판 머리 줄(.pp-head) 안 "어제부터 내 담당 2장 ›". 누르면 작은 창에 시공일마다 [보기].
    머리 줄 키를 안 키운다(띠 · 카드 첫 화면이 안 밀림, M3). 누름 칸 44px 는 아래 태블릿 덩이 ── */

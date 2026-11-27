@@ -312,8 +312,8 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     assert (w2["title"], w2["note"], w2["line"], w2["close"]) == (
         "이시영 · 김재단 작업 중", "재단 1/2 완료 — 이시영 완료 · 김재단 작업 중", "", "닫기")  # 제목 한 줄(사장님 2026-11-26) — 한 명만 완료한 줄은 남긴다
     assert [(c["text"], c["choice"], c["target"], c["next"]) for c in w2["choices"]] == [
-        ("담당 바꾸기", "takeover", str(p.kim.id), False), ("대신 완료", "check", None, False), ("같이 작업", "join", None, True),
-        ("김재단 시작 취소", "remove", str(p.kim.id), False)]
+        ("김재단 시작 취소", "remove", str(p.kim.id), False), ("담당 바꾸기", "takeover", str(p.kim.id), False),
+        ("같이 작업", "join", None, True), ("대신 완료", "check", None, False)]  # 되돌리는 쪽 먼저 · 끝내는 쪽 끝(C59)
     assert w2["choices_cls"] == "pp-mchoices pp-mchoices--two" and "pp-mgo--join" in w2["choices"][2]["cls"]  # 넷 = 2 × 2
     w1 = out[1]["modal"]  # 반장 [같이 작업] = 파트 계정과 같은 확인 창(Q22)
     assert out[1]["sent"] == 0 and (w1["title"], w1["line"], w1["run"]["text"]) == (
@@ -371,10 +371,10 @@ def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_
     undo = out[7]["modal"]  # H — 반장 되돌리기 = 완료한 사람 모두 되돌림, 작업하던 사람은 그대로(누른 반장 이름이 아니다)
     assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 완료 → 이시영 · 김재단 작업 중") and "박반장" not in undo["line"]
     two = out[0]["modal"]["choices"]
-    assert [(c["text"], c["next"]) for c in two][:3] == [("담당 바꾸기 ›", True), ("대신 완료", False), ("같이 작업", True)]
+    assert [(c["text"], c["next"]) for c in two if c["choice"] != "remove"] == [("담당 바꾸기 ›", True), ("같이 작업", True), ("대신 완료", False)]
     assert out[1]["sent"] == 0 and out[1]["modal"]["title"] == "누구와 담당을 바꿀까요?"  # 둘 = 고르기 창
     mine = [c["text"] for c in out[3]["modal"]["choices"]]  # 반장이 이미 작업자(완료) — [같이 작업] 없음
-    assert "같이 작업" not in mine and mine[:2] == ["담당 바꾸기 ›", "대신 완료"]
+    assert "같이 작업" not in mine and mine[-2:] == ["담당 바꾸기 ›", "대신 완료"]
     assert out[6]["sent"] == 1 and [c["body"] for c in calls] == [swap]  # 하나 = 고르기 없이 바로(지금 동작)
 
     seed = mixed_order(3, f2=(2,))  # 남의 공장(2공장) 도면 = 누름 칸 · 고르기 창 없음(서버 문 그대로)
