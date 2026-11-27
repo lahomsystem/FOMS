@@ -9,8 +9,8 @@
  *   정의 금지, defect 1). 비-v2(legacy/v3) coarse 태블릿에선 마커 부재 → 완전 무동작 →
  *   기존 행 클릭·인라인 편집 동작 그대로 보존(preventDefault·미스타일 시트 덤프 방지).
  *
- * 대상 행/카드: #erp-grid tr.erp-main-row[data-order-id](컨트롤타워/시공/생산 3그리드 공유),
- *   생산 칸반 카드(.foms-kanban-card), AS 대시보드 PC 테이블 본행(.erp-as-dashboard
+ * 대상 행/카드: #erp-grid tr.erp-main-row[data-order-id](컨트롤타워/시공 그리드 공유 — 옛 생산 그리드 · 칸반 카드는
+ *   2026-11-27 옛 생산 보드와 함께 지움), AS 대시보드 PC 테이블 본행(.erp-as-dashboard
  *   .erp-pro-table-wrapper tbody tr[data-order-id]), 이력 대시보드 본행(.erp-history-mobile-shell
  *   tr.history-main-row[data-order-id]) — B1/B2 융합 레이어 확장.
  *   행 안의 a/button/input/select/label/textarea/[role="button"]/.form-check 클릭은 제외
@@ -67,7 +67,6 @@
     return MQ.matches && tabletUiReady();
   }
 
-  // W13: 생산 칸반 카드(#erp-grid 밖)도 시트 대상에 포함 — 카드 탭 → 동일 fragment 상세.
   // B1/B2(2026-07-12): AS(.erp-as-dashboard PC 테이블 본행) + 이력(.erp-history-mobile-shell
   // 본행)까지 융합 레이어 확장. 이력 확장행(.history-detail-row)은 클래스가 달라 미포함이고,
   // chevron 확장 토글은 아래 INTERACTIVE([role="button"])가 제외해 기존 확장 UX가 보존된다.
@@ -76,7 +75,6 @@
     // 행에 동일한 erp-main-row + data-order-id/data-stage/data-foms-sheet-url 부여(마크업 계약).
     ".foms-tablet-workqueue-wrap tr.erp-main-row[data-order-id], " +
     "#erp-grid tr.erp-main-row[data-order-id], " +
-    ".foms-kanban-card[data-order-id], " +
     ".foms-completion-grid tbody tr[data-order-id], " +
     ".erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id], " +
     ".erp-history-mobile-shell tr.history-main-row[data-order-id], " +
@@ -183,7 +181,7 @@
   }
 
   // 시트 열림마다 현재 단계로 파이프를 재구성한다(idempotent). 카탈로그 부재 또는 행의
-  // data-stage 가 카탈로그 코드와 미매치(AS/이력/칸반 등 단계 파생 불가)면 hidden → 파이프 생략.
+  // data-stage 가 카탈로그 코드와 미매치(AS/이력 등 단계 파생 불가)면 hidden → 파이프 생략.
   function renderPipe(row) {
     if (!pipeEl) return;
     var stageCode = row && row.getAttribute ? row.getAttribute("data-stage") : null;
@@ -248,7 +246,7 @@
   }
 
   function markActiveRow(row) {
-    // 정리 쿼리는 행 타입 무관(#erp-grid 행·AS/이력 본행·칸반 카드) — 클래스만으로 매치해
+    // 정리 쿼리는 행 타입 무관(#erp-grid 행·AS/이력 본행·갤러리 카드) — 클래스만으로 매치해
     // 다른 표면에 남은 stale 하이라이트까지 확실히 제거한다.
     var prev = document.querySelectorAll(".foms-tablet-sheet-active");
     Array.prototype.forEach.call(prev, function (el) {
