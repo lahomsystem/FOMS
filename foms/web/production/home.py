@@ -296,7 +296,8 @@ def _counts_response(db, user, rows: list, partner_org: str):
     도면 카드 쓰기(첫 카드 = 제작 시작 · 공정 칸 켜짐/꺼짐 · 제작 완료) 뒤 foms-production-parts-fresh.js 가 한 번 받는다 —
     쓰기 응답에 읽기를 얹지 않으려고 따로 받는다. 받아 두지 않는다(no-store).
     """
-    tombstones = collect_production_tombstones(db, user, False, partner_org)
+    # 켜진 프리랜서는 묘비도 내 주문만(행 들머리와 같은 판정) — 안 그러면 '바뀐 것' 숫자에 남의 취소 주문 수가 샌다.
+    tombstones = collect_production_tombstones(db, user, production_home_mine_only(user), partner_org)
     counts = production_home_counts(rows, len(tombstones))
     response = jsonify({'success': True, 'data': {'counts': {'making': counts['making'], 'changed': counts['changed']}},
                         'error': None})
