@@ -39,8 +39,9 @@ def scoped_orders(auth_client):
     return [org.id for org in orgs], [[row.id for row in group] for group in result]
 
 
+#: 생산은 2026-11-27 부터 첫 화면(/erp/production/home)뿐이다 — 옛 보드(/erp/production/dashboard)는 없앴다.
 @pytest.mark.parametrize("path", [
-    "/erp/dashboard", "/erp/measurement", "/erp/drawing-workbench", "/erp/production/dashboard",
+    "/erp/dashboard", "/erp/measurement", "/erp/drawing-workbench", "/erp/production/home",
     "/erp/shipment", "/erp/as", "/erp/construction/dashboard",
     "/erp/history/?from_dashboard=1",
 ])
@@ -48,7 +49,7 @@ def test_each_tab_filters_rows_and_rejects_foreign_focus(auth_client, scoped_ord
     from importlib import import_module
 
     modules = {"/erp/dashboard": "orders.dashboard", "/erp/measurement": "measurement.dashboard",
-               "/erp/drawing-workbench": "drawing.workbench", "/erp/production/dashboard": "production.dashboard",
+               "/erp/drawing-workbench": "drawing.workbench",
                "/erp/shipment": "shipment.dashboard", "/erp/construction/dashboard": "construction.dashboard",
                "/erp/history/?from_dashboard=1": "orders.history"}
     cached = {}
@@ -193,7 +194,7 @@ def test_mobile_filter_preserves_controls_and_does_not_query_orgs_in_fragments(a
 
 
 @pytest.mark.parametrize("path", [
-    "/erp/dashboard", "/erp/measurement", "/erp/drawing-workbench", "/erp/production/dashboard",
+    "/erp/dashboard", "/erp/measurement", "/erp/drawing-workbench", "/erp/production/home",
     "/erp/shipment", "/erp/as", "/erp/construction/dashboard", "/erp/completion", "/erp/history/",
 ])
 def test_company_filter_does_not_add_database_round_trips(auth_client, scoped_orders, path):

@@ -37,7 +37,7 @@ WRITE = ("data-foms-home-step-done", "data-tablet-sheet-action", "data-foms-step
          "data-foms-sheet-defect-toggle")
 ACK = 'data-kanban-action="change-ack"'
 PC_ONLY = ("data-tip=", "data-foms-pc-due", "foms-prod-home is-pc", "pc.css?v=", "foms-production-edit.js", 'class="fpc-',
-           '<nav class="erp-pro-nav"', "data-foms-home-board")
+           '<nav class="erp-pro-nav"')
 _seq = count(1)
 
 
@@ -346,9 +346,9 @@ def test_되돌림_JS_는_터치_기기에서만_쓰기_표식을_다시_받는�
 
 
 # --------------------------------------------------------------------------- #
-# PC 꼴 — 둘째 줄 메뉴 · [보드 →] · 시공일 칸 · 누가 · 언제 · 늦음
+# PC 꼴 — 둘째 줄 메뉴 · 시공일 칸 · 누가 · 언제 · 늦음. [보드 →] 는 2026-11-27 옛 보드와 함께 없앴다.
 # --------------------------------------------------------------------------- #
-def test_PC_에는_ERP_둘째_줄_메뉴_하나와_보드_길(client, cohort) -> None:
+def test_PC_에는_ERP_둘째_줄_메뉴_하나이고_보드_길은_없다(client, cohort) -> None:
     _seed()
     _login(client, "cs")
     set_cookies(client, PC)
@@ -357,7 +357,7 @@ def test_PC_에는_ERP_둘째_줄_메뉴_하나와_보드_길(client, cohort) ->
         assert html.count('<nav class="erp-pro-nav"') == 1, tab
         nav = html.split('<nav class="erp-pro-nav"', 1)[1].split("</nav>", 1)[0]
         assert re.search(r'class="erp-pro-nav-item active"\s+href="/erp/production/', nav), tab
-        assert 'data-foms-home-board data-foms-erp-no-shell="1" href="/erp/production/dashboard"' in html, tab
+        assert "data-foms-home-board" not in html and "/erp/production/dashboard" not in html, tab
     # 셸 조각(view=fragment + 셸 머리글)도 같은 몸통이라 같은 메뉴(parity)
     frag = get_html(client, HOME + "?view=fragment", headers={"X-FOMS-ERP-SHELL": "1"})
     assert frag.count('<nav class="erp-pro-nav"') == 1 and "pc.css?v=" in frag
@@ -496,4 +496,4 @@ def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_�
     assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
     assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
     for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
-        assert "pc.css') }}?v=20261124j" in (ROOT / tpl).read_text(encoding="utf-8"), tpl  # 2026-11-24 도면 목록 창(둘째 판) · 공장 칩이 올림
+        assert "pc.css') }}?v=20261127h" in (ROOT / tpl).read_text(encoding="utf-8"), tpl  # 2026-11-27 [보드 →] 규칙 지움(옛 보드 없애기)

@@ -200,7 +200,7 @@ def test_resolve_active_id_maps_paths() -> None:
     assert resolve_tablet_rail_active_id("/erp/as") == "as"
     assert resolve_tablet_rail_active_id("/erp/measurement") == "measurement"
     assert resolve_tablet_rail_active_id("/erp/drawing-workbench") == "drawing_workbench"
-    assert resolve_tablet_rail_active_id("/erp/production/dashboard") == "production"
+    assert resolve_tablet_rail_active_id("/erp/production/home") == "production"
     assert resolve_tablet_rail_active_id("/erp/shipment") == "shipment"
     assert resolve_tablet_rail_active_id("/erp/construction/dashboard") == "construction"
     assert resolve_tablet_rail_active_id("/erp/completion") == "completion"
@@ -251,10 +251,11 @@ def test_build_tablet_rail_items_highlights_calculator() -> None:
     assert [it["id"] for it in active] == ["calculator"]
 
 
-# --- ⑧ D19(2026-11-10): 태블릿 레일 '생산' = 새 첫 화면(볼 수 있는 사람만) ---------------
+# --- ⑧ D19(2026-11-10): 태블릿 레일 '생산' = 새 첫 화면(2026-11-27 옛 보드 없애기 — 누구든) ---------------
 
 _HOME = "/erp/production/home"
-_BOARD = "/erp/production/dashboard"
+#: 옛 생산 보드 — 2026-11-27 없앴다. 레일 어디에도 이 주소가 없어야 한다.
+_OLD_BOARD = "/erp/production/dashboard"
 
 
 def _rail_production(user) -> dict:
@@ -262,10 +263,9 @@ def _rail_production(user) -> dict:
     return next(it for it in items if it["id"] == "production")
 
 
-def test_레일_생산_주소는_첫_화면을_볼_수_있는_사람이면_홈() -> None:
-    """관리자 · CS · 영업 · 생산 · 도면 · 출고(별칭 회계=CS · 옛 실측=영업 포함) · 팀 없는 직원은 첫 화면, 목록 밖 팀 글자 · 협력사는
-    보드(403 화면으로 안 보낸다). 도면 · 시공 · 출고는 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1), 팀 없는 직원은
-    2026-11-27 부터 보기만(설계서 옛 생산 보드 없애기 §4)."""
+def test_레일_생산_주소는_누구든_첫_화면() -> None:
+    """관리자 · CS · 영업 · 생산 · 도면 · 출고(별칭 회계=CS · 옛 실측=영업 포함)는 첫 화면. 예전엔 팀 없음 · 협력사 · 사용자 없음이
+    옛 보드였는데 2026-11-27 옛 보드를 없애 이들도 첫 화면 주소다(볼 수 있는지는 첫 화면 문지기가 본다)."""
     for user in (
         SimpleNamespace(team=None, role="ADMIN"),
         SimpleNamespace(team="DRAWING", role="ADMIN"),
@@ -277,28 +277,26 @@ def test_레일_생산_주소는_첫_화면을_볼_수_있는_사람이면_홈()
         SimpleNamespace(team="DRAWING", role="STAFF"),
         SimpleNamespace(team="SHIPMENT", role="STAFF"),
         SimpleNamespace(team=None, role="STAFF"),
-    ):
-        assert _rail_production(user)["href"] == _HOME, user
-    for user in (
         SimpleNamespace(team="WAREHOUSE", role="STAFF"),
         SimpleNamespace(team="PRODUCTION", role="STAFF", partner_org_id=3),
         None,
     ):
-        assert _rail_production(user)["href"] == _BOARD, user
-    # 강조 접두어는 누구든 같다 — 보드로 조각 이동한 뒤에도 생산이 강조된다(tablet-rail-nav.js).
+        assert _rail_production(user)["href"] == _HOME, user
+    # 강조 접두어는 누구든 같다 — 작업 시트 · 인쇄로 옮겨 가도 생산이 강조된다(tablet-rail-nav.js).
     assert _rail_production(SimpleNamespace(team=None, role="STAFF"))["match"] == "/erp/production"
     assert _rail_production(SimpleNamespace(team="DRAWING", role="STAFF"))["match"] == "/erp/production"
 
 
 def test_레일_규칙은_첫_화면_문지기와_한_곳() -> None:
-    """레일과 home.py 문지기가 같은 판정 함수를 쓴다(어긋나면 레일이 403 으로 보낸다). 주소 상수 = 라우트."""
+    """home.py 문지기는 판정 함수 하나를 쓰고, 레일 · 메뉴 · 바로가기 주소는 한 곳(nav_target)이 늘 첫 화면을 준다. 주소 상수 = 라우트."""
     from foms.services.production import home_access
 
     home_src = _read("foms/web/production/home.py")
     assert "can_view_production_home(user)" in home_src and "team_has_capability" not in home_src
-    # 레일 · 메뉴 · 바로가기 주소는 한 곳(nav_target)이 같은 판정 함수로 고른다(2026-11-21, 설계서 production-pc-viewer §9)
+    # 레일 · 메뉴 · 바로가기 주소는 한 곳(nav_target). 2026-11-27 부터 갈래 없이 첫 화면(옛 보드 주소 · 판정 함수 없음)
     assert "production_nav_href" in _read("foms/services/foms_split_view.py")
-    assert "can_view_production_home" in _read("foms/services/production/nav_target.py")
+    nav_src = _read("foms/services/production/nav_target.py")
+    assert "can_view_production_home" not in nav_src and _OLD_BOARD not in nav_src
     assert home_access.PRODUCTION_HOME_PATH == _HOME
 
 
@@ -308,7 +306,7 @@ def test_시공팀_레일에는_생산_단추가_없다() -> None:
 
 
 def test_첫_화면과_전체_화면_시트도_생산이_강조된다() -> None:
-    for path in (_HOME, "/erp/production/sheet/1", "/erp/production/print/1", _BOARD, "/erp/production"):
+    for path in (_HOME, "/erp/production/sheet/1", "/erp/production/print/1", "/erp/production"):
         assert resolve_tablet_rail_active_id(path) == "production", path
     # 접두어가 비슷한 다른 경로는 생산이 아니다(구간 경계)
     assert resolve_tablet_rail_active_id("/erp/productionx") == ""
@@ -319,13 +317,15 @@ def test_첫_화면과_전체_화면_시트도_생산이_강조된다() -> None:
 
 def test_split_셸_레일도_첫_화면() -> None:
     """split 셸(/erp/dashboard, PC 마우스 좁은 창 전용)도 2026-11-21 부터 첫 화면(설계서 production-pc-viewer §9-4) —
-    계약 경로가 첫 화면이 됐고, 첫 화면을 못 보는 사람은 보드."""
+    계약 경로가 첫 화면이 됐고, 2026-11-27 부터 팀 없는 계정도 첫 화면(옛 보드 없음)."""
     from foms.services.foms_split_view import build_split_side_items
 
     items = build_split_side_items(SimpleNamespace(team="PRODUCTION", role="STAFF"))
     assert next(it for it in items if it["id"] == "production")["href"] == _HOME
-    items = build_split_side_items(SimpleNamespace(team="WAREHOUSE", role="STAFF"))  # 목록 밖 팀 글자(팀 없는 직원은 §4 로 첫 화면)
-    assert next(it for it in items if it["id"] == "production")["href"] == _BOARD
+    items = build_split_side_items(SimpleNamespace(team=None, role="STAFF"))
+    assert next(it for it in items if it["id"] == "production")["href"] == _HOME
+    items = build_split_side_items(SimpleNamespace(team="WAREHOUSE", role="STAFF"))  # 목록 밖 팀 글자도 주소는 첫 화면
+    assert next(it for it in items if it["id"] == "production")["href"] == _HOME
 
 
 def test_레일_동기_JS는_강조_접두어를_먼저_본다() -> None:
