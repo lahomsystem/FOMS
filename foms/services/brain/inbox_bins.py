@@ -16,9 +16,10 @@
   옮기기 묶음이 넣은 ``requires`` · ``excludes``(꼭 같이 · 같이 못 함 — 빈 재료 채우기 B)는 끝이 계산기 제품이어도 ⑥ 이 아니라
   ② 한 장씩이다(D203 — 상담 AI 가 "그 조합은 안 돼요"라고 말하게 하는 재료라 사장님이 한 장씩 본다).
   넓힘(설계 글 2026-11-26 온톨로지 잇기 7.2 — 밤 배우기 끝 이어 붙이기): 옮기기 묶음 · 밤 배우기(:data:`LEARN_PROPOSERS`)가 넣은
-  넓힌 종류(:data:`WIDE_RULE_KINDS` — 적용 · 공정 단계 · 쓰는 낱말 · 자세히 풂 · 수량 표) 더하기도 ⑥. 밤 배우기의 ``applies_to``
-  는 끝을 가리지 않는다(허용 짝이 제품 · 옵션으로 둔다 — 옮기기 묶음은 예전대로 계산기 제품 · 옵션 끝만). ``value_from`` ·
-  ``requires`` · ``excludes`` 는 누가 냈든 ⑥ 에 넣지 않는다(금액 · '같이 안 돼요'는 한 장씩).
+  넓힌 종류(:data:`WIDE_RULE_KINDS` — 적용 · 공정 단계 · 쓰는 낱말 · 자세히 풂 · 수량 표) 더하기도 ⑥. ``applies_to`` 는 둘 다
+  끝을 가리지 않는다(허용 짝이 끝을 제품 · 옵션으로 둔다 — 2026-11-27 쌓인 지식 잇기(되채우기)가 사람 근거 없는 시작 지식의 잇기를
+  옮기기 묶음으로 올리며 계산기 끝만이던 옮기기 묶음도 넓힘). ``value_from`` · ``requires`` · ``excludes`` 는 누가 냈든 ⑥ 에 넣지
+  않는다(금액 · '같이 안 돼요'는 한 장씩).
 
 ①과 ④ · ⑤ · ⑥ 은 글 · 금액 · 규칙이 바뀌지 않아 관리자가 한꺼번에 승인할 수 있다(:func:`bulk_ok_any_grade` — D151 · D192).
 ① 은 상담팀장도(D167 — 묶음은 :func:`.access.wide_bins`). ⑤ · ⑥ 은 사장님(관리자)만(D192 · D194).
@@ -93,15 +94,12 @@ def calc_change(op: str, item_type: Optional[str], fields: Optional[Mapping[str,
 
 def rule_link_change(op: str, link_kind: Optional[str], *, proposed_by: Optional[str] = None,
                      link_to: Optional[str] = None) -> bool:
-    """⑥ 규칙 잇기인가 — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 더하기, 옮기기 묶음이 넣은 공정 단계
-    ``at_step`` 더하기(D202), 그리고 옮기기 묶음 · 밤 배우기가 넣은 넓힌 종류 더하기(모듈 설명 넓힘). 허용 짝은 넣을 때 이미 봤다."""
+    """⑥ 규칙 잇기인가 — 옮기기 묶음 · 밤 배우기가 넣은 넓힌 종류(적용 · 공정 단계(D202) · 쓰는 낱말 · 자세히 풂 · 수량 표) 더하기
+    (모듈 설명 넓힘). 끝은 보지 않는다 — 허용 짝은 넣을 때 이미 봤다(``applies_to`` 끝은 제품 · 옵션뿐). ``link_to`` 는 부르는 쪽
+    꼴을 그대로 두려고 받는다."""
     if op != OP_LINK_ADD or link_kind not in WIDE_RULE_KINDS:
         return False
-    if proposed_by in LEARN_PROPOSERS:
-        return True
-    if proposed_by != CALC_PROPOSER:
-        return False
-    return link_kind != RULE_LINK or str(link_to or "").startswith(CALC_KEY_HEADS)
+    return proposed_by in LEARN_PROPOSERS or proposed_by == CALC_PROPOSER
 
 
 def change_ends(change: Any) -> dict[str, Any]:
