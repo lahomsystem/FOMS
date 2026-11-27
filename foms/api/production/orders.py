@@ -100,11 +100,13 @@ from foms.services.production.order_write_helpers import (  # noqa: F401  # 옮�
     _request_hash,
     _scope_hash,
     _stage_quest_block,
+    _supersede_production_run,
     _transition_error_response,
 )
 from foms.services.production.start_run import (
     START_NOTE,
     append_stage_history,
+    cancelled_event_values,
     mint_current_production_run,
     start_run_in_sd,
     started_event,
@@ -454,15 +456,8 @@ def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
-    db.add(OrderEvent(
-        order_id=order.id, event_type="PRODUCTION_CANCELLED",
-        payload={
-            "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_CANCELLED",
-            "reason": reason, "rework_cleared": rework_cleared, "hold_released": hold_released,
-            "run_id": run_id,
-        },
-        created_by_user_id=user_id,
-    ))
+    db.add(OrderEvent(**cancelled_event_values(  # 이벤트 줄 값은 한 곳 — 도면 시작 취소 되돌리기(start_rollback)와 같이 쓴다
+        order.id, user_id, run_id=run_id, reason=reason, rework_cleared=rework_cleared, hold_released=hold_released)))
     _audit_production(order, "PRODUCTION_START_CANCELED", user_id,
                       extra={"reason": reason or None, "rework_cleared": rework_cleared,
                              "hold_released": hold_released})
@@ -907,12 +902,7 @@ def api_production_cancel(order_id: int):
 
         def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
             target = orders[0]
-            run = _current_production_run(sess, order_id)
-            run_id = None
-            if run is not None:
-                run.status = "SUPERSEDED"
-                run.is_current = False
-                run_id = run.id
+            run_id = _supersede_production_run(_current_production_run(sess, order_id))  # 회차 닫기 한 곳(도면 길과 같이 씀)
             _apply_cancel_side_effects(sess, target, user, user_id, reason, run_id)
             return {order_id: [f"ORDER_DETAIL:{order_id}", "ORDERS_INDEX"]}
 

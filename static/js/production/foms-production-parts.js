@@ -208,10 +208,11 @@
     if (skipped.length > 1) { text += (text ? ' · ' : '') + skipped.length + '장은 그사이 다른 사람이 바꿨어요'; }
     return { text: text, bad: skipped.length > 0 };
   }
-  function started(data) { // 첫 카드 = 제작 시작(§4-8) — 그 집 카드의 첫 카드 표지를 뗀다
+  function started(data) { // 첫 카드 = 제작 시작(§4-8) — 그 집 카드의 첫 카드 표지를 뗀다. 표시가 모두 미정이 돼 그 시작이 되돌려지면(11-27) 다시 붙인다
     var ids = Array.isArray(data.run_started) ? data.run_started : (data.run_started && data.mark ? [data.mark.order_id] : []);
     ids.forEach(function (id) { findCard(id).forEach(function (c) { c.removeAttribute('data-pp-first'); }); });
-    return ids.length ? ' · 제작 시작도 같이 됐어요' : '';
+    if (data.run_cancelled && data.mark) { findCard(data.mark.order_id).forEach(function (c) { c.setAttribute('data-pp-first', '1'); }); }
+    return ids.length ? ' · 제작 시작도 같이 됐어요' : data.run_cancelled ? ' · 제작 시작도 같이 취소됐어요' : '';
   }
   function handle(p, result) {
     var body = result.data || {};
