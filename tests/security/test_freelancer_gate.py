@@ -24,7 +24,7 @@ from flask import g
 
 import foms.services.auth.freelancer_scope as scope
 from db import db_session
-from foms.services.auth.freelancer_order_rights import OWN_ORDER_ENDPOINTS
+from foms.services.auth.freelancer_order_rights import CLOSED_ORDER_ENDPOINTS, OWN_ORDER_ENDPOINTS
 from foms.services.auth.freelancer_scope import (
     FREELANCER_ALLOWED_ENDPOINTS,
     FREELANCER_DENIED_MSG,
@@ -159,8 +159,10 @@ def test_every_rule_outside_allowlist_is_blocked_for_freelancer(app):
                 continue
             resp = client.open(path, method=method)
             checked += 1
-            if rule.endpoint in OWN_ORDER_ENDPOINTS:
+            if rule.endpoint in OWN_ORDER_ENDPOINTS or rule.endpoint in CLOSED_ORDER_ENDPOINTS:
                 # 주문 일 API(D27) — 이 주문은 내 것이 아니라 다른 주문 API 와 같은 404 "주문을 찾을 수 없어요."(11-08).
+                # 내 주문이어도 닫아 둔 생산 쓰기(2026-11-27)도 남의 주문에는 같은 404 다(내 주문 403 은
+                # test_freelancer_production_home.py 가 본다).
                 body = resp.get_json(silent=True) or {}
                 json_like = "/api/" in path or method != "GET"
                 if resp.status_code != 404 or (json_like and body.get("error") != FREELANCER_ORDER_NOT_FOUND_MSG):

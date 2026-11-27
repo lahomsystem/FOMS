@@ -31,7 +31,11 @@ from flask import abort, g, jsonify, redirect, request, url_for
 from db import get_db
 from foms.services.auth import freelancer_screens as _screens
 from foms.services.auth.freelancer_orders import freelancer_can_access_order
-from foms.services.auth.freelancer_order_rights import OWN_ORDER_ENDPOINTS, own_order_request_allowed
+from foms.services.auth.freelancer_order_rights import (
+    OWN_ORDER_ENDPOINTS,
+    closed_order_request_is_foreign,
+    own_order_request_allowed,
+)
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission.settings import FREELANCER_ROLES, is_freelancer
 
@@ -405,7 +409,8 @@ def freelancer_gate() -> Any | None:
         return None
     # 주문 일 API 인데 남의 · 없는 주문 — 다른 주문 API(겹 2)와 같은 404 "주문을 찾을 수 없어요." 로 답한다.
     # 예전에는 403 "열 수 없는 화면"이라 같은 남의 주문에 API 마다 답이 갈렸다(11-08 점검).
-    if request.endpoint in OWN_ORDER_ENDPOINTS:
+    # 내 주문이어도 닫아 둔 주문 일 API(생산 쓰기, 2026-11-27)도 남의 · 없는 주문이면 같은 404 — 내 주문이면 아래 403.
+    if request.endpoint in OWN_ORDER_ENDPOINTS or closed_order_request_is_foreign(get_db(), user, request.endpoint):
         if _wants_json():
             return jsonify({"success": False, "data": None, "error": FREELANCER_ORDER_NOT_FOUND_MSG}), 404
         abort(404)

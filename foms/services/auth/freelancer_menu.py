@@ -22,7 +22,8 @@ FREELANCER_MENU: tuple[tuple[str, str, str, str], ...] = (
     ("dashboard", "대시보드", "erp_dashboard.erp_dashboard", "fas fa-layer-group"),
     ("measurement", "실측", "erp_measurement_dashboard.erp_measurement_dashboard", "fas fa-ruler-combined"),
     ("drawing", "도면", "erp_drawing_workbench.erp_drawing_workbench_dashboard", "fas fa-drafting-compass"),
-    ("production", "생산", "erp_production_page.erp_production_dashboard", "fas fa-industry"),
+    # 생산 = 새 첫 화면(2026-11-27 옛 생산 보드 없애기 — 내 주문만 · 보기만, freelancer_screens/production.py)
+    ("production", "생산", "erp_production_page.erp_production_home", "fas fa-industry"),
     ("shipment", "출고", "erp_shipment_page.erp_shipment_dashboard", "fas fa-truck"),
     ("as", "AS", "erp_as_page.erp_as_dashboard", "fas fa-tools"),
     ("construction", "시공", "erp_construction_page.erp_construction_dashboard", "fas fa-hammer"),
