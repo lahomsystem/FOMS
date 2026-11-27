@@ -638,6 +638,10 @@
 /* ④ 내 공정 줄의 시공 칸 — 날짜 탭 시공일 표와 같은 색(지난 집 빨강 + 'n일 지남', §5-4) */
 .fph-qr__due.is-past, .fph-qr__due.is-past b { color: var(--fph-dw-late); }
 .fph-qr__due small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; }
+/* ④-2 지방 상차 표(fph_ship, 사장님 2026-11-27 "지방은 무조건 상차일 기준")가 시공 칸 안에 설 때 — 칸의 큰 날 글(b)을 물려받지 않고
+   날짜 탭 표 꼴 그대로(남은 날 · 색 = 상차일). 'n일 지남' 작은 글 자리에 선다(지난 줄과 같은 세 줄). */
+.fph-qr__due > .fph-due { align-self: flex-end; margin: 2px 0 0; }
+.fph-qr__due > .fph-due b { font-size: calc(15px * var(--foms-fs, 1)); color: inherit; }
 /* ⑤ 찾기: 묶음 머리 도면 한 줄 · 기다림 줄 막힌 까닭(§5-6). 머리 글이 길어 좁은 화면에서 넘치면 다음 줄로(가로 넘침 없이) */
 .foms-prod-home__day { flex-wrap: wrap; row-gap: 2px; }
 .foms-prod-home__day .fph-dwst { font-size: calc(14px * var(--foms-fs, 1)); }
@@ -660,6 +664,11 @@
 .fph-nx b small { flex-shrink: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-nx span { grid-column: 1; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fph-nx em { grid-column: 2; grid-row: 1 / 3; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); white-space: nowrap; }
+/* 지방 상차 표(2026-11-27)가 날 칸(em) 안에 설 때 — 줄의 b · span 꼴(큰 이름 글 · 회색 말줄임)을 물려받지 않고 작은 칸 표 꼴(.fph-wi .fph-due) */
+.fph-nx em > .fph-due { margin-left: 6px; padding: 0 5px; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fph-brand-dark); overflow: visible; }
+.fph-nx em > .fph-due.is-today { color: #fff; }
+.fph-nx em > .fph-due.is-past { color: var(--fph-dw-late); }
+.fph-nx em > .fph-due b { display: inline; font-size: calc(13px * var(--foms-fs, 1)); }
 
 /* ── 내 공정 [<공정> 끝] 확인 창(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") = 작업 시트와 같은 조각(sheet_step_confirm.html) —
    겉틀은 공용 사유 시트, 제목 · 본문 한 줄 · 태블릿 누름 칸(보이는 48px · 틈 8px)은 sheet.css 와 같은 값(첫 화면은 sheet.css 를 싣지 않는다) ── */

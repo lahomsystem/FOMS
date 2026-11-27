@@ -23,6 +23,7 @@ from foms.services.production_home_read_model import (
     PRODUCTION_HOME_PAST_DAYS,
     _WEEKDAY_KO,
     production_home_day,
+    production_home_day_plain,
 )
 
 
@@ -95,6 +96,8 @@ def _pane_row(row: dict[str, Any], day: datetime.date | None, today: datetime.da
     copy = dict(row)
     head = production_home_day(day, today)
     copy.update(ship_due=day, build_day=day, day_label=head['label'], day_sub=head['sub'], day_is_today=head['is_today'])
+    if (row.get('ship_mark') or {}).get('sub'):  # 지방 상차 표(상차일 기준)의 시공일 글도 그 장의 시공일로(2026-11-27)
+        copy['ship_mark'] = {**row['ship_mark'], 'build_md': production_home_day_plain(day, today)}
     if 'dw_state' in row:  # 기다림 행만 마감 칸이 있다(attach_drawing_arrival)
         copy.update(deadline_fields(drawing_deadline(day), today))
     if 'pc_due' in row:  # PC 응답만 PC 칸이 있다(attach_pc_rows)

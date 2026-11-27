@@ -8,7 +8,9 @@
    7판(설계서 2026-11-22-production-drawing-arrival-upgrade §5-4): 위 안내에 '도면 마감 지난 집 n건', 줄 시공 칸은 지난 날이면 빨강 +
    'n일 지남'(날짜 탭 시공일 표 is-past 와 같은 색). 줄 순서 · 오른쪽 판 · [끝] · 곧 올 것은 그대로.
    [끝] 자리 막힘 r.step_block(보류 · 도면 고치는 중과 같은 자리 · 꼴, home_step_panel.py): 장이 모두 남의 공장인 주문 "2공장 작업"(비평 C02 —
-   줄 끝, 누름 없음) · 그 파트가 도면 칸을 쓴 주문 "재단 3/5 · 2장 미완료"(비평 C03 — 누르면 그 주문 도면 판 ?tab=parts&part=&order=). #}{% from 'production/partials/home_date_macros.html' import home_href %}
+   줄 끝, 누름 없음) · 그 파트가 도면 칸을 쓴 주문 "재단 3/5 · 2장 미완료"(비평 C03 — 누르면 그 주문 도면 판 ?tab=parts&part=&order=).
+   지방 상차 주문(r.ship_mark.sub, 사장님 2026-11-27 "지방은 무조건 상차일 기준")은 줄 시공 칸 · 곧 올 것 날 칸이 날짜 탭과 같은 글 —
+   시공일은 날만, 뒤에 상차 표(fph_ship) '상차 11/27 내일'(남은 날 · 색 = 상차일). 줄 순서는 그대로(출고일 순). #}{% from 'production/partials/home_date_macros.html' import home_href, fph_ship %}
 {% set _on = step_pin or (queues.queues[0].key if queues.queues else '') %}<div class="fph-steptabs" role="tablist" aria-label="공정"{% if step_pin %} data-foms-home-step-pin="{{ step_pin }}"{% endif %}{% if step_panel %} data-foms-step-base="{{ home_href('steps') }}"{% endif %}>
   {% for q in queues.queues %}
   <button type="button" class="fph-steptab{% if q.key == _on %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if q.key == _on else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
@@ -23,8 +25,9 @@
       <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if step_panel and r.hold_active %}<span class="fph-qr__holdtag">보류</span>{% elif step_panel and r.revise_block %}<span class="fph-qr__holdtag">{{ r.revise_block.text }}</span>{% elif step_panel and r.step_block %}<span class="fph-qr__holdtag is-{{ r.step_block.kind }}">{{ r.step_block.text | factory_chips }}</span>{% endif %}{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
       <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}{% if r.has_changes %} · <em>{{ r.change_line }}</em>{% endif %}</span>
     </a>
-    {%- set _past = r.day_sub and r.day_sub.endswith('지남') %}
-    <span class="fph-qr__due{% if _past %} is-past{% endif %}">시공<b>{{ r.day_label }}</b>{% if _past %}<small>{{ r.day_sub }}</small>{% endif %}</span>
+    {%- set _ld = r.ship_mark.sub if r.ship_mark and r.ship_mark.sub else '' %}
+    {%- set _past = not _ld and r.day_sub and r.day_sub.endswith('지남') %}
+    <span class="fph-qr__due{% if _past %} is-past{% endif %}">시공<b>{{ (r.ship_mark.build_md or r.day_label) if _ld else r.day_label }}</b>{% if _past %}<small>{{ r.day_sub }}</small>{% endif %}{% if _ld %}{{ fph_ship(r) }}{% endif %}</span>
     {% if r.hold_active %}
     <span class="fph-qr__hold">보류</span>
     {% elif r.revise_block %}{# 도면 고치는 중 — 보류와 같은 자리 · 같은 꼴(사장님 2026-11-25, 공정 API 도 켜기 409) #}
@@ -48,7 +51,7 @@
     <a class="fph-nx{% if r.has_changes %} is-chg{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">
       <b><i>{{ r.customer_name }}</i> <small>#{{ r.id }}</small></b>
       <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
-      <em>{{ r.day_label }}</em>
+      <em>{% if r.ship_mark and r.ship_mark.sub %}{{ r.ship_mark.build_md or r.day_label }}{{ fph_ship(r) }}{% else %}{{ r.day_label }}{% endif %}</em>
     </a>
     {% endfor %}
   </div>
