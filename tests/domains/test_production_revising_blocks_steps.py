@@ -63,7 +63,7 @@ def test_step_cell_gate_is_the_same_table_as_the_card_gate(sd, on, off_card):
 
 @pytest.mark.parametrize("who", ["반장", "관리자"])
 def test_turning_on_while_revising_is_refused_without_write_and_turning_off_works(client, who):
-    oid = _order("가짜고침", 2, done=("edge",)).id
+    oid = _order("가짜고침", 1, done=("edge",)).id  # 도면 1장(여러 장은 켜기 자체가 막힘 — 사장님 2026-11-27)
     _revise(oid)
     user = _user("반장") if who == "반장" else _user("정관리", role="ADMIN", team="CS")
     _login(client, user, {"foms_ptr": "coarse"})
@@ -79,7 +79,7 @@ def test_turning_on_while_revising_is_refused_without_write_and_turning_off_work
 
 
 def test_pc_sheet_hides_all_while_revising_but_keeps_turn_off():
-    assert build_part_sheet(SD | {"drawing_current_files": [{"key": "a"}, {"key": "b"}]}, [], "cut", hold_active=False)["all"] is True
+    assert build_part_sheet(SD | {"drawing_current_files": [{"key": "a"}]}, [], "cut", hold_active=False)["all"] is True  # 대조군(도면 1장)
     sd = {"drawing_current_files": [{"key": "a"}, {"key": "b"}], "drawing_status": "RETURNED",
           "production": {"steps": [{"key": "edge", "label": "엣지", "done": True, "at": None, "by_name": "박반장", "via": "sheet"}]}}
     assert build_part_sheet(sd, [], "cut", hold_active=False)["all"] is False
@@ -97,7 +97,7 @@ def test_pc_sheet_api_while_revising_has_no_all(client, cohort):
 def test_my_steps_rows_panel_and_pc_rows_show_the_reason_instead_of_finish(client, cohort):
     first = add_order("가짜고침줄", 1)
     _revise(first.id)
-    free = add_order("가짜다음줄", 2)
+    free = add_order("가짜다음줄", 2, pngs=1)  # 대조군 = 도면 1장(여러 장은 [끝] 자리가 막힘 — 사장님 2026-11-27)
     login(client)  # 반장
     client.set_cookie("foms_ptr", "coarse", domain="localhost")
     phone = queue_html(get_html(client, HOME + "?tab=steps"), "cut")  # 판 없는 꼴(폰 · 세로)

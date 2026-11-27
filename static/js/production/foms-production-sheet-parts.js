@@ -9,7 +9,8 @@
  *    막힌 도면이 있는 주문(서버 자료 fix — 2026-11-25 설계서 §2-4)은 본문만 "이 주문의 도면 5장 중 4장이 재단 완료로 처리돼요. 도면 2는
  *    고치는 중이라 빼요."(뒤 문장 = 서버 글 fix.tail). 응답 expanded(막힌 장을 빼고 처리됨)는 그 칸 옆 글을 서버 글(expanded.note)로,
  *    '내 공정' [<공정> 완료] 뒤 알림은 doneText(expanded) — "도면 3장 중 2장을 재단 완료로 처리했어요. 도면 2는 고치는 중이라 뺐어요."
- *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
+ *    도면이 여러 장인 주문(서버 자료 per_sheet — 사장님 2026-11-27 "도면 두 장 이상이면 막기")은 창 없이 칸 아래에 서버 글만(요청 0).
+ *  · refused: 서버 거절 글(PART_USES_CARDS · STEP_SET_BY_CARDS · STEP_PER_SHEET)을 공정 칸 아래 .fpp-stepmsg 에(글 = 서버 글 그대로).
  *  · why: 회색 [제작 완료] 누름 — 카드를 쓴 주문은 서버의 남은 장 수(parts.left_n)로 "미완료가 있어요 — 재단 1장 · 검수 3장".
  *    카드를 안 쓴 주문은 null(시트 JS 가 지금 글을 그대로 쓴다).
  *  · [바뀐 기록 보기]: 처음 누를 때 GET /api/production/part-history 한 번, 공정 · 장마다 한 줄. 쓰기 요청은 POST 0(공정 POST 는 시트 JS).
@@ -107,6 +108,8 @@
       btn.disabled = false;
       var part = info && info.parts ? info.parts[key] : null;
       if (!info || !info.sheets || !part || part.uses_cards) { go(); return; } // 카드 쓴 파트 · 도면 0장 · 자료 없음 = 서버가 판정
+      // 도면이 여러 장인 주문(서버 글 per_sheet, 사장님 2026-11-27) = 묻지 않고 칸 아래에 까닭만 · 요청 0. 글 칸이 없는 화면은 서버가 답한다
+      if (info.per_sheet) { if (stepMsg(page, info.per_sheet)) { if (no) { no(); } } else { go(); } return; }
       ask(LABELS[key] || key, info.sheets, btn, go, no, info.fix);
     });
   }
@@ -122,7 +125,7 @@
   function refused(page, result) {
     var body = (result && result.data) || {};
     var code = (body.data && body.data.code) || body.code;
-    if (code !== 'PART_USES_CARDS' && code !== 'STEP_SET_BY_CARDS') { return false; }
+    if (code !== 'PART_USES_CARDS' && code !== 'STEP_SET_BY_CARDS' && code !== 'STEP_PER_SHEET') { return false; }
     return stepMsg(page, body.error || body.message || result.message);
   }
   function render(page, payload) {
@@ -135,6 +138,7 @@
     info.parts = payload.parts;
     if (payload.sheets != null) { info.sheets = payload.sheets; }
     if (payload.fix) { info.fix = payload.fix; } else { delete info.fix; }
+    if (payload.per_sheet) { info.per_sheet = payload.per_sheet; } else { delete info.per_sheet; }
     h.setAttribute('data-foms-sheet-parts', JSON.stringify(info));
   }
   function expandedNote(page, ex) { // 막힌 장을 빼고 처리된 파트 — 칸 옆 글 = 서버 글("도면 4/5 · 1장 미완료"), 카드 쓴 파트 글처럼 고정

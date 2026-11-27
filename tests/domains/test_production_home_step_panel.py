@@ -31,6 +31,7 @@ from tests.support.production_home_step_panel_seed import (
     SHELL,
     STEPS_JS,
     TABLET,
+    add_order,
     get_html,
     login,
     pane_html,
@@ -284,12 +285,18 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     assert "슬라이딩 붙박이장 · W2740 × D700 × H2330" in pane
     assert f'src="/api/files/thumb/orders/x/drawing/박서준_0.png?w=640"' in pane and 'loading="lazy"' in pane
     view = json.loads(re.search(r'data-foms-step-view="([^"]+)"', pane).group(1).replace("&#34;", '"'))
-    assert [f["view_url"] for f in view] == [f"/api/files/view/orders/x/drawing/박서준_{j}.png" for j in range(3)]
-    assert ">도면 3장<" in pane and "눌러서 크게" in pane
+    assert [f["view_url"] for f in view] == ["/api/files/view/orders/x/drawing/박서준_0.png"]
+    assert ">도면 1장<" in pane and "눌러서 크게" in pane
+    # 그림 여러 장 = 원본 뷰어에 전부(도면 3장 주문은 [끝] 자리가 막혀 처음 고른 줄이 아니다 — 주소로 고른다, 사장님 2026-11-27)
+    many = add_order("그림셋집", 6, pngs=3)
+    many_pane = pane_html(get_html(client, HOME + f"?tab=steps&order={many.id}"), many.id)
+    view = json.loads(re.search(r'data-foms-step-view="([^"]+)"', many_pane).group(1).replace("&#34;", '"'))
+    assert [f["view_url"] for f in view] == [f"/api/files/view/orders/x/drawing/그림셋집_{j}.png" for j in range(3)]
+    assert ">도면 3장<" in many_pane and "<b>재단 0/3 · 3장 미완료</b>" in many_pane
     assert "<dt>색</dt><dd>그레이 · 손잡이 없음</dd>" in pane and "<dt>앞 공정</dt><dd>제작 시작 · 11/21 08:40</dd>" in pane
     assert "<dt>다음 공정</dt><dd>엣지</dd>" in pane and "엣지</dt>" not in pane  # 엣지 사양 줄 없음(D11)
     # 도면 있는 주문이라 [끝]에 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기" — test_production_my_steps_confirm.py)
-    confirm = '{"parts": {"cut": {"uses_cards": false}}, "sheets": 3}'.replace('"', "&#34;")
+    confirm = '{"parts": {"cut": {"uses_cards": false}}, "sheets": 1}'.replace('"', "&#34;")
     assert (f'data-foms-step-finish data-order-id="{a.id}" data-step-key="cut" data-step-label="재단" data-next-order="{b.id}"'
             f' data-foms-sheet-parts="{confirm}">' in pane) and ">재단 완료</button>" in pane  # 옛 [재단 끝](지휘 판결)
     assert f'data-foms-prod-sheet-page data-order-id="{a.id}"' in pane

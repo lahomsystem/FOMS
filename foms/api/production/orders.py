@@ -1212,7 +1212,7 @@ def api_production_steps(order_id: int):
         except RevisionError as exc:
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
-        except GateRefusal as refusal:  # OTHER_FACTORY(403) · PART_USES_CARDS(+left) · STEP_SET_BY_CARDS
+        except GateRefusal as refusal:  # OTHER_FACTORY(403) · PART_USES_CARDS(+left) · STEP_PER_SHEET · STEP_SET_BY_CARDS
             db.rollback()
             return jsonify(refusal.gate.body()), refusal.gate.status
 
