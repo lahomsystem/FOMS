@@ -16,7 +16,7 @@
   {% endif %}
   {% if d.make_rows %}
   <h3 class="fph-pane__g">만들 것 {{ d.make }}</h3>
-  {% for r in d.make_rows %}{{ pc_row(r) }}{% endfor %}
+  {% for r in d.make_rows %}{{ pc_row(r, sheet=(parts_read is not defined or parts_read)) }}{% endfor %}
   {% endif %}
   {% if d.done_rows %}
   <h3 class="fph-pane__g">제작 완료 {{ d.done_rows | length }} <small>시공 대기</small></h3>

@@ -44,7 +44,7 @@
       {% include 'production/partials/home_date.html' %}
     {% endif %}
 {% if part_board %}    {% include 'production/partials/home_parts_overlays.html' %}
-{% endif %}{% if pc_view and tab in ('date', 'all') %}{# PC 공정 칸 → 도면 목록 창(2026-11-24, 줄이 공정 칸을 그리는 두 탭만) #}{% include 'production/partials/home_pc_sheet.html' %}
+{% endif %}{% if pc_view and parts_read and tab in ('date', 'all') %}{# PC 공정 칸 → 도면 목록 창(2026-11-24, 줄이 공정 칸을 그리는 두 탭만 · 도면 카드 읽기를 하는 사람만 — 켜진 프리랜서는 그 API 가 403) #}{% include 'production/partials/home_pc_sheet.html' %}
 {% elif tab == 'steps' and can_check_steps %}{# '내 공정' [<공정> 끝] 확인 창(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기") = 작업 시트와 같은 조각 —
    화면 안(셸 조각 교체 때 창도 같이 바뀐다 · 줄 [끝] · 판 [끝] · PC 줄 [끝]이 같이 쓴다) #}{% include 'production/partials/sheet_step_confirm.html' %}
 {% endif %}  </section>
