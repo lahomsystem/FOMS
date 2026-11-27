@@ -102,7 +102,7 @@ def _hold_block_response(sd: dict[str, Any], release_hold: bool):
     active, hold = _hold_active(sd)
     if not active or release_hold:
         return None
-    message = "보류 중인 주문입니다."
+    message = "보류 중인 주문이에요."
     reason = hold.get("reason")
     if reason:
         message += f" (사유: {reason})"

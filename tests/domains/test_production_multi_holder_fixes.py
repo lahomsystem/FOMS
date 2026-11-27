@@ -100,7 +100,7 @@ def test_lead_proxy_finish_after_joining_finishes_everyone_left_including_own(cl
     assert (_last(order)["override"], _last(order)["holder_name"]) == (True, "김재단")  # '대신' 대상 = 대신 완료된 남만
     item = _history_last(client, order)  # 바뀐 기록 "박반장 (김재단 대신) 완료"(check = '완료' 낱말)
     assert (item["kind"], item["by_name"], item["holder_name"]) == ("check", "박반장", "김재단")
-    assert "생산 파트 체크: 재단 재단 1/3 완료 → 재단 완료 (대신 처리) · 공정 재단 켬" in _audit(order)
+    assert "생산 파트 작업: 재단 재단 1/3 완료 → 재단 완료 (대신 처리) · 공정 재단 켬" in _audit(order)
 
 
 def test_lead_own_finish_is_own_share_then_proxy_finish_still_works(client):
@@ -233,7 +233,7 @@ def test_lead_undo_without_target_reverts_everyone_including_own_share(client):
     assert (back["mark"]["state"], back["mark"]["done_n"], back["mark"]["holder_n"]) == ("need", 0, 2)
     assert _crew(order) == [("이시영", False, None), ("박반장", False, None)]
     assert (_last(order)["override"], _last(order)["holder_name"]) == (True, "이시영")  # 반장 자신은 '대신' 대상이 아니다
-    assert "생산 파트 체크: 재단 재단 완료 → 작업 필요 (대신 처리)" in _audit(order)
+    assert "생산 파트 작업: 재단 재단 완료 → 작업 필요 (대신 처리)" in _audit(order)
     _ok(client, lee, order, "done", "need", seen_me="held")
     _ok(client, boss, order, "done", "need", seen_me="held")
     mine = _ok(client, boss, order, "undo", "done", seen_me="done", target_user_id=boss.id)  # 자기 몫만 = 대상 본인

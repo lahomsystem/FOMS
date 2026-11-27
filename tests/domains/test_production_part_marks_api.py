@@ -218,7 +218,7 @@ def test_cut_transition_table(client):
     assert (second.picked_by_name, second.done_by_name, second.sheet_id) == (None, None, f"{_key(order, 1)[:-7]}-s1")
     assert [e.payload["to"] for e in _events(order)] == ["NEED", "DONE", "NEED", "BASIC", "NONE"]
     log = db_session.query(SecurityLog).filter_by(action="PRODUCTION_PART_MARKED", target_id=order.id).first()
-    assert "생산 파트 체크" in log.message and "재단 안 봄 → 작업 필요" in log.message
+    assert "생산 파트 작업" in log.message and "재단 안 봄 → 작업 필요" in log.message
 
 
 def test_other_parts_have_no_basic_and_bad_pairs_are_400(client):
@@ -420,4 +420,4 @@ def test_write_query_counts(client):
     assert len(resp_s.get_json()["data"]["applied"]) == 5 and len(resp_b.get_json()["data"]["applied"]) == 50
     assert q_big - q_small <= BULK_DELTA_CAP and q_big <= BULK_ABS_CAP, (q_small, q_big)
     many = db_session.query(SecurityLog).filter(SecurityLog.message.like("주문 10건 — %")).one()  # 감사는 요청마다 한 줄
-    assert many.message == "주문 10건 — 생산 파트 체크: 재단 기본 50장" and len(many.detail["orders"]) == 10
+    assert many.message == "주문 10건 — 생산 파트 작업: 재단 기본 50장" and len(many.detail["orders"]) == 10

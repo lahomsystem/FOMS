@@ -209,7 +209,7 @@ def _apply_production_hold_gate(
         return None  # 보류 없음 → 정상 전이.
 
     if not release_hold:
-        message = "보류 중인 주문입니다."
+        message = "보류 중인 주문이에요."
         reason = hold.get("reason")
         if reason:
             message += f" (사유: {reason})"
