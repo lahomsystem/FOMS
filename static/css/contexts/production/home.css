@@ -49,7 +49,7 @@
   --fph-pre-300: #eab308;
   --fph-pre-700: #713f12;
   --fph-holder: var(--fph-text2);
-  --fph-holder-done: var(--fph-brand-dark);
+  --fph-holder-done: var(--fph-dw-ok); /* 완료 = 초록(비평 C77 — 도면 카드 '완료' 칸 · 다른 파트 줄 '완료'와 같은 뜻 색) */
   --fph-holder-none: var(--fph-text3);
   --fph-step-w: calc(76px * var(--foms-fs, 1));
   /* 공장 색(1공장 자주 · 2공장 청록)은 이 파일에 두지 않는다 — 공장 칩 한 곳(components/foms-factory-chip.css, 2공장 그림이 켜진
@@ -255,8 +255,9 @@
   color: #fff;
   font-size: calc(28px * var(--foms-fs, 1));
 }
-.foms-prod-home__st.is-done { color: var(--fph-brand-dark); }
-.foms-prod-home__st.is-done i { background: var(--fph-brand); border-color: var(--fph-brand); }
+/* 공정 칸 완료 = 초록, 지금 = 남색 테두리(비평 C77 — 도면 카드 '완료' 칸 · 작업 시트 공정 칸과 같은 뜻 색) */
+.foms-prod-home__st.is-done { color: var(--fph-dw-ok); }
+.foms-prod-home__st.is-done i { background: var(--fph-dw-ok); border-color: var(--fph-dw-ok); }
 .foms-prod-home__st.is-now { color: var(--fph-brand-dark); }
 .foms-prod-home__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
 .foms-prod-home__job.is-soon .foms-prod-home__st i { border-style: dashed; }
@@ -542,8 +543,9 @@
 .fph-dr__steps { display: flex; gap: 6px; }
 .fph-dr__st { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-dr__st i { width: 34px; height: 34px; border-radius: 8px; border: 2px solid var(--fph-line2); background: var(--fph-surface); }
-.fph-dr__st.is-done, .fph-dr__st.is-now { color: var(--fph-brand-dark); }
-.fph-dr__st.is-done i { background: var(--fph-brand); border-color: var(--fph-brand); }
+.fph-dr__st.is-now { color: var(--fph-brand-dark); }
+.fph-dr__st.is-done { color: var(--fph-dw-ok); } /* 완료 = 초록 · 지금 = 남색(비평 C77) */
+.fph-dr__st.is-done i { background: var(--fph-dw-ok); border-color: var(--fph-dw-ok); }
 .fph-dr__st.is-now i { border: 3px solid var(--fph-brand); background: var(--fph-brand-50); }
 .fph-dr__dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 /* 2공장(설계서 2026-11-23 §4-13 · §4-14 · §8-2) — 섞인 주문 도면 칸 두 줄("1공장 3장" / "2공장 2장 완료"): 보는 사람 공장 줄이 위 · 굵게,

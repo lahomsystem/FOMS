@@ -112,7 +112,7 @@
 .pp-by, .pp-by .fph-by { border: 0; box-shadow: none; background: transparent; cursor: default; user-select: none; }
 .fph-by.pp-w-done { color: var(--fph-done-700); font-weight: 800; }
 .fph-by.pp-w-basic { color: var(--fph-basic-700); font-weight: 800; }
-.fph-by.pp-w-need { color: var(--fph-mid-700); font-weight: 800; }
+.fph-by.pp-w-need { color: var(--fph-need-700); font-weight: 800; } /* 작업 중 = 남색(비평 C77 — 카드 '작업 중' 칸 글과 같은 색, 전에는 보라 #7c3aed) */
 /* 여러 파트 계정의 다른 파트 줄 "엣지 내 담당"(§4-12) — 꼬리 "내 담당"(.pp-tag)과 같은 색 */
 .fph-by.pp-w-mine { color: var(--fph-need-700); font-weight: 800; }
 .fph-by.pp-w-none { color: var(--fph-text3); font-weight: 600; }
