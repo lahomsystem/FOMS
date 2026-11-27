@@ -18,7 +18,8 @@ from models import Order, ProductionRun, User
 
 ROOT = Path(__file__).resolve().parents[2]
 JS = ROOT / "static/js/production/foms-production-sheet-swipe.js"
-PIN = "20261127m"
+PIN = "20261127m"  # 밀기 스크립트 핀
+CSS_PIN = "20261127u"  # sheet.css — 밀기(m) 뒤 도면 있는 주문 공정 보기 줄(test_production_steps_view_only_1127)과 합쳐 한 번 더
 SHEET_URL = "/erp/production/sheet/{id}"
 
 
@@ -64,11 +65,11 @@ def test_작업_시트가_밀기_스크립트와_새_CSS_핀을_싣는다() -> N
     assert page.count(tag) == 1
     # 넘기기 함수(sheet-page.js)보다 뒤에 싣는다 — 단추 위임이 먼저 묶여 있어야 click() 이 넘긴다
     assert page.index("foms-production-sheet-page.js") < page.index("foms-production-sheet-swipe.js")
-    assert f"css/contexts/production/sheet.css') }}}}?v={PIN}" in page
+    assert f"css/contexts/production/sheet.css') }}}}?v={CSS_PIN}" in page
     # 옆 시트(칸반)는 큰 그림 칸이 없어 스크립트를 싣지 않는다 — CSS 는 같은 파일이라 핀만 같이
     body = _read("templates/production/partials/tablet_kanban_body.html")
     assert "foms-production-sheet-swipe.js" not in body
-    assert f"css/contexts/production/sheet.css') }}}}?v={PIN}" in body
+    assert f"css/contexts/production/sheet.css') }}}}?v={CSS_PIN}" in body
 
 
 def test_큰_그림_칸은_세로_굴림과_두_손가락_확대만_브라우저에_맡긴다() -> None:
