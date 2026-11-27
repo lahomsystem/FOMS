@@ -441,7 +441,7 @@ def test_start_blocked_when_hold_active(client):
     data = resp.get_json()
     assert data["success"] is False
     assert data["code"] == "HOLD_ACTIVE"
-    assert "보류 중인 주문입니다" in data["message"]
+    assert "보류 중인 주문이에요" in data["message"]
     assert "자재 입고 지연" in data["message"]  # 사유 병기
     assert data["hold"]["active"] is True
 
