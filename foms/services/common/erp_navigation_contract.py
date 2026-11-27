@@ -22,7 +22,7 @@ MICRO_CACHE_READ_SLICES_RETAINED: bool = True
 # -----------------------------------------------------------------------------
 # PRIMARY_NAV: 잠금판 9 primary — 문서/인벤토리/B1과 동일 문자열.
 # 생산 칸(tab id ``production``)은 2026-11-21 옛 보드(/erp/production/dashboard)에서 새 첫 화면(/erp/production/home)으로
-# 바꿨다(설계서 2026-11-21-production-pc-viewer §9-5 · 계약 SPEC §2). 옛 보드 라우트는 남고, 셸은 그것을 하위 조각으로 바꿔 끼운다.
+# 바꿨다(설계서 2026-11-21-production-pc-viewer §9-5 · 계약 SPEC §2). 옛 보드 라우트는 2026-11-27 지웠다(옛 주소 = 404).
 # FRAGMENT_READY: 서버가 shell+view=fragment 로 본문 조각을 내는 경로만 (fetch 허용).
 # ERP_CANONICAL_TAB_PATHS: SPEC §2·하위 호환 — FRAGMENT_READY 와 동일 튜플 객체.
 
