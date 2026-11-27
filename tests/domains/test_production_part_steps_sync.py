@@ -388,7 +388,7 @@ def test_production_account_without_parts_or_lead_cannot_write_steps(client, rol
 # --------------------------------------------------------------------------- #
 # 시트 렌더 — 전체 화면(도면 0장 — 도면 있으면 보기 줄, 2026-11-27 "도면이 주" · test_production_steps_view_only_1127)
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("url,n", [("/erp/production/sheet/{oid}", 0)]  # 옆 시트(tablet-sheet)는 2026-11-27 옛 보드와 함께 지움)
+@pytest.mark.parametrize("url,n", [("/erp/production/sheet/{oid}", 0)])  # 옆 시트(tablet-sheet)는 2026-11-27 옛 보드와 함께 지움
 def test_sheet_step_buttons_read_only_for_part_account(client, url, n):
     oid = _order(n, steps_done=("cut",))
     _login(client, _user("김재단", part="cut"))
@@ -402,7 +402,7 @@ def test_sheet_step_buttons_read_only_for_part_account(client, url, n):
     assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 그대로
 
 
-@pytest.mark.parametrize("url,n", [("/erp/production/sheet/{oid}", 0)]  # 옆 시트(tablet-sheet)는 2026-11-27 옛 보드와 함께 지움)
+@pytest.mark.parametrize("url,n", [("/erp/production/sheet/{oid}", 0)])  # 옆 시트(tablet-sheet)는 2026-11-27 옛 보드와 함께 지움
 def test_sheet_step_buttons_read_only_for_production_account_without_lead(client, url, n):
     oid = _order(n)
     _login(client, _user("최보기"))
@@ -414,7 +414,7 @@ def test_sheet_step_buttons_read_only_for_production_account_without_lead(client
     assert soup.select('[data-tablet-sheet-action="production-hold"]')  # 보류 단추는 지금 그대로
 
 
-@pytest.mark.parametrize("url,n", [("/erp/production/sheet/{oid}", 0)]  # 옆 시트(tablet-sheet)는 2026-11-27 옛 보드와 함께 지움)
+@pytest.mark.parametrize("url,n", [("/erp/production/sheet/{oid}", 0)])  # 옆 시트(tablet-sheet)는 2026-11-27 옛 보드와 함께 지움
 @pytest.mark.parametrize("team,role", [("PRODUCTION", "STAFF"), ("CS", "ADMIN")])
 def test_control_sheet_step_buttons_unchanged(client, url, n, team, role):
     oid = _order(n)

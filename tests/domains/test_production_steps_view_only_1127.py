@@ -332,10 +332,10 @@ def test_files_contract():
     parts = (ROOT / "static/js/production/foms-production-sheet-parts.js").read_text(encoding="utf-8")
     assert MSG not in parts and len(parts.splitlines()) <= 300
     assert "function ask(" not in parts and "이 주문의 도면 '" not in parts  # 탈 길이 없는 옛 확인 창 글은 뺐다
-    for rel, n in (("templates/production/sheet.html", 1), ("templates/production/partials/tablet_kanban_body.html", 1),
+    for rel, n in (("templates/production/sheet.html", 1),  # 칸반 본문(옆 시트)은 2026-11-27 옛 보드와 함께 지움
                    ("templates/production/partials/home_scripts.html", 2)):
         assert (ROOT / rel).read_text(encoding="utf-8").count("foms-production-sheet-parts.js') }}?v=20261127u") == n, rel
-    for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
+    for rel in ("templates/production/sheet.html",):
         assert "css/contexts/production/sheet.css') }}?v=20261127u" in (ROOT / rel).read_text(encoding="utf-8"), rel
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
     assert ".foms-prod-page__step small.fpp-note.is-run { color: var(--fpp-brand-dark); }" in css
