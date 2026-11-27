@@ -3,7 +3,7 @@
 * 칸: 확정 도면 1장 이상인 줄의 PC 공정 칸만 누름 칸(role=button · data-foms-pc-sheet) — 모양 · 글 · 쿼리 수는 그대로, 도면 0장 줄 ·
   태블릿 출력은 하나도 안 바뀐다(음성 대조).
 * 창 자료 ``GET /api/production/part-sheet``: 상태 글(안 봄 · 아직 · 작업 필요 · 재단 완료(옛 재단 끝 — 2026-11-25 K4) · 기본 · 손 체크
-  "재단 완료 · 박반장" + "작업 시트에서 완료") · 줄 글(사람마다 "작업 시작 …" · "완료 …" — K6) · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절
+  "재단 완료 · 박반장" + "작업 시트에서 완료") · 줄 글(사람마다 "시작 …" · "완료 …" — K6) · 바뀐 기록 · 막힘(서버 글) · 안내 글(공정 칸 체크 거절
   글 그대로) · [모두 완료 처리] 조건 ·
   쓰기 가능(관리자 · 반장) · 그 줄 공정 칸 HTML(첫 화면과 같은 매크로 — 바이트까지 같음). 쿼리 3(+ 로그인 사용자).
 * 쓰기는 있는 길만(part-marks · 공정 API) — 창 JS 가 부르는 대로([완료 처리] = check 한 요청, [완료 취소] = undo(→ 시작 취소), 공정 칸 켜기)
@@ -184,9 +184,9 @@ def test_창_자료는_도면_판_글_그대로와_시각(client, cohort) -> Non
     assert [r["label"] for r in rows] == [f"도면 {i}/5" for i in range(1, 6)]
     assert [r["word"] for r in rows] == ["재단 완료", "재단 완료", "작업 중", "미정", "미정"]  # 옛 "재단 끝"(K4)
     assert [r["act"] for r in rows] == ["uncheck", "uncheck", "check", "check", "check"]
-    # 줄 글 = 사람마다 "작업 시작 …" · "완료 …"(옛 한 명짜리 줄 — 요약 칸에서 푼 목록, K6)
-    assert rows[0]["lines"] == ["작업 시작 김재단 · 11/24 08:10", "완료 김재단 · 11/24 09:16"]
-    assert rows[2]["lines"] == ["작업 시작 박재단 · 11/24 08:10"] and rows[2]["note"] is None
+    # 줄 글 = 사람마다 "시작 …" · "완료 …"(옛 한 명짜리 줄 — 요약 칸에서 푼 목록, K6)
+    assert rows[0]["lines"] == ["시작 김재단 · 11/24 08:10", "완료 김재단 · 11/24 09:16"]
+    assert rows[2]["lines"] == ["시작 박재단 · 11/24 08:10"] and rows[2]["note"] is None
     assert rows[2]["handed"] == "박엣지에서 바뀜 11/24 09:16"  # 작업 시트 바뀐 기록 꼴(시각까지)
     assert rows[2]["seen"] == "need" and "seen_by" not in rows[2]  # [완료 처리] = check 한 요청 — 본 담당을 안 보낸다
     assert rows[3]["lines"] == ["담당 미정"] and rows[3]["block"] is None and rows[3]["item"] == "붙박이장 · W2400"
@@ -327,12 +327,12 @@ def test_완료_처리_한_요청_뒤_칸이_3_5_그리고_완료_취소(client,
 
     mark(key, "check", "none")  # [완료 처리] 빈 장 = 한 요청으로 시작 + 완료(2026-11-25 판결 2)
     d = _get(client, oid, "cut").get_json()["data"]
-    assert d["rows"][3]["word"] == "재단 완료" and d["rows"][3]["lines"][0].startswith("작업 시작 관리 · ")
+    assert d["rows"][3]["word"] == "재단 완료" and d["rows"][3]["lines"][0].startswith("시작 관리 · ")
     assert d["rows"][3]["lines"][1].startswith("완료 관리 · ") and d["rows"][3]["undo_releases"] is True
     assert ">재단 3/5</span>" in d["cells_html"]
     assert mark(held, "check", "need")["proxied"] is True  # 남의 장(박재단) = 대신 완료 — 관리는 목록에 안 들어간다
     d = _get(client, oid, "cut").get_json()["data"]
-    assert d["rows"][2]["lines"][0] == "작업 시작 박재단 · 11/24 08:10" and d["rows"][2]["lines"][1].startswith("완료 관리 · ")
+    assert d["rows"][2]["lines"][0] == "시작 박재단 · 11/24 08:10" and d["rows"][2]["lines"][1].startswith("완료 관리 · ")
     assert len(d["rows"][2]["lines"]) == 2 and d["rows"][2]["undo_releases"] is False
     mark(key, "undo", "done")  # [완료 취소] — 나 혼자 시작 + 완료한 장이라 창 JS 는 시작 취소까지 잇는다
     mark(key, "release", "need", seen_by=d["me"])

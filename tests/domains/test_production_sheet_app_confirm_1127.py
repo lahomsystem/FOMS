@@ -33,8 +33,8 @@ ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_sheet_confirm_node_checks.js"
 PIN = "20261127a"
 #: tablet-domain-sheets.js · shipment-entry.js 핀 — 2026-11-27 옛 생산 칸반 몫을 지우며 한 번 더 올렸다(싣는 곳 셋이 같은 값).
-SHEETS_PIN = "20261127p"
-SHEET_PARTS_PIN = "20261127z"  # 11-27 z: 바뀐 기록 낱말(test_production_record_words_tone_1127) · 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
+SHEETS_PIN = "20261128a"  # 11-28 a: 확인 창 띄어쓰기 '제작 대기' · '제작 중'(test_production_wording_1127_z1)
+SHEET_PARTS_PIN = "20261128a"  # 11-28 a: 도면 없는 주문 안내 글 '완료로 처리' · 11-27 z: 바뀐 기록 낱말(test_production_record_words_tone_1127) · 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
 SHEET_CSS_PIN = "20261127x"  # sheet.css — 도면 있는 주문 공정 보기 줄(사장님 2026-11-27 "도면이 주", test_production_steps_view_only_1127)
 PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
@@ -116,7 +116,7 @@ def test_작업_시트_생산_단추는_앱_창으로_묻고_같은_주소로_�
          "url": f"/api/orders/{making.id}/production/hold", "post": {"active": False, "reason": ""}},
     ]})
     _run(tmp_path, pages[done.id], {**base, "app": [
-        {"sel": _act("production-uncomplete", done.id), "title": "완료를 취소하고 제작중으로 되돌릴까요?", "body": "", "yes": "완료 취소",
+        {"sel": _act("production-uncomplete", done.id), "title": "완료를 취소하고 제작 중으로 되돌릴까요?", "body": "", "yes": "완료 취소",
          "url": f"/api/orders/{done.id}/production/uncomplete", "post": {}},
     ]})
 

@@ -9,8 +9,8 @@
   (+ 작은 글 "김재단 작업 중" — 아직인 사람 모두, Q10 "PC 도면별 창은 모두") · 모두 완료 "재단 완료"(옛 "재단 끝", K4) · "기본" · 손 체크
   "재단 완료 · 박반장" + "작업 시트에서 완료". "1/2 완료" 낱말은 감사 글과 같은 함수(``part_mark_notes.state_words``) 하나. 막힘 글 · 안내 글은 서버
   판정 함수의 글 그대로(:mod:`~foms.services.production.part_card_state` · :mod:`~foms.services.production.part_mark_gates`).
-* 줄 글(``lines``)은 서버가 사람마다 만든다(K6) — 작업하는 사람마다 "작업 시작 이시영 · 11/25 08:10", 그 사람 몫을 완료했으면 바로 뒤에
-  "완료 이시영 · 11/25 11:30"(대신 완료면 누른 반장 이름). 사람 없는 줄은 지금 글 그대로("담당 미정" — K2 · 기본 · 풀어 쓴 완료 · 손 체크는
+* 줄 글(``lines``)은 서버가 사람마다 만든다(K6) — 작업하는 사람마다 "시작 김재단 · 11/25 08:10", 그 사람 몫을 완료했으면 바로 뒤에
+  "완료 김재단 · 11/25 11:30"(대신 완료면 누른 반장 이름). 사람 없는 줄은 지금 글 그대로("담당 미정" — K2 · 기본 · 풀어 쓴 완료 · 손 체크는
   "완료 …"). PC 는 감독용이라 시작한 때 · 완료한 때 · 바뀐 때를 숨기지 않는다("M/D HH:MM", KST) — 태블릿 글은 건드리지 않는다.
 * 누름 종류(``act``): 미완료 장 = ``check``([완료 처리] — 쓰기 action ``check`` 한 요청, 빈 장 = 시작 + 완료 · 남이 작업 중 = 남은 사람 몫을
   한 번에 대신 완료, 판결 2), 완료 · 기본 장 = ``uncheck``([완료 취소]), 손으로 통째 체크한 파트는 줄 단추 없이 창 머리 한 단추([모두 완료
@@ -63,7 +63,7 @@ def stamp(value: Any) -> str:
 
 
 def _who(head: str, name: Optional[str], at: Any) -> str:
-    """'작업 시작 김재단 · 11/24 08:16' · '완료 박반장 · 11/24 15:02'(시각이 없으면 이름까지)."""
+    """'시작 김재단 · 11/24 08:16' · '완료 박반장 · 11/24 15:02'(시각이 없으면 이름까지)."""
     text = f"{head} {(name or '').strip() or '-'}"
     when = stamp(at)
     return f"{text} · {when}" if when else text
@@ -95,10 +95,10 @@ def _fallback_row(sd: dict[str, Any]) -> dict[str, str]:
 
 
 def _people(crew: Any) -> list[str]:
-    """사람마다 한 조각씩(시작한 차례) — "작업 시작 이시영 · 11/25 08:10", 그 사람 몫을 완료했으면 바로 뒤 "완료 이시영 · 11/25 11:30"."""
+    """사람마다 한 조각씩(시작한 차례) — "시작 김재단 · 11/25 08:10", 그 사람 몫을 완료했으면 바로 뒤 "완료 김재단 · 11/25 11:30"."""
     out: list[str] = []
     for item in crew:
-        out.append(_who("작업 시작", item.get("name"), item.get("at")))
+        out.append(_who("시작", item.get("name"), item.get("at")))
         if mc.is_done(item):
             out.append(_who("완료", item.get("done_name"), item.get("done_at")))
     return out
@@ -188,7 +188,7 @@ def _factory_rows(sd: dict[str, Any], entries: list[dict[str, Any]], rows: list[
                   writable: tuple[int, ...]) -> None:
     """2공장(설계서 2026-11-23 §4-13 · §8-4) — 섞인 주문은 줄마다 공장(``factory`` · ``factory_label``), 쓸 수 없는 공장 줄은 단추 없음.
 
-    PC 는 감독용이라 두 공장 줄을 모두 자세히 보인다(작업 시작 · 완료 · 바뀜 그대로). 2공장 장이 없고 쓸 수 있는 공장 장뿐이면 아무 칸도
+    PC 는 감독용이라 두 공장 줄을 모두 자세히 보인다(시작 · 완료 · 바뀜 그대로). 2공장 장이 없고 쓸 수 있는 공장 장뿐이면 아무 칸도
     안 더한다(지금 응답 그대로).
     """
     mixed = has_second_factory(sd)
