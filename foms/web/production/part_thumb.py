@@ -11,7 +11,7 @@
   로컬 저장소는 비공개 저장을 받지 않으므로(``put_private_bytes``) 매번 만든다(개발용).
 * 응답 ``Cache-Control: private, max-age=2592000, immutable`` — 같은 기기는 장마다 처음 한 번만 서버에 온다.
 
-``dashboard.py`` 와 같은 Blueprint(``erp_production_page``)에 라우트만 더한다 — ``foms/web/production/__init__.py`` 가 import.
+``blueprint.py`` 의 Blueprint(``erp_production_page``)에 라우트만 더한다 — ``foms/web/production/__init__.py`` 가 import.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from foms.services.production.home_access import can_view_production_home
 from foms.services.production.part_board import is_part_thumb_image
 from foms.services.storage import get_storage
 from foms.web.auth import login_required
-from foms.web.production.dashboard import erp_production_page_bp
+from foms.web.production.blueprint import erp_production_page_bp
 from models import Order
 
 #: 작은 그림 긴 변(px) · JPEG 품질 · 저장 이름 접두.

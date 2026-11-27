@@ -1,6 +1,6 @@
 """생산팀 첫 화면 — 전체 주문 한 줄(설계서 §12, 2026-11-09 D10·D12).
 
-``dashboard.py`` 와 같은 Blueprint(``erp_production_page``)에 라우트만 더한다(파일 500줄 래칫).
+``blueprint.py`` 의 Blueprint(``erp_production_page``)에 라우트만 더한다(파일 500줄 래칫).
 ``foms/web/production/__init__.py`` 가 이 모듈을 import 해야 라우트가 붙는다.
 """
 
@@ -88,7 +88,7 @@ PANEL_HEADER = 'X-FOMS-HOME-PANEL'
 #: 사장님 "작업 시작하면 내 공정에 바로 반영"). 화면과 같은 행 · 같은 묘비로 세고 템플릿을 그리지 않는다.
 COUNTS_VIEW = 'counts'
 from foms.web.auth import login_required
-from foms.web.production.dashboard import erp_production_page_bp
+from foms.web.production.blueprint import erp_production_page_bp
 
 _KST = datetime.timezone(datetime.timedelta(hours=9))
 #: 셸 조각 ETag 에서 뺄 값 — 파트 판의 첫 받아 오기 기준 시각(그릴 때마다 바뀐다, home_parts_overlays.html).
@@ -451,8 +451,8 @@ def erp_production_home():
 def erp_production_sheet_page(order_id: int):
     """전체 화면 작업 시트(설계서 §12.2, 안 2) — 도면 6할 + 고객·만들 것·공정·불량·단추.
 
-    옆 시트(``erp_production_tablet_sheet``)와 같은 뷰 모델에 전체 화면 키를 더한다(``full=True``).
-    단추는 옆 시트와 같은 ``data-tablet-sheet-action`` 계약(tablet-domain-sheets.js, 이 페이지는 기기 무관).
+    뷰 모델(``build_production_sheet_view``)에 전체 화면 키를 더한다(``full=True``).
+    단추는 ``data-tablet-sheet-action`` 계약(tablet-domain-sheets.js, 이 페이지는 기기 무관).
     """
     db = get_db()
     user = _require_home_user()
