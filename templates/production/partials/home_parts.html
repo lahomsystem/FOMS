@@ -74,7 +74,8 @@
 {% macro pp_tag(c) -%}
 {%- if c.tag -%}<span class="pp-tag" data-pp-tag aria-label="{{ c.tag.aria }}">내 작업{% if c.tag.crew %} · {{ c.tag.crew }}{% endif %}{% if c.tag.old %} · <span class="is-old">{{ c.tag.old }}</span>{% endif %}{% if c.tag.chg %} · <span class="is-chg">{{ c.tag.chg }}</span>{% endif %}</span>{%- endif -%}
 {%- endmacro %}
-<div class="fph-parts" data-pp-pane="{{ d.key }}">
+{#- pp-finrow = 반장 · 관리자 재단 판(미정 도면 단추가 두 줄 — [기본][재단 시작] 아래 [재단 완료]). 카드 키를 그 두 줄 꼴에 맞춘다(parts.css 끝, 2026-11-27 "높이 일괄") -#}
+<div class="fph-parts{% if pb.writable and is_cut and not pb.mine %} pp-finrow{% endif %}" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
     {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}건</small>{% endif %}</h2>
