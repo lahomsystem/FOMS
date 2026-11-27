@@ -41,7 +41,7 @@ __all__ = [
     "AFTER_LINES", "AFTER_SHARE", "ANCHOR_MARK", "INSTRUCTIONS", "ITEM_TYPES", "LIST_TYPES", "MAX_KNOWLEDGE", "OPS",
     "CHIP_WORDS", "REASON_WORDS", "TALK_HEAD", "TAUGHT_MARK", "build_params", "case_lines", "knowledge_lines", "knowledge_rows", "pending_lines",
     "DIFFERS", "ONTOLOGY_KINDS", "WHOLE_HEAD", "anchor_mark", "complete", "differs_lines", "raw_ontology", "raw_proposals",
-    "FROZEN_HEADS", "TAIL_HEADS", "frozen_text", "talk_window",
+    "FROZEN_HEADS", "TAIL_HEADS", "frozen_system", "frozen_text", "talk_window",
     "updatable", "whole_shown",
 ]
 
@@ -300,6 +300,14 @@ def frozen_text(knowledge: Sequence[str], ontology: Sequence[str]) -> str:
     return "\n".join([FROZEN_HEADS[0], *(knowledge or ["(없음)"]), FROZEN_HEADS[1], *(ontology or ["(없음)"])])
 
 
+def frozen_system(frozen: Any) -> list[dict[str, Any]]:
+    """아껴 보내기 캐시 앞부분 — ``system`` [지시문, 굳힌 목록(1시간 캐시 표시)]. 밤 배우기 끝 이어 붙이기
+    (:mod:`.handoff_learning_link`)도 이 글을 그대로 보내 같은 앞부분을 캐시 읽기 값으로 탄다(글자 하나 달라지면 못 탄다)."""
+    return prompt.cache_marked([{"type": "text", "text": INSTRUCTIONS},
+                                {"type": "text", "text": frozen_text(frozen.knowledge, frozen.ontology)}],
+                               prompt.CACHE_TTL_1H)
+
+
 def build_params(blocks: Sequence[Sequence[str]], knowledge: Sequence[str], pending: Sequence[str], *, model: str,
                  cfg: PanelSettings, ontology: Sequence[str] = (), differs: Sequence[str] = (),
                  effort: str = "medium", images: Sequence[Mapping[str, Any]] = (), frozen: Any = None) -> dict[str, Any]:
@@ -330,10 +338,7 @@ def _cached_params(blocks: Sequence[Sequence[str]], knowledge: Sequence[str], pe
     body = [TAIL_HEADS[0], *([line for line in knowledge if line not in seen_knowledge] or ["(없음)"]),
             TAIL_HEADS[1], *([line for line in ontology if line not in seen_ontology] or ["(없음)"]),
             *_rest(blocks, pending, differs)]
-    system = prompt.cache_marked([{"type": "text", "text": INSTRUCTIONS},
-                                  {"type": "text", "text": frozen_text(frozen.knowledge, frozen.ontology)}],
-                                 prompt.CACHE_TTL_1H)
-    return _params(body, model=model, cfg=cfg, effort=effort, images=images, system=system)
+    return _params(body, model=model, cfg=cfg, effort=effort, images=images, system=frozen_system(frozen))
 
 
 def _rest(blocks: Sequence[Sequence[str]], pending: Sequence[str], differs: Sequence[str]) -> list[str]:

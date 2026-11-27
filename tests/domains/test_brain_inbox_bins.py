@@ -376,6 +376,33 @@ def test_label_only_change_also_opens_the_current_text_and_approves_an_edited_te
     assert row.text == "안녕하세요, 반갑습니다" and row.payload["pref_label"] == "첫인사 상용구"
 
 
+LEARN = "agent:cs_handoff_learning"
+
+
+@pytest.mark.parametrize("proposer, kind, link_to, want", [
+    (LEARN, "applies_to", "common/synth-door", "rules"),  # 밤 배우기 이어 붙이기 — 끝을 가리지 않는다(허용 짝이 제품 · 옵션)
+    (LEARN, "at_step", "process_step/install", "rules"), (LEARN, "uses", "common/term-a", "rules"),
+    (LEARN, "refines", "common/price-a", "rules"), (LEARN, "quantity_from", "common/spec-a", "rules"),
+    (LEARN, "value_from", "calc:option/1:2", "content"),  # 금액 — 한 장씩
+    (LEARN, "requires", "product_line/lahom-1", "content"), (LEARN, "excludes", "product_line/lahom-1", "content"),
+    ("import", "uses", "common/term-a", "rules"), ("import", "refines", "common/price-a", "rules"),
+    ("import", "quantity_from", "common/spec-a", "rules"),
+    ("import", "applies_to", "common/other", "content"),  # 옮기기 묶음의 적용은 예전대로 계산기 제품 · 옵션 끝만
+    ("agent:cs", "uses", "common/term-a", "content"), ("user:1", "refines", "common/price-a", "content"),
+    ("agent:cs_photo", "applies_to", "common/synth-door", "content"),
+])
+def test_rule_bin_widens_to_the_night_learning_links_of_the_widened_kinds(proposer, kind, link_to, want):
+    """설계 글 2026-11-26 7.2 — 밤 배우기가 사장님께 여쭙는 잇기는 ⑥ 규칙 잇기 칸에 모인다. 금액 · 꼭 같이 · 같이 안 됨은 ② 한
+    장씩, 사람 · 다른 에이전트 제안 · 빼기도 ② 그대로(대조군)."""
+    from foms.services.cs_agent.handoff_learning_gates import AGENT
+
+    ends = {"proposed_by": proposer, "link_from": "lahom/handoff-a", "link_to": link_to}
+    assert card_bin("link_add", "fact", None, kind, **ends) == want
+    assert bulk_ok_any_grade("link_add", "fact", None, kind, **ends) is (want == "rules")
+    assert card_bin("link_remove", "fact", None, kind, **ends) == "content"
+    assert LEARN == f"agent:{AGENT}"
+
+
 @pytest.mark.parametrize("kind", ["requires", "excludes"])
 def test_constraint_links_stay_one_card_at_a_time_even_from_the_import_batch(kind):
     """D203 — 옮기기 묶음의 꼭 같이 · 같이 못 함은 끝이 계산기 제품이어도 ② 한 장씩(⑥ 한꺼번에에 섞이지 않는다). 시작 유형이

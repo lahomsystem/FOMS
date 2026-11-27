@@ -121,7 +121,8 @@ def test_card_link_rules_hide_zero_rules_and_count_with_gae(app, screen_world):
     assert "연결 규칙:" in spec and "값 정본 0 ~ 1개" in spec  # 대조군: 뜻 있는 규칙은 보인다
     brain_rule = client.get("/brain/items/common/polf-brain-rule").get_data(as_text=True)
     assert "<dt>위험 등급</dt>" in brain_rule
-    assert "연결 규칙:" not in brain_rule and "0 ~ 0" not in brain_rule
+    # 근거가 회사 지식인 가격 규칙 — 값 정본 0 ~ 0 은 숨고, 수량 표 하나까지(2026-11-26 5절)만 남는다
+    assert "0 ~ 0" not in brain_rule and "값 정본 0" not in brain_rule and "수량 표 0 ~ 1개" in brain_rule
 
 
 def test_history_table_head_explains_release(app, screen_world):

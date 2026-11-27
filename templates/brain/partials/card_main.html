@@ -68,7 +68,7 @@
     <div class="brain-linkgroup brain-link--{{ group.kind }}">
       <div class="brain-linkgroup__head">
         <span class="brain-swatch" aria-hidden="true"></span>
-        <span>{{ ld[2] if group.direction == 'out' else ld[3] }}({{ group.count }})</span>
+        <span>{{ group.label or (ld[2] if group.direction == 'out' else ld[3]) }}({{ group.count }})</span>
       </div>
       <ul class="brain-linkgroup__list">
         {% for other in group['items'] %}

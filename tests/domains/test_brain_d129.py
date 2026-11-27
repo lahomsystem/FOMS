@@ -123,8 +123,9 @@ def test_empty_basis_is_not_counted_missing_but_flagged_on_the_card(admin):
     assert old["missing_links"] == [] and "empty:payload.basis" in {w["code"] for w in old["warnings"]}
     assert new["missing_links"] == [{"kind": "value_from", "min": 1, "max": 1, "have": 0}]  # 대조군
     assert "empty:payload.basis" not in {w["code"] for w in new["warnings"]}
-    assert old["link_rules"] == [{"kind": "value_from", "min": 0, "max": 1}]
-    assert new["link_rules"] == [{"kind": "value_from", "min": 1, "max": 1}]
+    quantity = {"kind": "quantity_from", "min": 0, "max": 1}  # 수량 표는 근거 종류와 따로 하나까지(2026-11-26 5절)
+    assert old["link_rules"] == [quantity, {"kind": "value_from", "min": 0, "max": 1}]
+    assert new["link_rules"] == [quantity, {"kind": "value_from", "min": 1, "max": 1}]
 
 
 # ── 다음 2 · 사장님 결정 ─────────────────────────────────────────────────

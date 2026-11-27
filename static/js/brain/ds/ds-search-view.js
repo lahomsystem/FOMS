@@ -114,11 +114,11 @@
              text: (l.type_label ? l.type_label + ' · ' : '') + String(l.label || ''), note: String(l.note || '') };
   }
 
-  /** 카드 연결 묶음 → [{kind, label, n}] (방향에 맞는 이름 — 나가는 쪽 out · 들어오는 쪽 in) + 합. */
+  /** 카드 연결 묶음 → [{kind, label, n}] (서버가 카드 주인 유형으로 붙인 g.label, 없으면 방향에 맞는 이름 — out · in) + 합. */
   function linkSummary(groups, display) {
     var rows = (groups || []).map(function (g) {
       var info = own((display || {}).links, g.kind);
-      var name = info ? (g.direction === 'in' ? info['in'] : info.out) : String(g.kind || '');
+      var name = g.label ? String(g.label) : info ? (g.direction === 'in' ? info['in'] : info.out) : String(g.kind || '');
       return { kind: g.kind, label: name, n: Number(g.count) || 0 };
     });
     return { rows: rows, total: rows.reduce(function (sum, r) { return sum + r.n; }, 0) };
