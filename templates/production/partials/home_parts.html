@@ -46,8 +46,8 @@
 <div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %}" data-pp-act="take">{{ pb.part_label }} 시작</button></div>{% if not pb.mine %}{{ pp_fin_now(pb) }}{% endif %}
   {%- elif pb.writable and not pb.mine -%}
 <div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>{{ pp_fin_now(pb) }}</div>
-  {%- elif pb.writable -%}
-<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>
+  {%- elif pb.writable -%}{#- 파트 계정(엣지 · 조립 · 검수) 자기 판 — 재단 계정처럼 진한 [<파트> 시작](사장님 2026-11-27 "재단처럼 진하게") -#}
+<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>
   {%- endif -%}
 {%- elif c.state == 'need' -%}
   {%- if c.mine_row -%}

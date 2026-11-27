@@ -74,7 +74,7 @@ def test_js_redraw_window_and_notice_use_the_same_word(client, cohort, tmp_path)
     assert w["body"] == "이 주문 첫 도면이라 제작 시작도 같이 돼요."  # 제작 시작 한 줄은 그대로
     assert out[2]["status"] == "엣지 시작했어요 · 제작 시작도 같이 됐어요" and out[2]["modal"]["hidden"] is True
     act = out[3]["card"]["act"]
-    assert act == [{"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "엣지 시작", "kids": []}]
+    assert act == [{"tag": "button", "cls": "foms-prod-home__btn foms-prod-home__btn--pri pp-act", "act": "take", "text": "엣지 시작", "kids": []}]
 
 
 def test_source_contract_start_words_and_untouched_words():

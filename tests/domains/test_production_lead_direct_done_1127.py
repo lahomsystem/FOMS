@@ -238,7 +238,7 @@ def test_part_account_and_view_only_boards_are_unchanged(client, cohort):
     assert _box(part_page, order.keys[0]) == CUT_PART_NONE and 'data-pp-act="check"' not in part_page
     edge_page = _page(client, make_user("박엣지", part="edge"))
     assert _box(edge_page, order.keys[0]) == (
-        '<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">엣지 시작</button>')
+        '<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri pp-act" data-pp-act="take">엣지 시작</button>')  # 11-27 재단처럼 진하게
     assert 'data-pp-act="check"' not in edge_page
     view = _act(_card(_page(client, make_user("상담", team="CS"), CUT_ADMIN), order.keys[0]))
     assert "<button" not in view
@@ -352,7 +352,7 @@ def test_source_contract_one_drawing_at_a_time():
 
 
 @pytest.mark.parametrize("name,pin", [("parts", "20261127w"), ("parts-claim", "20261127w"), ("parts-modal", "20261127w"),
-                                      ("parts-crew", "20261127w")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
+                                      ("parts-crew", "20261127y")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl
