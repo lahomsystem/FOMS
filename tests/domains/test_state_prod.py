@@ -277,7 +277,7 @@ def test_gate_wrong_stage(client):
     """제작대기 아님 → 409 INVALID_STAGE, 상태 불변(2026-09-17 버킷 = 단계 + current run).
 
     제작중(PRODUCTION + current run)에서 start 는 "이미 제작중" 409, 제작완료(CONSTRUCTION)
-    에서 start 는 "제작대기 상태에서만" 409. PRODUCTION 이면서 run 이 없는 주문은 제작대기라
+    에서 start 는 "제작 대기일 때만" 409. PRODUCTION 이면서 run 이 없는 주문은 제작대기라
     start 가 200 이다(``test_production_transition_guard_api`` 가 고정).
     """
     _login(client, _make_user("sp_g1", role="STAFF", team="PRODUCTION"))
@@ -285,7 +285,7 @@ def test_gate_wrong_stage(client):
     _mint_run(in_progress_id)
     resp = client.post(f"/api/orders/{in_progress_id}/production/start", json={})
     assert resp.status_code == 409 and resp.get_json()["code"] == "INVALID_STAGE"
-    assert resp.get_json()["message"] == "이미 제작중인 주문입니다."
+    assert resp.get_json()["message"] == "이미 제작 중인 주문이에요."
     done_id = _make_order("CONSTRUCTION").id
     resp2 = client.post(f"/api/orders/{done_id}/production/start", json={})
     assert resp2.status_code == 409 and resp2.get_json()["code"] == "INVALID_STAGE"
