@@ -662,11 +662,11 @@ def generate_change_description(
         return f"도면 상태를 '{before_kr}'에서 '{after_kr}'로 변경했습니다"
 
     if event_type == "PRODUCTION_COMPLETED":
-        return "생산을 완료 처리했습니다"
+        return "제작을 완료 처리했습니다"
     if event_type == "PRODUCTION_STARTED":
-        return "생산을 시작했습니다"
+        return "제작을 시작했습니다"
     if event_type == "PRODUCTION_CANCELLED":
-        return "제작을 취소했습니다 (제작대기 복귀)"
+        return "제작 시작을 취소했습니다 (제작 대기로 돌아감)"
     if event_type == "CUSTOMER_CONFIRMED":
         return "고객 컨펌을 완료해 생산 단계로 넘겼습니다"
     if event_type == "CONSTRUCTION_COMPLETED":
