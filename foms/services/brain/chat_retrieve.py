@@ -38,6 +38,8 @@ from foms.services.brain.store import in_force, is_current, values_of
 
 TOP, AROUND_FROM, AROUND_EACH, MAX_CANDIDATES = 10, 3, 3, 16
 TEXT_CHARS = 600
+#: 후보를 찾은 길(``Candidate.via``) — 찾기 · 앞 후보의 한 걸음 이웃 따라가기(근거 칩 끝 '(이어서 찾음)' — 2026-11-26 7.4).
+VIA_SEARCH, VIA_NEIGHBOUR = "search", "neighbour"
 WHY_STALE, WHY_OPEN, WHY_REPORTED, WHY_CONFLICT = "stale", "open_change", "reported", "conflict"
 WHY_LABELS = {WHY_STALE: "확인 날이 지남", WHY_OPEN: "고치는 제안이 열려 있음", WHY_REPORTED: "틀림 신고 둘 이상",
               WHY_CONFLICT: "열린 엇갈림"}
@@ -145,12 +147,12 @@ def retrieve(session: Any, viewer: Viewer, question: str, *, today: datetime.dat
     """가린 질문 → 후보 묶음(보기 범위 안 · 정체 유형 · 반영만). ``vector`` = 가린 질문의 벡터(의미 찾기 — 없으면 글자만)."""
     hits = [h for h in search_objects(session, viewer, question, today=today, limit=TOP * 2, vector=vector)
             if h["type"] in IDENTITY_TYPES][:TOP]
-    order = [(h["key"], "search") for h in hits]
+    order = [(h["key"], VIA_SEARCH) for h in hits]
     seen = {k for k, _v in order}
     for hit in hits[:AROUND_FROM]:
         for near in neighbours_of(session, viewer, hit["key"], today=today, limit=AROUND_EACH * 2):
             if near["key"] not in seen and near["type"] in IDENTITY_TYPES and len(order) < MAX_CANDIDATES:
-                order.append((near["key"], "neighbour"))
+                order.append((near["key"], VIA_NEIGHBOUR))
                 seen.add(near["key"])
     if not order:
         return Retrieval([])

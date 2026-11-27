@@ -44,7 +44,7 @@ from foms.services.brain.chat_prompt import (
     unknown_text,
 )
 from foms.services.brain.chat_retrieve import (
-    WHY_LABELS, Retrieval, known_numbers_text, prompt_block, retrieve, weakest_confidence,
+    VIA_NEIGHBOUR, WHY_LABELS, Retrieval, known_numbers_text, prompt_block, retrieve, weakest_confidence,
 )
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.embeddings import query_vector, store_question_vector
@@ -195,7 +195,8 @@ def _view(row_id: int, verified: Verified, retrieval: Retrieval, *, left: int, c
     """화면 값 — 답 · 근거 칩(이름 · 유형 · 확신 · 마지막 확인) · 확인 중 칩 · 확신 · 물을 곳 · 남은 질문 수."""
     by_key = retrieval.by_key()
     chips = [{"key": k, "name": by_key[k].name, "type": by_key[k].item_type, "confidence": by_key[k].confidence,
-              "checked_at": by_key[k].checked_at} for k in verified.evidence if k in by_key]
+              "checked_at": by_key[k].checked_at, "followed": by_key[k].via == VIA_NEIGHBOUR}
+             for k in verified.evidence if k in by_key]  # followed — 이웃 따라가기로 찾음(칩 끝 '(이어서 찾음)' — 7.4)
     checks = [{"key": k, "name": by_key[k].name, "type": by_key[k].item_type, "why": WHY_LABELS.get(by_key[k].why or "")}
               for k in verified.checks if k in by_key]
     return {"id": row_id, "answer": verified.answer, "unknown": verified.unknown, "ask_team": verified.ask_team,

@@ -10,6 +10,9 @@
   설계서 12절)은 "이 칸으로 못 채워요 — <어디서>" 로 정직하게 적고 예시를 두지 않는다. 채울 수 있나는 손으로 적지 않고
   ``CREATE_TYPES`` 로 가른다(분석기가 바뀌면 안내도 같이 바뀐다 — 시험이 표와 맞춘다).
 - ERP 재료(``erp:`` — 주문 · 일정)는 회사 지식으로 채우지 않으므로 안내에 넣지 않는다(시험지 화면이 이미 'ERP 붙으면 풀림'으로 가른다).
+- 지식 카드의 '아직 아무 지식에도 안 이어졌어요 — 문장으로 잇기'(설계 글 2026-11-26 온톨로지 잇기 7.4)는 같은 길로
+  ``fill=item:<지식 키>`` 를 보낸다 — :func:`fill_item` 이 그 지식 이름으로 입력 칸 글(:data:`LINK_PREFILL`)을 미리 채운다(보는 사람이
+  볼 수 있는 지식만 · 이 길만 미리 채운다 — 시험지 길은 예전처럼 채우지 않는다).
 - 질문 번호는 표(:data:`.ontology_cqs.CQS`)에 있는 것만 받는다. 무엇이 모자란지는 보는 사람의 보기 범위로 센 점수
   (:func:`.ontology_view.ontology_summary`)에서 읽는다 — 시험지 화면과 같은 수.
 """
@@ -19,17 +22,26 @@ from __future__ import annotations
 import datetime
 from typing import Any, NamedTuple, Optional
 
+from sqlalchemy import select
+
+from foms.persistence.brain.models import BrainObject
 from foms.services.brain.change_request_model import CREATE_TYPES
 from foms.services.brain.constants import ALLOWED_LINKS, LINK_KINDS
 from foms.services.brain.display import LINK_DISPLAY, TYPE_DISPLAY
+from foms.services.brain.labels import pref_of
 from foms.services.brain.ontology_cqs import CQS, ERP_NEEDS
 from foms.services.brain.ontology_view import ontology_summary
+from foms.services.brain.read import visible_clauses
 from foms.services.brain.scope import Viewer
 
-__all__ = ["FILL_ID_MAX", "Hint", "LINK_HINTS", "TYPE_HINTS", "fill_hint", "fill_kinds", "hint_for"]
+__all__ = ["FILL_ID_MAX", "FILL_ITEM", "Hint", "LINK_HINTS", "LINK_PREFILL", "TYPE_HINTS", "fill_hint", "fill_item", "fill_kinds",
+           "hint_for", "link_prefill"]
 
 #: 주소 ``fill`` 값 길이 상한(질문 번호는 ``E02`` 꼴 — 더 긴 값은 읽지 않는다).
 FILL_ID_MAX = 8
+#: 지식 카드에서 온 ``fill`` 값의 머리(``item:<지식 키>`` — 키는 120자까지) · 미리 채우는 글 꼴(사장님이 '…'를 고쳐 적는다).
+FILL_ITEM, ITEM_KEY_MAX = "item:", 120
+LINK_PREFILL = "'{name}'{object_mark} …에 이어 줘"
 
 
 class Hint(NamedTuple):
@@ -139,3 +151,29 @@ def fill_hint(session: Any, viewer: Viewer, raw_id: Any, *, today: datetime.date
     gaps += [hint_for(kind=link["kind"]) for link in row["links"] if not link["have"]]
     example = next((g["example"] for g in gaps if g["fillable"] and g["example"]), None)
     return {"id": code, "question": row["question"], "gaps": gaps, "example": example}
+
+
+def _object_mark(word: str) -> str:
+    """목적격 조사 — 마지막 글자 받침이 있으면 '을', 없으면 '를'(한글이 아니면 '을(를)')."""
+    last = word[-1:]
+    if not "가" <= last <= "힣":
+        return "을(를)"
+    return "를" if (ord(last) - ord("가")) % 28 == 0 else "을"
+
+
+def link_prefill(name: str) -> str:
+    """지식 이름 → 입력 칸에 미리 채울 글(:data:`LINK_PREFILL`)."""
+    return LINK_PREFILL.format(name=name, object_mark=_object_mark(name))
+
+
+def fill_item(session: Any, viewer: Viewer, raw: Any, *, today: datetime.date) -> Optional[str]:
+    """``fill=item:<지식 키>`` → 입력 칸에 미리 채울 글. 머리가 다르거나 · 키가 너무 길거나 · 보는 사람이 볼 수 없는 지식이면
+    ``None``(칸을 비운 채 그대로). 이름은 카드 제목과 같은 한글 이름(없으면 이름)."""
+    value = str(raw or "")
+    key = value[len(FILL_ITEM):]
+    if not value.startswith(FILL_ITEM) or not key or len(key) > ITEM_KEY_MAX:
+        return None
+    row = session.execute(select(BrainObject.name, BrainObject.payload).where(
+        BrainObject.item_key == key, *visible_clauses(viewer, today))).first()
+    name = " ".join(str(pref_of(row.name, row.payload) or "").split()) if row is not None else ""
+    return link_prefill(name) if name else None
