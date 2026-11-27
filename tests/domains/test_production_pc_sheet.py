@@ -261,15 +261,17 @@ def test_막힘은_서버_글_그대로(client, cohort) -> None:
 
 
 @pytest.mark.parametrize("who,status,write", [("admin", 200, True), ("boss", 200, True), ("part", 200, False),
-                                              ("plain", 200, False), ("cs", 200, False), ("noteam", 403, False),
-                                              ("partner", 403, False)])
+                                              ("plain", 200, False), ("cs", 200, False), ("noteam", 200, False),
+                                              ("otherteam", 403, False), ("partner", 403, False)])
 def test_권한_보기는_생산_화면_보는_직원_쓰기는_관리자_반장(client, cohort, who, status, write) -> None:
     order, _ = _seed_five()
     # plain = 파트도 반장도 아닌 생산팀(보기만) — 반장 따로 지정 뒤 단추 없음(공정 칸 잠금 steps_lock 과 같은 한 규칙)
     user = {"admin": lambda: _user("관리", role="ADMIN", team="CS"), "boss": lambda: _user("반장"),
             "plain": lambda: _user("생산보기"),
             "part": lambda: _user("재단", part="cut"), "cs": lambda: _user("상담", team="CS"),
-            "noteam": lambda: _user("팀없음", team=None), "partner": lambda: _partner()}[who]()
+            # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4, 2026-11-27) · 목록 밖 팀 글자 = 못 봄
+            "noteam": lambda: _user("팀없음", team=None), "otherteam": lambda: _user("다른팀", team="WAREHOUSE"),
+            "partner": lambda: _partner()}[who]()
     _login(client, user)
     resp = _get(client, order, "cut")
     assert resp.status_code == status, resp.get_json()

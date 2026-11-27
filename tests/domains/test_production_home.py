@@ -131,8 +131,11 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     assert "js/production/foms-production-home.js" in html
 
 
-def test_도면팀과_시공팀도_생산_첫_화면을_본다_팀_없으면_못_본다(client) -> None:
-    """2026-11-21 보는 팀에 도면 · 시공 · 출고를 더했다(설계서 production-pc-viewer §9-1). 시공팀 화면 이동 제한도 보기 화면은 연다."""
+def test_도면팀과_시공팀도_생산_첫_화면을_본다_팀_없으면_보기만(client) -> None:
+    """2026-11-21 보는 팀에 도면 · 시공 · 출고를 더했다(설계서 production-pc-viewer §9-1). 시공팀 화면 이동 제한도 보기 화면은 연다.
+
+    팀 없는 직원은 2026-11-27 부터 보기만(설계서 옛 생산 보드 없애기 §4) — 200 이고 쓰기 · [확인했어요] 단추는 없다
+    (자세한 시험은 ``test_production_teamless_view.py``)."""
     _make_user(client, "home_drawing_staff", "DRAWING")
     assert client.get(HOME_URL).status_code == 200
     _make_user(client, "home_construction_staff", "CONSTRUCTION")
@@ -140,6 +143,14 @@ def test_도면팀과_시공팀도_생산_첫_화면을_본다_팀_없으면_못
     # 시공팀이라도 옛 보드는 그대로 출고 화면으로 돌려보낸다(이동 제한은 보기 화면만 연다)
     assert client.get("/erp/production/dashboard").status_code == 302
     _make_user(client, "home_noteam_staff", None)
+    for tab in ("", "?tab=steps", "?tab=changes", "?tab=all"):
+        resp = client.get(HOME_URL + tab)
+        assert resp.status_code == 200, tab
+        html = resp.get_data(as_text=True)
+        for mark in ("data-tablet-sheet-action", "data-foms-home-step-done", 'data-kanban-action="change-ack"'):
+            assert mark not in html, (tab, mark)
+    # 음성 대조 — 목록 밖 팀 글자는 넓히지 않는다
+    _make_user(client, "home_other_team_staff", "WAREHOUSE")
     assert client.get(HOME_URL).status_code == 403
 
 

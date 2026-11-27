@@ -263,8 +263,9 @@ def _rail_production(user) -> dict:
 
 
 def test_레일_생산_주소는_첫_화면을_볼_수_있는_사람이면_홈() -> None:
-    """관리자 · CS · 영업 · 생산 · 도면 · 출고(별칭 회계=CS · 옛 실측=영업 포함)는 첫 화면, 팀 없음 · 협력사는 보드(403 화면으로
-    안 보낸다). 도면 · 시공 · 출고는 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1)."""
+    """관리자 · CS · 영업 · 생산 · 도면 · 출고(별칭 회계=CS · 옛 실측=영업 포함) · 팀 없는 직원은 첫 화면, 목록 밖 팀 글자 · 협력사는
+    보드(403 화면으로 안 보낸다). 도면 · 시공 · 출고는 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1), 팀 없는 직원은
+    2026-11-27 부터 보기만(설계서 옛 생산 보드 없애기 §4)."""
     for user in (
         SimpleNamespace(team=None, role="ADMIN"),
         SimpleNamespace(team="DRAWING", role="ADMIN"),
@@ -275,10 +276,11 @@ def test_레일_생산_주소는_첫_화면을_볼_수_있는_사람이면_홈()
         SimpleNamespace(team="PRODUCTION", role="STAFF"),
         SimpleNamespace(team="DRAWING", role="STAFF"),
         SimpleNamespace(team="SHIPMENT", role="STAFF"),
+        SimpleNamespace(team=None, role="STAFF"),
     ):
         assert _rail_production(user)["href"] == _HOME, user
     for user in (
-        SimpleNamespace(team=None, role="STAFF"),
+        SimpleNamespace(team="WAREHOUSE", role="STAFF"),
         SimpleNamespace(team="PRODUCTION", role="STAFF", partner_org_id=3),
         None,
     ):
@@ -322,7 +324,7 @@ def test_split_셸_레일도_첫_화면() -> None:
 
     items = build_split_side_items(SimpleNamespace(team="PRODUCTION", role="STAFF"))
     assert next(it for it in items if it["id"] == "production")["href"] == _HOME
-    items = build_split_side_items(SimpleNamespace(team=None, role="STAFF"))
+    items = build_split_side_items(SimpleNamespace(team="WAREHOUSE", role="STAFF"))  # 목록 밖 팀 글자(팀 없는 직원은 §4 로 첫 화면)
     assert next(it for it in items if it["id"] == "production")["href"] == _BOARD
 
 

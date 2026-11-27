@@ -338,7 +338,9 @@ def test_history_permissions_and_bad_queries(client):
     db_session.commit()
     login(client, make_user("협력직원", team=None, role="PARTNER", partner_org_id=org.id))
     assert client.get(HISTORY, query_string={"order_id": order.id}).status_code == 403
-    login(client, make_user("팀없음", team=None))
+    login(client, make_user("팀없음", team=None))  # 팀 없는 직원 = 보기만(설계서 옛 생산 보드 없애기 §4) — 바뀐 기록은 읽는다
+    assert client.get(HISTORY, query_string={"order_id": order.id}).status_code == 200
+    login(client, make_user("다른팀", team="WAREHOUSE"))  # 목록 밖 팀 글자 = 못 봄
     assert client.get(HISTORY, query_string={"order_id": order.id}).status_code == 403
     login(client, make_user("가짜생산"))
     for bad in ({"order_id": "x"}, {}, {"order_id": order.id, "part": "paint"}):

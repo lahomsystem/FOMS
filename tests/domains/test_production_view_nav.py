@@ -45,9 +45,12 @@ def test_view_teams_open_home_and_sheet(client, team):
     assert client.get(f"/erp/production/sheet/{order_id}").status_code == 200, team
 
 
-def test_teamless_staff_and_partner_cannot_open_home(client):
+def test_teamless_staff_views_home_partner_and_other_team_cannot(client):
+    """팀 없는 직원은 보기만(설계서 옛 생산 보드 없애기 §4, 2026-11-27 — 자세한 시험 test_production_teamless_view.py)."""
     user = make_user("pv_noteam", "STAFF", None)
     login(client, user)
+    assert client.get(PRODUCTION_HOME_PATH).status_code == 200
+    login(client, make_user("pv_other_team", "STAFF", "WAREHOUSE"))  # 목록 밖 팀 글자는 넓히지 않는다
     assert client.get(PRODUCTION_HOME_PATH).status_code == 403
     org = PartnerOrg(name="가짜협력사보기")
     db_session.add(org)
@@ -92,11 +95,12 @@ def test_pc_sub_nav_production_points_to_home(client, team):
     assert _nav_production_hrefs(html) == [PRODUCTION_HOME_PATH], team
 
 
-def test_pc_sub_nav_teamless_staff_keeps_board(client):
+def test_pc_sub_nav_teamless_staff_goes_home(client):
+    """팀 없는 직원도 첫 화면을 보므로(§4) 메뉴 생산 = 첫 화면."""
     user = make_user("nav_noteam", "STAFF", None)
     login(client, user)
     html = client.get("/erp/shipment").get_data(as_text=True)
-    assert _nav_production_hrefs(html) == [PRODUCTION_BOARD_PATH]
+    assert _nav_production_hrefs(html) == [PRODUCTION_HOME_PATH]
 
 
 def test_phone_menu_production_points_to_home(client, monkeypatch):
@@ -128,7 +132,7 @@ def test_search_focus_link_and_return_key(app):
         g.current_user = ns("STAFF", "DRAWING")
         assert build_order_queue_focus_href(order, search_query="가짜") == "/erp/production/home?order=42"
         assert resolve_edit_return_back_endpoint("erp_production_dashboard") == "erp_production_page.erp_production_home"
-        g.current_user = ns("STAFF", None)
+        g.current_user = ns("STAFF", "WAREHOUSE")  # 첫 화면을 못 보는 사람(팀 없는 직원은 2026-11-27 부터 봄 — §4)
         assert build_order_queue_focus_href(order, search_query="가짜").startswith(
             "/erp/production/dashboard?q=%EA%B0%80%EC%A7%9C&focus_order=42")
         assert resolve_edit_return_back_endpoint("erp_production_dashboard") == "erp_production_page.erp_production_dashboard"
@@ -141,7 +145,7 @@ def test_board_state_link_opens_production_home(app):
     state = build_board_state(order, {}, "PRODUCTION", viewer=ns("STAFF", "CS"))
     assert state["link_label"] == "생산 화면 열기"
     assert (state["link_endpoint"], state["link_params"]) == ("erp_production_page.erp_production_home", {"order": 77})
-    old = build_board_state(order, {}, "PRODUCTION", viewer=ns("STAFF", None))
+    old = build_board_state(order, {}, "PRODUCTION", viewer=ns("STAFF", "WAREHOUSE"))  # 첫 화면을 못 보는 사람
     assert (old["link_endpoint"], old["link_params"]) == (
         "erp_production_page.erp_production_dashboard", {"focus_order": 77})
 

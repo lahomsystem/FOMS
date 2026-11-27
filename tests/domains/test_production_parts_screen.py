@@ -467,8 +467,9 @@ def test_thumb_refuses_other_order_old_key_non_image_and_outsiders(client, stora
     _login(client, fl)
     refused = _thumb(client, b.id, "ob/d0.png")
     assert refused.status_code in (302, 403, 404) and refused.mimetype != "image/jpeg"  # 프리랜서 문지기(남의 주문)
-    # 우리 직원이라도 생산 첫 화면을 볼 수 없으면(팀 없음 — 도면 · 시공 · 출고는 2026-11-21 보는 팀) 이 길의 문지기가 403
-    _login(client, _user("팀없는사람", team=None))
+    # 우리 직원이라도 생산 첫 화면을 볼 수 없으면(목록 밖 팀 글자 — 도면 · 시공 · 출고는 2026-11-21 보는 팀, 팀 없는 직원은
+    # 2026-11-27 부터 보기만 — 설계서 옛 생산 보드 없애기 §4) 이 길의 문지기가 403
+    _login(client, _user("다른팀사람", team="WAREHOUSE"))
     assert _thumb(client, b.id, "ob/d0.png").status_code == 403
 
 
