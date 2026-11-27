@@ -7,7 +7,7 @@
 * 대조군(지금 그대로): 남이 시작한 도면을 반장이 대신 완료 → 취소 = 그 사람 작업 중 · 반장이 [작업 시작] 뒤 따로 [완료] → 취소 = 반장
   작업 중(한 요청이 아님) · 같이 작업 도면 · 파트 계정은 남의 완료를 못 되돌림(403) · 검수 완료 뒤 앞 공정 취소 거절 · 보류 중에도 취소는 됨 ·
   제작 시작은 되돌리지 않음.
-* 화면: 창 줄 "재단 완료 → 안 봄" / "엣지 완료 → 미정"(대조 "재단 완료 → 이시영 작업 중") · 끝난 뒤 알림 "재단 완료 취소했어요" · 칸이
+* 화면: 창 줄 "재단 완료 → 미정" / "엣지 완료 → 미정"(화면 글은 재단도 '미정' — 11-26)(대조 "재단 완료 → 이시영 작업 중") · 끝난 뒤 알림 "재단 완료 취소했어요" · 칸이
   미정 칸으로 · 숫자 · 409 뒤 · 받아 오기 다시 그리기.
 
 되돌리면 실패: 취소 뒤 "박반장 작업 중" · 감사 두 줄 · 대신 완료한 도면까지 미정 · 시간 문턱(2분) · 창 줄 "→ 작업 중". 이름은 모두 지어낸 값이다.
@@ -35,6 +35,7 @@ from tests.domains.test_production_lead_direct_done_1127 import (
 from tests.domains.test_production_multi_holder_api import _audits, _names
 from tests.domains.test_production_multi_holder_board import CUT_ADMIN, _act, _card, _crew, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_part_claim_seed import (
+    BULK,
     code,
     current_runs,
     events,
@@ -279,7 +280,7 @@ def test_js_cut_undo_window_unseen_cell_and_counts(client, cohort, tmp_path):
     out, calls = res["out"], res["calls"]
     assert out[0]["diffs"] == []
     w = out[2]["modal"]
-    assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("재단 완료를 취소할까요?", "재단 완료 → 안 봄", "재단 완료 취소", "")
+    assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("재단 완료를 취소할까요?", "재단 완료 → 미정", "재단 완료 취소", "")
     assert calls[0]["body"] == _undo_body(order, 0)
     assert out[3]["sent"] == 1 and out[3]["modal"]["hidden"] is True and out[3]["status"] == "재단 완료 취소했어요"
     before, after = out[1], out[4]
@@ -308,7 +309,7 @@ def test_js_edge_window_line_and_proxy_control(client, cohort, tmp_path):
     out = _node(cut, {"steps": [{"do": "click", "key": order.keys[1], "act": "undo"}, {"do": "close"},
                                 {"do": "click", "key": order.keys[0], "act": "undo"}]})["out"]
     assert out[0]["modal"]["line"] == "재단 완료 → 이시영 작업 중"  # 대신 완료한 도면 = 지금 창 그대로
-    assert out[2]["modal"]["line"] == "재단 완료 → 안 봄"
+    assert out[2]["modal"]["line"] == "재단 완료 → 미정"
 
 
 def test_js_409_and_synced_mark_redraw_unseen(client, cohort, tmp_path):
@@ -354,6 +355,51 @@ def test_inspect_board_after_cut_undo_is_pre(client, cohort):
 def test_source_contract_undo_line_from_server_flag():
     crew = CREW_JS.read_text(encoding="utf-8")
     assert "if (action === 'undo' && st === 'done' && cr.once && !MINE) {" in crew
-    assert "line: LABEL + ' 완료 → ' + (cfg.part === 'cut' ? '안 봄' : '미정')" in crew
+    assert "line: LABEL + ' 완료 → 미정', run:" in crew and "'안 봄' : '미정'" not in crew  # 화면 글은 재단도 '미정'(11-26)
     assert crew.index("cr.once && !MINE") < crew.index("(cr.me !== 'done' || !MINE)")  # 대신 되돌리기 창보다 먼저
     assert len(crew.splitlines()) <= 300
+
+
+# --------------------------------------------------------------------------- #
+# 같은 뿌리 — [기본] → [기본 취소]로 기본 줄이 미정이 되면 공정 칸도 맞춘다(옛 결함: 1장 주문 칸이 켜진 채 손 체크로 잠김)
+# --------------------------------------------------------------------------- #
+def _one_sheet_basic_undo_unlocks(client, order) -> None:
+    assert step(order.id, "cut")["done"] is True
+    data = mark(client, order, 0, "cut", "undo", "basic").get_json()["data"]
+    assert data["mark"]["state"] == "none" and data["order_step"]["done"] is False and step(order.id, "cut")["done"] is False
+    assert " · 공정 재단 끔" in _audits(order.id)[-1]
+    took = mark(client, order, 0, "cut", "take", "none")  # 옛 결함: 409 STEP_SET_BY_HAND
+    assert took.status_code == 200, took.get_json()
+
+
+def test_basic_undo_on_one_sheet_order_turns_step_off_one_card(client):
+    order = make_order(1)
+    login(client, make_user("김재단", part="cut"))
+    assert mark(client, order, 0, "cut", "basic", "none").get_json()["data"]["order_step"]["done"] is True
+    _one_sheet_basic_undo_unlocks(client, order)
+
+
+def test_basic_undo_after_bulk_basic_turns_step_off(client):
+    """[남은 N장 모두 기본](일괄)으로 켜진 칸도 — [기본 취소]는 한 장씩 길(mark_one) 하나다."""
+    order = make_order(1)
+    login(client, make_user("김재단", part="cut"))
+    res = client.post(BULK, json={"part": "cut", "seen": "none", "items": [{"order_id": order.id, "drawing_key": order.keys[0]}]})
+    assert res.status_code == 200 and res.get_json()["data"]["order_steps"][0]["done"] is True
+    _one_sheet_basic_undo_unlocks(client, order)
+
+
+def test_basic_undo_on_multi_sheet_order_keeps_today_rule(client):
+    """대조 — 다른 장이 남아 있으면 지금 규칙(모든 장 완료일 때만 켬) 그대로: 켜진 칸은 지금처럼 꺼지고, 꺼진 칸은 그대로 꺼진 채."""
+    login(client, make_user("김재단", part="cut"))
+    both = make_order(2)
+    for j in (0, 1):
+        mark(client, both, j, "cut", "basic", "none")
+    assert step(both.id, "cut")["done"] is True
+    data = mark(client, both, 0, "cut", "undo", "basic").get_json()["data"]
+    assert data["order_step"]["done"] is False and row(both.id, both.keys[1], "cut").state == "BASIC"
+    one = make_order(2)  # 한 장만 기본 = 칸 꺼짐 → 그 장 [기본 취소] 뒤에도 칸은 그대로(바뀜 없음)
+    mark(client, one, 1, "cut", "basic", "none")
+    assert step(one.id, "cut")["done"] is False
+    data = mark(client, one, 1, "cut", "undo", "basic").get_json()["data"]
+    assert data["mark"]["state"] == "none" and data["order_step"] is None and step(one.id, "cut")["done"] is False
+    assert mark(client, one, 1, "cut", "take", "none").status_code == 200
