@@ -51,8 +51,8 @@ def test_reload_instruction_is_one_sentence_on_board_refusals():
 
 def test_toast_says_what_was_pressed_and_stays_quiet_for_zero():
     parts = _read(JS / "foms-production-parts.js")
-    assert "/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : (SAID[p.run] || '저장했어요')" in parts
-    assert "'같이 작업': '같이 작업 시작했어요', '기본으로': '기본으로 했어요', '담당 바꾸기': '담당 바꿨어요'" in parts
+    assert "/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : / 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요' : (SAID[p.run] || '저장했어요')" in parts
+    assert "var SAID = { '기본으로': '기본으로 했어요', '담당 바꾸기': '담당 바꿨어요' };" in parts  # [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(11-27)
     assert "var text = changed ? changed + '장 기본으로 했어요' : '';" in parts
 
 
@@ -142,7 +142,7 @@ def test_undo_button_is_named_after_its_done_button():
     assert "st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 3  # 3 = 바로 완료 취소 창(11-27)
     modal = _read(JS / "foms-production-parts-modal.js")
     assert "title: LABEL + ' 완료를 취소할까요?'" in modal and "run: LABEL + ' 완료 취소', tone: 'need'" in modal
-    assert "title: '기본을 취소할까요?', line: '기본 → 안 봄', run: '기본 취소'" in modal  # 11-26 가
+    assert "title: '기본을 취소할까요?', line: '기본 → 미정', run: '기본 취소'" in modal  # 11-26 가 · 11-27 안 봄 → 미정
 
 
 def test_hold_reason_reads_the_same_on_every_screen():
@@ -196,9 +196,9 @@ def test_basic_and_step_undo_buttons_are_paired_names():
 def test_confirm_and_pc_state_words_say_working_but_audit_keeps_need():
     """사장님 2026-11-26 나 "화면 글만 '작업 중'으로" — 확인 창 · 빈 이름 자리 · PC 상태 칸. 감사 글은 "작업 필요" 그대로."""
     modal = _read(JS / "foms-production-parts-modal.js")
-    assert "'→ 작업 중 · ' + NAME" in modal and "' 완료 → 작업 중 · ' + NAME" in modal
-    # [완료] 창 앞말 = 작업 중(미정 도면 바로 완료는 재단만 "안 봄" — 11-27): "작업 중 → 재단 완료 · 박반장"
-    assert "(IS_CUT ? '안 봄 ' : '') : '작업 중 ';" in modal and "line: from + '→ ' + LABEL + ' 완료 · ' + NAME" in modal
+    assert "line: '미정 → 작업 중 · ' + NAME" in modal and "' 완료 → 작업 중 · ' + NAME" in modal
+    # [완료] 창 앞말 = 작업 중(미정 도면 바로 완료는 네 파트 모두 "미정" — 11-27): "작업 중 → 재단 완료 · 박반장"
+    assert "=== 'none' ? '미정 ' : '작업 중 ';" in modal and "line: from + '→ ' + LABEL + ' 완료 · ' + NAME" in modal
     crew = _read(JS / "foms-production-parts-crew.js")
     assert "line: '작업 중 → ' + LABEL" in crew and "half(cr) + ' → 작업 중 · ' + NAME" in crew
     assert "(o.mine ? '다른 사람 작업 중' : '작업 중')" in crew

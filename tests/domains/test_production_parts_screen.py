@@ -136,7 +136,7 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
     assert 'data-pp-count="all">5<' in block and 'data-pp-count="need">1<' in block and 'data-pp-count="done">1<' in block
     assert 'data-pp-act="bulk"' in block and "<span>남은 <span data-pp-count=\"unseen\">1</span>장 모두 기본</span>" in block
     assert block.count('data-pp-act="basic"') == 1 and block.count('data-pp-act="take"') == 1  # 안 본 장 하나
-    assert "<b>박재단 작업\u00a0중</b>" in block and "pp-st-taken" in block and 'data-pp-act="join">같이 작업</button>' in block
+    assert "<b>박재단 작업\u00a0중</b>" in block and "pp-st-taken" in block and 'data-pp-act="join">재단 같이&nbsp;작업</button>' in block
     assert "기본 · 박재단" in block and "재단 완료 · 김재단" in block
     # 지금 장은 그대로 그려 두고(세로 = 지금 화면) 감싼다
     assert 'class="fph-pane__now"' in pane and "fph-dr" in pane.split('class="fph-pane__now"')[1]

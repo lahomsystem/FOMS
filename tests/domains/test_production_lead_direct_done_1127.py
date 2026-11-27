@@ -8,7 +8,7 @@ PC [완료 처리]와 같은 요청)가 보인다. 재단은 [기본][작업 시
   생산 단계 아님 409 · 검수는 앞 공정 완료 뒤) · 파트 계정은 403 ``PART_FORBIDDEN`` · 제작 대기 주문의 첫 도면이면 [작업 시작]처럼 제작
   시작 · 감사 글 "재단 안 봄 → 재단 완료"(대신 꼬리 없음).
 * [완료 취소]는 한 번에 미정(사장님 2026-11-27 "한 번에 미정으로" — 자세한 시험은 ``test_production_direct_done_undo_1127.py``).
-* 화면: 템플릿 ↔ JS(crew.render) 같은 규칙 · 창 글("안 봄 → 재단 완료 · 박반장" / "→ 엣지 완료 · 박반장", 첫 도면 안내 줄) · 완료 뒤 칸
+* 화면: 템플릿 ↔ JS(crew.render) 같은 규칙 · 창 글("미정 → 재단 완료 · 박반장" / "미정 → 엣지 완료 · 박반장" — 11-27 네 파트 같은 꼴, 첫 도면 안내 줄) · 완료 뒤 칸
   · 숫자 · 409 뒤 다시 그리기 · 받아 오기 표시로 다시 그리기. 파트 계정 · 막힌 칸 · 보기만은 지금 그대로(음성 대조).
 
 되돌리면 실패: 반장 미정 칸에 [완료]가 없음 · 파트 계정 화면에 [완료]가 생김 · 막힌 칸에 [완료] · 창 앞말 "작업 중 →" · 감사에 "(대신
@@ -285,7 +285,7 @@ def test_js_cut_direct_done_window_counts_and_first_drawing(client, cohort, tmp_
     out, calls = res["out"], res["calls"]
     w = out[1]["modal"]
     assert (w["title"], w["line"], w["run"]["text"], w["note"], w["body"]) == (
-        "재단 완료로 바꿀까요?", "안 봄 → 재단 완료 · 박반장", "재단 완료", "", "이 주문 첫 도면이라 제작 시작도 같이 돼요.")
+        "재단 완료로 바꿀까요?", "미정 → 재단 완료 · 박반장", "재단 완료", "", "이 주문 첫 도면이라 제작 시작도 같이 돼요.")  # 11-27 안 봄 → 미정
     assert calls[0]["body"] == {"order_id": order.id, "drawing_key": k[0], "part": "cut", "action": "check", "seen": "none",
                                 "seen_me": "none"}
     assert out[2]["sent"] == 1 and out[2]["modal"]["hidden"] is True
@@ -322,7 +322,7 @@ def test_js_edge_window_409_redraw_and_synced_mark(client, cohort, tmp_path):
         {"do": "apply", "key": k[2], "mark": synced}]})
     out = res["out"]
     w = out[0]["modal"]
-    assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("엣지 완료로 바꿀까요?", "→ 엣지 완료 · 관리", "엣지 완료", "")
+    assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("엣지 완료로 바꿀까요?", "미정 → 엣지 완료 · 관리", "엣지 완료", "")
     assert out[1]["modal"]["lost"] is True and out[1]["modal"]["err"] == refused["body"]["error"]  # 서버 글 그대로
     two = [{"tag": "div", "cls": "pp-two", "act": None, "text": "엣지 시작엣지 완료", "kids": [
         {"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "엣지 시작", "kids": []},
@@ -351,8 +351,8 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name,pin", [("parts", "20261127t"), ("parts-claim", "20261127b"), ("parts-modal", "20261127r"),
-                                      ("parts-crew", "20261127r")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
+@pytest.mark.parametrize("name,pin", [("parts", "20261127w"), ("parts-claim", "20261127w"), ("parts-modal", "20261127w"),
+                                      ("parts-crew", "20261127w")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl
