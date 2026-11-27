@@ -5,7 +5,7 @@
 한 번씩 읽어 넘긴다.
 
 * 줄 = 확정 도면 한 장(:func:`resolve_final_drawing_files` 순서 — 도면 판 카드 · 작업 시트와 같은 번호).
-* 상태 낱말(2026-11-25 multi-holder §8-2 37 · §8-1): 재단 "안 봄" · 그 밖 "아직" · "작업 필요" · 같이 작업 중 일부 완료 "재단 1/2 완료"
+* 상태 낱말(2026-11-25 multi-holder §8-2 37 · §8-1): 손 안 댄 도면 "미정"(11-27) · "작업 필요" · 같이 작업 중 일부 완료 "재단 1/2 완료"
   (+ 작은 글 "김재단 작업 중" — 아직인 사람 모두, Q10 "PC 도면별 창은 모두") · 모두 완료 "재단 완료"(옛 "재단 끝", K4) · "기본" · 손 체크
   "재단 완료 · 박반장" + "작업 시트에서 완료". "1/2 완료" 낱말은 감사 글과 같은 함수(``part_mark_notes.state_words``) 하나. 막힘 글 · 안내 글은 서버
   판정 함수의 글 그대로(:mod:`~foms.services.production.part_card_state` · :mod:`~foms.services.production.part_mark_gates`).
@@ -33,7 +33,7 @@ from foms.services.production import mark_crew as mc
 from foms.services.production.factory_constants import FACTORIES, factory_label
 from foms.services.production.part_board import card_item_text, is_part_thumb_image
 from foms.services.production.part_card_state import hand_cell, inspect_block, order_block
-from foms.services.production.part_constants import PART_CUT, PART_INSPECT, PRODUCTION_PART_LABELS
+from foms.services.production.part_constants import PART_INSPECT, PRODUCTION_PART_LABELS
 from foms.services.production.part_holders import HOLDER_NONE
 from foms.services.production.part_mark_gates import PART_USES_CARDS_MESSAGE
 from foms.services.production.part_mark_notes import state_words
@@ -71,12 +71,12 @@ def _who(head: str, name: Optional[str], at: Any) -> str:
 
 def state_word(part: str, state: str, hand: Optional[dict[str, Any]], crew: Any = ()) -> str:
     """상태 칸 글 — 손 체크 "재단 완료 · 박반장" · "작업 필요" · 같이 작업 중 일부 완료 "재단 1/2 완료" · "재단 완료" · "기본" ·
-    재단 "안 봄" · 그 밖 "아직"(작업 필요 · 완료 · 기본 낱말은 감사 글과 같은 함수)."""
+    손 안 댄 도면 "미정"(작업 필요 · 완료 · 기본 낱말은 감사 글과 같은 함수)."""
     if hand:
         return str(hand["text"])
     if state in ("need", "done", "basic"):
         return state_words(part, state.upper(), crew).replace("작업 필요", "작업 중")  # 화면만 '작업 중'(감사 글은 그대로, 11-26 나)
-    return "안 봄" if part == PART_CUT else "아직"  # 이 창 글은 그대로(사장님 2026-11-26 가: 다른 파트 줄 낱말만 "미정")
+    return "미정"  # 손 안 댄 도면 — 모든 파트 "미정"(사장님 2026-11-27, 옛 재단 "안 봄" · 그 밖 "아직")
 
 
 def pending_note(state: str, crew: Any) -> Optional[str]:

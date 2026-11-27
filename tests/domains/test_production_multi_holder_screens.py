@@ -103,7 +103,7 @@ def test_pc_window_rows_are_one_piece_per_person(client, cohort) -> None:
     _login(client, boss)
     d = _sheet(client, oid)
     rows = d["rows"]
-    assert [r["word"] for r in rows] == ["재단 완료", "재단 1/2 완료", "작업 중", "안 봄", "재단 완료"]
+    assert [r["word"] for r in rows] == ["재단 완료", "재단 1/2 완료", "작업 중", "미정", "재단 완료"]
     assert [r["note"] for r in rows] == [None, "김재단 작업 중", None, None, None]
     assert [r["act"] for r in rows] == ["uncheck", "check", "check", "check", "uncheck"]
     assert _like(rows[0]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단", "완료 김재단"])  # 모두 보임 — 사람마다
@@ -169,11 +169,11 @@ def test_pc_window_js_sends_one_check_and_server_finishes_the_rest(client, cohor
     assert after[1]["word"] == "재단 완료" and after[1]["note"] is None
     assert _like(after[1]["lines"], ["작업 시작 이시영", "완료 이시영", "작업 시작 김재단", "완료 박반장"])
     assert not any(line.startswith("작업 시작 박반장") for r in after[:4] for line in r["lines"])
-    # 반장 [완료 취소] 둘(JS 몸 그대로) — 나 혼자 한 장은 시작 취소까지 이어 "안 봄 · 담당 미정"
+    # 반장 [완료 취소] 둘(JS 몸 그대로) — 나 혼자 한 장은 시작 취소까지 이어 "미정 · 담당 미정"
     for body in [p["body"] for p in out["minePosts"]]:
         assert client.post(ONE, json=body).status_code == 200, body
     mine = _sheet(client, oid)["rows"][4]
-    assert (mine["word"], mine["lines"]) == ("안 봄", ["담당 미정"])
+    assert (mine["word"], mine["lines"]) == ("미정", ["담당 미정"])
     # 대신 완료 기록 줄 — "완료"(check) 낱말
     items = client.get(HISTORY, query_string={"order_id": oid, "part": "cut"}).get_json()["data"]["items"]
     again = _node(page, {"log_only": [i for i in items if i["drawing_key"] == k[1]], "keys": sheets["cut"]["keys"]})
@@ -268,7 +268,7 @@ def test_finished_rows_say_inspect_done_and_my_steps_button_says_done(client, co
     row = pc.split(f'data-foms-home-dayrow="{fid}"', 1)[1].split('<div class="fpc-r', 1)[0]
     assert re.search(r'<span class="fpc-st is-f"[^>]*><b>검수 완료</b>', row)  # 완료 색 + 새 글
     other = pc.split(f'data-foms-home-dayrow="{cid}"', 1)[1].split('<div class="fpc-r', 1)[0]
-    assert re.search(r'<span class="fpc-st is-p"[^>]*><b>재단 중</b>', other)  # 대조
+    assert re.search(r'<span class="fpc-st is-p"[^>]*><b>재단 작업 중</b>', other)  # 대조
     _login(client, boss, TABLET)
     tab = client.get(f"{HOME}?day={day}").get_data(as_text=True)
     trow = tab.split(f'data-foms-home-dayrow="{fid}"', 1)[0].rsplit("<a ", 1)[1]

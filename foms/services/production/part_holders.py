@@ -190,7 +190,7 @@ def stage_miss(row: dict[str, Any], holders: list[dict[str, Any]]) -> str:
         if step.get("done"):
             continue
         progress = cell["progress"]
-        if row.get("home_stage") == f"{step['label']} 중" and progress["uses_cards"] and progress["left_keys"] \
+        if row.get("home_stage") == f"{step['label']} 작업 중" and progress["uses_cards"] and progress["left_keys"] \
                 and progress["total_n"]:
             return f"{len(progress['left_keys'])}장 미완료"
         return ""

@@ -81,8 +81,8 @@ def test_칸_아래_이름_다섯_꼴() -> None:
 def test_단계_칸_둘째_줄은_지금_공정이_카드_부분일_때만() -> None:
     sd = {**_files(5), "production": {"steps": []}}
     steps = [{"key": k, "label": lb, "done": False} for k, lb in (("cut", "재단"), ("edge", "엣지"), ("assemble", "조립"), ("inspect", "검수"))]
-    rows = [{"id": 1, "home_view": "prod", "home_stage": "재단 중", "home_steps": steps, "structured_data": sd},
-            {"id": 2, "home_view": "prod", "home_stage": "재단 중", "home_steps": steps, "structured_data": sd},
+    rows = [{"id": 1, "home_view": "prod", "home_stage": "재단 작업 중", "home_steps": steps, "structured_data": sd},
+            {"id": 2, "home_view": "prod", "home_stage": "재단 작업 중", "home_steps": steps, "structured_data": sd},
             {"id": 3, "home_view": "wait", "home_steps": steps, "structured_data": sd}]
     marks = {1: [_m("k0", "cut", "DONE", "김재단", Y, "김재단", T), _m("k1", "cut", "DONE", "김재단", Y, "김재단", T),
                  _m("k2", "cut", "DONE", "김재단", Y, "김재단", T)]}

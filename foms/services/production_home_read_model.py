@@ -124,7 +124,7 @@ def production_home_stage(
             return '제작 대기', '생산', 'prod'
         for step in steps:
             if not step['done']:
-                return f"{step['label']} 중", '생산', 'prod'
+                return f"{step['label']} 작업 중", '생산', 'prod'
         return PRODUCTION_FINISHED_STAGE, '생산', 'prod'
     if raw_stage in _CONSTRUCTION_STAGES:
         return '제작 완료', '시공 대기', 'done'
