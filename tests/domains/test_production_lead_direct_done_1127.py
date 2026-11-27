@@ -48,7 +48,7 @@ JS = ROOT / "static/js/production"
 EDGE_ADMIN = HOME_NONE + "&tab=parts&part=edge"
 INSPECT_ADMIN = HOME_NONE + "&tab=parts&part=inspect"
 CUT_LEAD_NONE = ('<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button>'
-                 '<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="take">작업 시작</button></div>'
+                 '<button type="button" class="foms-prod-home__btn" data-pp-act="take">작업 시작</button></div>'
                  '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">재단 완료</button>')
 EDGE_LEAD_NONE = ('<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">작업 시작</button>'
                   '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">엣지 완료</button></div>')
@@ -351,8 +351,8 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name,pin", [("parts", "20261127b"), ("parts-claim", "20261127b"), ("parts-modal", "20261127b"),
-                                      ("parts-crew", "20261127g")])  # crew = 바로 완료 취소 한 번에 미정(11-27)이 한 번 더
+@pytest.mark.parametrize("name,pin", [("parts", "20261127b"), ("parts-claim", "20261127b"), ("parts-modal", "20261127q"),
+                                      ("parts-crew", "20261127q")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59)을 합쳐 q
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl
