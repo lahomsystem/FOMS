@@ -199,7 +199,7 @@
             btn.setAttribute('aria-pressed', done ? 'true' : 'false');
             syncComplete();
           }
-          setStatus(savedText(done ? '작업 완료했어요' : '작업을 취소했어요'), 'ok');
+          setStatus(savedText((stepLabel(btn) + (done ? ' 완료했어요' : ' 완료 취소했어요')).trim()), 'ok'); // "재단 완료했어요"(도면 카드 알림과 같은 꼴, 11-27)
         });
     }
 

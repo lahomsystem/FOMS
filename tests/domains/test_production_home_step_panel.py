@@ -377,7 +377,7 @@ def test_확인_창은_없고_실을_것(client, cohort) -> None:
     # 확인 창 꼴이 쓰던 parts.css 는 이제 도면 카드 판에만. 새 JS 는 머리(일찍), 시트 JS 는 문서당 한 번
     assert "css/contexts/production/parts.css" not in html
     assert html.index(STEPS_JS + "?v=20261127x") < html.index("</head>")
-    assert 'js/production/foms-production-sheet-page.js?v=20261127x" defer data-foms-run-once="prod-sheet-page"' in html
+    assert 'js/production/foms-production-sheet-page.js?v=20261127z" defer data-foms-run-once="prod-sheet-page"' in html
     assert "js/foms/tablet-domain-sheets.js?v=" in html and "js/foms/foms-reason-sheet.js?v=" in html
     assert html.count("data-foms-reason-sheet") == 1 and "css/components/foms-reason-sheet.css?v=" in html
     # 셸 조각도 같은 것(조각 맨 앞에 새 JS)
