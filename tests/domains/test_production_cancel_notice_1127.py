@@ -10,8 +10,9 @@
   안 서는 경우: 같은 주문 다른 도면 표시 · 다른 파트 표시 · 보류 · 불량 기록 · 공정 칸 켜짐 · [제작 시작] 단추로 연 회차 · 같이 작업 중 내 몫만 빠짐.
 * 낡은 화면: 창을 열 때마다 새로 묻는다 — 그사이 다른 사람이 같은 주문 다른 도면을 시작했으면 다음 창에는 줄이 없다.
 * 읽기 전용(SELECT 만 · 버전 · 이벤트 · 감사 · 회차 · 표시 그대로) · 문은 카드 쓰기와 같다 · 쓰기 길 쿼리 수 그대로.
-* 화면(JS — 서버 답은 진짜 API JSON): 줄 자리 = 첫 도면 줄과 같은 칸(.pp-mbody), 답이 올 때까지 실행 잠금, 늦은 답은 버림,
-  [완료 취소] · [기본 취소] 창은 묻지 않는다(사장님 답에 없다 — 붙이지 않았다).
+* 화면(JS — 서버 답은 진짜 API JSON): 줄 자리 = 첫 도면 줄과 같은 칸(.pp-mbody), 답이 올 때까지 실행 잠금, 늦은 답은 버림.
+  반장 고르기 창은 어느 단추인지 말한다("[김재단 시작 취소]를 누르면 제작 시작도 같이 취소돼요." — 사장님 11-27 "어느 단추인지 말해 주기").
+  [완료 취소] · [기본 취소] 창(사장님 11-27 "여기도 미리 알리기")은 ``test_production_cancel_notice_undo_1127.py``.
 
 되돌리면 실패: 줄이 떴는데 안 취소됨 / 안 떴는데 취소됨 / 미리 보기가 표시 · 주문을 바꿈 / 다른 창에 늦은 답이 줄을 넣음.
 이름은 모두 지어낸 값이다.
@@ -28,7 +29,7 @@ from db import db_session, engine
 from foms.api.production.part_marks import PREVIEW_ACTIONS
 from models import OrderEvent, ProductionPartMark, SecurityLog
 from tests.domains.test_production_home_query_count import _count_queries
-from tests.domains.test_production_lead_direct_done_1127 import _admin, _check, _lead
+from tests.domains.test_production_lead_direct_done_1127 import _admin, _lead
 from tests.domains.test_production_multi_holder_board import CUT_ADMIN, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_part_claim_seed import (
     current_runs,
@@ -275,10 +276,10 @@ def test_gates_match_the_card_write(client):
     kim = _kim()
     order = _took(client, kim)
     body = _body(order, seen_by=kim.id)
-    for action in ("take", "basic", "done", "undo", "takeover", "join", "check", "nope"):
+    for action in ("take", "basic", "done", "takeover", "join", "check", "nope"):
         resp = _ask(client, {**body, "action": action})
         assert resp.status_code == 400 and resp.get_json()["data"]["code"] == "BAD_REQUEST", action
-    assert set(PREVIEW_ACTIONS) == {"release", "remove"}
+    assert set(PREVIEW_ACTIONS) == {"release", "remove", "undo"}
     for bad in ({"order_id": "abc"}, {"order_id": "0"}, {"drawing_key": ""}, {"part": "paint"}, {"seen": "maybe"},
                 {"seen_by": "x"}, {"target_user_id": "x"}, {"seen_me": "half"}):
         assert _ask(client, {**body, **bad}).status_code == 400, bad
@@ -296,17 +297,6 @@ def test_gates_match_the_card_write(client):
     with client.session_transaction() as sess:
         sess.clear()
     assert _ask(client, body).status_code in (401, 302)  # 로그인 없이는 답하지 않는다
-
-
-def test_done_at_once_undo_still_cancels_without_a_flag_route(client):
-    """반장이 바로 완료한 도면의 [완료 취소](한 번에 미정)도 서버는 제작 시작을 되돌린다 — 이 길의 창 안내는 사장님 답에 없어 붙이지 않았다
-    (미리 보기는 undo 를 받지 않는다 400). 알림 글 '· 제작 시작도 같이 취소됐어요'만 지금처럼 뜬다."""
-    order = make_order(1, run=False)
-    login(client, _lead())
-    assert _check(client, order, 0).get_json()["data"]["run_started"] is True
-    undo = {"order_id": order.id, "drawing_key": order.keys[0], "part": "cut", "action": "undo", "seen": "done", "seen_me": "done"}
-    assert _ask(client, undo).status_code == 400
-    assert client.post("/api/production/part-marks", json=undo).get_json()["data"]["run_cancelled"] is True
 
 
 # --------------------------------------------------------------------------- #
@@ -401,16 +391,12 @@ def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, 
     assert len(res["previews"]) == 3 and len(res["calls"]) == 1
 
 
-def test_js_lead_choice_dialog_and_co_working_and_undo_dialogs(client, cohort, tmp_path):
+def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, tmp_path):
     kim, oh, lead = _kim(), _oh(), _lead()
     solo = _took(client, kim)  # 김재단 혼자 시작한 한 장짜리 주문
     both = _took(client, kim)  # 김재단 · 오재단이 같이 작업
     login(client, oh)
     mark(client, both, 0, "cut", "join", "need", seen_me="none")
-    direct = make_order(1, run=False)  # 반장이 바로 완료한 도면
-    login(client, lead)
-    assert _check(client, direct, 0).get_json()["data"]["run_started"] is True
-
     page = tmp_path / "lead.html"
     page.write_text(_page(client, lead, CUT_ADMIN), encoding="utf-8")
     remove = _body(solo, action="remove", seen_by=kim.id, target_user_id=kim.id)
@@ -418,22 +404,20 @@ def test_js_lead_choice_dialog_and_co_working_and_undo_dialogs(client, cohort, t
     crew_no = [_answer(client, lead, _body(both, action="remove", seen_by=kim.id, target_user_id=who.id)) for who in (kim, oh)]
     assert [a["data"]["run_cancelled"] for a in (*crew_no, yes)] == [False, False, True]
     res = _node(page, {"posts": [_post(client, lead, remove)], "previews": [*crew_no, yes], "steps": [
-        {"do": "click", "key": direct.keys[0], "act": "undo"}, {"do": "modal"}, {"do": "close"},  # 0 1 2
-        {"do": "click", "key": both.keys[0], "act": "held"}, {"do": "modal"}, {"do": "close"},    # 3 4 5
-        {"do": "click", "key": solo.keys[0], "act": "held"}, {"do": "modal"},                     # 6 7
-        {"do": "choice", "text": "김재단 시작 취소"}]})                                             # 8
+        {"do": "click", "key": both.keys[0], "act": "held"}, {"do": "modal"}, {"do": "close"},    # 0 1 2
+        {"do": "click", "key": solo.keys[0], "act": "held"}, {"do": "modal"},                     # 3 4
+        {"do": "choice", "text": "김재단 시작 취소"}]})                                             # 5
     out, previews = res["out"], [_query(u) for u in res["previews"]]
-    undo = out[1]["modal"]  # [재단 완료 취소](한 번에 미정) 창 — 묻지 않고 줄도 없다(사장님 답에 없다)
-    assert (undo["title"], undo["line"], undo["body"], undo["run"]["locked"]) == ("재단 완료를 취소할까요?", "재단 완료 → 미정", "", False)
-    crew = out[4]["modal"]  # 둘이 같이 작업 중 — 사람마다 묻고(둘) 어느 쪽도 참이 아니라 줄이 없다
+    crew = out[1]["modal"]  # 둘이 같이 작업 중 — 사람마다 묻고(둘) 어느 쪽도 참이 아니라 줄이 없다(한 사람만 빼서는 미정이 안 된다)
     assert [c["text"] for c in crew["choices"]][:2] == ["김재단 시작 취소", "오재단 시작 취소"] and crew["body"] == ""
     assert [(q["action"], q["target_user_id"]) for q in previews[:2]] == [("remove", str(kim.id)), ("remove", str(oh.id))]
-    assert out[6]["modal"]["body"] == ""
-    pick = out[7]["modal"]  # 반장 고르기 창 — 같은 자리 같은 줄
-    assert pick["title"].startswith("김재단 ") and pick["title"].endswith("작업 중") and pick["body"] == CANCEL_LINE
+    assert out[3]["modal"]["body"] == ""
+    pick = out[4]["modal"]  # 반장 고르기 창 — 같은 자리, 어느 단추인지 말하는 글(단추 글 그대로)
+    assert pick["title"].startswith("김재단 ") and pick["title"].endswith("작업 중")
+    assert pick["body"] == "[김재단 시작 취소]를 누르면 제작 시작도 같이 취소돼요."
     assert [c["text"] for c in pick["choices"]] == ["김재단 시작 취소", "담당 바꾸기", "같이 작업", "대신 완료"]
     assert previews[2] == _as_query(remove) and len(previews) == 3
-    assert out[8]["sent"] == 1 and out[8]["status"] == "김재단 시작 취소했어요" + CANCELLED_TAIL
+    assert out[5]["sent"] == 1 and out[5]["status"] == "김재단 시작 취소했어요" + CANCELLED_TAIL
     assert [c["body"] for c in res["calls"]] == [remove]
 
     mine = tmp_path / "kim.html"  # 같이 작업 중 내 몫 [재단 시작 취소] — 묻지만 답이 거짓이라 줄이 없다
@@ -454,7 +438,8 @@ def test_source_contract_one_line_one_judge_and_sizes():
     assert modal.count("fetch(") == 1 and "'/api/production/part-marks/cancel-preview'" in modal and "method: 'GET'" in modal
     assert modal.index("try {") < modal.index("fetch(") < modal.index("} catch (e)") and "data.success === true" in modal
     line = next(text for text in modal.splitlines() if "var asks" in text)  # 화면은 누름 이름만 고른다 — 판정 조건은 적지 않는다
-    assert "c[0] === 'release' || c[0] === 'remove'" in line
+    assert "ASKS.indexOf(c[0]) >= 0" in line and "var ASKS = ['release', 'remove', 'undo'];" in modal
+    assert modal.count("'를 누르면 제작 시작도 같이 취소돼요.'") == 1  # 고르기 창 글 — 단추 글은 늘 '취소'로 끝나 토씨 '를' 고정
     for word in ("data-pp-first", "hold", "defect", "cr.n", "run_started"):
         assert word not in modal[modal.index("function cancelLine"):modal.index("// ── 창 그리기")], word
     assert "M.cancelLine(pending, p, " in js["parts"]

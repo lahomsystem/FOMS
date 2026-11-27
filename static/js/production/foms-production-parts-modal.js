@@ -1,5 +1,5 @@
 /* 생산 파트 도면 카드 — 확인 창 글 · 창 그리기(설계서 §15.6 '확인 창' 표 9줄 + 2026-11-23 §8-1 · §9 창 글). 쓰기 없음.
- * 읽기 하나: [<파트> 시작 취소] 창을 열 때 그 취소로 제작 시작도 같이 취소되는지 서버에 묻는다(cancelLine — GET cancel-preview, 11-27).
+ * 읽기 하나: [<파트> 시작 취소] · [<파트> 완료 취소] · [기본 취소] 창을 열 때 그 취소로 제작 시작도 같이 취소되는지 서버에 묻는다(cancelLine — GET cancel-preview, 11-27).
  * 쓰기(요청 · 응답 처리)는 foms-production-parts.js 의 send() 하나 — 이 파일은 글을 짓고 창(#foms-part-confirm-modal)을 그린다.
  * 2026-11-25 multi-holder §8-2: [작업 시작] · [시작 취소] · '작업 중' · '완료'로 낱말을 바꿨다. 여러 명이 같이 작업하는 창 글([같이 작업] ·
  *   [담당 바꾸기] 사람 고르기 · 반장 고르기 [{이름} 시작 취소] · 남은 사람이 있는 [완료])은 foms-production-parts-crew.js 가 먼저 짓는다(plan).
@@ -100,10 +100,13 @@
     return first && ['take', 'basic', 'bulk', 'check'].indexOf(action) >= 0 ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : ''; // check = 반장 미정 바로 완료(11-27)
   }
 
-  // ── [<파트> 시작 취소] 창 한 줄(사장님 2026-11-27 "창에도 미리 알리기") — 그 취소로 제작 시작도 같이 취소될 때만, 첫 도면 줄과 같은 자리 ──
-  // 판정은 서버만 한다(GET cancel-preview = 한 장 쓰기를 쓰기 직전까지 그대로 돌린 답 run_cancelled). 여기는 창에 있는 시작 취소 누름
-  // (release · 고르기 창의 remove)마다 묻고 하나라도 참이면 줄을 넣는다. 답이 올 때까지 실행을 잠그고(ASK_MS 뒤엔 줄 없이 연다) 늦은 답은 버린다.
+  // ── 취소 창 한 줄(사장님 2026-11-27 "창에도 미리 알리기" · "여기도 미리 알리기") — 그 취소로 제작 시작도 같이 취소될 때만, 첫 도면 줄과 같은 자리 ──
+  // 판정은 서버만 한다(GET cancel-preview = 한 장 쓰기를 쓰기 직전까지 그대로 돌린 답 run_cancelled). 여기는 창에 있는 취소 누름(release ·
+  // 고르기 창의 remove · 완료 취소/기본 취소 undo)마다 묻고 참인 누름이 있으면 줄을 넣는다. 답이 올 때까지 실행을 잠그고(ASK_MS 뒤엔 줄 없이
+  // 연다) 늦은 답은 버린다. 고르기 창은 어느 단추인지 말한다("[오재단 시작 취소]를 누르면 …" — 단추 글은 늘 '취소'로 끝나 토씨는 '를').
   var CANCEL_LINE = '이 주문에서 시작한 도면이 이것뿐이라 제작 시작도 같이 취소돼요.';
+  var UNDO_LINE = '이 주문에서 작업한 도면이 이것뿐이라 제작 시작도 같이 취소돼요.';
+  var ASKS = ['release', 'remove', 'undo'];
   var ASK_URL = '/api/production/part-marks/cancel-preview';
   var ASK_MS = 3000;
   var turn = 0; // 창 글이 바뀌거나 닫힐 때마다 +1
@@ -117,20 +120,23 @@
     } catch (e) { return Promise.resolve(false); }
   }
   function cancelLine(pending, p, bodyFor) {
-    var asks = (p.choices || [[pending.action, '', '', p.target]]).filter(function (c) { return c[0] === 'release' || c[0] === 'remove'; });
+    var asks = (p.choices || [[pending.action, '', '', p.target]]).filter(function (c) { return ASKS.indexOf(c[0]) >= 0; });
     if (!asks.length) { return; }
     var mine = turn;
-    function settle(yes) {
+    function settle(hits) { // hits = 서버가 참이라 답한 누름
       if (mine !== turn) { return; }
       turn += 1;
       pending.locked = false;
       runBtn().removeAttribute('aria-disabled');
-      if (yes) { setText('[data-pp-modal-body]', CANCEL_LINE); }
+      if (!hits.length) { return; }
+      setText('[data-pp-modal-body]', !p.choices ? (hits[0][0] === 'undo' ? UNDO_LINE : CANCEL_LINE)
+        : hits.map(function (c) { return '[' + c[1] + ']'; }).join(' · ') + '를 누르면 제작 시작도 같이 취소돼요.');
     }
     pending.locked = true;
     runBtn().setAttribute('aria-disabled', 'true');
-    window.setTimeout(function () { settle(false); }, ASK_MS);
-    Promise.all(asks.map(function (c) { return ask(bodyFor(c[0], c[3])); })).then(function (list) { settle(list.some(Boolean)); });
+    window.setTimeout(function () { settle([]); }, ASK_MS);
+    Promise.all(asks.map(function (c) { return ask(bodyFor(c[0], c[3])); }))
+      .then(function (list) { settle(asks.filter(function (c, i) { return list[i]; })); });
   }
 
   // ── 창 그리기 ──
