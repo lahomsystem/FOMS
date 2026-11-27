@@ -5,7 +5,7 @@
 * 한 주문 · 한 파트의 확정 도면 장마다 상태 · 줄 글(작업하는 사람마다 시작한 때 · 완료한 때 — 2026-11-25 multi-holder K6) · 바뀐 기록 · 막힘 글
   (:func:`foms.services.production.pc_sheet.build_part_sheet`) + 그 줄의 PC 공정 칸 · 상태 칸 HTML(첫 화면과 같은 매크로
   ``pc_steps`` · ``pc_status`` — 체크한 뒤 화면이 그 줄 칸만 바꿔 끼운다) + 반장 손 체크 확인 창 자료(``sheets`` · ``parts`` —
-  공정 API GET 과 같은 :func:`step_api_extras`). 바뀐 기록 목록은 있는 ``GET /api/production/part-history`` 가 준다.
+  작업 시트 · 공정 API 응답과 같은 :func:`step_api_extras`). 바뀐 기록 목록은 있는 ``GET /api/production/part-history`` 가 준다.
 * 쓰기는 없다 — 화면은 있는 쓰기 길(``POST /api/production/part-marks`` — [완료 처리] = action ``check`` 한 요청 ·
   ``POST /api/orders/<id>/production/steps``)만 쓴다.
   ``can_write`` = 남의 장을 대신 처리할 수 있는 사람(:func:`can_override_marks` — 관리자 · 반장). 화면은 [고치기] 켬일 때만 단추를 그리고

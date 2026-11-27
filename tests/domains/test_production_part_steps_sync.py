@@ -23,6 +23,7 @@ from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.production.part_steps_sync import part_steps_after, plan_part_step_changes
 from models import Order, OrderEvent, ProductionPartMark, ProductionRun, User
 from tests.support.drawing_fix_transfer_seed import acked_idents
+from tests.support.production_steps_read import steps_read
 
 ONE = "/api/production/part-marks"
 BULK = "/api/production/part-marks/basic"
@@ -355,8 +356,7 @@ def test_part_account_cannot_write_order_steps(client):
     assert resp.status_code == 403 and body["data"]["code"] == "PART_ACCOUNT_USE_CARDS"
     assert body["error"] == "공정은 도면에서 작업해요"
     assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
-    got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
-    assert got["locked"] is True and got["locked_note"] == "공정은 도면에서 작업해요"
+    assert [steps_read(client, oid)[k] for k in ("locked", "locked_note")] == [True, "공정은 도면에서 작업해요"]
 
 
 # CS 직원은 2026-11-21 부터 생산을 보기만 한다(설계서 production-pc-viewer §13 결정 2) — 대조군은 파트 없는 생산 매니저로 바꿨다.
@@ -369,7 +369,7 @@ def test_control_non_part_accounts_still_write_steps(client, team, role, part):
     resp = client.post(f"/api/orders/{oid}/production/steps", json={"key": "edge", "done": True})
     assert resp.status_code == 200, resp.get_json()
     assert _step(oid, "edge")["done"] is True
-    assert client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]["locked"] is False
+    assert steps_read(client, oid)["locked"] is False
 
 
 @pytest.mark.parametrize("role", ["STAFF", "MANAGER"])
@@ -381,7 +381,7 @@ def test_production_account_without_parts_or_lead_cannot_write_steps(client, rol
     assert resp.status_code == 403 and resp.get_json() == {
         "success": False, "data": {"code": "LEAD_REQUIRED"}, "error": "반장으로 지정된 계정만 작업할 수 있어요."}
     assert _step(oid, "edge")["done"] is False and _fresh(oid).mutation_version == 1
-    got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
+    got = steps_read(client, oid)
     assert got["locked"] is True and got["locked_note"] == "반장으로 지정된 계정만 작업할 수 있어요."
 
 

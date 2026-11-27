@@ -34,8 +34,8 @@ NODE_CHECK = ROOT / "tests/support/production_sheet_confirm_node_checks.js"
 PIN = "20261127a"
 #: tablet-domain-sheets.js · shipment-entry.js 핀 — 2026-11-27 옛 생산 칸반 몫을 지우며 한 번 더 올렸다(싣는 곳 셋이 같은 값).
 SHEETS_PIN = "20261127p"
-SHEET_PARTS_PIN = "20261127u"  # 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
-SHEET_CSS_PIN = "20261127u"  # sheet.css — 도면 있는 주문 공정 보기 줄(사장님 2026-11-27 "도면이 주", test_production_steps_view_only_1127)
+SHEET_PARTS_PIN = "20261127z"  # 11-27 z: 바뀐 기록 낱말(test_production_record_words_tone_1127) · 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
+SHEET_CSS_PIN = "20261127x"  # sheet.css — 도면 있는 주문 공정 보기 줄(사장님 2026-11-27 "도면이 주", test_production_steps_view_only_1127)
 PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 FACTORY_JS = "static/js/production/foms-production-sheet-factory.js"
@@ -186,7 +186,7 @@ def test_앱_창_범위는_작업_시트와_생산_첫_화면뿐이고_기본_�
     assert 'ask(btn, { title: text, yes: "완료 취소", plain: text }' in js
     assert 'ask(btn, { title: "보류를 해제할까요?", note: why, yes: "보류 해제", plain: releaseMsg }' in js
     parts = (ROOT / PARTS_JS).read_text(encoding="utf-8")
-    assert "doneText: doneText, confirm: open };" in parts and "text.hidden = !o.body;" in parts
+    assert "    confirm: open };" in parts and "doneText" not in parts and "text.hidden = !o.body;" in parts  # 풀어 쓴 글(doneText)은 11-27 지움
     assert "if (no) { no.textContent = o.no || '취소'; }" in parts  # 공정 칸 손 체크 창은 [취소] 그대로
     factory = (ROOT / FACTORY_JS).read_text(encoding="utf-8")
     assert "sp.confirm({ title: question, yes: label, no: '닫기', opener: btn, go: save });" in factory

@@ -22,6 +22,7 @@ from db import db_session
 from models import OrderEvent, SecurityLog
 from tests.support.production_factory_seed import TABLET, factory_user, mixed_order, put_mark, set_cookies, set_factory_done
 from tests.support.production_part_claim_seed import fresh, login
+from tests.support.production_steps_read import steps_read
 
 ROOT = Path(__file__).resolve().parents[2]
 PARTS = ("cut", "edge", "assemble", "inspect")
@@ -135,12 +136,12 @@ def test_steps_api_carries_factory_readiness_only_for_mixed_orders(client):
     refused = client.post(f"/api/orders/{seed.id}/production/steps", json={"key": "inspect", "done": True})
     assert refused.status_code == 409 and "factories" not in refused.get_json()["data"]
     seed = mixed_order(2, f2=(1,), steps_done=("cut", "edge", "assemble", "inspect"))  # 네 칸이 이미 켜진 섞인 주문
-    data = client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]
+    data = steps_read(client, seed.id)
     assert data["factories"]["2"] == {"ready": True, "why": "", "done": False}
     off = client.post(f"/api/orders/{seed.id}/production/steps", json={"key": "inspect", "done": False}).get_json()["data"]
     assert off["factories"]["2"]["ready"] is False and off["factories"]["2"]["why"] == "2공장에 미완료가 있어요 — 검수 1장"
     plain = mixed_order(2, f2=())
-    assert "factories" not in client.get(f"/api/orders/{plain.id}/production/steps").get_json()["data"]  # 한 공장 주문 그대로
+    assert "factories" not in steps_read(client, plain.id)  # 한 공장 주문 그대로
     js = (ROOT / "static/js/production/foms-production-sheet-factory.js").read_text(encoding="utf-8")
     parts = (ROOT / "static/js/production/foms-production-sheet-parts.js").read_text(encoding="utf-8")
     assert "new CustomEvent('foms:sheet-steps'" in parts and "addEventListener('foms:sheet-steps'" in js

@@ -4,7 +4,7 @@
  *  · 칸 = [data-foms-pc-sheet="<파트>"](확정 도면 1장 이상): PC 첫 화면 줄(home_pc_macros.pc_steps) · PC 로 연 작업 시트(sheet.html, pc_view —
  *    이 파일은 그때만 실린다). 누름 · Enter · Space. 누름은 붙잡는 단계에서 받아 작업 시트 JS 의 통째 손 체크까지 안 보내고, 창 안 누름도 밖으로 안 보낸다.
  *  · 열 때 GET 두 번: /api/production/part-sheet(상태 · 사람마다 줄 글 · 바뀜 · 막힘 — 서버 글 그대로) · /api/production/part-history(작업 시트와
- *    같은 글, sheet-parts renderLog). [고치기] 켬(data-edit) + 서버 can_write + 쓰기 파일이 있을 때만 단추([완료 처리] · [완료 취소] · [모두 완료 처리] ·
+ *    같은 글, sheet-parts renderLog). [고치기] 켬(data-edit) + 서버 can_write + 쓰기 파일이 있을 때만 단추([완료 처리] · [완료 취소] ·
  *    손 체크 [모두 완료 취소] · "제작 완료할까요?"). 누르면 다시 받아 바뀐 줄만 다시 그리고 뒤의 PC 줄 칸 · 상태 칸을 서버 매크로 HTML 로 바꿔 끼운다.
  *  · 창 = 공용 사유 시트 겉틀(home_pc_sheet.html). Esc · 초점 가둠 · 닫으면 누른 칸으로(손 체크 확인 창이 위면 키는 그 창 몫). 셸 조각 교체로
  *    다시 실행돼도 화면마다 한 번(data-foms-pc-sheet-bound), 문서 키 리스너는 한 번. 쓰고 닫으면 쓰기 파일이 작업 시트 공정 줄을 서버 값으로. */
@@ -93,11 +93,6 @@
     setNote('[data-foms-pc-sheet-start]', w && d.start_note); // 제작 회차 없는 주문 — 첫 도면 체크 = 제작 시작(서버 글)
     var tools = q('[data-foms-pc-sheet-tools]');
     tools.textContent = '';
-    if (w && d.all) {
-      var all = actButton('모두 완료 처리', 'all', '', true);
-      all.setAttribute('data-foms-sheet-step', d.part); // 반장 손 체크 확인 창(sheet-parts beforeToggle)이 파트를 읽는다
-      tools.appendChild(all);
-    }
     if (w && d.hand_off) { tools.appendChild(actButton('모두 완료 취소', 'hand-off', '', false)); }
     box.setAttribute('data-order-id', String(d.order_id));
     q('[data-foms-sheet-parts]').setAttribute('data-foms-sheet-parts', JSON.stringify({ sheets: d.sheets, parts: d.parts, keys: d.keys, fix: d.fix })); // fix = 막힌 도면이 있을 때만
@@ -244,7 +239,6 @@
     var kind = btn.getAttribute('data-foms-pc-sheet-act');
     var key = btn.getAttribute('data-key') || '';
     var r = S.data.rows.filter(function (x) { return x.key === key; })[0];
-    if (kind === 'all') { W.askAll(box, btn, function () { track(btn, '', W.stepSet(S.data, true)); }); return; }
     if (kind === 'hand-off') { track(btn, '', W.stepSet(S.data, false)); return; }
     if (kind === 'ask-no') { W.hideAsk(box); focusAfter(''); return; }
     if (kind === 'ask-yes') { track(btn, '', W.complete(box, S.data)); return; }

@@ -103,7 +103,13 @@ function snap(extra) {
   return Object.assign({ scale: Math.round(z.scale * 1000) / 1000, tx: Math.round(z.tx * 10) / 10, ty: Math.round(z.ty * 10) / 10,
     transform: img.style.transform, zoomed: cls.includes('is-zoomed'), anim: cls.includes('is-anim'), hidden: viewer.hidden,
     src: img.getAttribute('src'), img_hidden: img.hidden, page: card ? card.textContent.trim() : '',
-    gv: calls.gv.length, open: calls.open.map((c) => c.url) }, extra || {});
+    gv: calls.gv.length, open: calls.open.map((c) => c.url), acts: acts() }, extra || {});
+}
+// 크게 보기 아래 줄 단추 · 글(카드 단추 칸 복사본 — test_production_start_strong_viewer_1127)
+function acts() {
+  const box = viewer.querySelector('[data-pp-v-act]');
+  return (box ? box.children : []).filter((c) => c.tag).map((c) => ({ tag: c.tag, cls: c.getAttribute('class') || '',
+    proxy: c.getAttribute('data-pp-proxy') || '', text: String(c.textContent || '').replace(/\s+/g, ' ').trim() }));
 }
 function touch(type, touches, changed) {
   return D.dispatch(stage, type, { cancelable: true, touches: (touches || []).map(pt), changedTouches: (changed || []).map(pt) });
@@ -152,6 +158,9 @@ for (const s of want.steps) {
   } else if (s.do === 'updated') {
     (D.docListeners['foms:part-card-updated'] || []).forEach((f) => f({ type: 'foms:part-card-updated' }));
     out.push(snap({ do: 'updated' }));
+  } else if (s.do === 'view') { // 칸 단추(전체 도면 · 작업 중 · 완료)
+    D.dispatch(body.querySelector('[data-pp-view="' + s.v + '"]'), 'click');
+    out.push(snap({ do: 'view' }));
   } else if (s.do === 'ui_zoom') {
     uiZoom = s.value;
     out.push(snap({ do: 'ui_zoom' }));

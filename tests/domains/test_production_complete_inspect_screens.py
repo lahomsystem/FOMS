@@ -18,6 +18,7 @@ from tests.domains.test_production_complete_requires_inspect import (
     _user,
 )
 from tests.support.production_steps_seed import inspected_steps
+from tests.support.production_steps_read import steps_read
 
 
 # --------------------------------------------------------------------------- #
@@ -60,7 +61,7 @@ def test_시트_두_곳은_뷰_모델의_같은_판정으로_그린다() -> None
 def test_공정_API_는_같은_함수의_답을_싣는다(client) -> None:
     _login(client, _user(part=None, lead=True))  # 반장
     oid = _order(production={"steps": inspected_steps(upto="assemble")})
-    got = client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]
+    got = steps_read(client, oid)
     assert got["complete_ready"] is False
     done = client.post(f"/api/orders/{oid}/production/steps", json={"key": "inspect", "done": True}).get_json()["data"]
     assert done["complete_ready"] is True and done["done_count"] == 4
@@ -78,7 +79,7 @@ def test_모두_켰다가_모두_끄면_규칙_밖으로_돌아간다(client) ->
         assert resp.status_code == 200, resp.get_data(as_text=True)
         return resp.get_json()["data"]["complete_ready"]
 
-    assert client.get(f"/api/orders/{oid}/production/steps").get_json()["data"]["complete_ready"] is True
+    assert steps_read(client, oid)["complete_ready"] is True
     keys = ("cut", "edge", "assemble", "inspect")
     assert [_toggle(k, True) for k in keys] == [False, False, False, True]
     assert [_toggle(k, False) for k in keys] == [False, False, False, True]

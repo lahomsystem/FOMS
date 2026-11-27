@@ -4,7 +4,7 @@
 * 카드 단추(서버 home_parts.html pp_act · JS crew.render · 크게 보기는 카드 단추를 복사)가 파트 탭마다 [재단 시작] · [엣지 시작] ·
   [조립 시작] · [검수 시작](같은 날 오후 [<파트> 같이 작업] · [<파트> 시작 취소]도 — test_production_part_named_buttons_1127). 파트 이름은 완료 단추 [<파트> 완료]와 같은 낱말 원본(``PRODUCTION_PART_LABELS`` → 판 ``part_label`` → JS cfg.label).
 * 같은 단추가 여는 창: 제목 "엣지 시작할까요?" · 실행 단추 [엣지 시작] · 끝난 뒤 알림 "엣지 시작했어요"(누른 단추 말 그대로).
-* 그대로인 것(대조군): [기본] · 서버 넘김 글 · 작업 시트 바뀐 기록 낱말('작업 시작').
+* 그대로인 것(대조군): [기본] · 서버 넘김 글. 작업 시트 바뀐 기록 낱말은 같은 날 '작업 시작' → '시작'(test_production_record_words_tone_1127).
 * 바로 반영: 위 탭 숫자는 서버가 그릴 때만 적혀(쓰기 응답 · 30초 받아 오기는 카드만) 옛 숫자였고, 셸이 60초 받아 둔 탭 사본을 다시 끼웠다.
   쓰기 성공 → parts.js 가 'foms:prod-parts-written' → parts-fresh.js 가 위 탭 · 지금 주소 셸 사본을 버리고(요청 0), 주문 칸이 바뀐
   쓰기(제작 시작 · 그 시작 되돌림 ``run_cancelled`` · 공정 칸 · 제작 완료)만 ``?view=counts`` 한 번(그리기 없이 숫자). 쓰기 길 쿼리는 그대로.
@@ -74,7 +74,7 @@ def test_js_redraw_window_and_notice_use_the_same_word(client, cohort, tmp_path)
     assert w["body"] == "이 주문 첫 도면이라 제작 시작도 같이 돼요."  # 제작 시작 한 줄은 그대로
     assert out[2]["status"] == "엣지 시작했어요 · 제작 시작도 같이 됐어요" and out[2]["modal"]["hidden"] is True
     act = out[3]["card"]["act"]
-    assert act == [{"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "엣지 시작", "kids": []}]
+    assert act == [{"tag": "button", "cls": "foms-prod-home__btn foms-prod-home__btn--pri pp-act", "act": "take", "text": "엣지 시작", "kids": []}]
 
 
 def test_source_contract_start_words_and_untouched_words():
@@ -91,7 +91,7 @@ def test_source_contract_start_words_and_untouched_words():
     assert "LABEL + ' 같이\\u00a0작업', 'join'" in crew and 'data-pp-act="release">{{ pb.part_label }} 시작&nbsp;취소</button>' in tpl
     assert "run: LABEL + ' 시작 취소'" in modal and "p.run + ' 시작했어요'" in parts
     sheet = (JS / "foms-production-sheet-parts.js").read_text(encoding="utf-8")
-    assert "take: '작업 시작'" in sheet  # 작업 시트 바뀐 기록 낱말(기록 글)은 그대로
+    assert "take: '시작'" in sheet and "'작업 시작'" not in sheet  # 작업 시트 바뀐 기록 낱말 — 단추 말과 맞춤(11-27, test_production_record_words_tone_1127)
     viewer = (JS / "foms-production-parts-viewer.js").read_text(encoding="utf-8")
     assert "copy = el.cloneNode(true)" in viewer and "시작" not in viewer  # 크게 보기는 카드 단추를 복사(글을 따로 짓지 않음)
 

@@ -251,7 +251,7 @@ def fetch_production_attachment_counts(db: Any, page_rows: list[Any]) -> dict[in
 def fetch_production_current_run_ids(db: Any, page_rows: list[Any]) -> set[int]:
     """행 목록 중 current production run 이 있는 주문 id 집합(쿼리 1회, 캐시 없음).
 
-    행 DTO(``build_production_enriched_rows``)·묘비 버킷이 PRODUCTION 단계를 제작대기/제작중으로
+    행 DTO(``build_production_home_enriched_rows``)·묘비 버킷이 PRODUCTION 단계를 제작대기/제작중으로
     가르는 데 쓴다. 빈 목록이면 쿼리 없이 빈 set.
     """
     if not page_rows:

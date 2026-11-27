@@ -121,11 +121,10 @@
     // ── 공정 체크 ──
     var countEl = page.querySelector('[data-foms-sheet-steps-count]');
     var nowText = netEl ? '지금 여기' : '';  // 전체 화면 시트만 지금 공정 옆에 글(옆 시트는 칸 테두리만)
-    // [제작 완료] 단추 — 전체 화면 시트는 루트 안, 옆 시트는 공정 루트 밖 바닥 줄(.foms-prod-sheet 안)에 있다.
-    var completeScope = (typeof page.closest === 'function' && page.closest('.foms-prod-sheet')) || page;
-    var completeBtn = completeScope.querySelector('[data-foms-sheet-complete]');
+    // [제작 완료] 단추 — 전체 화면 시트 루트 안(옛 옆 시트의 루트 밖 단추 갈래는 2026-11-27 옆 시트와 함께 지웠다).
+    var completeBtn = page.querySelector('[data-foms-sheet-complete]');
     var completeHint = completeBtn ? completeBtn.querySelector('[data-foms-sheet-complete-hint]') : null;
-    var completeBase = completeBtn && completeBtn.classList.contains('foms-prod-sheet__btn') ? 'foms-prod-sheet__btn' : 'foms-prod-page__btn';
+    var completeBase = 'foms-prod-page__btn';
     function stepButtons() { return toArr(page.querySelectorAll('[data-foms-sheet-step]')); }
     function stepLabel(b) { var n = b.querySelector('span'); return n ? String(n.textContent || '').trim() : ''; }
     // 회색 [제작 완료]를 누름 = 남은 공정을 글로(요청 없음). 공정 4칸 이름 · 남은 칸 이름은 화면의 칸 글 그대로.
@@ -200,7 +199,7 @@
             btn.setAttribute('aria-pressed', done ? 'true' : 'false');
             syncComplete();
           }
-          setStatus(savedText(done ? '작업 완료했어요' : '작업을 취소했어요'), 'ok');
+          setStatus(savedText((stepLabel(btn) + (done ? ' 완료했어요' : ' 완료 취소했어요')).trim()), 'ok'); // "재단 완료했어요"(도면 카드 알림과 같은 꼴, 11-27)
         });
     }
 
@@ -237,7 +236,7 @@
         });
     }
 
-    // 회색 [제작 완료] — 단추 자리에서 먼저 받아 막는다(옆 시트는 단추가 공정 루트 밖). 문서 위임(tablet-domain-sheets.js)까지 안 간다.
+    // 회색 [제작 완료] — 단추 자리에서 먼저 받아 막는다. 문서 위임(tablet-domain-sheets.js)까지 안 간다.
     if (completeBtn) {
       completeBtn.addEventListener('click', function (e) {
         if (completeBtn.getAttribute('aria-disabled') !== 'true') { return; }

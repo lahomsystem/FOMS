@@ -1,6 +1,6 @@
 """C1: 생산/시공 대시보드 행 DTO의 실측담당자 연락처 N+1 회귀 가드.
 
-build_construction_row_dtos / build_production_enriched_rows는 행마다
+build_construction_row_dtos / build_production_home_enriched_rows(첫 화면)는 행마다
 load_erp_shipment_settings(SystemSetting 조회)를 호출하던 것을, 출고 설정 1회 로드로
 만든 manager_phone_map 재사용으로 바꿨다. 시공 대시보드는 브라우즈에서 최대 300행을
 DTO로 만들기 때문에 이 N+1이 TTFB의 큰 비중이었다(스테이징 실측: 시공 대시보드 warm
@@ -18,7 +18,7 @@ from db import db_session, engine
 from foms.services.construction_dashboard_display import build_construction_row_dtos
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.estimate_service import build_measurement_manager_phone_map
-from foms.services.production_dashboard_display import build_production_enriched_rows
+from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from models import Order, SystemSetting, User
 
 _MANAGER_NAME = "큐담당"
@@ -149,10 +149,10 @@ def test_production_enriched_rows_no_n_plus_one(app):
         big = _fresh(big_ids)
 
         _, q_small = _count_queries(
-            lambda: build_production_enriched_rows(small, {})
+            lambda: build_production_home_enriched_rows(small)
         )
         _, q_big = _count_queries(
-            lambda: build_production_enriched_rows(big, {})
+            lambda: build_production_home_enriched_rows(big)
         )
 
         extra = q_big - q_small

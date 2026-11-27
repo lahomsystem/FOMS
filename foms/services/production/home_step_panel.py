@@ -8,8 +8,8 @@ DB 를 읽지 않는다(쿼리 0개 더함). 금액은 싣지 않는다(D7). 엣
   붙이고, ``order=`` 가 선 공정 탭 열쇠를 돌려준다(그 탭이 첫 화면 탭 — 마지막 탭 기억보다 앞).
 - :func:`step_panel_for` — 다른 줄을 누를 때 받는 판 하나 조각(``view=panel&step=&order=``)의 자료. 같은 공정 줄에서 만들어
   '끝내면 다음은' 이 한 화면에 다 그릴 때와 같다.
-- :func:`step_confirm_ids` · :func:`attach_step_confirm` — [<공정> 끝] 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번
-  묻기"). 표시 줄은 부르는 쪽(``foms.web.production.home``)이 한 번에 읽어 넘긴다 — 이 모듈은 그대로 DB 를 읽지 않는다.
+- :func:`step_confirm_ids` · :func:`attach_step_confirm` — 도면 있는 줄의 [<공정> 끝] 자리 막힘(옛 확인 창 자료는 2026-11-27 지움 — 도면
+  있는 줄은 늘 아래 막힘이 먼저였다). 표시 줄은 부르는 쪽(``foms.web.production.home``)이 한 번에 읽어 넘긴다 — 이 모듈은 그대로 DB 를 읽지 않는다.
 - [끝] 자리 막힘 ``step_block``(비평 C02 · C03, 보류 · 도면 고치는 중과 같은 자리 · 꼴): 장이 모두 남의 공장인 주문 = "2공장 작업"
   (:func:`attach_step_blocks` — 공정 API 와 같은 :func:`~foms.services.production.factory_scope.order_factory_gate`, 줄 끝으로 — 날짜 탭
   남의 공장 줄처럼 빼지 않고 뒤에) · 그 파트가 도면 칸을 쓴 주문 = "재단 3/5 · 2장 미완료"(공정 API 와 같은 거절 ``PART_USES_CARDS`` —
@@ -26,7 +26,7 @@ import datetime
 from typing import Any
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
-from foms.services.orders.drawing_fix import blocked_left_numbers, confirm_extras, fixing_label, per_drawing_numbers
+from foms.services.orders.drawing_fix import blocked_left_numbers, fixing_label, per_drawing_numbers
 from foms.services.production.factory_scope import order_elsewhere
 from foms.services.production.part_card_state import BLOCK_REVISE
 from foms.services.production.part_mark_gates import (
@@ -37,7 +37,7 @@ from foms.services.production.part_mark_gates import (
     step_cell_gate,
 )
 from foms.services.files.list_thumb import mid_thumb_url
-from foms.services.production.part_progress import part_progress, step_api_extras
+from foms.services.production.part_progress import part_progress
 from foms.services.production_dashboard_display import _production_first_item
 from foms.services.production_home_read_model import PRODUCTION_HOME_STEP_DEFS
 from foms.services.production_sheet_view import _PROD_SHEET_IMG_EXT, _format_at_kst
@@ -154,7 +154,7 @@ def production_home_step_panel(row: dict[str, Any], key: str, next_row: dict[str
         'hold_reason': _hold_reason(sd),
         'revise_block': row.get('revise_block'),  # 도면 고치는 중 — [끝] 대신 까닭(보류와 같은 자리, 2026-11-25)
         'step_block': row.get('step_block'),  # 남의 공장 주문 · 도면 칸을 쓴 파트 — [끝] 대신(비평 C02 · C03)
-        'confirm': row.get('step_confirm'),  # [끝] 확인 창 자료(도면 있는 줄만, attach_step_confirm — 없으면 지금처럼 바로 저장)
+        'confirm': row.get('step_confirm'),  # 늘 None — 확인 창 자료 길은 2026-11-27 지웠다(템플릿 ``p.confirm`` 을 치운 뒤 이 칸도 뺀다)
         'latest_defect': _latest_defect(sd),
         'next_id': next_row['id'] if next_row else None,
         'next_name': (next_row.get('customer_name') or '-') if next_row else '',
@@ -262,10 +262,9 @@ def _fix_wait_block(sd: dict[str, Any], marks: list[Any], key: str) -> dict[str,
 
 
 def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]], *, confirm: bool = True) -> None:
-    """줄 행에 ``step_confirm`` = [<공정> 끝] 확인 창 자료(단추 ``data-foms-sheet-parts``) — 작업 시트 · 공정 API 와 같은 함수
-    :func:`step_api_extras` 의 값(``sheets`` = 확정 도면 장 수, 2공장 계정도 주문 전체 장 수 — 작업 시트와 같다)에서 그 줄 공정의
-    ``uses_cards`` 만 싣는다(카드를 쓴 파트는 묻지 않고 서버가 판정 — 작업 시트 ``beforeToggle`` 과 같은 규칙, 판정은 JS 한 곳). 막힌 도면이
-    있는 주문은 ``fix``(확인 창 본문 재료, 2026-11-25 설계서 §2-4)를 더 싣는다.
+    """도면 있는 줄의 [<공정> 끝] 자리 막힘(아래 둘). 옛 ``step_confirm``(누르기 전 확인 창 자료)은 2026-11-27 지웠다 — 도면이 1장이라도
+    있는 줄은 [끝]을 그리는 사람에게 늘 ``step_block`` 이 먼저 붙어(공정 API 409 ``STEP_PER_SHEET`` 와 같은 :func:`step_cell_gate`) 그 자료가
+    실리는 줄이 없었다.
 
     그 공정 파트에 남은 장이 도면별로 막힌 장뿐이면(풀어 쓴 뒤 · 지금 도면이 모두 막힘) [끝] 대신 ``revise_block`` "도면 2 고치는 중"을
     단다 — 누르면 처리할 장이 없어 거절되는 길을 없앤다(2026-11-25 D1 검토 판결 D). 그 줄은 보류처럼 흐리고 처음 고른 줄 · '끝내면 다음은'
@@ -278,7 +277,7 @@ def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]], *, 
     Args:
         queues: :func:`production_home_step_queues` 결과(행을 그 자리에서 고친다).
         marks: :func:`step_confirm_ids` 주문들의 표시 줄(``marks_by_order`` — 열쇠가 있는 주문만 싣는다).
-        confirm: 확인 창 자료를 실을지([끝]을 그리는 사람만 — 아니면 막힘 판정만).
+        confirm: [끝]을 그리는 사람인지(``step_block`` 은 그 사람에게만 — 아니면 "도면 2 고치는 중" 판정만).
     """
     for q in queues.get('queues') or []:
         for row in q.get('rows') or []:
@@ -288,15 +287,7 @@ def attach_step_confirm(queues: dict[str, Any], marks: dict[int, list[Any]], *, 
             wait = _fix_wait_block(sd, marks[row['id']], q['key'])
             if wait is not None:
                 row['revise_block'] = wait
-                row.pop('step_confirm', None)
                 continue
             cards = _cards_block(sd, marks[row['id']], q['key']) if confirm else None
-            if cards is not None:  # 도면 칸을 쓴 파트 — [끝] 대신 남은 장(눌러도 늘 거절되던 길, 비평 C03)
+            if cards is not None:  # 도면 칸을 쓴 파트 · 도면이 있는 주문 — [끝] 대신 남은 장(눌러도 늘 거절되던 길, 비평 C03)
                 row['step_block'] = cards
-                row.pop('step_confirm', None)
-                continue
-            extras = step_api_extras(sd, marks[row['id']]) if confirm else {'sheets': 0}
-            if extras['sheets']:
-                row['step_confirm'] = {'sheets': extras['sheets'],
-                                       'parts': {q['key']: {'uses_cards': extras['parts'][q['key']]['uses_cards']}},
-                                       **confirm_extras(sd)}

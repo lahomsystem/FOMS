@@ -111,7 +111,7 @@ def test_old_board_and_side_sheet_are_closed_for_freelancer(world, app, path):
 
 
 def test_production_steps_read_api_is_closed_for_freelancer(world, app):
-    """공정 읽기 GET — 지우는 길이라 허용 목록 · "내 주문 일 API" 에서 뺐다. 내 주문이든 남의 주문이든 문지기 403."""
+    """공정 읽기 GET — 2026-11-27 지운 길(같은 주소 POST 만 남음). 허용 목록 · "내 주문 일 API" 에 없어 내 주문이든 남의 주문이든 문지기 403."""
     client = _client(app, world.fl)
     for order_id in (world.own_id, world.other_id):
         resp = client.get(f"/api/orders/{order_id}/production/steps")

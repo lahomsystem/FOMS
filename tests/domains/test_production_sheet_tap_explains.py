@@ -81,5 +81,5 @@ def test_공정_칸은_칸_하나가_누를_곳_하나이고_칸_사이_8px_네_
     gap = int(re.search(r"gap:\s*(\d+)px", steps).group(1))
     height = int(re.search(r"min-height:\s*(\d+)px", cell).group(1))
     assert gap >= 8 and height >= 48 and 4 * height + 3 * gap == 4 * 56  # 네 칸 키 합 = 예전(56 × 4) 그대로
-    # 옆 시트(옛 보드) 꼴은 그대로 — 누를 곳 하나 규칙만 같이 받는다
-    assert ".foms-prod-sheet .foms-prod-page__steps { display: flex; flex-direction: column; gap: 0; }" in css
+    # 옆 시트(옛 보드) 꼴(.foms-prod-sheet .foms-prod-page__steps …)은 2026-11-27 옆 시트와 함께 지웠다
+    assert ".foms-prod-sheet .foms-prod-page__step" not in css

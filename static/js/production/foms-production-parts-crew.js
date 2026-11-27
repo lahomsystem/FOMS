@@ -79,8 +79,8 @@
       if (!o.writable) { return true; } // 보기만 = 단추 없음
       var row = o.cut || !o.mine ? el('div', 'pp-two') : box;
       if (o.cut) { row.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', '기본', 'basic')); }
-      // 진한 단추는 한 칸에 하나(C59) — 반장 · 관리자 재단 칸은 아래 [재단 완료]가 진하니 [재단 시작]은 옅게
-      row.appendChild(el('button', 'foms-prod-home__btn' + (o.cut ? (o.mine ? ' foms-prod-home__btn--pri' : '') : ' pp-act'), LABEL + ' 시작', 'take'));
+      // 진한 단추는 한 칸에 하나(C59) — 파트 계정 [<파트> 시작]은 진하게(재단처럼, 사장님 11-27), 반장 · 관리자 칸은 [<파트> 완료]가 진하니 옅게
+      row.appendChild(el('button', 'foms-prod-home__btn' + (o.mine ? ' foms-prod-home__btn--pri' : '') + (o.cut ? '' : ' pp-act'), LABEL + ' 시작', 'take'));
       if (row !== box) { box.appendChild(row); }
       if (!o.mine) { (o.cut ? box : row).appendChild(el('button', 'fph-qr__done pp-act pp-fin is-pair', LABEL + ' 완료', 'check')); } // 재단은 둘째 줄
       return true;
