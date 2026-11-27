@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from flask import has_request_context
+
 from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.production.factory_constants import (
     DEFAULT_FACTORY,
@@ -119,7 +121,7 @@ def part_view_mode(user: Any) -> str:
     """
     if not can_view_production_home(user) or not _is_live_staff(user):
         return VIEW_NONE
-    if is_list_freelancer(user):  # 영업팀 직원 · 매니저만 설정을 읽는다(요청 안에서는 한 번 — 문지기가 이미 읽은 값)
+    if has_request_context() and is_list_freelancer(user):  # 요청 안에서만 설정을 읽는다(문지기가 이미 읽은 값 — 요청 밖 단위 호출은 DB 를 안 건드린다)
         return VIEW_NONE
     if is_part_admin(user):
         return VIEW_ADMIN
