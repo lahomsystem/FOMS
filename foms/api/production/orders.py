@@ -10,7 +10,7 @@ from foms.services.datetime_kst import now_utc_naive
 from functools import wraps
 from typing import Any, Callable
 
-from flask import Blueprint, g, jsonify, request, session
+from flask import Blueprint, jsonify, request, session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -75,14 +75,12 @@ from foms.services.production.steps import (
     set_production_step,
 )
 from foms.services.orders.drawing_fix import confirm_extras
-from foms.services.production.part_mark_gates import GateRefusal, revising_gate, step_cell_gate
-from foms.services.production.step_expand import apply_step_expand, step_expand_plan
-from foms.services.production.sheet_parts import step_note
+from foms.services.production.part_mark_gates import GateRefusal, step_cell_gate
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_block_body, complete_ready, step_api_extras  # noqa: F401  # complete_block_body = 판정 한 곳 재노출(위치 고정 시험)
 from foms.services.production.complete_order import clear_factory_marks, complete_production, reopen_after_uncomplete
 from foms.services.production.factory_home import factory_step_fields
-from foms.services.production.factory_scope import order_factory_gate, steps_factory_note
+from foms.services.production.factory_scope import order_factory_gate
 from foms.services.production.order_write_helpers import (  # noqa: F401  # 옮긴 조각 — 옛 이름 그대로 다시 내보냄(시험 · 다른 생산 API)
     PRODUCTION_HOLD_HISTORY_CAP as _PRODUCTION_HOLD_HISTORY_CAP,
     _append_hold_history,
@@ -1082,51 +1080,6 @@ def api_production_change_ack(order_id: int):
         return jsonify({"success": False, "message": str(exc)}), 500
 
 
-@erp_orders_production_bp.route("/<int:order_id>/production/steps", methods=["GET"])
-@login_required
-def api_production_steps_get(order_id: int):
-    """생산 공정 스텝 조회(시트 lazy 로드용).
-
-    sd['production']['steps'] 가 없으면 기본 5단계를 메모리에서 파생만 하고 저장하지
-    않는다(쓰기는 POST 소관). 읽기는 대시보드 열람과 동일하게 @login_required 만 요구
-    — 편집 불가 팀도 진행 현황은 볼 수 있어야 한다.
-    """
-    db = get_db()
-    order = db.get(Order, order_id)
-    if not order or order.status == "DELETED" or order.deleted_at is not None:
-        return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
-
-    sd = _ensure_dict(order.structured_data)
-    production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
-    steps = _normalize_production_steps(production.get("steps"))
-    done_count = sum(1 for s in steps if isinstance(s, dict) and s.get("done"))
-    defects = production.get("defects") if isinstance(production.get("defects"), list) else []
-    latest_defect = defects[-1] if defects else None
-    # 파트 계정은 도면 카드에서만 · 파트도 반장도 아닌 생산팀은 못 체크(설계서 §15.4 · '승인 때 고친 것' 5) — 바텀시트가 읽기 전용으로 그린다.
-    # 반장에게 장이 모두 남의 공장인 주문도(비평 C02 — POST 403 OTHER_FACTORY 와 같은 판정, 글 = 남의 공장 카드 글).
-    lock = steps_lock(getattr(g, "current_user", None))
-    note = lock.message if lock else steps_factory_note(getattr(g, "current_user", None), sd)
-    marks = order_marks(db, order_id)  # 카드를 쓴 주문의 완료 판정 · 파트 진행(§4-3, +1)
-    return jsonify(
-        {
-            "success": True,
-            "data": {
-                "steps": steps,
-                "done_count": done_count,
-                "total": len(steps),
-                # [제작 완료] 를 누를 수 있는지 — 제작 완료 API 와 같은 한 함수(검수까지 끝남)
-                "complete_ready": complete_ready(sd, marks),
-                "latest_defect": latest_defect,
-                "locked": note is not None,
-                "locked_note": note,
-                **step_api_extras(sd, marks),  # sheets(손 체크 확인 창 장 수) · parts(카드 3/5)
-                **factory_step_fields(sd, marks),  # 섞인 주문만 공장마다 준비 · 까닭(2공장 §4-14)
-                **confirm_extras(sd),  # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4)
-            },
-        }
-    )
-
-
 @erp_orders_production_bp.route("/<int:order_id>/production/steps", methods=["POST"])
 @login_required
 @_production_steps_edit_required
@@ -1167,19 +1120,13 @@ def api_production_steps(order_id: int):
             if gate is not None:
                 raise GateRefusal(gate)  # 쓰기 · 이벤트 없음(부르는 쪽이 되감는다)
             name = user.name if user else None
-            plan = step_expand_plan(sd, marks, key) if done else None
-            if plan is not None:  # 막힌 도면이 있는 주문의 통째 작업 = 막힌 도면만 빼고 도면별 표시로(2026-11-25 설계서 §3-6 ①, C4)
-                if not plan["keys"]:  # 뺄 도면 말고 처리할 도면이 없다(지금 도면이 모두 막힘) — 통째 막힘과 같은 거절
-                    raise GateRefusal(revising_gate(plan["numbers"], part=key))
-                marks, captured["expanded"] = apply_step_expand(sess, o, sd, marks, key, plan, user=user)  # 감사 줄도 그 안에서
-                captured["expanded"]["note"] = (step_note(sd, marks, key) or {}).get("text")
-                steps = (sd.get("production") or {}).get("steps") if isinstance(sd.get("production"), dict) else None
-            else:
-                now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                steps = set_production_step(sd, key, done, by_name=name, at_iso=now_iso, via=STEP_VIA_SHEET)
-                sess.add(OrderEvent(order_id=o.id, event_type="PRODUCTION_STEP_CHECKED", created_by_user_id=user_id,
-                                    payload={"key": key, "done": done, "domain": "PRODUCTION_DOMAIN",
-                                             "action": "PRODUCTION_STEP_CHECKED", "via": STEP_VIA_SHEET, "by_name": name}))
+            # 옛 '막힌 도면만 빼고 풀어 쓰기'(2026-11-25 §3-6 ①)는 지웠다 — 켜기는 도면이 1장이라도 있으면 위 문(STEP_PER_SHEET)이 먼저
+            # 막아(사장님 2026-11-27) 그 길에 닿는 주문이 없었다. 여기 오는 켜기는 도면 0장 주문뿐이다.
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            steps = set_production_step(sd, key, done, by_name=name, at_iso=now_iso, via=STEP_VIA_SHEET)
+            sess.add(OrderEvent(order_id=o.id, event_type="PRODUCTION_STEP_CHECKED", created_by_user_id=user_id,
+                                payload={"key": key, "done": done, "domain": "PRODUCTION_DOMAIN",
+                                         "action": "PRODUCTION_STEP_CHECKED", "via": STEP_VIA_SHEET, "by_name": name}))
             o.structured_data = sd
             flag_modified(o, "structured_data")
             captured["steps"] = steps
@@ -1206,18 +1153,15 @@ def api_production_steps(order_id: int):
             db.rollback()
             return jsonify(refusal.gate.body()), refusal.gate.status
 
-        if "expanded" not in captured:  # 풀어 쓰기는 카드 쓰기와 같은 감사 줄을 이미 남겼다(칸 '완료'는 칸이 정말 켜질 때만 — 판결 E)
-            _audit_production(order, "PRODUCTION_STEP_CHECKED", user_id,
-                              note=f"{key}: {'완료' if done else '해제'}",
-                              extra={"step": key, "done": bool(done)})
+        _audit_production(order, "PRODUCTION_STEP_CHECKED", user_id,
+                          note=f"{key}: {'완료' if done else '해제'}",
+                          extra={"step": key, "done": bool(done)})
         db.commit()
         steps = _normalize_production_steps(captured["steps"])  # 옛 주문의 paint 는 응답에서 뺀다(D15)
         done_count = sum(1 for s in steps if s.get("done"))
         # complete_ready = 제작 완료 API 와 같은 한 함수 — 작업 시트 JS 가 [제작 완료] 단추 색을 이 값으로 바꾼다.
         data = {"steps": steps, "done_count": done_count, "total": len(steps),
                 "complete_ready": captured["complete_ready"], **captured["extras"]}
-        if "expanded" in captured:  # 화면은 그 파트 칸을 "도면 4/5 · 1장 미완료"로 그린다(C4)
-            data["expanded"] = captured["expanded"]
         return jsonify({"success": True, "data": data})
     except Exception as exc:
         db.rollback()

@@ -784,7 +784,7 @@ def test_release_hold_via_gate_appends_history(client):
 
 def test_enrich_row_derives_history_counts(client):
     """enriched 행에 rework_count(int)·hold_history_count(int) 파생(E-b) — 완료 후 이력 소비용."""
-    from foms.services.production_dashboard_display import build_production_enriched_rows
+    from foms.services.production_dashboard_display import build_production_home_enriched_rows
 
     _login(client, _make_user("guard_e_enrich"))
     order = Order(
@@ -808,7 +808,7 @@ def test_enrich_row_derives_history_counts(client):
     db_session.add(order)
     db_session.commit()
 
-    rows = build_production_enriched_rows([order], {})
+    rows = build_production_home_enriched_rows([order])
     assert len(rows) == 1
     assert rows[0]["rework_count"] == 3
     assert rows[0]["hold_history_count"] == 2
@@ -853,7 +853,7 @@ def test_cancel_then_restart_mints_second_run(client):
     """F-1a+b 통합(2026-09-17 run 축): CONFIRM 시작(run1) → 취소(단계 PRODUCTION 유지·run1 SUPERSEDED)
     → 보드 행 제작대기·is_sales_approved=True(재시작 버튼) → 재시작 200 → run 2개(1 SUPERSEDED,
     1 IN_PROGRESS) → 보드 행 제작중."""
-    from foms.services.production_dashboard_display import build_production_enriched_rows
+    from foms.services.production_dashboard_display import build_production_home_enriched_rows
 
     _login(client, _make_user("guard_f1"))
     order_id = _make_order("CONFIRM").id
@@ -870,7 +870,7 @@ def test_cancel_then_restart_mints_second_run(client):
     runs = _runs(order_id)
     assert len(runs) == 1 and runs[0].status == "SUPERSEDED" and runs[0].is_current is False
 
-    rows = build_production_enriched_rows([saved], {}, set())
+    rows = build_production_home_enriched_rows([saved], set())
     assert len(rows) == 1
     assert rows[0]["stage"] == "제작대기"
     assert rows[0]["is_sales_approved"] is True  # 제작 이력 → 재시작 허용
@@ -883,7 +883,7 @@ def test_cancel_then_restart_mints_second_run(client):
     assert sorted(r.status for r in runs) == ["IN_PROGRESS", "SUPERSEDED"]
     assert [r.is_current for r in runs if r.status == "IN_PROGRESS"] == [True]
 
-    rows = build_production_enriched_rows([saved], {}, {saved.id})
+    rows = build_production_home_enriched_rows([saved], {saved.id})
     assert rows[0]["stage"] == "제작중"
 
 

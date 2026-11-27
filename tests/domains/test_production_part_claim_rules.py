@@ -31,6 +31,7 @@ from tests.support.production_part_claim_seed import (
     row,
     step,
 )
+from tests.support.production_steps_read import steps_read
 
 
 def _seed(oid: int, key: str, part: str, state: str, *, holder: str | None = None, done_by: str | None = None) -> None:
@@ -83,7 +84,7 @@ def test_cards_all_released_turns_part_back_to_hand_check(client):
     assert mark(client, order, 0, "cut", "take", "none").status_code == 200
     assert mark(client, order, 0, "cut", "release", "need").status_code == 200
     login(client, make_user("박반장", lead=True))
-    got = client.get(f"/api/orders/{order.id}/production/steps").get_json()["data"]
+    got = steps_read(client, order.id)
     assert got["parts"]["cut"]["uses_cards"] is False  # NONE 만 남음 = 안 쓴 파트
     assert code(check_step(client, order.id, "cut", True)) == "STEP_PER_SHEET"
 
@@ -108,7 +109,7 @@ def test_card_part_three_of_five_hand_check_is_refused_without_writing(client):
     assert step(order.id, "cut")["done"] is False and fresh(order.id).mutation_version == version
     assert len(events(order.id, "PRODUCTION_STEP_CHECKED")) == step_events
     assert db_session.query(SecurityLog).filter_by(action="PRODUCTION_STEP_CHECKED", target_id=order.id).count() == 0
-    got = client.get(f"/api/orders/{order.id}/production/steps").get_json()["data"]
+    got = steps_read(client, order.id)
     assert got["parts"]["cut"] == {"uses_cards": True, "done": False, "done_n": 3, "total_n": 5, "via": None, "left_n": 2}
     blocked = client.post(f"/api/orders/{order.id}/production/complete", json={})
     assert blocked.status_code == 409
@@ -133,7 +134,7 @@ def test_old_step_without_via_on_card_part_is_judged_by_cards(client):
     _seed(order.id, order.keys[0], "cut", "DONE", done_by="김재단")
     assert "via" not in step(order.id, "cut")
     login(client, make_user("박반장", lead=True))
-    got = client.get(f"/api/orders/{order.id}/production/steps").get_json()["data"]
+    got = steps_read(client, order.id)
     assert got["complete_ready"] is False and got["parts"]["cut"]["left_n"] == 2
     assert code(check_step(client, order.id, "cut", True)) == "PART_USES_CARDS"
     assert client.post(f"/api/orders/{order.id}/production/complete", json={}).status_code == 409
@@ -184,7 +185,7 @@ def test_every_caller_gives_the_same_completion_answer(client, name):
     marks = db_session.query(ProductionPartMark).filter_by(order_id=probe).all()
     assert complete_ready(fresh(probe).structured_data, marks) is ready
     login(client, admin)
-    assert client.get(f"/api/orders/{probe}/production/steps").get_json()["data"]["complete_ready"] is ready
+    assert steps_read(client, probe)["complete_ready"] is ready
     viewer = db_session.get(User, admin.id)
     assert build_production_sheet_view(db_session, fresh(probe), viewer, full=True)["complete_ready"] is ready
 

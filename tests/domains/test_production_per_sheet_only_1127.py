@@ -42,6 +42,7 @@ from tests.support.production_factory_seed import factory_user, mixed_order, put
 from tests.support.production_home_step_panel_seed import HOME, TABLET, add_order, get_html, pane_html, set_cookies
 from tests.support.production_home_step_panel_seed import login as home_login
 from tests.support.production_part_claim_seed import check_step, code, events, finish, fresh, login, make_order, make_user, step
+from tests.support.production_steps_read import steps_read
 
 ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_per_sheet_only_node_checks.js"
@@ -108,7 +109,7 @@ def test_turning_on_a_multi_sheet_order_is_refused_for_everyone_without_any_writ
         assert res.status_code == 409, res.get_json()
         assert res.get_json() == {"success": False, "data": {"code": STEP_PER_SHEET, "part": part, "left": n, "total": n}, "error": MSG}
         assert _snapshot(seed.id) == before  # 칸 · 버전 · 이벤트 · 감사 · 표시 줄 그대로
-    got = client.get(f"/api/orders/{seed.id}/production/steps").get_json()["data"]
+    got = steps_read(client, seed.id)
     assert got["per_sheet"] == MSG and got["sheets"] == n
 
 

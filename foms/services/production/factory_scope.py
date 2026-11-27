@@ -88,7 +88,7 @@ def order_elsewhere(user: Any, sd: Any) -> Optional[dict[str, str]]:
 def steps_factory_note(user: Any, sd: Any) -> Optional[str]:
     """반장이 장이 모두 남의 공장인 주문의 공정 칸을 볼 때 읽기 전용 까닭(카드 글 "2공장에서 작업하는 도면이에요.") — 아니면 None.
 
-    공정 API 403(:func:`order_factory_gate`)과 같은 판정 — 작업 시트 공정 칸 · 공정 GET ``locked`` 가 본다(누른 뒤 거절 대신 누르기 전에).
+    공정 API 403(:func:`order_factory_gate`)과 같은 판정 — 작업 시트 공정 칸이 본다(누른 뒤 거절 대신 누르기 전에).
     관리자는 두 공장이라 늘 None, 파트 계정 · 파트도 반장도 아닌 생산팀은 공정 칸 잠금(``steps_lock``)이 먼저다.
     """
     if part_view_mode(user) != VIEW_SUB:

@@ -1,10 +1,8 @@
-"""손 처리 파트를 도면별 표시로 풀어 적기(설계서 2026-11-25 §3-6 — 같은 함수 하나를 두 곳에서 부른다).
+"""손 처리 파트를 도면별 표시로 풀어 적기(설계서 2026-11-25 §3-6 ②).
 
-① 통째 작업에서 한 장 빼기: 막힌 도면이 있는 주문에서 반장 · 관리자가 카드를 한 장도 안 쓴 파트의 공정 칸을 켜면(``POST …/production/steps``)
-   칸은 켜지 않고 막히지 않은 지금 도면 **전부**를 ``DONE`` 표시로 쓴다(공장을 가리지 않음 — 공정 칸이 주문에 값 하나라 막힌 도면이 없으면
-   반장 한 번에 두 공장 장이 모두 완료되는 지금 규칙과 같은 범위, 2026-11-25 D1 검토 판결 A) — :func:`step_expand_plan` · :func:`apply_step_expand`.
-② 손 처리 파트가 있는 주문의 도면을 고쳐 보냄: 전달 쓰기 안에서 이번에 안 바뀐 장을 칸을 켠 사람 이름 · 칸 시각으로 ``DONE`` — D2 가
-   :func:`expand_hand_step` 을 부른다.
+손 처리 파트가 있는 주문의 도면을 고쳐 보냄: 전달 쓰기 안에서 이번에 안 바뀐 장을 칸을 켠 사람 이름 · 칸 시각으로 ``DONE`` — D2 가
+:func:`expand_hand_step` 을 부른다. 옛 ①(공정 칸 통째 작업에서 막힌 도면만 빼고 풀어 쓰기)은 2026-11-27 지웠다 — 도면이 1장이라도 있는
+주문의 공정 칸 켜기는 공정 API 가 먼저 409 ``STEP_PER_SHEET`` 로 막아 그 길에 닿는 주문이 없었다.
 
 그 순간 파트는 '카드를 쓴 파트'가 되어 공정 칸은 ``part_steps_sync`` 동기화가 맞춘다(막힌 장이 남아 꺼짐 → 그 장 새 판이 완료되면 저절로 켜짐).
 줄 값 · 이벤트는 카드를 누를 때와 같은 빌더(``part_mark_write.plan_write`` — 이벤트 ``PRODUCTION_PART_MARKED``, payload ``via: 'step_expand'``)로
@@ -14,32 +12,16 @@
 from __future__ import annotations
 
 import datetime
-from types import SimpleNamespace
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import insert
 from sqlalchemy.dialects import postgresql, sqlite
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
-from foms.services.orders.drawing_fix import expand_plan, expanded_words, numbers_text
-from foms.services.production.part_constants import (
-    MARK_STATE_BASIC,
-    MARK_STATE_DONE,
-    MARK_STATE_NEED,
-    PART_INSPECT,
-    PRODUCTION_PART_LABELS,
-)
-from foms.services.production.part_mark_gates import GateRefusal, inspect_gate
+from foms.services.production.part_constants import MARK_STATE_BASIC, MARK_STATE_DONE, MARK_STATE_NEED
 from foms.services.production.part_mark_rules import ACTION_DONE, MARK_COLUMNS
-from foms.services.production.part_mark_write import MarkWrite, actor_name, plan_write, step_note, write_audit
-from foms.services.production.part_progress import cards_used, mark_finished, marks_by_part, part_progress
-from foms.services.production.part_steps_sync import (
-    apply_part_step_changes,
-    plan_part_step_changes,
-    step_change_body,
-    step_event_rows,
-)
-from foms.services.production.steps import step_done_map
+from foms.services.production.part_mark_write import MarkWrite, plan_write
+from foms.services.production.part_progress import mark_finished, marks_by_part
 from models import OrderEvent, ProductionPartMark
 
 #: 풀어 적었다는 표지(이벤트 · 감사 ``via``).
@@ -119,71 +101,4 @@ def expand_hand_step(db: Any, order: Any, sd: Any, marks: Iterable[Any], part: s
     return writes
 
 
-def with_written_marks(marks: Iterable[Any], values: Iterable[dict[str, Any]]) -> list[Any]:
-    """읽은 표시 줄 위에 방금 쓴 값을 덮은 모습(다시 읽지 않는다 — 응답 · 동기화 판정용)."""
-    views = {(str(getattr(m, "drawing_key", "")), str(getattr(m, "part", ""))): m for m in marks}
-    for value in values:
-        views[(str(value["drawing_key"]), str(value["part"]))] = SimpleNamespace(**value)
-    return list(views.values())
-
-
-def step_expand_plan(sd: Any, marks: Iterable[Any], part: str) -> Optional[dict[str, Any]]:
-    """공정 칸 켜기(done=true)를 풀어 적을지(§3-6 ①) — 그 파트 카드 0장 · 칸이 꺼짐 · 막힌 도면 1장 이상.
-
-    Returns:
-        :func:`~foms.services.orders.drawing_fix.expand_plan` 값 또는 None(지금처럼 칸만 켬 — 막힌 도면이 없거나 카드를 쓴 파트).
-    """
-    if part in cards_used(list(marks)) or step_done_map(sd).get(part, False):
-        return None
-    return expand_plan(sd)
-
-
-def _check_inspect_ready(sd: Any, marks: list[Any], part: str, keys: Iterable[str]) -> None:
-    """검수 풀어 쓰기 전 장마다 지금 검수 문(:func:`~foms.services.production.part_mark_gates.inspect_gate` — 카드 검수 완료와 같은
-    판정). 하나라도 막히면 그 거절로 멈춘다(쓰기 0). 재단 · 엣지 · 조립은 검사 없음(지금 카드 규칙과 같다)."""
-    if part != PART_INSPECT:
-        return
-    for key in keys:
-        gate = inspect_gate(sd, marks, key, PART_INSPECT, ACTION_DONE)
-        if gate is not None:
-            raise GateRefusal(gate)
-
-
-def apply_step_expand(db: Any, order: Any, sd: dict[str, Any], marks: list[Any], part: str, plan: dict[str, Any], *,
-                      user: Any) -> tuple[list[Any], dict[str, Any]]:
-    """통째 작업 풀어 쓰기 — 장마다 표시 줄 + 이벤트 · 감사 한 줄 · 칸 동기화.
-
-    공정 칸 이벤트(``PRODUCTION_STEP_CHECKED``)는 동기화가 칸을 **정말** 바꿀 때만 남는다(칸이 꺼진 채 ``done: True`` 이벤트 없음 —
-    판결 E). 감사 줄은 카드 쓰기와 같은 '생산 파트 체크'(칸이 바뀌면 꼬리 " · 공정 재단 켬").
-
-    Args:
-        db: 세션(같은 tx). order: 잠근 주문. sd: 고칠 사본(동기화로 칸이 바뀌면 제자리 — 부르는 쪽이 재대입 · ``flag_modified``).
-        marks: 잠금 아래에서 읽은 표시 줄. part: 파트. plan: :func:`step_expand_plan` 값(``keys`` 가 비어 있지 않음).
-        user: 누른 반장 · 관리자.
-
-    Returns:
-        (쓴 뒤 표시 줄 모습, 응답 ``expanded`` = ``{part, part_label, done_n, total_n, skipped_numbers, tail, hold}``).
-
-    Raises:
-        GateRefusal: 검수를 풀어 쓸 때 쓸 장 중 하나라도 검수 준비가 안 됨(409 ``INSPECT_NOT_READY`` — 카드로 누를 때와 같은 판정 ·
-            같은 글, 둘째 판 3). 아무것도 쓰지 않는다.
-    """
-    _check_inspect_ready(sd, marks, part, plan["keys"])
-    writes = expand_hand_step(db, order, sd, marks, part, exclude_keys=plan["skip_keys"], user=user)
-    views = with_written_marks(marks, [w.values for w in writes])
-    changes = plan_part_step_changes(sd, views, (part,))
-    apply_part_step_changes(sd, changes, at_iso=datetime.datetime.now(datetime.timezone.utc).isoformat())
-    if changes:
-        db.execute(insert(OrderEvent), step_event_rows(order.id, changes, actor_user_id=getattr(user, "id", None),
-                                                       actor_name=actor_name(user)))
-    label = PRODUCTION_PART_LABELS[part]
-    steps = [step_change_body(order.id, change) for change in changes]
-    write_audit(db, user, f"{label} 완료 {len(writes)}장 · 도면 {numbers_text(plan['numbers'])} 뺌" + step_note(steps),
-                {"part": part, "to": MARK_STATE_DONE, "via": VIA_STEP_EXPAND, "keys": [w.values["drawing_key"] for w in writes],
-                 "skipped_numbers": plan["numbers"], "order_steps": steps}, order=order)
-    progress = part_progress(sd, views, part)
-    return views, {"part": part, "part_label": label, "done_n": progress["done_n"], "total_n": progress["total_n"],
-                   "skipped_numbers": plan["numbers"], **expanded_words(plan["numbers"])}
-
-
-__all__ = ["UNKNOWN_FINISHER", "VIA_STEP_EXPAND", "apply_step_expand", "expand_hand_step", "step_expand_plan", "with_written_marks"]
+__all__ = ["UNKNOWN_FINISHER", "VIA_STEP_EXPAND", "expand_hand_step"]
