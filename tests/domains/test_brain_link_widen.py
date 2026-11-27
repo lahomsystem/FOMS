@@ -64,7 +64,7 @@ def test_old_meanings_are_kept_and_the_new_kind_is_everywhere():
     assert {"quantity_from"} <= set(LINK_DISPLAY) & set(LINK_STANDARDS) & set(c.ALLOWED_LINKS)
     assert c.cardinality("price_rule", "quantity_from") == (0, 1) and len("quantity_from") <= 16  # 잇기 종류 칸 16자
     assert c.value_problems(kind="quantity_from", check=("kind",)) == []
-    assert AUTO_LINK_KINDS == frozenset({"applies_to", "at_step", "uses", "refines"})  # 7.2 — 금액 · 수량 정본 · '같이 안 돼요'는 없다
+    assert AUTO_LINK_KINDS == frozenset({"applies_to", "uses", "refines"})  # 7.2 — 금액 · 수량 정본 · '같이 안 돼요' · 공정 단계는 없다
     # '이을 수 있음 / 틀이 막음' 가름은 허용 표를 그대로 탄다
     assert _can_link("price_rule", "spec") and _can_link("term", "fact") and not _can_link("lesson", "price_rule")
 

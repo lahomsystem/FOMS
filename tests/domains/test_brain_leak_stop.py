@@ -144,7 +144,7 @@ def test_the_kinds_learning_links_without_a_person_are_the_first_list(ends):
         code, make = photo_learning._filer(db_session, idea, key="lahom/synth-unused", reason="합성", evidence=EVIDENCE,
                                            now=NOW.replace(tzinfo=datetime.timezone.utc), known="", agent_name=AGENT)
         change = make()
-    assert AUTO_LINK_KINDS == frozenset({"applies_to", "at_step", "uses", "refines"})
+    assert AUTO_LINK_KINDS == frozenset({"applies_to", "uses", "refines"})
     assert not AUTO_LINK_KINDS & {"value_from", "copy_in", "quantity_from", "requires", "excludes", "supersedes"}
     assert code is None and change.link_kind in AUTO_LINK_KINDS
     apply_change(db_session, change.id, actor=None, now=NOW, auto=AutoLearn(ends.id))

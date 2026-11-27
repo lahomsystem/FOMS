@@ -36,8 +36,7 @@ def item(item_type="fact", brand="LAHOM", visibility="all"):
 
 
 # ── 바로 넣는 조건 다섯(7.2) ──────────────────────────────────────────────
-@pytest.mark.parametrize("kind, target_type", [("applies_to", "product_line"), ("at_step", "process_step"),
-                                               ("uses", "term"), ("refines", "price_rule")])
+@pytest.mark.parametrize("kind, target_type", [("applies_to", "product_line"), ("uses", "term"), ("refines", "price_rule")])
 def test_all_five_conditions_met_is_the_only_way_in_without_a_person(kind, target_type):
     assert link.auto_block(kind, item(), item(target_type, "COMMON"), matched=True, unique=True) is None
     assert link.auto_block(kind, item(), item(target_type), matched=True, unique=True) is None  # 같은 브랜드
@@ -49,7 +48,8 @@ def test_all_five_conditions_met_is_the_only_way_in_without_a_person(kind, targe
     assert link.auto_block(kind, item(), None, matched=True, unique=True) == "scope"  # 바깥 자리 끝
 
 
-@pytest.mark.parametrize("kind", ["value_from", "quantity_from", "requires", "excludes", "copy_in", "supersedes"])
+@pytest.mark.parametrize("kind", ["value_from", "quantity_from", "requires", "excludes", "copy_in", "supersedes",
+                                  "at_step"])  # 공정 단계는 사장님 11-27 답으로 뺐다 — 늘 ⑥ 칸
 def test_money_quantity_and_together_links_never_go_in_without_a_person_even_when_all_else_fits(kind):
     assert link.auto_block(kind, item("build_rule"), item("product_line"), matched=True, unique=True) == "kind"  # ③
     assert kind not in AUTO_LINK_KINDS
@@ -58,7 +58,7 @@ def test_money_quantity_and_together_links_never_go_in_without_a_person_even_whe
 @pytest.mark.parametrize("ends", [("template", "process_step"), ("lesson", "template"), ("owner_decision", "policy")])
 def test_owner_decisions_and_template_answers_are_never_linked_without_a_person(ends):
     source, target = item(ends[0]), item(ends[1])
-    assert link.auto_block("at_step", source, target, matched=True, unique=True) == "owner_item"  # ⑤
+    assert link.auto_block("uses", source, target, matched=True, unique=True) == "owner_item"  # ⑤
     assert {"owner_decision", "template"} <= AUTO_LINK_HELD_ENDS and link.OWNER_ENDS <= AUTO_LINK_HELD_ENDS
 
 
@@ -74,7 +74,7 @@ def test_apply_refuses_an_auto_link_touching_a_template_answer_and_a_person_stil
                               to_key="process_step/synth-measure", reason="합성", proposer=Proposer.agent_named(AGENT),
                               evidence=EVIDENCE, now=NOW)
     db_session.commit()
-    with pytest.raises(BrainPermissionError):  # 종류는 바로 넣는 넷 안 — 끝이 기준 답이라 막는다(조건 ⑤)
+    with pytest.raises(BrainPermissionError):  # 공정 단계는 바로 넣는 종류가 아니고, 끝도 기준 답이다(조건 ③ · ⑤)
         apply_change(db_session, change.id, actor=None, now=NOW, auto=AutoLearn(admin.id))
     db_session.rollback()
     assert current_link(db_session, "at_step", "cs/tpl-synth", "process_step/synth-measure") is None
@@ -124,7 +124,7 @@ def test_the_kind_list_schema_and_words_have_no_hanja_and_cover_the_auto_kinds()
     assert lp.schema()["properties"]["items"]["items"]["properties"]["links"]["items"]["properties"]["kind"]["enum"] == list(
         lp.KINDS)
     assert AUTO_LINK_KINDS <= set(lp.KINDS) and set(lp.KINDS) == AUTO_LINK_KINDS | {"quantity_from", "value_from",
-                                                                                      "requires", "excludes"}
+                                                                                      "requires", "excludes", "at_step"}
     words = [lp.INSTRUCTIONS, lp.OVERRIDE, *lp.LIST_HEADS, lp.TARGET_HEAD, lp.SOURCE_HEAD, link.REASON_HEAD,
              link.GLYPH_REASON, *(f.label + f.help for f in HANDOFF_LEARN_FIELDS)]
     assert not [w for w in words if HANJA.search(w)]
