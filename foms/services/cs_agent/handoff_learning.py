@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import sys
 from typing import Any, Iterable, Optional, Sequence
 
 from sqlalchemy import and_, func, or_, select
@@ -78,6 +79,7 @@ from foms.services.cs_agent.turns import SKIP_LEARN_ONLY, STATE_SKIPPED
 from models import CsAgentTurn, SecurityLog, SystemSetting, User
 
 logger = logging.getLogger(__name__)
+_SELF = sys.modules[__name__]  # 이어 붙이기에 넘기는 이 모듈(그쪽이 여기를 불러오지 않게)
 
 __all__ = [
     "LEARN_LOOKBACK", "POLICY", "POOL", "STORE_KEY", "WINDOW_HOURS",
@@ -433,7 +435,7 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         return {"off": off}
     day = day_id(now)
     if not claim_day(session, day, now):  # 읽기가 끝난 밤의 바퀴 — 이어 붙이기만(:mod:`.handoff_learning_link` — 끄면 빈 dict)
-        return {"off": "already_today", **attach_night(session, day, now=now, cfg=cfg, client=client)}
+        return {"off": "already_today", **attach_night(session, day, now=now, cfg=cfg, host=_SELF, client=client)}
     fresh_policy(session)
     pool = collect_cases(session, now, cap=POOL, edits=cfg.get(EDIT_LEARN_FIELD) is True)
     photos = _photo_marks(session, sorted({str(case["chat_id"] or "") for case in pool} - {""}))
@@ -471,7 +473,7 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
                 counts["applied"], counts["cards"], counts["fixed"], counts["new"], counts["added"], counts["same"],
                 counts["decided"], counts["not_rule"], counts["held"], counts["promoted"], counts["blocked"],
                 counts["halted"], counts["photos"], counts["photo_skipped"], counts["cache_read"], counts["cache_write"])
-    counts.update(attach_night(session, day, now=now, cfg=cfg, client=client))  # 이 바퀴로 읽기가 끝났으면(닫음 · 상한 · 마지막)
+    counts.update(attach_night(session, day, now=now, cfg=cfg, host=_SELF, client=client))  # 읽기가 끝난 바퀴만 돈다
     return counts
 
 

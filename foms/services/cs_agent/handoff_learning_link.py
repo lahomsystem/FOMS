@@ -151,11 +151,9 @@ def _cap(cfg: Any) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else DEFAULT_CALLS
 
 
-def reading_done(session: Any, day: str, now: datetime.datetime) -> bool:
+def reading_done(session: Any, day: str, now: datetime.datetime, hl: Any) -> bool:
     """그 밤 사례 읽기가 끝났나 — 그 밤을 닫았거나 · 부르기 횟수 상한에 닿았거나 · 창 마지막 바퀴이고, 밤 배우기 부르기가 도는 중이
     아님(:mod:`.handoff_learning` 의 날 표)."""
-    from foms.services.cs_agent import handoff_learning as hl  # 돌려 부르기 막기 — 그 모듈이 이 모듈을 부른다
-
     doc = hl._doc(session.get(SystemSetting, hl.STORE_KEY, populate_existing=True))  # noqa: SLF001 — 같은 날 표
     if hl._leased(doc, now):  # noqa: SLF001
         return False
@@ -395,10 +393,8 @@ def _evidence(session: Any, rows: Sequence[Any]) -> dict[str, list[str]]:
 
 
 def _attach(session: Any, picked: Sequence[Any], *, cfg: Any, day: str, now: datetime.datetime, client: Any,
-            counts: dict[str, Any]) -> None:
-    """글자 맞춤 → 두뇌 → 거르기 · 넣기(수는 ``counts`` 에)."""
-    from foms.services.cs_agent import handoff_learning as hl  # 돌려 부르기 막기
-
+            counts: dict[str, Any], hl: Any) -> None:
+    """글자 맞춤 → 두뇌 → 거르기 · 넣기(수는 ``counts`` 에). ``hl`` = 밤 배우기 모듈(부르는 쪽이 넘긴다)."""
     today = kst_day(naive_utc(now))
     rows, onto_rows = hp.knowledge_rows(session), onto_prompt.knowledge_rows(session)
     knowledge, ontology = hp.knowledge_lines(rows), onto_prompt.knowledge_lines(onto_rows)
@@ -429,11 +425,14 @@ def _attach(session: Any, picked: Sequence[Any], *, cfg: Any, day: str, now: dat
               counts=counts)
 
 
-def run_link(session: Any, day: str, *, now: datetime.datetime, cfg: Any, client: Any = None) -> dict[str, Any]:
-    """붙이기 한 번(모듈 설명). 커밋한다. 숫자 · 코드만 돌려준다 — 안 돌면 ``{"off": 까닭}``."""
+def run_link(session: Any, day: str, *, now: datetime.datetime, cfg: Any, host: Any,
+             client: Any = None) -> dict[str, Any]:
+    """붙이기 한 번(모듈 설명). 커밋한다. 숫자 · 코드만 돌려준다 — 안 돌면 ``{"off": 까닭}``. ``host`` 는 밤 배우기 모듈
+    (:mod:`.handoff_learning` — 날 표 · 창 · 부르기 시간 · 바로 반영 길을 거기서 읽는다. 그 모듈이 이 모듈을 부르므로 여기서
+    불러오지 않고 넘겨받는다)."""
     if cfg.get(LINK_FIELD) is not True:
         return {"off": "link_off"}  # 끔 — 표를 읽지도 쓰지도 않는다
-    if not reading_done(session, day, now):
+    if not reading_done(session, day, now, host):
         session.rollback()
         return {"off": "reading"}
     cap, doc = _cap(cfg), _doc(session.get(SystemSetting, STORE_KEY, populate_existing=True), day)
@@ -451,7 +450,7 @@ def run_link(session: Any, day: str, *, now: datetime.datetime, cfg: Any, client
     counts: dict[str, Any] = {"day": day, "items": 0, "calls": calls, "ai": 0, "matched": 0, "auto": 0, "proposed": 0,
                               "dropped": {}, "same": 0, "clash": 0, "halted": None, "cache_read": 0, "cache_write": 0}
     try:
-        _attach(session, picked, cfg=cfg, day=day, now=now, client=client, counts=counts)
+        _attach(session, picked, cfg=cfg, day=day, now=now, client=client, counts=counts, hl=host)
     except BrainError as exc:  # 돈 상한 · 부르기 실패 — 넣지 않고 그 밤 붙이기를 닫는다(까닭은 로그에)
         session.rollback()
         counts["halted"] = exc.code
@@ -464,7 +463,8 @@ def run_link(session: Any, day: str, *, now: datetime.datetime, cfg: Any, client
     return counts
 
 
-def attach_night(session: Any, day: str, *, now: datetime.datetime, cfg: Any, client: Any = None) -> dict[str, Any]:
+def attach_night(session: Any, day: str, *, now: datetime.datetime, cfg: Any, host: Any,
+                 client: Any = None) -> dict[str, Any]:
     """밤 배우기 바퀴 끝에서 부른다 — 돌았으면 ``{"link": 수}``, 안 돌았으면 빈 dict(밤 배우기 결과 꼴이 예전 그대로)."""
-    done = run_link(session, day, now=now, cfg=cfg, client=client)
+    done = run_link(session, day, now=now, cfg=cfg, host=host, client=client)
     return {} if set(done) == {"off"} else {"link": done}

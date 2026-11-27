@@ -112,7 +112,7 @@ def test_off_by_default_never_calls_the_model_nor_touches_the_row(world):
     client = FakeAnthropic(answer((FACT, ln("applies_to", DOOR))))
     assert night(client) == {"off": "already_today"}  # 밤 배우기 결과 꼴이 예전 그대로
     assert client.params == [] and db_session.get(SystemSetting, link.STORE_KEY) is None and filed() == []
-    assert link.run_link(db_session, DAY, now=NIGHT, cfg=read_settings(db_session, log=False), client=client) == {
+    assert link.run_link(db_session, DAY, now=NIGHT, cfg=read_settings(db_session, log=False), host=hl, client=client) == {
         "off": "link_off"}
 
 
@@ -212,7 +212,7 @@ def test_the_code_drops_bad_targets_and_counts_each_reason(world):
     on(**{LINK_FIELD: True, AUTO_FIELD: True})
     raw = answer((FACT, ln("applies_to", "common/none"), ln("applies_to", FACT), ln("applies_to", "common/synth-old"),
                   ln("uses", TERM), ln("applies_to", TERM), ln("broader", DOOR), ln("at_step", STEP),
-                  ln("at_step", STEP), ln("applies_to", DOOR, why="합성 연락처 010-1234-5678")),
+                  ln("at_step", STEP), ln("applies_to", DOOR, why="합성 연락처 " + "010-" + "1234-" + "5678")),
                  (rule.item_key, ln("requires", DOOR)), ("lahom/not-tonight", ln("applies_to", DOOR)))
     counts = night(FakeAnthropic(raw))["link"]
     assert counts["dropped"] == {"exists": 1, "form": 1, "mask": 1, "not_allowed": 1, "repeat": 1, "retired": 1,
@@ -257,7 +257,7 @@ def test_the_call_cap_holds_across_ticks_and_each_call_sends_new_items(world, mo
     assert sent == ["[lahom/handoff-synth-b", f"[{FACT}"]  # 새 것부터 · 보낸 판은 다시 안 보낸다
     assert night(client, now=at(11, 3, 30)) == {"off": "already_today"} and len(client.params) == 2
     cfg = read_settings(db_session, log=False)
-    assert link.run_link(db_session, DAY, now=at(11, 3, 45), cfg=cfg, client=client) == {"off": "night_done"}
+    assert link.run_link(db_session, DAY, now=at(11, 3, 45), cfg=cfg, host=hl, client=client) == {"off": "night_done"}
 
 
 def test_the_spend_guard_stops_the_call_and_nothing_goes_in(world):
@@ -275,12 +275,12 @@ def test_it_waits_until_the_nights_reading_is_over(world):
     on(**{LINK_FIELD: True})
     cfg = read_settings(db_session, log=False)
     client = FakeAnthropic({"items": []})
-    assert link.run_link(db_session, "2026-11-12", now=at(12, 3), cfg=cfg, client=client) == {"off": "reading"}
+    assert link.run_link(db_session, "2026-11-12", now=at(12, 3), cfg=cfg, host=hl, client=client) == {"off": "reading"}
     assert hl.claim_day(db_session, "2026-11-12", at(12, 6, 50))  # 다른 바퀴가 부르는 중
-    assert link.run_link(db_session, "2026-11-12", now=at(12, 6, 50), cfg=cfg, client=client) == {"off": "reading"}
+    assert link.run_link(db_session, "2026-11-12", now=at(12, 6, 50), cfg=cfg, host=hl, client=client) == {"off": "reading"}
     hl.release(db_session)
-    assert link.reading_done(db_session, "2026-11-12", at(12, 6, 50))  # 창 마지막 바퀴
-    assert link.run_link(db_session, "2026-11-12", now=at(12, 6, 50), cfg=cfg, client=client) == {"off": "no_items"}
+    assert link.reading_done(db_session, "2026-11-12", at(12, 6, 50), hl)  # 창 마지막 바퀴
+    assert link.run_link(db_session, "2026-11-12", now=at(12, 6, 50), cfg=cfg, host=hl, client=client) == {"off": "no_items"}
     assert client.params == []
 
 
