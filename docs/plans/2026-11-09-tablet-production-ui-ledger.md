@@ -2275,6 +2275,18 @@
 - 뒤에 할 것: 공정 GET `GET /api/orders/<id>/production/steps` 지우기(§6-3) · `sheet-parts.js` GET 갈래 · `foms-production-sheet-page.js:124-128` 옆 시트 갈래 · `sheet.css` `.foms-prod-sheet__*` · `step_expand.py` 등 안 타는 길 · `build_production_enriched_rows`(시험 셋만 부름) · 운영 올리기 전 §10-4 접속 기록.
 - 알릴 것: 옛 주소는 로그인 안 한 사람에게도 404(로그인 화면으로 안 보냄) · 시공팀이 옛 주소로 오면 지금처럼 출고로 302 · 프리랜서는 옛 주소에서 자기 첫 화면으로 302.
 
+## 운영 올리기 시작 · 지금 상태 (11-27, CTX-GATE 55% — 압축 뒤 여기부터)
+
+- 스테이징 `0c2d45f47` 배포 SUCCESS · CI 넷 초록(smoke_push115). 114 는 `test_production_write_access` 셋에서 멈춤 — ①의 `part_view_mode` 가 요청 밖에서도 프리랜서 설정 표를 읽음 → `has_request_context()` 안에서만 읽게 고침(`9a6cd5b35` → 올린 뒤 `0c2d45f47`).
+- **사장님 "운영에 올려"(11-27)** → 이 세션 코드만 승격 중:
+  - 목록 = `99700357a` 뒤 이 세션 커밋 중 문서(docs) 뺀 **76건**(`scratchpad/promo_list7.txt` — 원장에 적힌 내 것 + 제목이 `(production)` 인 일꾼 커밋. 남의 것 brain · cs · 상태 문서 30건 뺌). 만드는 법: `scratchpad/own_pending2.py <out> <TIP>` → `scratchpad/mk_list7.py <scratchpad> <TIP>`.
+  - 승격 폴더 `c:/tmp/foms-promo-1127b`(가지 `promote/tablet-prod-ui-1127b`, 바탕 `origin/production` `121adbb15` = PR #927). `scratchpad/promo_pick.sh promo_list7.txt` → 76건 모두 붙음(넷은 문서 · 인벤토리만 부딪혀 운영 쪽 유지). 승격 폴더와 스테이징 `0c2d45f47` 을 견주면 다른 파일은 남의 것뿐(brain · 긴급 알림 · sentry · 하네스 도구) — 생산 · 태블릿 · 프리랜서 쪽은 바이트 같음. 인벤토리 다시 만들기 = 변화 없음.
+  - **지금**: 승격 폴더에서 `scripts/ops/pre_push_smoke.ps1` 도는 중(로그 `scratchpad/promo_smoke_1127b.log`, 백그라운드 `bc7lqt2u5`). 초록이면 → `git push origin promote/tablet-prod-ui-1127b` → `gh pr create --base production`(본문 끝 `🤖 Generated with [Claude Code](https://claude.com/claude-code)`) → PR 검사 초록 → 머지 → 운영 배포 SUCCESS 확인(`railway` drift 스크립트 · `gh run list`) → 원장에 PR 번호 기록 → 사장님께 알림.
+  - 운영에서 달라지는 것(알림): 옛 생산 보드 주소 404 · 켜진 프리랜서 1명은 자기 주문만(눈으로 못 봄 — 시험만. 사장님이 "다른 사용자로 전환"으로 한 번 봐 주시면 좋음) · 도면 있는 주문은 공정 칸 손 체크 불가 · 시작 취소 → 제작 대기.
+- 세션 가지 = 스테이징과 같음 + 이 기록 커밋(아직 안 올림 — 다음 올리기 때 같이).
+- 도는 일꾼 없음. 일꾼 폴더: `foms-w-b1 ~ b5` · `foms-w-int`(work/lgint, 옮기기 전 사본 `backup/lgint-pre-rebase-1127` · `backup/lgint-on-0a9f`) · `foms-w-crit-a`.
+- 남은 것(운영 올린 뒤): 스테이징 프리랜서 페르소나(97)로 화면 확인(스테이징 DB 를 켜야 해서 사장님께 여쭘) · 공정 GET 지우기 등 "뒤에 할 것"(앞 절) · 안 타는 길 정리(`step_expand.py` 등) · 아직 안 여쭌 글([같이 작업] · [시작 취소]에 파트 이름 / 재단 창 "안 봄" / 엣지 바로 완료 창 앞말 / 거절 글 "도면이 있는 주문은 도면 화면에서 완료해 주세요." / C59 남은 셋) · 150% 에서 카드 첫 줄 단추 걸림 · 기기 손맛(밀기 · 확대) · 다른 태블릿 30초 늦음 · 옛 일꾼 폴더 · 스테이징 시험 계정 105 ~ 108 정리 · 마감 알림 스위치.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
