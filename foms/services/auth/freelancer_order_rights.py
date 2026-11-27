@@ -9,6 +9,9 @@
 이 모듈은 문지기(겹 1)가 허용 목록 밖에서도 열어 주는 **주문 일 API 목록**을 둔다 — URL 에 주문 번호가 있고 그 주문
 하나를 다루는 API 다. 번호가 모두 내 주문이면 통과(:func:`own_order_request_allowed`), 아니면 문지기 응답 그대로.
 
+예외 하나(사장님 2026-11-27 "새 화면에 '내 주문만' … 보기만, 단추 없음"): 생산 쓰기 여덟은 내 주문이어도 닫는다
+(:data:`CLOSED_ORDER_ENDPOINTS`). 바뀐 것 [확인했어요](``api_production_change_ack``)는 "회사 영업처럼 보이게"라 그대로 연다.
+
 스펙: docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §6.6 (D27)
 시험: tests/security/test_freelancer_own_order_rights.py
 """
@@ -74,18 +77,11 @@ OWN_ORDER_ENDPOINTS: dict[str, tuple[str, ...]] = {endpoint: _ORDER_ID for endpo
     "erp_orders_completion.api_cash_receipt_issue",
     "erp_orders_completion.api_settlement_issue",
     "erp_orders_structured.api_payment_confirm",
-    # 생산 · 출고 · 시공 · 완료
-    "erp_orders_production.api_production_cancel",
+    # 생산 — 바뀐 것 [확인했어요]만(사장님 2026-11-27 "회사 영업처럼 보이게"). 그 밖 생산 쓰기 여덟은 아래
+    # CLOSED_ORDER_ENDPOINTS(내 주문이어도 닫음), 공정 읽기 GET 은 지우는 길이라 뺐다. 물류 상태는 생산 화면 밖이라 그대로.
     "erp_orders_production.api_production_change_ack",
-    "erp_orders_production.api_production_complete",
-    "erp_orders_production.api_production_defect",
-    "erp_orders_production.api_production_hold",
-    "erp_orders_production.api_production_rework",
-    "erp_orders_production.api_production_start",
-    "erp_orders_production.api_production_steps",
-    "erp_orders_production.api_production_steps_get",
-    "erp_orders_production.api_production_uncomplete",
     "erp_orders_production.api_set_logistics_status",
+    # 출고 · 시공 · 완료
     "erp_shipment.api_confirm_partner_request",
     "erp_shipment.api_revert_partner_request",
     "erp_shipment.api_erp_shipment_update",
@@ -123,6 +119,22 @@ OWN_ORDER_ENDPOINTS: dict[str, tuple[str, ...]] = {endpoint: _ORDER_ID for endpo
 )}
 
 
+#: 내 주문이어도 프리랜서에게 **닫아 둔** 주문 일 API — 생산 쓰기 여덟(제작 시작 · 완료 · 수정 제작 · 제작 취소 · 완료 취소 · 공정 칸 ·
+#: 불량 · 보류). 사장님 2026-11-27 "보기만, 단추 없음": 프리랜서의 생산 화면에는 [확인했어요]만 있다. 각 API 의 쓰기 판정(관리자 ·
+#: 생산팀)도 영업팀을 403 으로 막지만 문지기에서 먼저 막아 두 겹으로 둔다. 답은 내 주문 403 "열 수 없는 화면", 남의 · 없는 주문은
+#: 다른 주문 API 와 같은 404 "주문을 찾을 수 없어요."(:func:`closed_order_request_is_foreign` — 목록에서 빼기 전과 같은 답).
+CLOSED_ORDER_ENDPOINTS: dict[str, tuple[str, ...]] = {endpoint: _ORDER_ID for endpoint in (
+    "erp_orders_production.api_production_cancel",
+    "erp_orders_production.api_production_complete",
+    "erp_orders_production.api_production_defect",
+    "erp_orders_production.api_production_hold",
+    "erp_orders_production.api_production_rework",
+    "erp_orders_production.api_production_start",
+    "erp_orders_production.api_production_steps",
+    "erp_orders_production.api_production_uncomplete",
+)}
+
+
 def own_order_request_allowed(db: Any, user: Any, endpoint: Optional[str]) -> bool:
     """문지기 — 허용 목록 밖이어도 :data:`OWN_ORDER_ENDPOINTS` 이고 URL 의 주문 번호가 모두 내 주문이면 True."""
     names = OWN_ORDER_ENDPOINTS.get(endpoint or "")
@@ -134,4 +146,16 @@ def own_order_request_allowed(db: Any, user: Any, endpoint: Optional[str]) -> bo
     return all(freelancer_can_access_order(db, user, view_args[name]) for name in names)
 
 
-__all__ = ["OWN_ORDER_ENDPOINTS", "own_order_request_allowed"]
+def closed_order_request_is_foreign(db: Any, user: Any, endpoint: Optional[str]) -> bool:
+    """문지기 — :data:`CLOSED_ORDER_ENDPOINTS` 요청의 URL 주문 번호 중 내 주문이 아닌 것(없는 주문 포함)이 있으면 True.
+
+    True 면 문지기가 404 로, False(닫아 둔 API 가 아니거나 모두 내 주문)면 기본 거부 403 으로 답한다 — 어느 쪽도 통과는 아니다.
+    """
+    names = CLOSED_ORDER_ENDPOINTS.get(endpoint or "")
+    if not names:
+        return False
+    view_args = request.view_args or {}
+    return not all(name in view_args and freelancer_can_access_order(db, user, view_args[name]) for name in names)
+
+
+__all__ = ["CLOSED_ORDER_ENDPOINTS", "OWN_ORDER_ENDPOINTS", "closed_order_request_is_foreign", "own_order_request_allowed"]
