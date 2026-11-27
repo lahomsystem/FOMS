@@ -18,7 +18,7 @@ const { fakeDom } = require('./production_fake_dom.js');
 const root = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const html = fs.readFileSync(process.argv[2], 'utf8');
-const want = JSON.parse(process.argv[3]); // {first, hold, next, key, label, me, pin, other_tab, other_url, panels: {id: 조각 파일}}
+const want = JSON.parse(process.argv[3]); // {first, hold, next, key, label, me, pin, other_tab, other_url, viewer, panels: {id: 조각 파일}}
 const D = fakeDom();
 const { dispatch, docListeners, focused } = D;
 // ── 문서 · 창 ──
@@ -163,8 +163,8 @@ const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
   assert.ok(status.classList.contains('is-err') && status.textContent.includes('취소하지 못했어요. ') && status.querySelector('[data-foms-step-undo]'), status.textContent);
   assert.strictEqual(calls.replace.length, 0);
   G.undo = null;
-  // 5) 그림 = 원본 뷰어(그림 원본 전부)
-  dispatch(pane(want.first).querySelector('[data-foms-step-view]'), 'click');
+  // 5) 그림 = 원본 뷰어(그림 원본 전부) — 도면 있는 판은 [끝]이 없어(사장님 2026-11-27 "도면이 주") 그림 판은 다른 공정 줄의 판(want.viewer)
+  dispatch(pane(want.viewer || want.first).querySelector('[data-foms-step-view]'), 'click');
   assert.ok(calls.viewer.length >= 1); // 4) 에서 셸 교체를 같은 루트로 흉내 내 두 번 묶였다(실제는 새 루트) — 열림만 본다
   assert.ok(calls.viewer[0].files.length >= 1 && calls.viewer[0].files.every((f) => f.view_url.startsWith('/api/files/view/')), JSON.stringify(calls.viewer));
   // 6) [불량] → 칩 → 불량 API

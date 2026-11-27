@@ -215,8 +215,8 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
     Returns:
         ``{part, label, total, done_n, uses_cards, notice, all, hand_off, hand, rows, keys}`` —
         ``notice`` = 카드를 쓴 파트에 남은 장이 있을 때의 안내(공정 칸 체크 거절 글 그대로, 승인 때 고친 것 2),
-        ``all`` = [모두 완료 처리]를 보일지(아무도 시작하거나 완료하지 않은 파트 · 칸이 꺼짐 · 장 1장뿐 · 보류 · 도면 고치는 중
-        아님), ``hand_off`` = 손으로 통째 체크한 파트(창 머리 한 단추 [모두 완료 취소]로 끈다).
+        ``all`` = [모두 완료 처리]를 보일지(아무도 시작하거나 완료하지 않은 파트 · 칸이 꺼짐 · 보류 · 도면 고치는 중 아님 · 도면이
+        있는 주문은 늘 거짓 — 사장님 2026-11-27 "도면이 주, 작업 시트는 보기", 창은 도면 1장 이상일 때만 열리니 지금은 늘 거짓), ``hand_off`` = 손으로 통째 체크한 파트(창 머리 한 단추 [모두 완료 취소]로 끈다).
     """
     sd = sd if isinstance(sd, dict) else {}
     entries = resolve_final_drawing_files(sd)
@@ -236,7 +236,7 @@ def build_part_sheet(sd: Any, marks: list[Any], part: str, *, hold_active: bool,
         # 보류 · 도면 고치는 중에는 통째 작업(공정 칸 켜기)을 서버가 막는다(사장님 2026-11-24 · 11-25) — [모두 완료 처리]를 안 보인다.
         # [모두 완료 취소](hand_off, 끄기)는 둘 다 된다(서버 step_cell_gate 와 같은 규칙). 도면별 막힘이면 보인다 — 같은 API 가
         # 막힌 장을 빼고 처리한다(2026-11-25 설계서 §3-6 ①)
-        # 도면이 여러 장인 주문은 통째 작업을 서버가 막는다(409 STEP_PER_SHEET, 사장님 2026-11-27) — 도면마다 [완료 처리]만
+        # 도면이 있는 주문은 통째 작업을 서버가 막는다(409 STEP_PER_SHEET, 사장님 2026-11-27 — 옛 문턱 2장 → 1장) — 도면마다 [완료 처리]만
         "all": bool(entries) and not progress["uses_cards"] and not progress["done"] and not ctx["order_block"]
         and not per_sheet_only(sd),
         "hand_off": bool(hand), "hand": hand["text"] if hand else None,

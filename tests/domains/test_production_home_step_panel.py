@@ -179,7 +179,8 @@ def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> N
             # 판 없는 화면 = 지금 그대로: 줄마다 [끝](보류 줄 빼고), 줄 링크 = 작업 시트. PC 마우스는 보기 전용이라
             # [끝]이 없다(설계서 2026-11-21-production-pc-viewer §5 — [고치기] 켬일 때만, test_production_pc_viewer)
             pc = cookies["foms_ptr"] == "fine"
-            assert out.count("data-foms-home-step-done") == (0 if pc else 3 + 1)
+            # 엣지집(PDF 1장)은 도면이 있어 [끝] 자리가 막힘 칸(사장님 2026-11-27 "도면이 주, 작업 시트는 보기") — 재단 셋만
+            assert out.count("data-foms-home-step-done") == (0 if pc else 3)
             assert f'href="/erp/production/sheet/{a.id}"' in queue_html(out, "cut")
             assert "data-foms-wide-surface-omitted" not in out  # 폰 · PC 는 생략 표식도 없다
 
@@ -255,7 +256,7 @@ def test_레거시_셸은_판이_없다(client, monkeypatch) -> None:
     seed_cut_queue()
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")
-    assert 'data-foms-step-pane="' not in html and html.count("data-foms-home-step-done") == 4
+    assert 'data-foms-step-pane="' not in html and html.count("data-foms-home-step-done") == 3  # 엣지집(PDF 1장)은 막힘 칸
 
 
 @pytest.mark.parametrize("who", [("관리자", None, "CS", "ADMIN"), ("영업", None, "SALES", "STAFF"), ("상담", None, "CS", "STAFF")])
@@ -283,22 +284,26 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     assert [pane.index(k) for k in order] == sorted(pane.index(k) for k in order)
     assert f'<a href="/erp/production/sheet/{a.id}" data-foms-step-name>박서준</a> <small>#{a.id}</small>' in pane
     assert "슬라이딩 붙박이장 · W2740 × D700 × H2330" in pane
-    assert f'src="/api/files/thumb/orders/x/drawing/박서준_0.png?w=640"' in pane and 'loading="lazy"' in pane
-    view = json.loads(re.search(r'data-foms-step-view="([^"]+)"', pane).group(1).replace("&#34;", '"'))
-    assert [f["view_url"] for f in view] == ["/api/files/view/orders/x/drawing/박서준_0.png"]
-    assert ">도면 1장<" in pane and "눌러서 크게" in pane
+    # 그림 1장 판(도면 있는 주문 = [끝] 자리가 막힘 칸이라 처음 고른 줄이 아니다 — 주소로 고른다, 사장님 2026-11-27 "도면이 주")
+    one = add_order("그림한집", 6, pngs=1)
+    one_pane = pane_html(get_html(client, HOME + f"?tab=steps&order={one.id}"), one.id)
+    assert f'src="/api/files/thumb/orders/x/drawing/그림한집_0.png?w=640"' in one_pane and 'loading="lazy"' in one_pane
+    view = json.loads(re.search(r'data-foms-step-view="([^"]+)"', one_pane).group(1).replace("&#34;", '"'))
+    assert [f["view_url"] for f in view] == ["/api/files/view/orders/x/drawing/그림한집_0.png"]
+    assert ">도면 1장<" in one_pane and "눌러서 크게" in one_pane
+    assert "<b>재단 0/1 · 1장 미완료</b>" in one_pane and "data-foms-step-finish" not in one_pane
     # 그림 여러 장 = 원본 뷰어에 전부(도면 3장 주문은 [끝] 자리가 막혀 처음 고른 줄이 아니다 — 주소로 고른다, 사장님 2026-11-27)
-    many = add_order("그림셋집", 6, pngs=3)
+    many = add_order("그림셋집", 7, pngs=3)
     many_pane = pane_html(get_html(client, HOME + f"?tab=steps&order={many.id}"), many.id)
     view = json.loads(re.search(r'data-foms-step-view="([^"]+)"', many_pane).group(1).replace("&#34;", '"'))
     assert [f["view_url"] for f in view] == [f"/api/files/view/orders/x/drawing/그림셋집_{j}.png" for j in range(3)]
     assert ">도면 3장<" in many_pane and "<b>재단 0/3 · 3장 미완료</b>" in many_pane
     assert "<dt>색</dt><dd>그레이 · 손잡이 없음</dd>" in pane and "<dt>앞 공정</dt><dd>제작 시작 · 11/21 08:40</dd>" in pane
     assert "<dt>다음 공정</dt><dd>엣지</dd>" in pane and "엣지</dt>" not in pane  # 엣지 사양 줄 없음(D11)
-    # 도면 있는 주문이라 [끝]에 확인 창 자료(사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기" — test_production_my_steps_confirm.py)
-    confirm = '{"parts": {"cut": {"uses_cards": false}}, "sheets": 1}'.replace('"', "&#34;")
-    assert (f'data-foms-step-finish data-order-id="{a.id}" data-step-key="cut" data-step-label="재단" data-next-order="{b.id}"'
-            f' data-foms-sheet-parts="{confirm}">' in pane) and ">재단 완료</button>" in pane  # 옛 [재단 끝](지휘 판결)
+    # 도면 없는 주문 = [끝]에 확인 창 자료 없음(묻지 않고 바로 — 사장님 2026-11-25 "도면이 있는 주문만 한 번 묻기" → 11-27 도면 있는 줄은
+    # [끝]이 없다, test_production_my_steps_confirm.py)
+    assert (f'data-foms-step-finish data-order-id="{a.id}" data-step-key="cut" data-step-label="재단" data-next-order="{b.id}">'
+            in pane) and ">재단 완료</button>" in pane  # 옛 [재단 끝](지휘 판결)
     assert f'data-foms-prod-sheet-page data-order-id="{a.id}"' in pane
     assert [m for m in re.findall(r'data-foms-sheet-defect-reason="([^"]+)"', pane)] == list(_PRODUCTION_DEFECT_REASONS)
     assert "끝내면 다음은 <b>김하늘</b>" in pane
@@ -318,7 +323,7 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     d_pane = get_html(client, panel_url("cut", d.id))  # 고르지 않은 줄 = 판 하나 조각
     assert '<div class="fph-sp__pic is-none"><b data-foms-step-piclabel>도면 없음</b></div>' in pane_html(d_pane, d.id)
     # 금액 · 인라인 style · script 없음
-    panes = "".join(pane_html(get_html(client, panel_url("cut", o.id)), o.id) for o in (a, b, c, d)) + pane_html(html, e.id)
+    panes = "".join(pane_html(get_html(client, panel_url("cut", o.id)), o.id) for o in (a, b, c, d, one)) + pane_html(html, e.id)
     assert not re.search(r"금액|단가|price|amount|₩|\d원", panes)
     for rel in ("home_step_panel.html", "home_steps.html"):
         text = (ROOT / "templates/production/partials" / rel).read_text(encoding="utf-8")
