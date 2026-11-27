@@ -88,6 +88,14 @@
     {%- endfor %}
   </div>
   {%- else %}
-  <div class="f-section-body"><p class="f-muted">연결 없음</p></div>
+  {#- 잇기가 없으면 — 문장으로 고치기를 쓸 수 있는 사람(change_on)에게는 이 줄이 승인 대기 입력 칸으로 가는 링크(그 지식 이름으로
+      미리 채움 — change_request_hints.fill_item), 아니면 글만. 새 단추 · 칩 없음(설계 글 2026-11-26 온톨로지 잇기 7.4). -#}
+  <div class="f-section-body"><p class="f-muted" data-ds-item-unlinked>
+    {%- if change_on is defined and change_on -%}
+    <a href="{{ url_for('brain_web.index', tab='inbox', fill='item:' ~ it.key) }}">아직 아무 지식에도 안 이어졌어요 — 문장으로 잇기</a>
+    {%- else -%}
+    아직 아무 지식에도 안 이어졌어요
+    {%- endif -%}
+  </p></div>
   {%- endif %}
 </section>

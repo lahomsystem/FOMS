@@ -5,7 +5,7 @@
  * - 물음 한 칸: 서버가 준 **가린 글** + 가린 갈래 꼬리표('손님 이름' · '전화' …) + 'N곳을 가려서 보냄'(점검 w2-18).
  * - 답 카드: 물어보기 AI 표 · 모름 / ERP 읽기 꼬리표 · 걸린 시간 · 답 글 · (일정 바꾸기 질문이면) '방문 옮기기는 승인 대기로 가요' ·
  *   (모름이고 물을 곳이 팀이면) '○○팀에 물어보세요' + [○○팀에 묻기](D233 — ds-ask-past.js 가 보낸다) · 근거 칩(주문 · 방문 + 회사
- *   지식 — 카드를 열 수 있는 사람만 링크) · (모름이면) 찾은 회사 지식 수 · (빈 지식 묶기가 켜졌으면) 빈 지식에 올렸어요 · 확인 중
+ *   지식 — 카드를 열 수 있는 사람만 링크 · 이웃 따라가기로 찾은 지식은 이름 끝에 '(이어서 찾음)') · (모름이면) 찾은 회사 지식 수 · (빈 지식 묶기가 켜졌으면) 빈 지식에 올렸어요 · 확인 중
  *   지식 · 답이 맞을 가능성 · 근거 확신 · 도움 됨 · 도움 안 됨 · 틀림(+ 무엇이 틀렸나 · 지식 고치기 링크 — 내 질문만).
  * - 답 판정은 brain-ask-view.js(옛 화면과 한 벌), 화면 값은 ds-ask-view.js. 글은 textContent 만(brain-dom.js el).
  * window.FOMS_DS_ASK_TURN.
@@ -44,10 +44,11 @@
         el('span', { cls: 'fb-ask-q__text', text: question })]) }), small(line)] });
   }
 
-  function knowledgeChip(c) {
+  /** 회사 지식 근거 칩 — followed 면(이웃 따라가기로 찾은 지식 — 서버 evidence[].followed) 이름 끝에 ' (이어서 찾음)'. */
+  function knowledgeChip(c, followed) {
     var node = el(c.href ? 'a' : 'span', { cls: 'f-chip', attrs: { href: c.href, title: c.meta || null } });
     node.appendChild(icon('properties'));
-    node.appendChild(document.createTextNode(c.name));
+    node.appendChild(document.createTextNode(c.name + (followed ? ' (이어서 찾음)' : '')));
     if (c.meta) node.appendChild(el('span', { cls: 'fb-chip-meta', text: ' · ' + c.meta }));
     return node;
   }
@@ -55,7 +56,9 @@
   function evidenceRow(data, v) {
     var chips = dv.erpChips(data).map(function (c) {
       return el('span', { cls: 'f-chip', children: [icon(c.icon), document.createTextNode(c.text)] });
-    }).concat(v.chips.map(knowledgeChip));
+    }).concat(v.chips.map(function (c, i) {  // v.chips 는 data.evidence 와 같은 차례(brain-ask-view.js answerView)
+      return knowledgeChip(c, !!((data.evidence || [])[i] || {}).followed);
+    }));
     var found = data.unknown && typeof data.found === 'number' ? small('찾은 회사 지식 ' + data.found + '개') : null;
     if (!chips.length && !found) return null;
     return el('div', { cls: 'f-row f-gap4', children: [small('근거')].concat(chips, found ? [found] : []) });
