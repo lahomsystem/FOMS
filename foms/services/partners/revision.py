@@ -96,7 +96,7 @@ def request_partner_revision(db, user: Any, order_id: int, note: Any, files: lis
 
     customer = (((sd.get("parties") or {}).get("customer") or {}).get("name") or "").strip()
     message = (f"[협력사] 주문 #{order.id}" + (f" ({customer})" if customer else "")
-               + f" 도면 수정 요청이 접수되었습니다. 메모: {text}")
+               + f" 도면 수정 요청이 접수됐어요. 메모: {text}")
     if rows:
         message += f" (첨부 {len(rows)}건)"
     notification = Notification(
