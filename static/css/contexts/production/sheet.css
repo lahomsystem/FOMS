@@ -281,6 +281,16 @@
   .foms-prod-page__side { overflow: hidden; padding-bottom: 12px; }
   .foms-prod-page__side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px 4px; }
   .foms-prod-page__foot { flex-shrink: 0; margin-top: 0; padding-top: 10px; border-top: 1px solid var(--fpp-line); }
+  /* 아래 단추 묶음 = 한 흐름(비평 C64) — 작은 단추([불량 알리기] · [보류] · [패킹])와 큰 단추([제작 시작] · [제작 완료] …)가 폭이 되면 한 줄,
+     모자라면 큰 단추가 다음 줄(많아야 두 줄 — 1280×720 오른쪽 칸 463px 에 작은 단추 셋이 서면 두 줄). 단추 키 · 글은 그대로
+     (작은 56 · 큰 64, 큰 단추가 더 넓게). 불량 사유 칩 줄은 지금처럼 두 묶음 사이 제 줄. 저장 · 연결 줄은 할 말(저장 글 · '연결 끊김')이
+     있을 때만 자리를 차지하고, 평소(빈 저장 글 + '연결 좋음')는 화면에서만 빠진다(읽기 프로그램 · aria-live 는 그대로). */
+  .foms-prod-page__foot { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 8px 10px; }
+  .foms-prod-page__foot > .foms-prod-page__pair, .foms-prod-page__foot > .foms-prod-page__acts { display: contents; }
+  .foms-prod-page__pair > .foms-prod-page__btn { flex: 1 1 0; } /* 작은 단추끼리는 지금처럼 같은 폭 */
+  .foms-prod-page__acts > .foms-prod-page__btn { flex: 2 1 auto; }
+  .foms-prod-page__foot > .foms-prod-page__chips, .foms-prod-page__foot > .foms-prod-page__statusrow { flex: 1 0 100%; }
+  .foms-prod-page__statusrow:has(> .foms-prod-page__status:empty):has(> .foms-prod-page__net.is-ok) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .foms-prod-page__main-btn { padding: 12px 86px; }
   /* 왼쪽 줄(레일) — 전체 화면 시트에서만 계산기 · 회사 지식 · 알림을 숨기고 종은 위 줄로(11-21 사용자 ③, 생산 첫 화면 home.css ④ 와 같은 규칙).
      레일 조각은 고치지 않고 이 화면 몸통(.foms-prod-page-wrap)이 있을 때만 :has 로 숨긴다 — 칸은 DOM 에 남아 레일 줄이기 규칙이 그대로다.
