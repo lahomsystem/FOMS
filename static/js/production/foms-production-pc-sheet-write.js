@@ -8,9 +8,8 @@
  *    사람이 나 하나이고 시작 → 완료가 2분 안 = PC [완료 처리]가 빈 장을 시작 + 완료한 흔적, 서버 UTC 로 판정)를 주고 되돌린 뒤에도 작업하는
  *    사람이 나 하나일 때만 시작 취소(release)까지 이어서 "안 봄 · 담당 미정"으로. 그 밖(태블릿에서 진짜 시작했다가 한참 뒤 완료 · 같이 작업한
  *    장 · 남의 장을 대신 완료)은 완료 취소만. 둘째 요청이 막히면 창이 서버 모습으로 다시 그리고 서버 글을 그 줄에(셋째 판).
- *  · [모두 완료 처리](아무도 안 시작한 파트, 옛 [모두 작업]) = 작업 시트와 같은 반장 손 체크 확인 창(foms-production-sheet-parts.js
- *    beforeToggle — 글 "재단 완료할까요?" · [재단 완료] 그대로) → POST /api/orders/<id>/production/steps {key, done:true}.
- *    손으로 통째 체크한 파트의 [모두 완료 취소] = 같은 길 {done:false}.
+ *  · 손으로 통째 체크한 파트의 [모두 완료 취소] = POST /api/orders/<id>/production/steps {key, done:false}. 옛 [모두 완료 처리](켜기)는
+ *    창이 도면 1장 이상일 때만 열리고 도면 있는 주문은 서버가 켜기를 막아(409 STEP_PER_SHEET) 탈 길이 없어 뺐다(2026-11-27).
  *  · 마지막 검수 장을 완료해 서버가 order_ready 를 주면 창 안에 "제작 완료할까요?"(태블릿 창과 같은 글 · [나중에][제작 완료] · 실행 단추
  *    0.8초 잠금 · 초점 [나중에]) → [제작 완료] = 지금 제작 완료 API(POST /api/orders/<id>/production/complete) 그대로, 거절은 서버 글.
  *  · PC 로 연 작업 시트에서 쓰고 창을 닫으면 그 시트를 다시 받아 공정 칸 · n/4 · [제작 완료] 단추 상태를 서버 값으로 바꾼다(단계가
@@ -66,15 +65,9 @@
       return mark(d, r.key, 'release', 'need', d.me);
     });
   }
-  // 공정 칸 통째(손 체크) — 켜기([모두 완료 처리]) · 끄기([모두 완료 취소])
+  // 공정 칸 통째(손 체크) 끄기([모두 완료 취소])
   function stepSet(d, on) {
     return post('/api/orders/' + encodeURIComponent(d.order_id) + '/production/steps', { key: d.part, done: !!on });
-  }
-  // [모두 완료 처리] 확인 창 — 작업 시트와 같은 창 · 같은 글(없으면 바로)
-  function askAll(page, btn, go) {
-    var sp = window.FomsSheetParts;
-    if (sp && typeof sp.beforeToggle === 'function') { sp.beforeToggle(page, btn, true, go); return; }
-    go();
   }
 
   // "제작 완료할까요?" — 창 안 물음(마지막 검수 장 완료 뒤). 본문은 태블릿 창과 같은 글
@@ -153,6 +146,6 @@
     } catch (e) { window.location.reload(); }
   }
 
-  window.FomsPcSheetWrite = { check: check, uncheck: uncheck, stepSet: stepSet, askAll: askAll, ask: ask, hideAsk: hideAsk,
+  window.FomsPcSheetWrite = { check: check, uncheck: uncheck, stepSet: stepSet, ask: ask, hideAsk: hideAsk,
     complete: complete, afterClose: afterClose };
 })();

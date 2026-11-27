@@ -32,7 +32,7 @@ PARTS_PIN = "20261127w"
 PC_PIN = "20261127h"
 #: 작업 시트 sheet.css(sheet.html — 칸반 본문은 2026-11-27 지움) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
 #: 2026-11-27 m: 도면 밀어 넘기기(touch-action) · u: 도면 있는 주문 공정 보기 줄(사장님 "도면이 주, 작업 시트는 보기" — test_production_steps_view_only_1127).
-SHEET_PIN = "20261127u"
+SHEET_PIN = "20261127x"
 
 
 def _css(name: str) -> str:
@@ -244,8 +244,8 @@ def test_작업_시트_새_글() -> None:
     assert "color: var(--fpp-ok-dark)" in _rule(sheet, ".foms-prod-page__step small.fpp-note.is-ok")
     for sel in (".fpp-stepmsg", ".fpp-why", ".fpp-loglink", ".fpp-log li", ".fpp-log li.is-miss"):
         _rule(sheet, sel)
-    # 새 규칙은 옆 시트(.foms-prod-sheet) 칸 옆 글 규칙보다 뒤 — 두 꼴 모두 같은 모양
-    assert sheet.index(".foms-prod-page__step small.fpp-note") > sheet.index(".foms-prod-sheet .foms-prod-page__step small")
+    # 옛 옆 시트(.foms-prod-sheet) 칸 옆 글 규칙은 2026-11-27 옆 시트와 함께 지웠다 — 칸 옆 글 꼴은 이 규칙 하나
+    assert ".foms-prod-sheet .foms-prod-page__step small" not in sheet
     sizes = re.findall(r"font-size:\s*([^;}]+)", sheet.split("파트 맡기 고침", 1)[1])
     assert sizes and all(re.fullmatch(r"calc\(\d+px \* var\(--foms-fs, 1\)\)", s.strip()) for s in sizes), sizes
 

@@ -19,7 +19,7 @@ from models import Order, ProductionRun, User
 ROOT = Path(__file__).resolve().parents[2]
 JS = ROOT / "static/js/production/foms-production-sheet-swipe.js"
 PIN = "20261127m"  # 밀기 스크립트 핀
-CSS_PIN = "20261127u"  # sheet.css — 밀기(m) 뒤 도면 있는 주문 공정 보기 줄(test_production_steps_view_only_1127)과 합쳐 한 번 더
+CSS_PIN = "20261127x"  # sheet.css — 밀기(m) 뒤 도면 있는 주문 공정 보기 줄(test_production_steps_view_only_1127)과 합쳐 한 번 더
 SHEET_URL = "/erp/production/sheet/{id}"
 
 

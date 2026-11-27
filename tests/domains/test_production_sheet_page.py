@@ -283,7 +283,7 @@ def test_아래_단추_줄은_가로_태블릿에서만_바닥에_붙는다() ->
 
 def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다() -> None:
     """11-21 서버도 같은 규칙: 공정 API 응답의 complete_ready(서버 한 함수)로 단추를 바꾼다 — 응답이 없을 때만
-    (오프라인 줄 세움) 칸 모양으로 미리 보인다. 옆 시트도 같은 단추(공정 루트 밖 바닥 줄)를 찾는다."""
+    (오프라인 줄 세움) 칸 모양으로 미리 보인다. 단추는 시트 루트 안에서만 찾는다(옆 시트 갈래는 2026-11-27 지움)."""
     js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
     assert "function syncComplete(serverReady)" in js and "[data-foms-sheet-complete]" in js and "[data-foms-sheet-complete-hint]" in js
     assert "typeof serverReady === 'boolean' ? serverReady" in js
@@ -292,7 +292,8 @@ def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다()
     assert "|| buttons.every(function (b) { return b.getAttribute('aria-pressed') !== 'true'; })" in js
     assert "renderSteps(payload.steps, payload.complete_ready)" in js and "syncComplete(serverReady);" in js
     assert js.count("syncComplete();") == 1  # 목록 없이 한 칸만 바꿀 때(오프라인 줄 세움)
-    assert "page.closest('.foms-prod-sheet')" in js  # 옆 시트 단추는 공정 루트 밖
+    assert "var completeBtn = page.querySelector('[data-foms-sheet-complete]');" in js and "var completeBase = 'foms-prod-page__btn';" in js
+    assert ".foms-prod-sheet" not in js and "completeScope" not in js  # 옛 옆 시트 갈래(루트 밖 단추 · 옆 시트 단추 꼴) 없음
     assert "completeBase + '--pri'" in js and "completeBase + '--off'" in js
     # 지금 여기 · 연결 한 줄은 전체 화면 시트에만(옆 시트에는 data-foms-sheet-net 이 없다)
     assert "var nowText = netEl ? '지금 여기' : '';" in js and "(isNow ? nowText : '')" in js

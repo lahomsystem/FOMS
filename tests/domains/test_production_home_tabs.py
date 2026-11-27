@@ -371,11 +371,7 @@ def test_글자_크기_손잡이를_따라가는_CSS() -> None:
 
 
 def test_옆_시트는_글자를_크게_키워도_단추와_주소가_안_잘린다() -> None:
-    """실화면 S1·S2(11-10): 140% 부터 바닥 단추 셋이 400px 를 넘고, 붙은 긴 주소가 [지도] 밑으로 들어갔다."""
+    """실화면 S1·S2(11-10)의 옆 시트 규칙(.foms-prod-sheet__*)은 2026-11-27 옆 시트와 함께 지웠다 — 남은 시트 CSS 글자도 배율 그대로."""
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
-    assert ".foms-prod-sheet__foot { flex-wrap: wrap; }" in css
-    contact = re.search(r"\.foms-prod-sheet__contact-text \{[^}]*\}", css).group(0)
-    assert "overflow-wrap: anywhere" in contact
-    tile = re.search(r"\.foms-prod-sheet__drawing-file \{[^}]*\}", css).group(0)
-    assert "min-height: 80px" in tile and "height: 80px;" not in tile.replace("min-height: 80px;", "")
+    assert ".foms-prod-sheet" not in css.replace("(.foms-prod-sheet) 규칙은", "")
     assert not re.findall(r"font-size:\s*\d+px", css)
