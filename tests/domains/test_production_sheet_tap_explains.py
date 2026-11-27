@@ -60,7 +60,7 @@ def test_시트_JS_는_aria_disabled_로_막고_진짜_disabled_를_쓰지_않�
     js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
     assert "completeBtn.disabled = !ready" not in js and "completeBtn.setAttribute('aria-disabled', 'true')" in js
     assert "e.stopPropagation();" in js and "completeBlockedText()" in js and len(js.splitlines()) <= 300
-    for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_sheet.html"):
+    for rel in ("templates/production/sheet.html",):  # 옆 시트는 2026-11-27 옛 보드와 함께 지움
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert "disabled aria-disabled" not in text, rel
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")

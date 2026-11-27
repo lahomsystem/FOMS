@@ -159,7 +159,7 @@ def test_drawer_read_only_for_sales_has_no_buttons_or_inputs(client) -> None:
 def _shipment_save_source() -> str:
     js = DOMAIN_SHEETS_JS.read_text(encoding="utf-8")
     start = js.index("function shipmentSave(")
-    body = js[start:js.index("// ---- 생산 칸반 필터", start)]
+    body = js[start:js.index("// ---- 단일 document 'click' 위임", start)]  # 다음 묶음 머리(옛 칸반 필터 묶음은 2026-11-27 지움)
     return "\n".join(line for line in body.splitlines() if not line.strip().startswith("//"))
 
 
@@ -201,7 +201,7 @@ def test_ship_sheet_js_contract() -> None:
 def test_entry_chain_loads_ship_sheet_js(path) -> None:
     entry = (ROOT / path).read_text(encoding="utf-8")
     assert "'/static/js/shipment/tablet-ship-sheet.js?v=20261111a'" in entry
-    assert "'/static/js/foms/tablet-domain-sheets.js?v=20261127a'" in entry
+    assert "'/static/js/foms/tablet-domain-sheets.js?v=20261127p'" in entry
 
 
 # --------------------------------------------------------------------------- #

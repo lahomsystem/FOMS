@@ -28,7 +28,6 @@ STAGE_OVERRIDE_JS = REPO_ROOT / "static" / "js" / "orders" / "erp-stage-override
 RETRY_WIRED_TEMPLATES = [
     "templates/orders/partials/dashboard_main.html",
     "templates/orders/partials/erp_order_js.html",
-    "templates/production/partials/mobile_queue.html",
     "templates/measurement/metropolitan_dashboard.html",
     "templates/measurement/regional_dashboard.html",
     "templates/measurement/self_measurement_dashboard.html",
@@ -37,7 +36,8 @@ RETRY_WIRED_TEMPLATES = [
     # tests/domains/test_construction_dashboard_mobile.py 가 센다). scripts.html 에 두면 perf_scan fragment-multi-script 빚이다.
     "templates/construction/partials/dashboard_body.html",
     "templates/orders/partials/order_detail_mobile_v2.html",
-    "templates/production/partials/tablet_kanban_body.html",
+    # 생산 = 작업 시트 한 곳(옛 보드 폰 큐 · 칸반 본문은 2026-11-27 지움).
+    "templates/production/sheet.html",
     "templates/shipment/partials/dashboard_main.html",
 ]
 
@@ -54,7 +54,6 @@ RETRY_CALLER_SCRIPTS = [
     "static/js/foms/erp-quest-approve.js",
     "static/js/construction/dashboard.js",
     "static/js/foms/tablet-domain-sheets.js",
-    "static/js/foms/tablet-production-kanban.js",
     "static/js/orders/dashboard/erp-dashboard-quest.js",
     "static/js/orders/erp-stage-override.js",
 ]

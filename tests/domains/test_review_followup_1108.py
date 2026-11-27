@@ -41,7 +41,6 @@ def test_calculator_dark_theme_amounts_and_fixed_light_backgrounds():
 
 @pytest.mark.parametrize("rel", [
     "templates/construction/partials/filters_grid.html",
-    "templates/production/partials/filters_grid.html",
     "templates/orders/partials/dashboard_grid.html",
     "templates/partials/shared/foms_master_list.html",
     "templates/measurement/partials/tablet_split_body.html",

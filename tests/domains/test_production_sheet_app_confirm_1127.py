@@ -32,6 +32,8 @@ from tests.support.production_part_claim_seed import login as login_person
 ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_sheet_confirm_node_checks.js"
 PIN = "20261127a"
+#: tablet-domain-sheets.js · shipment-entry.js 핀 — 2026-11-27 옛 생산 칸반 몫을 지우며 한 번 더 올렸다(싣는 곳 셋이 같은 값).
+SHEETS_PIN = "20261127p"
 SHEET_PARTS_PIN = "20261127u"  # 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
 SHEET_CSS_PIN = "20261127u"  # sheet.css — 도면 있는 주문 공정 보기 줄(사장님 2026-11-27 "도면이 주", test_production_steps_view_only_1127)
 PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
@@ -96,7 +98,7 @@ def test_작업_시트_생산_단추는_앱_창으로_묻고_같은_주소로_�
     pages = {oid: _sheet(client, oid) for oid in (wait.id, making.id, done.id)}
     for page in pages.values():  # 창 조각 하나 · 같은 핀(그려서 확인)
         assert page.count("data-foms-sheet-confirm hidden") == 1
-        assert f"foms-production-sheet-parts.js?v={SHEET_PARTS_PIN}" in page and f"tablet-domain-sheets.js?v={PIN}" in page
+        assert f"foms-production-sheet-parts.js?v={SHEET_PARTS_PIN}" in page and f"tablet-domain-sheets.js?v={SHEETS_PIN}" in page
         assert '<section class="foms-prod-page" data-foms-prod-sheet-page' in page
     assert f'data-production-split-note="{split}"' in pages[making.id]
     assert 'data-hold-active="1"' in pages[making.id] and f'data-hold-reason="{HOLD}"' in pages[making.id]
@@ -143,7 +145,7 @@ def test_남은_공정_판_보류_해제도_앱_창_공정을_안_체크하는_�
     page = get_html(client, HOME + "?tab=steps")
     pane = pane_html(page, held.id)
     assert 'data-tablet-sheet-action="production-hold"' in pane and 'data-hold-active="1"' in pane
-    assert page.count("data-foms-sheet-confirm hidden") == 1 and f"tablet-domain-sheets.js?v={PIN}" in page
+    assert page.count("data-foms-sheet-confirm hidden") == 1 and f"tablet-domain-sheets.js?v={SHEETS_PIN}" in page
     _run(tmp_path, page, {"scripts": [PARTS_JS, SHEETS_JS], "cohort": False, "app": [
         {"sel": _act("production-hold", held.id), "title": "보류를 해제할까요?", "body": f"(사유: {HOLD})", "yes": "보류 해제",
          "url": f"/api/orders/{held.id}/production/hold", "post": {"active": False, "reason": ""}},
@@ -161,34 +163,14 @@ def test_남은_공정_판_보류_해제도_앱_창_공정을_안_체크하는_�
 
 
 # --------------------------------------------------------------------------- #
-# ④ 옆 시트(옛 칸반이 여는 것)는 창 조각이 있어도 지금 기본 창 그대로
-# --------------------------------------------------------------------------- #
-def test_옆_시트는_창_조각이_있어도_기본_창_그대로_Node(client, tmp_path) -> None:
-    login(client, lead=True)
-    first, second = get_today_kst() + datetime.timedelta(days=1), get_today_kst() + datetime.timedelta(days=9)
-    making = add_order("가람옆집", 1, done=ALL_STEPS, hold=HOLD)
-    _patch(making, dates=f"{first.isoformat()}, {second.isoformat()}")
-    split = f"시공일이 {_md(first)} · {_md(second)} 두 번이에요. 제품이 모두 제작됐나요?"
-    set_cookies(client, TABLET)
-    frag = get_html(client, f"/erp/production/tablet-sheet/{making.id}")
-    assert frag.count("data-foms-sheet-confirm hidden") == 1  # 공정 칸 손 체크 창 — 생산 단추는 이 창을 쓰지 않는다
-    assert '<section class="foms-prod-page"' not in frag and "data-foms-prod-home" not in frag
-    _run(tmp_path, frag, {"scripts": [PARTS_JS, SHEETS_JS], "cohort": True, "plain": [
-        {"sel": _act("production-complete", making.id), "plain": "제작을 완료할까요?\n\n" + split,
-         "url": f"/api/orders/{making.id}/production/complete", "post": {}},
-        {"sel": _act("production-hold", making.id), "plain": f"보류를 해제할까요? (사유: {HOLD})",
-         "url": f"/api/orders/{making.id}/production/hold", "post": {"active": False, "reason": ""}},
-    ]})
 
 
 def test_출고_옛_칸반_화면에는_앱_창_조각도_생산_묻기_단추도_없다() -> None:
-    """출고 화면이 실는 같은 JS 는 [저장](묻지 않음)만 쓴다 — 앱 창으로 바뀔 단추가 없다. 옛 칸반 몸통은 창 조각을 싣지 않는다(옆 시트 조각만)."""
+    """출고 화면이 실는 같은 JS 는 [저장](묻지 않음)만 쓴다 — 앱 창으로 바뀔 단추가 없다(옛 칸반 몸통 · 옆 시트는 2026-11-27 지움)."""
     asks = re.compile(r'data-tablet-sheet-action="production-(start|complete|uncomplete|hold)"')
     for rel in Path(ROOT / "templates/shipment").rglob("*.html"):
         text = rel.read_text(encoding="utf-8")
         assert not asks.search(text) and "data-foms-sheet-confirm" not in text and "sheet_step_confirm" not in text, rel
-    kanban = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
-    assert "sheet_step_confirm" not in kanban and not asks.search(kanban)
 
 
 # --------------------------------------------------------------------------- #
@@ -215,13 +197,12 @@ def test_앱_창_범위는_작업_시트와_생산_첫_화면뿐이고_기본_�
 
 def test_핀은_싣는_곳마다_같다() -> None:
     read = lambda rel: (ROOT / rel).read_text(encoding="utf-8")  # noqa: E731
-    for rel in ("templates/production/partials/home_body.html", "templates/production/partials/tablet_kanban_body.html",
-                "templates/production/sheet.html"):
-        assert f"tablet-domain-sheets.js') }}}}?v={PIN}" in read(rel), rel
-    assert f"'/static/js/foms/tablet-domain-sheets.js?v={PIN}'" in read("static/js/shipment/shipment-entry.js")
-    assert f"shipment-entry.js') }}}}?v={PIN}" in read("templates/shipment/partials/dashboard_scripts.html")
+    for rel in ("templates/production/partials/home_body.html", "templates/production/sheet.html"):
+        assert f"tablet-domain-sheets.js') }}}}?v={SHEETS_PIN}" in read(rel), rel
+    assert f"'/static/js/foms/tablet-domain-sheets.js?v={SHEETS_PIN}'" in read("static/js/shipment/shipment-entry.js")
+    assert f"shipment-entry.js') }}}}?v={SHEETS_PIN}" in read("templates/shipment/partials/dashboard_scripts.html")
     assert read("templates/production/partials/home_scripts.html").count(f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}") == 2
-    for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
+    for rel in ("templates/production/sheet.html",):
         assert f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}" in read(rel), rel
         assert f"css/contexts/production/sheet.css') }}}}?v={SHEET_CSS_PIN}" in read(rel), rel  # 11-27 m 밀어 넘기기 · u 보기 줄
     assert f"foms-production-sheet-factory.js') }}}}?v={PIN}" in read("templates/production/sheet.html")

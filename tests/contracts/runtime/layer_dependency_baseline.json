@@ -467,7 +467,6 @@
     "foms/web/orders/history.py::foms.services.estimate_service",
     "foms/web/orders/listing.py::foms.services.common.dashboard_cache",
     "foms/web/orders/trash.py::foms.services.common.dashboard_cache",
-    "foms/web/orders/trash.py::foms.services.notifications.production_change",
-    "foms/web/production/dashboard.py::foms.services.erp_mobile_order_display"
+    "foms/web/orders/trash.py::foms.services.notifications.production_change"
   ]
 }

@@ -538,7 +538,6 @@ ORDERS_DASHBOARD = "templates/orders/partials/dashboard_main.html"
 # includes the split shell; the rest are the split-UNWIRED fallback set.
 _SPLIT_UNWIRED_COHORT_BODIES = (
     CONSTRUCTION_BODY,
-    "templates/production/partials/dashboard_body.html",
     "templates/shipment/partials/dashboard_main.html",
     "templates/measurement/partials/dashboard_main.html",
     "templates/orders/partials/history_dashboard_body.html",
@@ -740,12 +739,7 @@ def test_workmode_css_has_no_shell_override_hatch() -> None:
 # --- 포인터 힌트: 나머지 4탭 태블릿 표면도 동일 게이트 ------------------------
 
 COARSE_ONLY_SURFACES = (
-    # (대시보드 body 템플릿, 태블릿 파티셜, 그 표면의 CSS)
-    (
-        "templates/production/partials/dashboard_body.html",
-        "production/partials/tablet_kanban_body.html",
-        "static/css/foundation/foms-tablet-production-kanban.css",
-    ),
+    # (대시보드 body 템플릿, 태블릿 파티셜, 그 표면의 CSS) — 생산 칸반은 2026-11-27 옛 생산 보드와 함께 지움
     (
         "templates/cs/partials/as_dashboard_body.html",
         "cs/partials/tablet_as_compare_body.html",
@@ -800,8 +794,6 @@ SCR_BOOT_JS = "static/js/runtime/foms-screen-hint-boot.js"
 WIDE_ONLY_SURFACES = (
     ("templates/construction/partials/dashboard_body.html",
      "construction/partials/filters_grid.html"),
-    ("templates/production/partials/dashboard_body.html",
-     "production/partials/filters_grid.html"),
     ("templates/orders/partials/dashboard_main.html",
      "orders/partials/dashboard_grid.html"),
 )

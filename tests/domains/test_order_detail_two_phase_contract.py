@@ -11,9 +11,8 @@ _ORDERS_ATTACHMENTS = _REPO_ROOT / "static" / "js" / "orders" / "dashboard" / "e
 _DETAIL_DOM = _REPO_ROOT / "static" / "js" / "orders" / "dashboard" / "erp-dashboard-detail-dom.js"
 _FRAGMENT = _REPO_ROOT / "static" / "js" / "orders" / "order-detail-fragment.js"
 _CONTRACT_DOC = _REPO_ROOT / "docs" / "harness" / "policy" / "order-detail-2phase-contract.md"
-_PRODUCTION_BODY = _REPO_ROOT / "templates" / "production" / "partials" / "dashboard_body.html"
+# 옛 생산 보드 본문 · 스크립트는 2026-11-27 지웠다 — 두 단계 상세 계약은 시공 쪽만 남는다.
 _CONSTRUCTION_BODY = _REPO_ROOT / "templates" / "construction" / "partials" / "dashboard_body.html"
-_PRODUCTION_SCRIPTS = _REPO_ROOT / "templates" / "production" / "partials" / "scripts.html"
 # 시공 스크립트는 2026-08-11 외부 .js 로 분리됐다(프래그먼트 전송량 감축).
 # 계약은 코드가 있는 곳을 봐야 하므로 경로를 정적 파일로 옮긴다.
 _CONSTRUCTION_SCRIPTS = _REPO_ROOT / "static" / "js" / "construction" / "dashboard.js"
@@ -86,23 +85,13 @@ def test_order_detail_two_phase_contract_doc_exists() -> None:
 
 
 def test_production_and_construction_load_common_fragment_module() -> None:
-    production_body = _PRODUCTION_BODY.read_text(encoding="utf-8")
     construction_body = _CONSTRUCTION_BODY.read_text(encoding="utf-8")
 
-    assert "js/orders/order-detail-fragment.js" in production_body
     assert "js/orders/order-detail-fragment.js" in construction_body
 
 
 def test_production_and_construction_scripts_use_two_phase_attachment_patch() -> None:
-    production_src = _PRODUCTION_SCRIPTS.read_text(encoding="utf-8")
     construction_src = _CONSTRUCTION_SCRIPTS.read_text(encoding="utf-8")
-
-    assert "patchProductionDetailAttachments" in production_src
-    assert "invalidateProductionOrderDetailAttachments" in production_src
-    assert "attachmentsPending = true" in production_src
-    assert "order-detail-attachments-slot-" in production_src
-    assert "container.dataset.shellLoaded = '1'" in production_src
-    assert "__attachmentsCacheAt[orderId] = Date.now();" in production_src
 
     assert "patchConstructionDetailAttachments" in construction_src
     assert "invalidateConstructionOrderDetailAttachments" in construction_src

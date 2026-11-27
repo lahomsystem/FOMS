@@ -64,12 +64,11 @@ def test_팀_없으면_403_없는_주문_404(client) -> None:
 
 
 def test_시트_두_곳에_인쇄_링크(client) -> None:
+    """작업 시트에 인쇄 링크(옆 시트는 2026-11-27 옛 보드와 함께 지움)."""
     _make_user(client, "print_prod_links", "PRODUCTION")
     order = _seed_order()
     page = client.get(f"/erp/production/sheet/{order.id}").get_data(as_text=True)
-    side = client.get(f"/erp/production/tablet-sheet/{order.id}").get_data(as_text=True)
-    for html in (page, side):
-        assert f"/erp/production/print/{order.id}" in html and ">인쇄</a>" in html
+    assert f"/erp/production/print/{order.id}" in page and ">인쇄</a>" in page
 
 
 def test_인쇄_템플릿은_인라인_style_script_없음() -> None:

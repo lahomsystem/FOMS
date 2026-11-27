@@ -91,9 +91,8 @@ def test_b7_app_shell_loads_write_js_and_badge_css() -> None:
 def test_b7_wave1_writes_use_wrapper() -> None:
     """Wave1 쓰기 fetch 는 fomsWriteFetch(있으면) 경유로 스왑됐다(폴백 유지)."""
     call_log = _read("static/js/orders/foms-call-log.js")
-    prod = _read("static/js/production/foms-production-steps.js")
     packing = _read("static/js/shipment/foms-packing.js")
-    for src in (call_log, prod):
+    for src in (call_log,):  # 생산 공정 창 JS 는 2026-11-27 옛 보드와 함께 지움
         assert "window.fomsWriteFetch || fetch" in src
         assert "writeFetch(" in src
     assert "window.fomsWriteFetch" in packing

@@ -340,8 +340,8 @@ def test_받은함과_공정_줄_규칙() -> None:
 def test_액션_JS_게이트와_핀이_같다() -> None:
     js = (ROOT / "static/js/foms/tablet-domain-sheets.js").read_text(encoding="utf-8")
     assert '[data-foms-prod-sheet-page], [data-foms-prod-home]' in js
-    kanban = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
-    pin = kanban.split("tablet-domain-sheets.js') }}?v=")[1].split('"')[0]
+    home = (ROOT / "templates/production/partials/home_body.html").read_text(encoding="utf-8")  # 칸반 본문은 2026-11-27 지움
+    pin = home.split("tablet-domain-sheets.js') }}?v=")[1].split('"')[0]
     for rel in ("templates/production/sheet.html", "templates/production/partials/home_body.html"):
         assert f"tablet-domain-sheets.js') }}}}?v={pin}" in (ROOT / rel).read_text(encoding="utf-8"), rel
     for rel in ("templates/production/partials/home_all.html", "templates/production/partials/home_date.html",

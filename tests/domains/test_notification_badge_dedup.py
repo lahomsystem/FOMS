@@ -56,12 +56,11 @@ def test_erp_pages_use_single_notification_badge_fetch(client):
     # two calls into an external bundle (2026-08-11 프래그먼트 전송량 감축) — 세는 곳만 옮긴다.
     expected_badge_refresh_calls = {
         "/erp/dashboard": 0,
-        "/erp/production/dashboard": 2,
-    }
+    }  # 옛 생산 보드(인라인 두 번)는 2026-11-27 지움
     construction_js = (ROOT / "static/js/construction/dashboard.js").read_text(encoding="utf-8")
     assert construction_js.count("loadNotificationBadge(true);") == 2
 
-    for path in ("/erp/dashboard", "/erp/construction/dashboard", "/erp/production/dashboard"):
+    for path in ("/erp/dashboard", "/erp/construction/dashboard"):
         response = client.get(path)
         assert response.status_code == 200
         body = response.get_data(as_text=True)

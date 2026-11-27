@@ -311,17 +311,6 @@ def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸�
     assert "sheet.css') }}?v=20261127u" in page
 
 
-def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다() -> None:
-    """S4: 머리 줄 끝 '#번호 · 상차' 글이 우상단에 떠 있는 닫기(44px + 바깥 8px) 밑으로 20×8px 들어갔다."""
-    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
-    assert ".foms-tablet-sheet--headless .foms-prod-sheet__titlebar { padding-right: 36px; }" in css
-    frag = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
-    bar = frag.split('<div class="foms-prod-sheet__titlebar">')[1].split("{# ──")[0]
-    assert '<div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>' in bar
-    body = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
-    assert "css/contexts/production/sheet.css') }}?v=20261127u" in body
-
-
 def test_가로_터치_화면_시공일_띠는_늘_한_줄씩이고_칸을_채우거나_48px_로_굴린다() -> None:
     """11-21 사용자 ①(시안 안 3): 두 칸씩 배치를 없앴다. 11-14 의 두 칸씩 규칙(max-height 786px)은 media 키(배율 전 626)만 봐서
     현장 태블릿 1176×626 을 80% 로 줄여도 두 칸씩 — 띠가 왼쪽 칸 61% 에서 끝나 아래가 비었다. 이제 띠 상자가 칸 키를 박고 줄이 나눠 가진다."""

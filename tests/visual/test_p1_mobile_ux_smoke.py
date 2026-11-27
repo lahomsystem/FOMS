@@ -204,12 +204,7 @@ def test_mobile_workflow_parity_buttons_smoke(page, visual_live_server_erp_v2, w
     page.set_viewport_size({"width": width, "height": height})
     _login(page, visual_live_server_erp_v2)
 
-    page.goto(f"{visual_live_server_erp_v2}/erp/production/dashboard", wait_until="networkidle")
-    complete_btn = page.locator('[data-action="completeProduction"]').first
-    complete_btn.wait_for(state="visible")
-    assert page.locator('a[href*="open=erp-order"]').count() >= 1
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
-
+    # 생산 폰 큐(옛 생산 보드)는 2026-11-27 지웠다 — 시공 큐만 본다.
     page.goto(f"{visual_live_server_erp_v2}/erp/construction/dashboard", wait_until="networkidle")
     reupload_btn = page.locator('[data-action="reuploadConstructionPhotos"]').first
     as_btn = page.locator('[data-action="openAsAcceptModal"]').first

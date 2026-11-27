@@ -157,16 +157,6 @@ def test_팀_없으면_403_없는_주문은_404(client) -> None:
     assert client.get(SHEET_URL.format(id=order.id + 999)).status_code == 404
 
 
-def test_옆_시트는_그대로_그린다(client) -> None:
-    """뷰 모델을 서비스로 옮겼어도 옆 시트 fragment 는 같은 키로 그린다."""
-    _make_user(client, "sheet_side_admin", "CS", role="ADMIN")
-    order = _seed_order()
-    html = client.get(f"/erp/production/tablet-sheet/{order.id}").get_data(as_text=True)
-    assert "foms-prod-sheet" in html and "김하늘" in html
-    assert 'data-tablet-sheet-action="production-complete"' in html
-    assert "/api/files/view/drawings/a.png" in html
-
-
 def test_템플릿에_인라인_style_script_없음() -> None:
     text = (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")
     assert 'style="' not in text
@@ -307,9 +297,7 @@ def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다()
     # 지금 여기 · 연결 한 줄은 전체 화면 시트에만(옆 시트에는 data-foms-sheet-net 이 없다)
     assert "var nowText = netEl ? '지금 여기' : '';" in js and "(isNow ? nowText : '')" in js
     assert "navigator.onLine !== false && !netFailed" in js
-    side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
-    assert "data-foms-sheet-net" not in side
-    assert "data-foms-sheet-complete" in side and "foms-prod-sheet__btn--off" in side  # 옆 시트도 검수 전 회색(11-21)
+    # 옆 시트 템플릿은 2026-11-27 옛 생산 보드와 함께 지웠다(JS 의 옆 시트 갈래는 sheet-page.js 몫 — 뒤에 정리).
 
 
 def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> None:
@@ -342,6 +330,3 @@ def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> 
     # 순서는 마크업으로 — CSS order 로 바꾸지 않는다
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
     assert not re.search(r"(?<![\w-])order\s*:", css)
-    # 옆 시트는 범위 밖 — 규격이 공정보다 먼저(그대로)
-    side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
-    assert 0 <= side.find('aria-label="규격"') < side.find('aria-label="공정"')

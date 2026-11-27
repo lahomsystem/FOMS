@@ -57,7 +57,6 @@ DOMAIN_V2_SURFACES = [
     ("/erp/dashboard", ("모바일 홈 대시보드", "모바일 홈 컨트롤 타워")),
     ("/erp/measurement", ("실측 모바일 대시보드",)),
     ("/erp/drawing-workbench", ("도면 작업 큐",)),
-    ("/erp/production/dashboard", ("생산 모바일 대시보드",)),
     ("/erp/construction/dashboard", ("시공 모바일 대시보드",)),
     ("/erp/shipment", ("출고 모바일 대시보드",)),
 ]

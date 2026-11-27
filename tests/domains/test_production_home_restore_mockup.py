@@ -173,8 +173,7 @@ def test_레일_글은_생산_첫_화면과_다른_화면이_바이트까지_같
     _order("한빛", _files("oa", 1))
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     home = _rail(_get(client, HOME))
-    # 같은 생산 강조(옛 보드) — 바이트까지 같다
-    assert home == _rail(_get(client, BOARD))
+    # (같은 생산 강조로 견주던 옛 보드는 2026-11-27 지웠다)
     # 다른 탭 화면 — 강조 칸만 다르다(강조 표식을 지우면 같다)
     other = _rail(_get(client, "/erp/shipment"))
 
@@ -213,16 +212,16 @@ def test_레일_셋은_생산_화면_몸통이_있을_때만_숨긴다() -> None
 
 
 # --------------------------------------------------------------------------- #
-# 옛 보드 — 태블릿 첫 화면 문만 뺐고 화면 · 다른 문은 남는다(사용자 "필요없으면 삭제" → 필요해서 남김)
+# 옛 보드 — 메뉴에서 빠졌고(2026-11-21) 라우트도 지웠다(2026-11-27 "legacy 보드 없애")
 # --------------------------------------------------------------------------- #
 def test_옛_보드는_PC_폰_메뉴에서_빠지고_주소는_남는다(client, cohort):
-    """2026-11-21(설계서 production-pc-viewer §9 · §10 R1): PC · 폰 메뉴 · 9탭 계약의 생산 칸은 첫 화면, 옛 보드 라우트는 남는다
-    (첫 화면 [보드 →] · 켜진 프리랜서 · 첫 화면을 못 보는 사람)."""
+    """2026-11-21(설계서 production-pc-viewer §9 · §10 R1): PC · 폰 메뉴 · 9탭 계약의 생산 칸은 첫 화면.
+    2026-11-27(설계서 production-legacy-board-removal §0-1-3): 옛 보드 라우트를 지웠다 — 주소는 404(넘겨주기 없음)."""
     assert BOARD not in ERP_PRIMARY_NAV_PATHS and "/erp/production/home" in ERP_PRIMARY_NAV_PATHS
     shell = (ROOT / "templates/partials/shared/erp_mobile_shell.html").read_text(encoding="utf-8")
-    assert "production_nav_href()" in shell  # 폰 아래 메뉴 — 첫 화면 또는 보드(한 곳 판정)
+    assert "production_nav_href()" in shell  # 폰 아래 메뉴 — 첫 화면(한 곳 판정)
     sub = (ROOT / "templates/partials/shared/erp_sub_nav.html").read_text(encoding="utf-8")
     assert "production_nav_href()" in sub  # PC 둘째 줄 메뉴
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     resp = client.get(BOARD)
-    assert resp.status_code == 200 and "foms-prod-home-page" not in resp.get_data(as_text=True)
+    assert resp.status_code == 404 and "foms-prod-home-page" not in resp.get_data(as_text=True)

@@ -16,9 +16,8 @@ PIN = "?v=20260929a"
 
 RENDERERS = (
     "static/js/orders/dashboard/erp-dashboard-detail-dom.js",
-    "templates/production/partials/scripts.html",
     "static/js/construction/dashboard.js",
-)
+)  # 옛 생산 보드 상세(production/partials/scripts.html)는 2026-11-27 지움
 
 
 def _read(rel: str) -> str:
@@ -40,7 +39,6 @@ def test_every_surface_loads_helper_js_and_css() -> None:
     erp_block = layout[layout.index("{% if request.path.startswith('/erp/') %}"):]
     assert f"js/foms/order-items-md.js') }}}}{PIN}" in erp_block.split("{% endif %}", 1)[0]
     for rel in (
-        "templates/production/partials/scripts.html",
         "templates/construction/partials/scripts.html",
     ):
         assert "filename='js/foms/order-items-md.js'" not in _read(rel), f"{rel}: 조각에 도우미 script 를 다시 넣지 말 것"
@@ -48,7 +46,6 @@ def test_every_surface_loads_helper_js_and_css() -> None:
     css_tag = f"css/components/foms-order-items-md.css') }}}}{PIN}"
     for rel in (
         "templates/orders/partials/dashboard_styles.html",
-        "templates/production/partials/styles.html",
         "templates/construction/partials/styles.html",
     ):
         assert css_tag in _read(rel), f"{rel} 에 목록+상세 CSS 링크가 없다"

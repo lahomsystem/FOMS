@@ -64,12 +64,14 @@ def test_side_sheet_open_uses_resolved_url() -> None:
 
 
 def test_side_sheet_cachebuster_bumped_to_20260713a() -> None:
-    """side-sheet.js ?v 가 범프(2026-07-27 도면 뷰어 마커 early-return 추가로 JS 내용 변경 → o→20260727a).
+    """side-sheet.js ?v 가 범프(2026-07-27 도면 뷰어 마커 early-return 추가로 JS 내용 변경 → o→20260727a,
+    2026-11-27 위임 셀렉터에서 옛 생산 칸반 카드를 빼 → 20261127p).
 
     SW staticCacheFirst 는 no-cache 헤더로 무력화되지 않으므로 JS 수정 시 ?v 범프가 필수다.
     """
     html = _read(LAYOUT_SCRIPTS)
-    assert "tablet-side-sheet.js') }}?v=20260727a" in html
+    assert "tablet-side-sheet.js') }}?v=20261127p" in html
+    assert "tablet-side-sheet.js') }}?v=20260727a" not in html
     assert "tablet-side-sheet.js') }}?v=20260713o" not in html
     assert "tablet-side-sheet.js') }}?v=20260713e" not in html
 
@@ -281,14 +283,14 @@ def _quest_title(html: str) -> str:
 
 def test_보드_상태면_보드_링크가_주_버튼이고_승인_버튼은_없다() -> None:
     bs = {"kind": "production", "label": "제작중", "tone": "soft", "title": "",
-          "link_label": "생산 보드 열기",
-          "link_endpoint": "erp_production_page.erp_production_dashboard",
-          "link_params": {"focus_order": 1}}
+          "link_label": "생산 화면 열기",
+          "link_endpoint": "erp_production_page.erp_production_home",
+          "link_params": {"order": 1}}
     html = _render_sheet(q=_SYNTH_Q, can_edit_erp=True, board_state=bs)
     btn = _pri_button(html)
     assert btn.name == "a"
-    assert btn["href"] == "/erp/production/dashboard?focus_order=1"
-    assert btn.get_text(strip=True) == "생산 보드 열기"
+    assert btn["href"] == "/erp/production/home?order=1"
+    assert btn.get_text(strip=True) == "생산 화면 열기"
     assert _quest_title(html) == "제작중"
     assert "erp-btn-approve-team" not in html
     assert "생산 확인" not in html

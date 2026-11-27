@@ -65,11 +65,11 @@ def test_보류_줄은_마크업_순서로_옮겼다_CSS_order_아님() -> None:
 # ② [바뀐 것] 탭 [확인했어요] = 그 줄만 지운다
 # --------------------------------------------------------------------------- #
 JS = "static/js/foms/tablet-domain-sheets.js"
-PIN = "20261127a"
+PIN = "20261127p"  # 2026-11-27 옛 생산 칸반 몫을 지우며 한 번 더 올렸다(싣는 곳 셋 · 출고 진입이 같은 값)
 
 
 def _ack_fn(js: str) -> str:
-    return js.split("function changeAck(orderId, inboxRow) {", 1)[1].split("// ---- 변경 브리핑 모달", 1)[0]
+    return js.split("function changeAck(orderId, inboxRow) {", 1)[1].split("// 출고 서랍 저장", 1)[0]
 
 
 def test_바뀐_것_탭_줄만_지우고_다른_길은_다시_읽기가_남는다_원문_계약() -> None:
@@ -78,7 +78,7 @@ def test_바뀐_것_탭_줄만_지우고_다른_길은_다시_읽기가_남는�
     # 다시 읽기는 [바뀐 것] 탭 줄 길(removeInboxRow 가 true)에서만 빠진다 — 나머지 길은 지금 그대로 다시 읽는다
     assert "if (!removeInboxRow(inboxRow)) window.location.reload();" in body
     assert body.count("window.location.reload()") == 1
-    # 눌린 단추가 [바뀐 것] 탭 줄 안일 때만 그 줄을 넘긴다(작업 시트 · 날짜 탭 줄 · 칸반 · 브리핑 창은 null)
+    # 눌린 단추가 [바뀐 것] 탭 줄 안일 때만 그 줄을 넘긴다(작업 시트 · 날짜 탭 줄은 null)
     assert 'changeAck(ackBtn.getAttribute("data-order-id"), ackBtn.closest("[data-foms-home-inbox]"));' in js
     # 실패 · 연결 끊김 글은 그대로
     assert '"처리하지 못했어요"' in body and "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요." in body
@@ -96,8 +96,7 @@ def test_바뀐_것_탭_줄만_받는_표지가_템플릿에_있다() -> None:
 
 
 def test_스크립트_핀은_싣는_곳_전부_같이_올랐다() -> None:
-    for rel in ("templates/production/partials/home_body.html", "templates/production/partials/tablet_kanban_body.html",
-                "templates/production/sheet.html"):
+    for rel in ("templates/production/partials/home_body.html", "templates/production/sheet.html"):
         assert f"tablet-domain-sheets.js') }}}}?v={PIN}" in (ROOT / rel).read_text(encoding="utf-8"), rel
     assert f"'/static/js/foms/tablet-domain-sheets.js?v={PIN}'" in (ROOT / "static/js/shipment/shipment-entry.js").read_text(encoding="utf-8")
     assert f"shipment-entry.js') }}}}?v={PIN}" in (ROOT / "templates/shipment/partials/dashboard_scripts.html").read_text(encoding="utf-8")

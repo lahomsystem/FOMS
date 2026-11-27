@@ -52,8 +52,6 @@ DASHBOARDS = [
      ("실측 모바일 대시보드",)),
     ("/erp/drawing-workbench", "templates/drawing/partials/workbench_dashboard_body.html",
      ("도면 작업 큐",)),
-    ("/erp/production/dashboard", "templates/production/partials/dashboard_body.html",
-     ("생산 모바일 대시보드",)),
     ("/erp/construction/dashboard", "templates/construction/partials/dashboard_body.html",
      ("시공 모바일 대시보드",)),
     ("/erp/shipment", "templates/shipment/partials/dashboard_main.html",
@@ -356,9 +354,7 @@ MOBILE_ONLY_BUILDERS = [
     ("/erp/dashboard", "foms.web.orders.dashboard", "build_mobile_control_tower"),
     ("/erp/measurement", "foms.services.erp_mobile_order_display", "build_mobile_queue_batch_context"),
     ("/erp/shipment", "foms.web.shipment.dashboard", "build_shipment_mobile_queue_rows"),
-    # 생산 태블릿 칸반은 폭이 아니라 포인터(coarse) 판정이다 — 광폭 마우스 PC 는 fine 이라
-    # 같은 대조가 성립한다. 전량 조회·가공 상세 계약은 test_production_kanban_full_window.py.
-    ("/erp/production/dashboard", "foms.web.production.dashboard", "collect_production_tombstones"),
+    # 생산 탭(옛 보드 칸반)은 2026-11-27 지웠다.
 ]
 
 

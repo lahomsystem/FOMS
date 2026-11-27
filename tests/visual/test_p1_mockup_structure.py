@@ -464,8 +464,7 @@ def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
 def test_p1_fragment_scripts_are_redeclaration_safe() -> None:
     """ERP shell fragment scripts may run more than once; top-level labels/state must not use lexical declarations."""
     for rel in (
-        "templates/production/partials/scripts.html",
-        "static/js/construction/dashboard.js",  # 2026-08-11 외부 .js 분리(재실행 계약 동일)
+        "static/js/construction/dashboard.js",  # 2026-08-11 외부 .js 분리(재실행 계약 동일) — 옛 생산 보드 스크립트는 2026-11-27 지움
     ):
         src = (ROOT / rel).read_text(encoding="utf-8")
         for forbidden in (
@@ -519,25 +518,6 @@ def test_p1_drawing_dashboard_renders_home_ia(
         assert selector in html, selector
 
 
-def test_p1_production_mobile_v2_home_ia_parity() -> None:
-    """탭3 생산: 모바일 v2가 홈 IA 셸/칩/큐/FAB 셀렉터를 사용한다."""
-    body = (ROOT / "templates/production/partials/dashboard_body.html").read_text(
-        encoding="utf-8"
-    )
-    filters = (ROOT / "templates/production/partials/mobile_filters.html").read_text(
-        encoding="utf-8"
-    )
-    queue = (ROOT / "templates/production/partials/mobile_queue.html").read_text(
-        encoding="utf-8"
-    )
-    for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
-        assert selector in body, selector
-    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
-        assert selector in filters, selector
-    for selector in ("foms-mobile-queue-list", "foms-section-header"):
-        assert selector in queue, selector
-
-
 def test_queue_card_v2_supports_pc_workflow_action_parity() -> None:
     """Mobile v2 cards must keep workflow actions and ERP edit as separate affordances."""
     card = (ROOT / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
@@ -570,30 +550,6 @@ def test_queue_card_v2_supports_pc_workflow_action_parity() -> None:
     assert "도면 창구" in card
     assert "erp_drawing_workbench.erp_drawing_workbench_detail" in card
     assert "action_list or workflow_actionable" in card
-
-
-def test_p1_production_dashboard_renders_home_ia(
-    client,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cohort 생산 대시보드 HTML이 홈 IA 셸/칩/FAB DOM 훅을 렌더한다."""
-    user = _login_admin(client)
-    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
-    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
-
-    resp = client.get("/erp/production/dashboard")
-    assert resp.status_code == 200
-    html = resp.get_data(as_text=True)
-    assert 'class="erp-mobile-v2-layout"' in html
-    for selector in (
-        "foms-shell-body",
-        "foms-mobile-v2-dashboard",
-        "chip-strip",
-        "foms-chip-strip",
-        "foms-section-header",
-        "foms-shell-fab",
-    ):
-        assert selector in html, selector
 
 
 def test_p1_shipment_mobile_v2_home_ia_parity() -> None:
@@ -930,7 +886,6 @@ def test_p1_workflow_tabs_use_clean_queue_card_v2() -> None:
     """
     for rel in (
         "templates/measurement/partials/mobile_list.html",
-        "templates/production/partials/mobile_queue.html",
         "templates/construction/partials/mobile_queue.html",
         "templates/shipment/partials/shipment_mobile_queue.html",
         "templates/orders/partials/history_dashboard_body.html",
@@ -950,7 +905,6 @@ def test_p1_mobile_v2_only_surfaces_hidden_on_desktop() -> None:
     # 워크플로 탭 본문에서 '레거시 모바일' 안내 notice 제거됨
     for rel in (
         "templates/measurement/partials/dashboard_main.html",
-        "templates/production/partials/dashboard_body.html",
         "templates/construction/partials/dashboard_body.html",
         "templates/orders/partials/history_dashboard_body.html",
     ):

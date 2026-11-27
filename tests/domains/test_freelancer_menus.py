@@ -268,7 +268,6 @@ _HOME_BTN = 'erp-pro-btn--secondary" href="/"'
 _HOME_TEMPLATES = (
     "templates/orders/partials/dashboard_main.html",
     "templates/orders/partials/history_dashboard_body.html",
-    "templates/production/partials/dashboard_body.html",
     "templates/construction/partials/dashboard_body.html",
     "templates/cs/partials/completion_dashboard_body.html",
     "templates/cs/partials/settlement_dashboard_body.html",

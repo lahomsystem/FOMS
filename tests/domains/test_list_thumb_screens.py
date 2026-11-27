@@ -113,8 +113,6 @@ def test_production_sheet_strip_small_and_main_original():
     assert files[1]["kind"] == "file" and files[1]["thumb"] == files[1]["view"]
     first = _prod_sheet_drawing_thumb({"drawing_current_files": [{"key": _KEY, "filename": "sheet-1.png"}]})
     assert first["thumb"] == _THUMB and first["view"] == _VIEW
-    strip = _read("templates/production/partials/tablet_sheet.html")
-    assert 'src="{{ f.thumb or f.view }}"' in strip and 'data-foms-erp-attachment-view-url="{{ f.view }}"' in strip
     page = _read("templates/production/sheet.html")
     assert 'data-foms-sheet-dwg-main src="{{ _imgs[0].view }}"' in page  # 큰 그림 = 원본
     assert '<img src="{{ f.thumb or f.view }}"' in page  # 작은 줄

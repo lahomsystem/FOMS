@@ -111,7 +111,7 @@ def test_p1_flag_combination_api_gating(
 
 def test_p1_kv_rollout_manifest_coverage() -> None:
     paths = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert len(paths) == 13
+    assert len(paths) == 12  # 생산 폰 큐(mobile_queue.html)는 2026-11-27 옛 생산 보드와 함께 지움
     missing: list[str] = []
     for rel in paths:
         text = (ROOT / rel).read_text(encoding="utf-8")

@@ -121,11 +121,11 @@ def test_production_steps_read_api_is_closed_for_freelancer(world, app):
 def test_staff_still_opens_old_doors_while_routes_remain(world, app):
     """대조군: 위 닫힘은 프리랜서 문지기 때문이다 — 회사 영업 직원에게는 프리랜서 문구 · 프리랜서 홈이 나오지 않는다.
 
-    옛 라우트는 다음 조각이 지운다(그 뒤로는 404 · 405 — 이 시험은 '프리랜서 답이 아님'만 본다)."""
+    옛 라우트는 2026-11-27 지웠다 — 직원에게는 없는 주소(404)다(프리랜서 홈 302 가 아니다)."""
     client = _client(app, world.staff)
     for path in (BOARD + "?mine=0", f"/erp/production/tablet-sheet/{world.other_id}"):
         resp = client.get(path)
-        assert not (resp.status_code == 302 and resp.headers.get("Location", "").endswith(_FL_HOME)), path
+        assert resp.status_code == 404, (path, resp.status_code)
     resp = client.get(f"/api/orders/{world.other_id}/production/steps")
     assert (resp.get_json(silent=True) or {}).get("error") != FREELANCER_DENIED_MSG
 
