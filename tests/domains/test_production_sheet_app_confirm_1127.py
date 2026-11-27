@@ -222,7 +222,7 @@ def test_핀은_싣는_곳마다_같다() -> None:
     assert read("templates/production/partials/home_scripts.html").count(f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}") == 2
     for rel in ("templates/production/sheet.html", "templates/production/partials/tablet_kanban_body.html"):
         assert f"foms-production-sheet-parts.js') }}}}?v={SHEET_PARTS_PIN}" in read(rel), rel
-        assert f"css/contexts/production/sheet.css') }}}}?v=20261127g" in read(rel), rel  # 비평 시안으로 올림
+        assert f"css/contexts/production/sheet.css') }}}}?v=20261127m" in read(rel), rel  # 11-27 도면 밀어 넘기기(touch-action)로 한 번 더 올림
     assert f"foms-production-sheet-factory.js') }}}}?v={PIN}" in read("templates/production/sheet.html")
     # home.css 는 같은 날 날짜 줄 이름 한 줄 고침과 겹쳐 핀을 한 번 더 올렸다(합칠 때마다 올림)
     assert "css/contexts/production/home.css') }}?v=20261127g" in read("templates/production/partials/home_styles.html")

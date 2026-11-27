@@ -30,7 +30,7 @@ PARTS_PIN = "20261127g"
 #: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 · 셋째 판)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
 PC_PIN = "20261124j"
 #: 작업 시트 sheet.css(sheet.html · tablet_kanban_body.html 같은 핀) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
-SHEET_PIN = "20261127g"
+SHEET_PIN = "20261127m"
 
 
 def _css(name: str) -> str:
