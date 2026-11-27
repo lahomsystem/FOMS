@@ -15,6 +15,9 @@
 - **사장님이 이미 정한 것**: 후보 항목을 다룬, 답(:data:`ANSWER_WORDS`)으로 닫힌 엇갈림 카드를 대상 키로(날짜 창 없이)
   :data:`MAX_DECIDED` 줄까지 — 사장님이 답과 함께 적은 글이 있으면 그 글, 없으면 그때 직원 말과 답(설계서 2026-11-26 온톨로지
   잇기 3.2 · 카드 비평 S5).
+- **이어진 것**(2026-11-26 온톨로지 잇기 7.4): 후보마다 그 지식에서 나가는 한 걸음 이웃 한 줄(:func:`foms.services.brain.
+  judge_neighbours.neighbour_lines` — 이름 · 잇기 뜻 · 단위, 계산기는 이름만 · 금액 없음)을 후보 줄 바로 아래에. 잇기가 없는
+  후보는 줄이 없어 요청 글이 예전과 같다.
 - **모델**: :data:`MODEL` · 생각 :data:`EFFORT` · 학습 돈 줄(:func:`.learning_brain.call_learning`). 부딪침 규칙은 다른 말 판정자
   (:data:`.handoff_learning_judge.CONTRADICTS_RULES` — D278)의 글 그대로.
 - **답**(:class:`Placement`): :data:`VERDICTS` 가운데 하나. ``adds`` · ``contradicts`` 의 대상은 후보 키만, ``repeat`` 의 대상은
@@ -44,12 +47,13 @@ from foms.services.brain.ai_gates import JudgeUnavailable, related_items
 from foms.services.brain.answers import answered_about, card_answer
 from foms.services.brain.chat_model import build_params
 from foms.services.brain.chat_settings import read_chat_settings
+from foms.services.brain.judge_neighbours import neighbour_lines
 from foms.services.brain.embeddings import account_like, query_vector
 from foms.services.brain.photo_cards import DIFFERS_LINE
 from foms.services.brain.proposals import after_values
 from foms.services.cs_agent import brain_prompt as prompt
 from foms.services.cs_agent.brain_spend import BrainError, BrainNotReady, SpendCapReached
-from foms.services.cs_agent.handoff_learning_judge import ADDS_RULES, CONTRADICTS_RULES, PER_UNIT_AMOUNT
+from foms.services.cs_agent.handoff_learning_judge import ADDS_RULES, CONTRADICTS_RULES, NEIGHBOURS_NOTE, PER_UNIT_AMOUNT
 from foms.services.cs_agent.learning_brain import call_learning
 from foms.services.cs_agent.masking import leak_counts
 from foms.services.cs_agent.send import SEND_BRAND
@@ -79,6 +83,7 @@ ANSWER_WORDS: dict[str, str] = {"knowledge_right": "회사 지식이 맞아요",
 SYSTEM = (
     "너는 회사 지식 정리 담당이다. [새 말]은 상담 직원이 손님에게 실제로 안내한 내용을 일반화한 글이고, [회사 지식 후보]는 회사 "
     "지식에 이미 있는 항목이다(아래 '지식'은 그 후보 글). [새 말]을 회사 지식의 어디에 놓을지 하나만 고른다.\n"
+    f"{NEIGHBOURS_NOTE}\n"
     "same: 후보 하나가 이미 같은 내용을 말한다(말만 바꾼 되풀이 · 그 후보 글 일부와 같은 말도). target 은 그 후보 키.\n"
     f"adds: 후보 하나와 같은 대상인데 그 후보에 없던 것을 더한다 — {ADDS_RULES}. target 은 그 후보 키, added 는 그 후보 글 끝에 "
     "붙일 문장만(더한 내용만 · 규칙 꼴 · 300자 안 · 후보에 이미 있는 말은 다시 쓰지 않는다).\n"
@@ -178,9 +183,13 @@ def decided_lines(session: Any, keys: Sequence[str], now: datetime.datetime) -> 
 
 
 def user_text(request: dict[str, Any]) -> str:
-    """판정자에게 보내는 글 — 후보 · 이미 정한 것 · (있으면) 기다리는 말 · 새 말."""
-    items = [f"[{item['key']}] {_flat(item['name'])}: {_flat(item['text'])[:CANDIDATE_CHARS]}"
-             for item in request["candidates"]]
+    """판정자에게 보내는 글 — 후보(+ 있으면 그 바로 아래 '이어진 것' 줄) · 이미 정한 것 · (있으면) 기다리는 말 · 새 말."""
+    near = request.get("neighbours") or {}
+    items: list[str] = []
+    for item in request["candidates"]:
+        items.append(f"[{item['key']}] {_flat(item['name'])}: {_flat(item['text'])[:CANDIDATE_CHARS]}")
+        if near.get(item["key"]):
+            items.append(near[item["key"]])
     held = [f"[{item['key']}] {_flat(item['title'])}: {_flat(item['text'])[:CANDIDATE_CHARS]}"
             for item in request.get("held") or ()]
     waiting = ["[기다리는 말](회사 지식이 아니다 — 지난 상담 한 곳에서만 들어 모아 둔 말 · 키는 대괄호 안)", *held, ""] if held else []
@@ -240,7 +249,10 @@ def place(session: Any, *, key: Optional[str], title: str, text: str, cfg: Any, 
                           limit=MAX_CANDIDATES, vector=vector, words=True)
     keys, waiting = [item["key"] for item in items], [item["key"] for item in held]
     decided = decided_lines(session, keys, now)
-    request = {"candidates": items, "decided": decided, "held": list(held), "title": title, "text": text}
+    near = neighbour_lines(session, {item["key"]: item["type"] for item in items}, today=now.astimezone(KST).date(),
+                           brand=SEND_BRAND)
+    request = {"candidates": items, "decided": decided, "held": list(held), "title": title, "text": text,
+               "neighbours": near}
     fake = pushed_placer()
     if fake is not None:  # 시험 · 도구 — 합성 판정자(같은 답 읽기)
         try:

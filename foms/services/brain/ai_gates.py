@@ -151,21 +151,28 @@ def _sendable(visibility: Any, body: str) -> bool:
     return visibility not in HELD_SCOPES and not any(leak_counts(body).values()) and not account_like(body)
 
 
-def related_knowledge(session: Any, *, key: str, texts: list[str], today: datetime.date,
-                      brand: Optional[str] = None) -> list[str]:
-    """제안과 가까운 승인 지식 글 — 같은 항목의 지금 글 + 찾기 앞 몇 개(반영 · 확정만, 다른 키, 견줄 브랜드만 —
-    :func:`same_brand`)."""
-    out = []
+def related_entries(session: Any, *, key: str, texts: list[str], today: datetime.date,
+                    brand: Optional[str] = None) -> list[tuple[str, Optional[str], str]]:
+    """:func:`related_knowledge` 의 줄마다 (키, 유형, 글 줄) — 넘김 학습의 엇갈림 판정자가 줄 아래에 이어진 것을 붙인다
+    (:mod:`.judge_neighbours`)."""
+    out: list[tuple[str, Optional[str], str]] = []
     current = current_object(session, key)
     if current is not None and current.status == STATUS_ACTIVE and current.text and _sendable(current.visibility,
                                                                                                 current.text):
-        out.append(f"{current.name}: {current.text}")
+        out.append((current.item_key, current.item_type, f"{current.name}: {current.text}"))
     for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=RELATED_LIMIT * 2):
         if (hit["key"] != key and hit["confidence"] == CONFIRMED and hit["score"] >= MIN_RELATED_SCORE
                 and same_brand(brand, hit.get("brand"))
                 and len(out) < RELATED_LIMIT + 1 and _sendable(hit["visibility"], hit["text"])):
-            out.append(f"{hit['name']}: {hit['text']}")
+            out.append((hit["key"], hit.get("type"), f"{hit['name']}: {hit['text']}"))
     return out
+
+
+def related_knowledge(session: Any, *, key: str, texts: list[str], today: datetime.date,
+                      brand: Optional[str] = None) -> list[str]:
+    """제안과 가까운 승인 지식 글 — 같은 항목의 지금 글 + 찾기 앞 몇 개(반영 · 확정만, 다른 키, 견줄 브랜드만 —
+    :func:`same_brand`)."""
+    return [line for _key, _type, line in related_entries(session, key=key, texts=texts, today=today, brand=brand)]
 
 
 #: 놓을 자리 후보의 확신 — 확정 + 근거 있음(밤 배우기가 바로 반영한 항목. 이것을 빼면 배운 말끼리의 되풀이를 못 잡는다 —

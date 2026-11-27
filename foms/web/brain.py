@@ -38,7 +38,7 @@ from foms.services.brain.browse import CHECKS, SORTS, known_count, type_map
 from foms.services.brain.card import item_card
 from foms.services.brain.card_pending import pending_change
 from foms.services.brain.change_request import view as change_view
-from foms.services.brain.change_request_hints import fill_hint, fill_kinds
+from foms.services.brain.change_request_hints import FILL_ITEM, fill_hint, fill_item, fill_kinds
 from foms.services.brain.change_request_store import ChangeRequestError, can_use as change_can_use
 from foms.services.brain.chat_access import page_open_without_settings, page_viewer
 from foms.services.brain.chat_settings import read_chat_settings
@@ -268,9 +268,13 @@ def _render_ds_index(viewer: Any, tab: str, ctx: dict[str, Any]) -> str:
     if change_on and section == "onto":  # 시험지의 모자란 줄 → [문장으로 채우기](설계서 2026-11-18-brain-sentence-change 5절 3판)
         fill["fill_kinds"] = fill_kinds()
     elif change_on and tab == "inbox" and request.args.get("fill"):
+        raw = request.args.get("fill")
         db = get_db()
         try:
-            fill["fill_hint"] = fill_hint(db, viewer, request.args.get("fill"), today=get_today_kst())
+            if str(raw).startswith(FILL_ITEM):  # 지식 카드 '문장으로 잇기' — 그 지식 이름으로 입력 칸을 미리 채운다(2026-11-26 7.4)
+                fill["fill_text"] = fill_item(db, viewer, raw, today=get_today_kst())
+            else:
+                fill["fill_hint"] = fill_hint(db, viewer, raw, today=get_today_kst())
         finally:
             db.rollback()  # 읽기만
     return render_template(f"brain/ds/{section}.html", **{**ctx, "tab": tab}, page=tab, ds_nav=nav, change_on=change_on,
@@ -366,7 +370,8 @@ def item(key: str):
     if ds_on:
         template = "brain/ds/item.html"
         extra = {"page": "item", "pending": pending, "ds_nav": _ds_nav(viewer, "search", chat_tab=_chat_open(),
-                                                   inbox_count=_lazy_inbox_count(g.current_user))}
+                                                   inbox_count=_lazy_inbox_count(g.current_user)),
+                 "change_on": _change_on()}  # '연결 없음' 줄을 '문장으로 잇기' 링크로(쓸 수 있는 사람만)
     return render_template(
         template, **extra, card=card, current=current, display=display_table(), props=props, propose=propose,
         rollback_label=actions.ACTIONS["item_rollback"].label,
