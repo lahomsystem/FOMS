@@ -2632,6 +2632,18 @@
 - 사장님 답 **"운영에 올리기"**(생산 묶음). 스테이징 = `12434b09e`(CI 초록 · 배포 일치).
 - `promote_own_to_production.py --shas`(코드 커밋 18 — 사이렌 `f0541a723` 과 문서만 든 커밋은 뺌)가 exit 2 로 멈춤: "missing baseline deps 95". 목록의 대부분은 문서 커밋이고, 코드 커밋 아홉(`395cc0fe` · `e2fbe299` · `8a0bc938` · `dafa195d` · `99700357` · `05609349` · `d730d50e` · `6f6b8fd1` · `75996bb6`)과 사이렌이 섞여 있다 — 앞선 운영 올림(#919~#933)에서 cherry-pick 으로 이미 들어간 것일 수 있어 판정 첫 줄을 다시 받는 중. `--allow-incomplete` 는 사장님 승인 뒤에만.
 
+### 운영 올림 #934 · 지금 상태 (11-28 저녁 — 압축 뒤 여기부터)
+
+- **운영 = PR #934 머지 `e05904cf7`**(배포 SUCCESS — `check_deploy_drift --target production` 일치). 앞 = #933 `338a3dde1`.
+- 올린 것 = 이 세션 코드 커밋 18(`f7c332dd0` … `935f9c6fa`) cherry-pick + 운영 가지에서 다시 만든 ORM 우회 인벤토리 한 커밋(`83b48e381`). 뺀 것 = 사이렌 커밋(운영에 이미 있음) · 문서만 든 커밋. 가지 `promote/tablet-prod-ui-1128a`, 작업 폴더 `c:/tmp/foms-promo-1128a`.
+- 올리기 도구는 exit 2("진짜 누락 704개")로 멈췄다 — 오탐. 직접 견줌: 꼽힌 사이렌 파일 셋은 운영 = 세션 바탕 = 같음, 얹은 결과의 앱 코드(`foms` · `static` · `templates` · `models.py` · `migrations`)는 스테이징 `12434b09e` 와 같고 다른 것은 남의 파일 둘(`sentry_setup.py` · `ghost_orders.py`)뿐. 겹침: 원장 · AI_STATUS(운영 쪽 유지) · `templates/brain/ds/layout.html` 핀 한 줄(새 핀으로 손수). `--allow-incomplete` 는 안 썼다(손으로 얹음 — #933 과 같은 길).
+- 운영 가지 사전 시험: `APP_OK` · smoke `22623 passed, 837 skipped`(`c:/tmp/promo_smoke_1128a.log`) · 하네스 `632 passed`. PR 검사 넷(test · harness · pg-lane · perf-gate) 통과.
+- 운영 DB 읽기(숫자만): alembic = `prodpart_03_basic_parts` 1 · 새 제약 `ck_production_part_marks_basic_part` 1 · 옛 제약 0 · `PRODUCTION_FLOOR_%` 알림 줄 0(스위치 꺼짐).
+- 운영에서 안 한 것: 실화면 확인(운영 계정은 요청 한 건에 측정 한 번 — 이번 요청은 "올리기"). 알람 스위치는 꺼진 채 — 켜려면 사장님 승인 + Railway 변수 + 공장 태블릿 소리 확인.
+- 스테이징 = `12434b09e` + 문서 커밋(설계서 · 이 기록 — 올리는 중, 로그 `smoke_push126`).
+- 도는 일꾼 없음. 일꾼 작업 폴더 `c:/tmp/foms-w-b1 … b5` 는 그대로(다음 일에 `switch -C` 로 다시 씀).
+- **다음**: 펜 기록 설계서 §10 물을 것 일곱의 답 → 승인 → 일꾼 셋(바닥 → 서버 · 화면). 나중에 여쭐 것(알람 쪽): 영업 수정 요청 취소 때 알람 닫기 · 파트 계정의 [제작 시작 취소] · 수정 제작 안내 글 '미정/미완료' · 공장 옮김 알람 받는 사람 0 · 설계서의 옛 글 "그 도면이 열려요".
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
