@@ -149,11 +149,13 @@ def test_도면_카드와_카드_판_작은_칸에_시공일(client, cohort) -> 
         # 이름 줄(pp-ln) 바로 아래 제 줄 — 품목 줄 폭을 안 뺏는다
         between = _block(card, '<span class="pp-no">', '<span class="fph-dr__pr pp-item">')
         assert _dues(between) == [("", _label(1), "")]
-    # 기다림 칸(도면 단계)은 둘째 줄에 막힌 까닭 · 담당(fph_wait, 2026-11-22 §5-3), 생산 단계 '도면 없음' 칸은 그대로(fph_chip)
-    for oid, cls, tail in ((wait.id, "fph-wi has-why pp-wait", '<span class="fph-wi__why">'), (nodraw.id, "fph-wi pp-wait", "")):
-        chip = re.search(rf'<a class="{cls}" href="[^"]*/{oid}[^"]*">(.*?)</a>', block).group(1)
-        small = f"<small>#{oid} · {'붙박이장' if oid == wait.id else '도면 없음'}</small>"
-        assert _dues(chip) == [("", _label(1), "")] and (small + tail in chip if tail else chip.endswith(small))
+    # 기다림 칸(도면 단계)은 둘째 줄에 막힌 까닭 · 담당(fph_wait, 2026-11-22 §5-3)
+    chip = re.search(rf'<a class="fph-wi has-why pp-wait" href="[^"]*/{wait.id}[^"]*">(.*?)</a>', block).group(1)
+    assert _dues(chip) == [("", _label(1), "")] and f"<small>#{wait.id} · 붙박이장</small>" + '<span class="fph-wi__why">' in chip
+    # 생산 단계 '도면 없음'은 기다림 칸이 아니라 주문 카드 한 장(key @order — 2026-11-28 흐름 §3-5), 그 카드에도 시공일 표
+    assert not re.search(rf'<a class="fph-wi pp-wait" href="[^"]*/{nodraw.id}[^"]*">', block)
+    order_card = re.findall(rf'data-pp-card data-order-id="{nodraw.id}"[^>]*data-key="@order".*?</article>', block, re.S)
+    assert len(order_card) == 1 and ("", _label(1), "") in _dues(order_card[0])
 
 
 def test_시공일_표_CSS_는_줄지_않고_글자_손잡이를_따른다() -> None:

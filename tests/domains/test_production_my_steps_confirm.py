@@ -4,7 +4,8 @@
 ``ask``) · **같은 판정**(``beforeToggle`` — 켤 때만 · 카드를 쓴 파트는 묻지 않고 서버가 판정)으로 먼저 묻는다. 도면 없는 주문은 지금처럼 바로 저장,
 [되돌리기]는 그대로. 장 수 = 작업 시트 · 공정 API 와 같은 서버 값(``step_api_extras`` — 2공장 계정도 주문 전체 장 수, 작업 시트와 같다).
 자료는 서버가 [끝]에 싣는다(``data-foms-sheet-parts`` = 행 ``step_confirm``) — 누를 때 받기(GET)가 없어 공장 와이파이에서도 창이 바로 뜬다.
-쿼리 +1 은 [끝]을 그리는 사람 · 도면 있는 막히지 않은 줄이 있을 때만. 보류 · 도면 고치는 중 줄은 [끝] 자리가 막힘 글이라 창보다 먼저다(⑺).
+쿼리 +1 은 [끝]을 그리는 사람 · 막히지 않은 생산 줄(도면 있는 줄 또는 0장 생산 줄 — 2026-11-28 흐름 §3-5 '도면 없음' 카드)이 있을 때만.
+보류 · 도면 고치는 중 줄은 [끝] 자리가 막힘 글이라 창보다 먼저다(⑺).
 나오는 자리: 태블릿 가로 판 · 폰 · 세로 줄 · PC [고치기] 줄 — 판은 태블릿 가로뿐이고 줄 [끝]이 그 밖을 맡는다(같은 규칙).
 
 되돌리면 실패: 도면 있는 [끝]에 자료가 없음 · 도면 없는 [끝]에 자료가 붙음 · 창이 없거나 둘 · 작업 시트와 다른 창 마크업 · 장 수가 작업 시트와 다름 ·
@@ -159,20 +160,78 @@ def _count(client, url: str) -> int:
     return seen["n"]
 
 
-def test_extra_query_only_for_writers_with_drawn_rows(client, cohort):
+def _count_marks(client, url: str) -> tuple[int, int]:
+    """(전체 SQL 수, 표시 줄 표 ``production_part_marks`` 를 읽은 SQL 수)."""
+    seen = {"n": 0, "marks": 0}
+
+    def _before(conn, cursor, statement, *_args):
+        seen["n"] += 1
+        seen["marks"] += "production_part_marks" in statement
+
+    event.listen(engine, "before_cursor_execute", _before)
+    try:
+        assert client.get(url).status_code == 200
+    finally:
+        event.remove(engine, "before_cursor_execute", _before)
+    return seen["n"], seen["marks"]
+
+
+def test_steps_tab_writer_reads_marks_once_for_any_production_row(client, cohort):
+    """[끝]을 그리는 사람(반장 · 관리자)의 '남은 공정' — 화면에 생산 줄(도면 있는 줄 **또는** 도면 0장 생산 줄)이 하나라도 있으면 표시 줄 읽기
+    +1(같은 IN 한 번 — 둘 다 있어도 +1), 생산 줄이 없으면 0. 0장 줄도 읽는 까닭 = 그 주문의 '도면 없음' 카드(@order)를 누가 작업 중이면 [끝]
+    대신 남은 장을 보이려고(2026-11-28 흐름 §3-5 — 옆 줄에 도면 주문이 있느냐에 따라 [재단 완료]가 보였다 안 보였다 하지 않게). 보기만(PC
+    [고치기] 끔)은 지금 그대로 0."""
     login(client)
-    for i in range(3):
-        add_order(f"가짜빈줄{i}", i + 1, pngs=0)
     set_cookies(client, TABLET)
     url = HOME + "?tab=steps"
     client.get(url)  # warmup
-    bare_only = _count(client, url)
+    assert _count_marks(client, url)[1] == 0  # 생산 줄 없음 = 0
+    for i in range(3):
+        add_order(f"가짜빈줄{i}", i + 1, pngs=0)
+    bare_n, bare_marks = _count_marks(client, url)
+    assert bare_marks == 1, bare_marks  # 0장 생산 줄만 = +1
     add_order("가짜도면줄", 5, pngs=2)
     add_order("가짜도면줄2", 6, pngs=1)
-    drawn = _count(client, url)
-    assert drawn == bare_only + 1, (bare_only, drawn)  # 도면 있는 줄의 표시 줄 한 번(줄 수와 무관)
+    both_n, both_marks = _count_marks(client, url)
+    assert (both_n, both_marks) == (bare_n, 1), (bare_n, both_n)  # 도면 줄이 더 와도 같은 한 번(줄 수와 무관)
     set_cookies(client, PC)
-    assert _count(client, url) == bare_only  # 보기만(PC [고치기] 끔)은 0개 더함
+    assert _count_marks(client, url)[1] == 0  # 보기만(PC [고치기] 끔)은 0개 더함
+
+
+def _take_order_card(client, order_id: int, part: str = "cut"):
+    from tests.support.production_part_claim_seed import ONE, make_user  # noqa: PLC0415
+
+    login_person(client, make_user("김재단", part=part))
+    resp = client.post(ONE, json={"order_id": order_id, "drawing_key": "@order", "part": part, "action": "take", "seen": "none"})
+    assert resp.status_code == 200, resp.get_json()
+
+
+@pytest.mark.parametrize("cookies", [TABLET, PHONE], ids=["tablet", "phone"])
+def test_steps_tab_order_card_in_work_shows_left_instead_of_finish(client, cohort, cookies):
+    """0장 생산 줄: 김재단이 '도면 없음' 카드(@order) 재단을 작업 중이면 반장의 [재단 완료] 대신 "재단 0/1 · 1장 미완료"(도면 있는 주문과 같은
+    꼴 — 누르면 그 주문 도면 판), @order 줄이 없는 0장 줄은 [재단 완료] 그대로(대조군). 화면에 도면 있는 줄이 없어도 같다."""
+    working, plain = add_order("가짜카드집", 1, pngs=0).id, add_order("가짜빈집", 2, pngs=0).id  # 요청 뒤 세션이 닫혀 id 만
+    _take_order_card(client, working)
+    login(client)  # 반장
+    set_cookies(client, cookies)
+    page = get_html(client, HOME + "?tab=steps")
+    row = _row(page, working)
+    assert CARDS in row and f'data-foms-home-step-done data-order-id="{working}"' not in row
+    assert "도면 없음 1장이 미완료예요. 그 장을 완료하면 자동으로 작업 완료 처리돼요." in row  # 까닭 = 공정 API 거절 글 그대로
+    plain_row = _row(page, plain)
+    assert f'data-foms-home-step-done data-order-id="{plain}"' in plain_row and CARDS not in plain_row
+
+
+def test_pc_steps_writer_row_gets_the_same_block(client, cohort):
+    """PC [고치기] 켠 반장의 '남은 공정'도 같은 읽기 · 같은 막힘 칸(home_pc_steps.html 의 pc_qrow — r.step_block 'cards'), 대조군 0장 줄은 [재단 완료]."""
+    working, plain = add_order("가짜카드집", 1, pngs=0).id, add_order("가짜빈집", 2, pngs=0).id  # 요청 뒤 세션이 닫혀 id 만
+    _take_order_card(client, working)
+    login(client)
+    set_cookies(client, PC)
+    client.set_cookie("foms_prod_edit", str(int(time.time())), domain="localhost", path="/erp/production")  # [고치기] 켬
+    page = get_html(client, HOME + "?tab=steps")
+    assert CARDS in page and f'data-order-id="{working}" data-step-key="cut"' not in page
+    assert f'data-order-id="{plain}" data-step-key="cut"' in page
 
 
 def test_part_that_uses_cards_shows_left_sheets_instead_of_a_finish_that_is_always_refused(client, cohort):

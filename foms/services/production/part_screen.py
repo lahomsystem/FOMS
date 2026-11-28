@@ -1,8 +1,8 @@
 """생산 첫 화면이 파트 3판 칸을 위해 읽는 것 — 칸 아래 이름의 표시 줄 한 번 · 아침 칩 한 번(설계서 2026-11-23 §4-9 · §4-10 · §12).
 
-* 표시 줄은 그리는 줄(날짜 장의 만들 것 · PC 찾기의 생산 줄) 중 확정 도면이 있는 주문만 ``order_id IN`` 한 번 읽는다
-  (도면이 없는 주문은 카드 · 장이 없어 칸 아래 이름이 공정 칸만으로 정해진다 — 그런 줄만 있으면 쿼리 0). 파트 판도 같은 줄을
-  다시 쓴다(판이 따로 읽지 않는다).
+* 표시 줄은 그리는 줄(날짜 장의 만들 것 · PC 찾기의 생산 줄)의 주문을 ``order_id IN`` 한 번 읽는다 — 확정 도면이 0장인 생산 줄도
+  든다(주문 카드 ``@order`` — 2026-11-28 흐름 §3-5, 그 카드를 담은 사람이 칸 아래 이름에 선다). 그리는 생산 줄이 하나도 없으면 쿼리 0.
+  파트 판도 같은 줄을 다시 쓴다(판이 따로 읽지 않는다).
 * 아침 칩 = 파트 계정 · 전체 페이지에서만, 내가 맡은 NEED 줄 중 맡은 때가 오늘 KST 0시 전(쿼리 1). 날 조각에는 없다.
   여러 파트 계정은 내 파트 전부를 센다(고른 파트만이 아니다) — 펼친 목록 줄에 파트 이름 · [보기]는 그 파트 · 그 날(§4-12).
 """
@@ -13,7 +13,7 @@ import datetime
 from typing import Any, Iterable, Optional
 
 from foms.services.datetime_kst import to_utc_naive
-from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.production.order_card import row_files, row_keys
 from foms.services.production.part_holders import attach_part_holders
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS, PRODUCTION_PART_LABELS
 from foms.services.production.part_marks_query import my_old_claims
@@ -24,8 +24,10 @@ _WEEKDAY_KO = "월화수목금토일"
 
 
 def drawn_order_ids(rows: Iterable[dict[str, Any]]) -> list[int]:
-    """확정 도면이 1장 이상인 주문 id(화면 순서) — 표시 줄을 읽을 주문."""
-    return [int(r["id"]) for r in rows if resolve_final_drawing_files(r.get("structured_data") or {})]
+    """표시 줄을 읽을 주문 id(화면 순서) — 카드가 있는 주문: 확정 도면이 1장 이상이거나, 0장인 생산 단계 줄(주문 카드 ``@order`` —
+    :func:`~foms.services.production.order_card.row_files`). 같은 ``order_id IN`` 한 번에 id 만 더 든다 — 도면 있는 줄이 있으면 쿼리 +0,
+    0장 생산 줄만 있는 화면은 0 → 1(칸 아래 이름 · '남은 공정' [끝] 자리가 옆 줄과 상관없이 같게, 2026-11-28 결정)."""
+    return [int(r["id"]) for r in rows if row_files(r)]
 
 
 def read_screen_marks(db: Any, rows: list[dict[str, Any]], today: datetime.date,
@@ -88,8 +90,7 @@ def morning_chip(db: Any, user: Any, parts: Any, rows: list[dict[str, Any]],
     days_of: dict[str, Optional[datetime.date]] = {}
     for mark in claims:
         row = by_id.get(int(mark.order_id))
-        keys = {e["key"] for e in resolve_final_drawing_files((row or {}).get("structured_data") or {})}
-        if row is None or mark.drawing_key not in keys:
+        if row is None or mark.drawing_key not in row_keys(row):  # 지금 장만(도면 0장 생산 줄은 주문 카드 @order)
             continue
         pane, day = pane_slots(row, today)[0]
         day_iso = day.isoformat() if day else ""

@@ -23,7 +23,7 @@ from typing import Any, Iterable, Optional
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.production import mark_crew as mc
 from foms.services.production.part_constants import MARK_STATE_NEED, PRODUCTION_PART_LABELS
-from foms.services.production.part_progress import current_keys, marks_by_part, part_progress
+from foms.services.production.part_progress import marks_by_part, part_progress, sheet_keys
 
 #: 칸 아래 이름이 없을 때(담당 없음) — 결정표 '미정'(답 ③).
 HOLDER_NONE = "미정"
@@ -154,7 +154,7 @@ def part_holder(sd: Any, marks: list[Any], part: str, step: dict[str, Any], toda
     """
     label = PRODUCTION_PART_LABELS[part]
     progress = part_progress(sd, marks, part)
-    keys = current_keys(sd)
+    keys = sheet_keys(sd, marks)  # 도면 0장 + 주문 카드 줄 = ['@order'](작업 중 · 완료한 사람 이름이 그 한 장에서)
     rows = marks_by_part(marks).get(part, {})
     partial = progress["uses_cards"] and progress["total_n"] and not progress["done"]
     cell_label = f"{label} {progress['done_n']}/{progress['total_n']}" if partial else label

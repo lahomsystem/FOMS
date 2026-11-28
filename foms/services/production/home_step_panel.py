@@ -222,12 +222,16 @@ def step_panel_for(queues: dict[str, Any], key: str, order_id: int | None) -> di
 
 
 def step_confirm_ids(queues: dict[str, Any], *, fix_only: bool = False) -> list[int]:
-    """[<공정> 끝] 확인 창이 필요할 수 있는 줄 — [끝]이 있고(보류 · 도면 고치는 중이 아님) 확정 도면이 1장 이상. 도면 없는 줄은
-    묻지 않으니(사장님 2026-11-25) 표시 줄을 읽지 않는다. ``fix_only`` 면 그중 도면별로 막힌 장이 있는 줄만(쿼리 0 — 이미 든 주문 JSON)
-    — [끝]이 없는 사람에게도 "도면 2 고치는 중" 판정(:func:`attach_step_confirm`)을 하려고 읽는 줄."""
-    return [r['id'] for q in queues.get('queues') or [] for r in q.get('rows') or []
-            if not _blocked(r) and resolve_final_drawing_files(r.get('structured_data') or {})
-            and (not fix_only or per_drawing_numbers(r.get('structured_data') or {}))]
+    """[<공정> 끝] 자리 막힘을 보려고 표시 줄을 읽을 줄 — [끝]이 있는(보류 · 도면 고치는 중이 아닌) 생산 줄 전부: 도면 있는 줄 **과** 도면이
+    0장인 줄(2026-11-28 흐름 §3-5 — 그 주문의 '도면 없음' 카드 ``@order`` 를 누가 작업 중이면 [끝] 대신 "재단 0/1 · 1장 미완료"). 같은 ``IN``
+    한 번(둘 다 있어도 +1, 줄이 없으면 0 — 쿼리 계약 ``test_steps_tab_writer_reads_marks_once_for_any_production_row``). 낡은 화면에서 누르면
+    공정 API 가 같은 판정으로 409 ``PART_USES_CARDS``.
+    ``fix_only``([끝]이 없는 사람 — 읽기 전용 · 보기만 PC)면 그중 도면별로 막힌 장이 있는 줄만(쿼리 0 — 이미 든 주문 JSON, 지금 그대로) —
+    그 사람에게도 "도면 2 고치는 중" 판정(:func:`attach_step_confirm`)을 하려고 읽는 줄."""
+    rows = [r for q in queues.get('queues') or [] for r in q.get('rows') or [] if not _blocked(r)]
+    if fix_only:
+        return [r['id'] for r in rows if per_drawing_numbers(r.get('structured_data') or {})]
+    return [r['id'] for r in rows]
 
 
 def attach_step_blocks(queues: dict[str, Any], user: Any) -> None:

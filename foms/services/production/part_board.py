@@ -5,7 +5,8 @@
 (``done_rows``)를 그대로 다시 쓴다. 여기서 더하는 쿼리는 표시 줄 읽기 **한 번**(``order_id IN (그날들 생산 주문)``)뿐이고
 카드 수와 무관하다.
 
-* 카드 = 확정 도면 한 장(:func:`resolve_final_drawing_files` 의 항목, 순서 = 도면 번호).
+* 카드 = 확정 도면 한 장(:func:`resolve_final_drawing_files` 의 항목, 순서 = 도면 번호). 확정 도면이 0장인 생산 단계 주문은 '도면 없음'
+  주문 카드 한 장(key ``@order`` · ``order_card`` 참 · 도면 번호 0/0 — :mod:`~foms.services.production.order_card`, 2026-11-28 흐름 §3-5).
 * 내 파트 상태 · 작업하는/완료한 사람 이름 줄(여러 명 — 2026-11-25 multi-holder, :mod:`part_card_crew`) · 다른 파트 한 줄 낱말
   (재단: 완료 · 기본 · 작업 중 · 미정, 조립: 완료 · 없음 · 작업 중 · 미정, 그 밖: 완료 · 작업 중 · 미정).
 * 칸 숫자: 파트 계정 = 내 것(작업 필요 = 내 몫이 작업 중인 장, 완료 = 내 몫을 완료한 장 — "재단 1/2 완료"도, 재단은 + 기본),
@@ -39,6 +40,7 @@ from foms.services.production.part_constants import (
 )
 from foms.services.production import mark_crew as mc
 from foms.services.production.factory_scope import elsewhere_head, elsewhere_info, other_factories
+from foms.services.production.order_card import is_order_entry
 from foms.services.production.part_board_ctx import MarkIndex, SheetIndex, board_ctx
 from foms.services.production.part_board_ctx import fetch_part_marks, index_marks  # noqa: F401 — 옛 import 자리(시험 · 다른 모듈)
 from foms.services.production.part_card_crew import card_crew
@@ -285,6 +287,8 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
                                   file_successor(row.get("structured_data")).get(key, "")),
         **card_note(ctx, order_id, entry, position[1]),  # 펜 기록 note · note_old(2026-11-28 약속 1 — 읽은 사전에서, 쿼리 0)
         **extra,
+        # '도면 없음' 주문 카드(key @order — 2026-11-28 흐름 §3-5 약속 6): 도면 번호 없음(0/0) · 그림 없음. 그 밖 칸은 보통 카드와 같다
+        **({"order_card": True, "no": 0, "of": 0, "is_image": False} if is_order_entry(entry) else {"order_card": False}),
     }
 
 
@@ -292,7 +296,7 @@ def sort_cards(cards: list[dict[str, Any]], part: str, mine: bool = False) -> li
     """카드 순서 — 모든 파트 남은 일 앞 · 완료 뒤(설계서 2026-11-23 §8-1 '판 순서', :func:`sort_rank`), 묶음 안은 주문 · 장 번호 순.
 
     재단 · 엣지 · 조립 = 미정 → 담당 → 완료, 검수 = 검수 할 수 있음 → 담당 → 검수 전 → 완료. 주문 순서는 만들 것 줄 순서
-    (``order_pos``) 그대로다. ``mine``(파트 계정 보기)이면 내 몫이 작업 중인 장(\[내 작업] 칸이 세는 ``in_need``)이 맨 앞(2026-11-27).
+    (``order_pos``) 그대로다. ``mine``(파트 계정 보기)이면 내 몫이 작업 중인 장([내 작업] 칸이 세는 ``in_need``)이 맨 앞(2026-11-27).
     """
     first = (lambda c: 0 if c.get("in_need") else 1) if mine else (lambda c: 0)
     return sorted(cards, key=lambda c: (first(c), sort_rank(c, part), c["order_pos"], c["no"]))
@@ -309,8 +313,9 @@ def card_counts(cards: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def bulk_count(cards: list[dict[str, Any]]) -> int:
-    """[남은 N장 모두 기본] 숫자 — 막힌(보류 · 도면 고치는 중) 안 본 장은 빼고 센다. 창이 여는 목록과 같은 기준(parts.js bulkable)."""
-    return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block"))
+    """[남은 N장 모두 기본] 숫자 — 막힌(보류 · 도면 고치는 중) 안 본 장은 빼고 센다. 창이 여는 목록과 같은 기준(parts.js bulkable).
+    주문 카드('도면 없음' — key @order)도 뺀다(일괄 대상이 아니다 — 서버 일괄 쓰기도 그 key 를 받지 않는다)."""
+    return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block") and not c.get("order_card"))
 
 
 def goes_to_mine_tab(card: dict[str, Any], ctx: dict[str, Any]) -> bool:
@@ -335,13 +340,14 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
     cards: list[dict[str, Any]] = []
     elsewhere: list[dict[str, Any]] = []
     no_drawing: list[dict[str, Any]] = []
-    mine_out = 0
+    mine_out = order_cards = 0
     # 2공장(§4-13): 남의 공장 장만 있는 줄(elsewhere_rows)도 카드로 — 남의 공장 카드는 판 뒤 묶음(누름 없음 · 숫자 밖)
     for order_pos, row in enumerate([*(pane.get("make_rows") or []), *(pane.get("elsewhere_rows") or [])]):
         files = ctx["files"][int(row["id"])]
         if not files:
-            no_drawing.append(row)  # 생산 단계인데 확정 도면 0장 — '도면 없음' 으로 기다림 묶음에
+            no_drawing.append(row)  # 카드 장이 없는 줄(생산 단계 0장 줄은 주문 카드 한 장이라 여기 안 온다 — 2026-11-28 흐름 §3-5)
             continue
+        order_cards += is_order_entry(files[0])
         sd = row.get("structured_data") or {}
         for index, entry in enumerate(files):
             card = build_card(row, entry, (order_pos, index + 1, len(files)), marks, ctx)
@@ -366,7 +372,7 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
         "elsewhere": elsewhere[:PART_BOARD_CARD_CAP],
         "elsewhere_head": elsewhere_head(other_factories(ctx["factory"])[0], len(elsewhere)) if elsewhere else "",
         "orders_total": int(pane.get("total") or 0),
-        "drawn_orders": len(pane.get("make_rows") or []) - len(no_drawing),
+        "drawn_orders": len(pane.get("make_rows") or []) - len(no_drawing) - order_cards,  # "도면 나온 n건" = 진짜 도면이 온 주문만
         "wait_rows": wait_rows,
         "no_drawing_rows": no_drawing,
         "wait_count": len(wait_rows) + len(no_drawing),

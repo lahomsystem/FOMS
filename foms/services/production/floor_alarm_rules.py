@@ -34,8 +34,8 @@ from foms.services.production.floor_alarm_reads import (
     is_open,
     people,
 )
+from foms.services.production.order_card import alarm_numbers
 from foms.services.production.part_constants import PRODUCTION_PART_LABELS
-from foms.services.production.part_progress import current_keys
 from foms.services.production.ship_dates import due_day, kind_word, order_ship_dates
 from foms.services.production.steps import step_done_map
 
@@ -54,7 +54,8 @@ class _Case:
         self.m: dict[str, Any] = note.get("m") or {}
         self.actor_id, self.actor_name = note.get("by"), str(note.get("by_name") or "")
         self.plan = Plan()
-        self.numbers = {key: no for no, key in enumerate(current_keys(self.sd), 1)}
+        # 지금 도면 {key: 번호} — 도면 0장 주문은 주문 카드 {'@order': None}(번호 없이 그 작업자도 받는다, 2026-11-28 흐름 §3-5)
+        self.numbers = alarm_numbers(self.sd)
         customer = ((self.sd.get("parties") or {}).get("customer") or {}).get("name") or getattr(order, "customer_name", "")
         ship = order_ship_dates(order)
         due = due_day((day for day, _kind in ship), reads.today)

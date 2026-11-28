@@ -258,21 +258,23 @@ def test_card_cap_200_reports_hidden_and_counts_everything(app):
     assert card_counts([]) == {"all": 0, "need": 0, "done": 0, "unseen": 0}
 
 
-def test_wait_section_reuses_wait_rows_and_adds_no_drawing_production(app):
+def test_wait_section_reuses_wait_rows_and_no_drawing_production_becomes_an_order_card(app):
+    """생산 단계인데 확정 도면 0장 = 기다림 글이 아니라 '도면 없음' 주문 카드 한 장(2026-11-28 흐름 §3-5 · 답 11). 도면·컨펌 기다림은 그대로."""
     me = _user("김재단", part="cut")
-    _order("그림없음", [])
+    bare = _order("그림없음", [])
     _order("도면대기", [], stage="DRAWING")
     _order("컨펌대기", _files("o9", 2), stage="CONFIRM")  # 확정 도면이 있어도 단계가 컨펌 — 카드 아님(대조군)
     _order("시공대기", _files("o10", 1), stage="CONSTRUCTION")
     made = _order("만들집", _files("o11", 2))
 
     pane = _today(_board(me))
-    assert {c["order_id"] for c in pane["cards"]} == {made.id}
-    assert [r["customer_name"] for r in pane["no_drawing_rows"]] == ["그림없음"]
+    assert {c["order_id"] for c in pane["cards"]} == {made.id, bare.id}
+    assert [(c["key"], c["no"], c["of"], c["order_card"]) for c in pane["cards"] if c["order_id"] == bare.id] == [("@order", 0, 0, True)]
+    assert pane["no_drawing_rows"] == []
     assert sorted(r["customer_name"] for r in pane["wait_rows"]) == ["도면대기", "컨펌대기"]
-    assert pane["wait_count"] == 3
+    assert pane["wait_count"] == 2
     assert pane["done_count"] == 1
-    assert (pane["orders_total"], pane["drawn_orders"]) == (5, 1)
+    assert (pane["orders_total"], pane["drawn_orders"]) == (5, 1)  # "도면 나온 n건" = 진짜 도면이 온 주문만
 
 
 # --------------------------------------------------------------------------- #

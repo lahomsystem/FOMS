@@ -312,6 +312,21 @@ def _count(fn):
     return result, box["n"]
 
 
+def _marks_reads(fn) -> int:
+    """표시 줄 표(``production_part_marks``)를 읽은 SQL 수."""
+    box = {"n": 0}
+
+    def _before(conn, cursor, statement, params, context, executemany):
+        box["n"] += "production_part_marks" in statement
+
+    event.listen(engine, "before_cursor_execute", _before)
+    try:
+        fn()
+    finally:
+        event.remove(engine, "before_cursor_execute", _before)
+    return box["n"]
+
+
 # 실측(2026-11-21, SQLite 레인): 날짜 탭 9 (그대로) · 바뀐 것 탭 10 · 찾기 탭 10 — 두 탭은 사람 이름 · 팀 읽기
 # (``User.id IN``) 1회가 더해진다. 주문 4 → 12건에도 같다. 상한 = 실측 + 30%.
 CHANGES_TAB_QUERY_CAP = 13
@@ -335,6 +350,9 @@ def test_바뀐_것_탭과_찾기_탭_쿼리는_사람_읽기_한_번만_더한�
     seed("작", 4)
     assert client.get(HOME + "?tab=changes").status_code == 200  # warmup
     (_, q_date) = _count(lambda: client.get(HOME))
+    # 날짜 탭은 도면 0장 생산 줄도 표시 줄을 한 번 읽는다(칸 아래 '도면 없음' 카드 작업자 이름 — 2026-11-28 흐름 §3-5, 같은 IN 한 번).
+    # 바뀐 것 · 찾기 탭은 표시 줄을 안 읽으니 그 한 번을 빼고 견준다
+    q_date -= _marks_reads(lambda: client.get(HOME))
     resp, q_small = _count(lambda: client.get(HOME + "?tab=changes"))
     assert "도면팀 다도면" in resp.get_data(as_text=True)
     _, q_all_small = _count(lambda: client.get(HOME + "?tab=all"))

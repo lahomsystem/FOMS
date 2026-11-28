@@ -218,7 +218,7 @@ def test_unseen_text_and_bulk_button_count_the_same_cards():
     """사장님 2026-11-26 다 "두 숫자를 같게" — '안 본 도면 N장'도 막힌(보류 · 도면 고치는 중) 장을 빼고 센다(서버 · JS 둘 다)."""
     board = _read(ROOT / "foms/services/production/part_board.py")
     assert '"unseen": bulk_count(cards),' in board
-    assert 'return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block"))' in board
+    assert 'return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block") and not c.get("order_card"))' in board
     assert "unseen: bulkable(card) ? 1 : 0, look: bulkable(card) ? 1 : 0" in _read(JS / "foms-production-parts.js")
     req = _read(JS / "foms-production-drawing-request.js")
     assert "var look = Math.max(0, Number(text.getAttribute('data-pp-unseen-text') || 0) - 1);" in req

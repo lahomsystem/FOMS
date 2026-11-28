@@ -15,13 +15,13 @@ import datetime
 from typing import Any, Iterable, Optional
 
 from foms.services.datetime_kst import get_today_kst
-from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_factory import sheet_factory
 from foms.services.orders.drawing_fix import blocked
 from foms.services.orders.drawing_fix_requests import board_request_options
 from foms.services.production import mark_crew as mc
 from foms.services.production.drawing_notes_read import board_notes
 from foms.services.production.factory_scope import board_factory, scene_on
+from foms.services.production.order_card import is_order_entry, row_files
 from foms.services.production.part_access import VIEW_PART, own_parts, writable_parts
 from foms.services.production.part_card_state import hand_cell, order_block
 from foms.services.production.part_constants import MARK_STATE_NEED, PRODUCTION_PART_KEYS
@@ -92,7 +92,9 @@ def board_ctx(db: Any, user: Any, rows: list[dict[str, Any]], *, mode: str, part
     Returns:
         :func:`~foms.services.production.part_board.build_card` 맥락 dict + ``slots``(장 · 파트 자리 사전 — :func:`index_marks`).
     """
-    files = {int(row["id"]): resolve_final_drawing_files(row.get("structured_data") or {}) for row in rows}
+    # 카드 장 = 확정 도면, 0장인 생산 단계 줄은 주문 카드 한 장(@order — 2026-11-28 흐름 §3-5). 펜 기록 · 바뀐 도면 짝은 진짜 도면만.
+    files = {int(row["id"]): row_files(row) for row in rows}
+    drawn = {oid: [e for e in entries if not is_order_entry(e)] for oid, entries in files.items()}
     if marks is None:
         marks = fetch_part_marks(db, (oid for oid, entries in files.items() if entries))
     by_slot, by_sheet = index_marks(marks)
@@ -104,10 +106,10 @@ def board_ctx(db: Any, user: Any, rows: list[dict[str, Any]], *, mode: str, part
         "viewer_name": actor_name(user), "factory": factory, "scene": scene,
         "own_parts": own_parts(user),
         "files": files, "today": today or get_today_kst(), "order_marks": order_marks,
-        "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in files.items()},
+        "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in drawn.items()},
         "blocks": {int(row["id"]): order_block(row) for row in rows},  # 주문 통째(보류 · 도면 고치는 중)
         "fix": {int(row["id"]): blocked(row.get("structured_data") or {}) for row in rows},  # 도면별 막힘(2026-11-25 §3-3, 쿼리 0)
-        "notes": board_notes(db, files),  # 펜 기록 머리(스위치 켬만 +1 — 꺼짐 None · 쿼리 0, 2026-11-28 §8 '쿼리')
+        "notes": board_notes(db, drawn),  # 펜 기록 머리(스위치 켬만 +1 — 꺼짐 None · 쿼리 0, 2026-11-28 §8 '쿼리')
         "req": board_request_options(user, rows),  # [도면 수정 요청] 창 고르기(2026-11-25 §2-4 · N3 — 생산 단계 주문, 쿼리 0)
         "hands": {int(row["id"]): {p: hand_cell(row.get("structured_data") or {}, order_marks.get(int(row["id"]), []), p)
                                    for p in PRODUCTION_PART_KEYS} for row in rows},
@@ -154,7 +156,7 @@ def held_counts(rows: Iterable[dict[str, Any]], marks: Iterable[Any], user: Any,
     mine = crew = 0
     for row in card_rows(rows):
         oid = int(row["id"])
-        files = resolve_final_drawing_files(row.get("structured_data") or {})
+        files = row_files(row)  # 도면 0장 생산 줄 = 주문 카드 한 장(@order)
         for _no, entry in factory_files(row, files, factory=factory, scene=scene):
             for part in PRODUCTION_PART_KEYS:
                 mark = slots.get((oid, str(entry["key"]), part))
