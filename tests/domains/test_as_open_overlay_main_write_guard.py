@@ -170,7 +170,8 @@ def test_production_rework_keeps_open_as_status(client) -> None:
     open_as = _order(status="AS_RECEIVED", stage="CONSTRUCTION", lifecycle=_cycle("RECEIVED"))
     closed_as = _order(status="AS_COMPLETED", stage="CONSTRUCTION", lifecycle=_cycle("COMPLETED"))
     plain = _order(status="CONSTRUCTION", stage="CONSTRUCTION")
-    punch = {"reason": "문짝 다시 제작", "admin_override": True, "override_reason": "시험 — 게이트 건너뜀"}
+    punch = {"reason": "문짝 다시 제작", "admin_override": True, "override_reason": "시험 — 게이트 건너뜀",
+             "steps": ["inspect"]}  # 다시 할 공정을 골라야 받는다(사장님 2026-11-28 "다시 할 칸 고르기")
 
     for oid, saved_status in ((open_as, "AS_RECEIVED"), (closed_as, "PRODUCTION"), (plain, "PRODUCTION")):
         resp = client.post(f"/api/orders/{oid}/production/rework", json=dict(punch))

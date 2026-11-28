@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 SHEET_PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
 PIN = "20261128b"
+SHEETS_PIN = "20261128c"  # tablet-domain-sheets.js · shipment-entry.js — 11-28 c: 수정 제작 고르기 창
 
 
 def _read(rel: str) -> str:
@@ -35,12 +36,12 @@ def test_확인_창_띄어쓰기_두_군데만() -> None:
 
 def test_도메인_시트_JS_핀은_싣는_곳마다_새_값() -> None:
     for rel in ("templates/production/partials/home_body.html", "templates/production/sheet.html"):
-        assert f"tablet-domain-sheets.js') }}}}?v={PIN}" in _read(rel), rel
+        assert f"tablet-domain-sheets.js') }}}}?v={SHEETS_PIN}" in _read(rel), rel
     entry = _read("static/js/shipment/shipment-entry.js")
-    assert f"'/static/js/foms/tablet-domain-sheets.js?v={PIN}'" in entry
-    assert f"shipment-entry.js') }}}}?v={PIN}" in _read("templates/shipment/partials/dashboard_scripts.html")
+    assert f"'/static/js/foms/tablet-domain-sheets.js?v={SHEETS_PIN}'" in entry
+    assert f"shipment-entry.js') }}}}?v={SHEETS_PIN}" in _read("templates/shipment/partials/dashboard_scripts.html")
     every = "".join(p.read_text(encoding="utf-8") for p in (ROOT / "templates").rglob("*.html")) + entry
-    assert set(re.findall(r"tablet-domain-sheets\.js(?:'\) \}\})?\?v=(\w+)", every)) == {PIN}
+    assert set(re.findall(r"tablet-domain-sheets\.js(?:'\) \}\})?\?v=(\w+)", every)) == {SHEETS_PIN}
 
 
 def test_PC_줄은_시작_이름_시각() -> None:

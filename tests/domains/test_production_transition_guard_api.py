@@ -24,6 +24,9 @@ from tests.support.quest_seed import confirm_quest_completed
 from tests.support.confirm_seed import drawing_for_stage
 from tests.support.production_steps_seed import mark_order_inspected
 
+#: 수정 제작 몸 — 다시 할 공정을 골라야 받는다(사장님 2026-11-28 "다시 할 칸 고르기", 도면 없는 주문). 고른 칸만 꺼진다.
+PICK = {"steps": ["inspect"]}
+
 _CONFIRM_STAGES = ("CONFIRM", "고객컨펌")
 
 
@@ -404,7 +407,7 @@ def test_rework_from_construction_succeeds(client):
     _login(client, _make_user("guard_r1"))
     order_id = _make_order("CONSTRUCTION").id
 
-    resp = client.post(f"/api/orders/{order_id}/production/rework", json={})
+    resp = client.post(f"/api/orders/{order_id}/production/rework", json=dict(PICK))
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["success"] is True
@@ -436,7 +439,8 @@ def test_rework_then_complete_clears_active_preserves_count(client):
     order_id = _make_order("CONSTRUCTION").id
     mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
 
-    assert client.post(f"/api/orders/{order_id}/production/rework", json={}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/production/rework", json=dict(PICK)).status_code == 200
+    mark_order_inspected(order_id)  # 고른 검수 칸을 다시 끝냄
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})
     assert resp.status_code == 200
     assert resp.get_json()["success"] is True
@@ -469,9 +473,10 @@ def test_rework_second_round_increments_count(client):
     order_id = _make_order("CONSTRUCTION").id
     mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
 
-    assert client.post(f"/api/orders/{order_id}/production/rework", json={}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/production/rework", json=dict(PICK)).status_code == 200
+    mark_order_inspected(order_id)  # 고른 검수 칸을 다시 끝냄
     assert client.post(f"/api/orders/{order_id}/production/complete", json={}).status_code == 200
-    resp = client.post(f"/api/orders/{order_id}/production/rework", json={})
+    resp = client.post(f"/api/orders/{order_id}/production/rework", json=dict(PICK))
     assert resp.status_code == 200
 
     db_session.expire_all()
@@ -516,7 +521,7 @@ def test_rework_with_release_hold_succeeds_via_rework(client):
     order_id = _make_order_with_hold("CONSTRUCTION").id
 
     resp = client.post(
-        f"/api/orders/{order_id}/production/rework", json={"release_hold": True}
+        f"/api/orders/{order_id}/production/rework", json={"release_hold": True, **PICK}
     )
     assert resp.status_code == 200
     assert resp.get_json()["success"] is True
@@ -544,7 +549,7 @@ def test_rework_reason_is_trimmed(client):
     order_id = _make_order("CONSTRUCTION").id
 
     resp = client.post(
-        f"/api/orders/{order_id}/production/rework", json={"reason": "  치수 오류  "}
+        f"/api/orders/{order_id}/production/rework", json={"reason": "  치수 오류  ", **PICK}
     )
     assert resp.status_code == 200
 
@@ -678,7 +683,8 @@ def test_uncomplete_restores_rework_when_was_rework_completion(client):
     mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
 
     # rework → complete (completed_at 기록, active False, count=1)
-    assert client.post(f"/api/orders/{order_id}/production/rework", json={}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/production/rework", json=dict(PICK)).status_code == 200
+    mark_order_inspected(order_id)  # 고른 검수 칸을 다시 끝냄
     assert client.post(f"/api/orders/{order_id}/production/complete", json={}).status_code == 200
 
     db_session.expire_all()
@@ -894,7 +900,7 @@ def test_cancel_clears_rework_active_preserves_count(client):
 
     # rework 로 제작중(PRODUCTION + run) + rework active=True, count=1 상태 진입.
     assert client.post(
-        f"/api/orders/{order_id}/production/rework", json={"reason": "치수"}
+        f"/api/orders/{order_id}/production/rework", json={"reason": "치수", **PICK}
     ).status_code == 200
     if not any(r.is_current for r in _runs(order_id)):
         _mint_run(order_id)

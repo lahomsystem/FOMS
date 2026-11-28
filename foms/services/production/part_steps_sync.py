@@ -72,7 +72,7 @@ def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str
     wanted = set(PRODUCTION_PART_KEYS if parts is None else parts)
     by_part = marks_by_part(marks)
     return {
-        part: all(mark_finished(part, getattr(by_part[part].get(key), "state", None)) for key in keys)
+        part: all(mark_finished(part, getattr(by_part.get(part, {}).get(key), "state", None)) for key in keys)
         for part in PRODUCTION_PART_KEYS if part in used and part in wanted
     }
 

@@ -275,6 +275,6 @@ def test_확인_창_꼴_CSS는_남고_칸반_선택자는_없다() -> None:
 def test_도메인_시트_JS_핀은_싣는_곳이_같은_값() -> None:
     """싣는 곳 셋(첫 화면 · 작업 시트 · 출고 CHAIN) + 출고 진입 핀."""
     for rel in ("templates/production/partials/home_body.html", "templates/production/sheet.html"):
-        assert "tablet-domain-sheets.js') }}?v=20261128b" in _read(rel), rel
-    assert "/static/js/foms/tablet-domain-sheets.js?v=20261128b" in _read("static/js/shipment/shipment-entry.js")
-    assert "shipment-entry.js') }}?v=20261128b" in _read("templates/shipment/partials/dashboard_scripts.html")
+        assert "tablet-domain-sheets.js') }}?v=20261128c" in _read(rel), rel
+    assert "/static/js/foms/tablet-domain-sheets.js?v=20261128c" in _read("static/js/shipment/shipment-entry.js")
+    assert "shipment-entry.js') }}?v=20261128c" in _read("templates/shipment/partials/dashboard_scripts.html")

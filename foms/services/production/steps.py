@@ -96,15 +96,32 @@ STEP_VIA_SHEET = "sheet"
 STEP_VIA_PART_MARKS = "part_marks"
 
 
+#: 수정 제작 회차 기록(``production.rework``)의 고른 것 칸 — 다시 만들 도면 key 들 · 다시 할 공정 key 들(설계서 2026-11-28 흐름 셋 §2-3).
+REWORK_KEYS = "keys"
+REWORK_STEPS = "steps"
+
+
+def rework_pick(sd: Any, name: str) -> list[str]:
+    """수정 제작 **중**인 주문이 고른 것(:data:`REWORK_KEYS` · :data:`REWORK_STEPS`) — 수정 제작 중이 아니거나 고른 것이 없는 옛 기록은
+    빈 목록(지금 판정 그대로). 제작 완료가 ``rework.active`` 를 끄면 같이 꺼진다. sd 는 읽기만 한다(쿼리 0)."""
+    production = sd.get("production") if isinstance(sd, dict) else None
+    rework = production.get("rework") if isinstance(production, dict) else None
+    picked = rework.get(name) if isinstance(rework, dict) and rework.get("active") else None
+    return [value for value in picked if isinstance(value, str) and value] if isinstance(picked, list) else []
+
+
 def production_steps_missing(sd: Any) -> list[dict[str, str]]:
     """아직 안 끝난 공정 칸(정의 순서) — ``[{key, label}]``. sd 는 읽기만 한다.
 
     **공정 칸을 하나도 안 켠 주문은 막지 않는다(빈 목록)** — 사용자 결정 2026-11-21 "공정 칸을 쓴 주문만 막기".
     운영 생산팀이 아직 공정 칸을 안 쓴다(11-12 실측: 생산 중 4집 모두 기록 없음). 한 칸이라도 켜면 그 주문은
     4칸을 다 켜야 완료된다. 칸을 모두 다시 끄면 안 쓴 주문으로 돌아간다.
+
+    다시 할 공정을 골라 수정 제작 중인 주문(:func:`rework_pick` — 사장님 2026-11-28 "다시 할 칸 고르기")은 이 예외를 쓰지 않는다 —
+    넷을 다 골라 넷이 다 꺼진 주문도 넷을 다시 완료해야 한다.
     """
     done = step_done_map(sd)
-    if not any(done.values()):
+    if not any(done.values()) and not rework_pick(sd, REWORK_STEPS):
         return []
     return [{"key": key, "label": label} for key, label in PRODUCTION_STEP_DEFS if not done.get(key)]
 

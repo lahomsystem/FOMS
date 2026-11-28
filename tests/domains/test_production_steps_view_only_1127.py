@@ -336,7 +336,7 @@ def test_files_contract():
                    ("templates/production/partials/home_scripts.html", 2)):
         assert (ROOT / rel).read_text(encoding="utf-8").count("foms-production-sheet-parts.js') }}?v=20261128b") == n, rel
     for rel in ("templates/production/sheet.html",):
-        assert "css/contexts/production/sheet.css') }}?v=20261127x" in (ROOT / rel).read_text(encoding="utf-8"), rel
+        assert "css/contexts/production/sheet.css') }}?v=20261128a" in (ROOT / rel).read_text(encoding="utf-8"), rel
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
     assert ".foms-prod-page__step small.fpp-note.is-run { color: var(--fpp-brand-dark); }" in css
     assert ".foms-prod-page__step[hidden] { display: none; }" in css
