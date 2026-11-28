@@ -28,6 +28,7 @@ from foms.services.production.factory_constants import (
     DEFAULT_FACTORY,
     FACTORIES,
     account_production_factory,
+    factory_label,
     stored_production_factory,
 )
 from foms.services.production.home_access import can_view_production_home
@@ -179,6 +180,7 @@ def can_override_marks(user: Any) -> bool:
 def can_revert_completed(user: Any) -> bool:
     """제작 완료한 주문을 되돌릴 수 있는지 — [완료 취소] · [수정 제작]은 반장 · 관리자만(사장님 2026-11-28 "파트 계정은 제작 완료 ·
     보류까지"). PC [완료 처리]를 막는 것과 같은 판정(:func:`can_override_marks`)이고, 두 API 403 과 작업 시트 단추가 이 함수 하나를 본다.
+    섞인 주문 제작 중의 [N공장 완료 취소](``…/production/factory-done`` ``done: false``)도 같은 함수다(사장님 2026-11-28 "반장 · 관리자만").
 
     Args:
         user: 사용자 객체(None 허용).
@@ -187,6 +189,11 @@ def can_revert_completed(user: Any) -> bool:
         관리자 · 반장이면 True. 파트 계정 · 파트도 반장도 아닌 생산팀(매니저 등급 포함)은 False.
     """
     return can_override_marks(user)
+
+
+def factory_uncomplete_lead_only_message(factory: Any) -> str:
+    """반장도 관리자도 아닌 생산팀이 [N공장 완료 취소]를 누를 때의 글(403 ``LEAD_REQUIRED``) — "[2공장 완료 취소]는 반장이나 관리자만 할 수 있어요."."""
+    return f"[{factory_label(factory)} 완료 취소]는 반장이나 관리자만 할 수 있어요."
 
 
 def steps_lock(user: Any) -> Optional[StepsLock]:
