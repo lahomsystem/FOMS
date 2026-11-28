@@ -285,8 +285,8 @@ def _decide_check(snap: MarkSnapshot, p: _Press) -> MarkDecision:
     몫 모두를 한 번에(반장이 같이 작업자면 자기 몫 포함, 감독이 목록 밖이면 목록에 안 들어감)."""
     crew = list(snap.crew)
     if snap.state == MARK_STATE_NONE:
-        mine = mc.join([], p.actor_id, p.actor_name, p.now)
-        return _applied(mc.finish(mine, p.actor_id, by_uid=p.actor_id, by_name=p.actor_name, now=p.now), ACTION_CHECK)
+        mine = mc.join([], p.actor_id, p.actor_name, p.now)  # 시작 + 완료를 이 요청 하나가 적는다 = 바로 완료(표지 once)
+        return _applied(mc.finish(mine, p.actor_id, by_uid=p.actor_id, by_name=p.actor_name, now=p.now, once=True), ACTION_CHECK)
     if not crew:
         return _applied([], ACTION_CHECK, empty_state=MARK_STATE_DONE)
     proxied = any(not mc.is_done(m) and m.get("uid") != p.actor_id for m in crew)

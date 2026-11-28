@@ -10,6 +10,7 @@
      "done_at": "2026-11-25T02:30:00+00:00", "done_uid": 31, "done_name": "이시영"}
 
 * ``at`` = 그 사람이 시작한 때(밤 넘김 · 아침 칩 — Q21), ``done_*`` = 그 사람 몫의 완료(대신 완료면 반장 이름 — Q15).
+* ``once``(완료한 칸에만, 2026-11-28) = 그 완료가 시작과 **한 요청에서** 적혔는지(바로 완료 — :func:`done_in_one_press`). 완료를 끄면 지운다.
 * **읽기 정규화**(§4-3 · Q18 ②): 칸이 NULL(옛 줄 · 옛 코드가 쓴 줄)이면 요약 칸에서 푼다. 목록의 요약(상태 · 첫 사람 · 완료한 사람)이
   줄의 요약 칸과 다르면 옛 코드가 마지막으로 쓴 줄이라 요약 칸이 이긴다. 모든 읽기가 :func:`crew_of` 하나만 쓴다.
 * 사람 없는 줄(안 봄 · 재단 기본 · 풀어 쓴 완료 · 옛 줄의 담당 없는 완료)은 빈 목록이다 — 그 상태는 부르는 쪽이 지금 규칙대로 정한다.
@@ -77,8 +78,11 @@ def _clean(raw: Any) -> Optional[Member]:
     done_uid = raw.get("done_uid")
     done_uid = done_uid if isinstance(done_uid, int) and not isinstance(done_uid, bool) else None
     done_name = raw.get("done_name")
-    return member(uid, name, raw.get("at") or None, done_at=raw.get("done_at") or None, done_uid=done_uid,
+    item = member(uid, name, raw.get("at") or None, done_at=raw.get("done_at") or None, done_uid=done_uid,
                   done_name=str(done_name) if done_name is not None else None)
+    if isinstance(raw.get("once"), bool):  # 완료를 적을 때 남긴 표지(없으면 옛 칸 — 칸 모양 그대로)
+        item["once"] = raw["once"]
+    return item
 
 
 def _stored(row: Any) -> list[Member]:
@@ -178,18 +182,18 @@ def leave(crew: Iterable[Member], uid: Any) -> list[Member]:
     return [copy.deepcopy(m) for m in crew if m.get("uid") != uid]
 
 
-def _done_fields(by_uid: Optional[int], by_name: Optional[str], now: datetime.datetime) -> dict[str, Any]:
-    """완료 칸 셋(이름이 없으면 빈 글 — 완료 표지는 남긴다)."""
-    return {"done_at": to_iso(now), "done_uid": by_uid, "done_name": by_name if by_name is not None else ""}
+def _done_fields(by_uid: Optional[int], by_name: Optional[str], now: datetime.datetime, once: bool = False) -> dict[str, Any]:
+    """완료 칸 셋(이름이 없으면 빈 글 — 완료 표지는 남긴다) + ``once``(시작과 한 요청에서 적은 완료인지 — 늘 적는다)."""
+    return {"done_at": to_iso(now), "done_uid": by_uid, "done_name": by_name if by_name is not None else "", "once": once}
 
 
 def finish(crew: Iterable[Member], uid: Any, *, by_uid: Optional[int], by_name: Optional[str],
-           now: datetime.datetime) -> list[Member]:
-    """그 사람 몫을 완료한 새 목록(누른 사람 = ``by_*``)."""
+           now: datetime.datetime, once: bool = False) -> list[Member]:
+    """그 사람 몫을 완료한 새 목록(누른 사람 = ``by_*``). ``once`` = 같은 요청이 방금 그 사람을 목록에 넣었다(바로 완료)."""
     out = copy.deepcopy(list(crew))
     for item in out:
         if item.get("uid") == uid and not is_done(item):
-            item.update(_done_fields(by_uid, by_name, now))
+            item.update(_done_fields(by_uid, by_name, now, once))
     return out
 
 
@@ -210,12 +214,19 @@ def unfinish(crew: Iterable[Member], uids: Optional[Iterable[Any]] = None) -> li
     for item in out:
         if pick is None or item.get("uid") in pick:
             item.update(done_at=None, done_uid=None, done_name=None)
+            item.pop("once", None)
     return out
 
 
 def done_in_one_press(item: Member) -> bool:
     """그 사람이 시작과 자기 몫 완료를 한 요청에서 한 번에 적었는지 — 미정 도면을 반장 · 관리자가 바로 완료(``check`` 빈 줄 · PC
-    [완료 처리]). 한 요청은 시작한 때 · 완료한 때를 같은 시각 하나로 쓰고, 따로 누른 두 요청은 같은 시각을 못 쓴다(시간 문턱 없음)."""
+    [완료 처리]). 완료를 적을 때 남긴 표지 ``once`` 를 읽는다(시간 문턱 없음 · 시각도 안 봄 — 2026-11-28).
+
+    시각은 근거가 못 된다: 따로 누른 두 요청도 시계 눈금 하나(Windows 0.3 ~ 16ms) 안이면 같은 시각을 적는다. 표지가 없는 칸은 이 고침
+    전에 완료한 옛 칸뿐이라 그때처럼 "시작한 때 == 완료한 때 · 완료한 사람 == 그 사람"으로 읽는다."""
+    once = item.get("once")
+    if isinstance(once, bool):
+        return once
     at = item.get("at")
     return bool(at) and at == item.get("done_at") and item.get("uid") is not None and item.get("done_uid") == item.get("uid")
 
