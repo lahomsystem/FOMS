@@ -2,6 +2,7 @@
    "출고 일정 = 제작 일정" · "내일 부터", 놓는 규칙 foms/services/production/ship_dates.py) + 오른쪽 고른 날. home.html 이 include.
    시공이 있는 띠 줄은 막대 밑에 도면 글 한 줄(fph-sd__mid · d.arrival — 설계서 2026-11-22-production-drawing-arrival-upgrade §5-1:
    '도면 5/6' 빨강(마감 지남) · '도면 3/7' 주황(마감 오늘 · 내일) · '도면 5/5 다 내려옴' 초록 · '도면 0/4' 남색 — '마감 …' 글은 뺐다, 사장님 2026-11-26). 줄 높이 · 줄 수 · 아래 단추 둘은 그대로.
+   태블릿(새 흐름 문 안 flow, 2026-11-28 §3-8)은 도면 글 대신 막대만 + 띠 맨 아래 색 설명 한 줄(.fph-lg). PC · 폰은 지금 그대로.
    오른쪽은 고른 날 장 하나만 그린다(home_day_pane.html, 11-14 — 예전 D5 는 15장을 다 보내고 보이기/숨기기만 했다). 다른 날을 누르면
    foms-production-home.js 가 그 날 장만 받아(?view=day&day=) 끼우고, 한 번 받은 날은 기억한다. 날 단추는 진짜 링크다 —
    스크립트가 묶이기 전에 눌러도 그 날 주소로 이동한다(셸 조각 교체 제외 data-foms-erp-no-shell). 막대는 SVG 좌표(인라인 style 없음).
@@ -19,10 +20,13 @@
        href="{{ home_href(tab, part_board.url_part if part_board else None, d.key, factory=part_board.url_factory if part_board else None) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>
       {%- set sub = d.sub ~ (' · 없음' if not d.total and not d.show_day else '') %}
       <span class="fph-sd__d"><b>{{ d.label }}</b><small>{{ sub }}</small></span>
-      {%- if pc_view %}{# PC 는 막대 그대로(사장님 11-26 은 태블릿 결정) #}
       {%- set _bar %}<svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">{% for s in d.segs %}<rect class="is-{{ s.k }}" x="{{ s.x }}" y="0" width="{{ s.w }}" height="10"/>{% endfor %}</svg>{% endset %}
+      {%- if pc_view %}{# PC 는 막대 + 도면 글 그대로(사장님 11-26 은 태블릿 결정, 2026-11-28 흐름 22번 답 "PC 도 같이"는 안 고르심) #}
       {% if d.arrival %}<span class="fph-sd__mid">{{ _bar }}<span class="fph-sd__dw is-{{ d.arrival.state }}">{{ d.arrival.strip }}</span></span>{% else %}{{ _bar }}{% endif %}
-      {%- else %}{# 태블릿: 막대를 빼고 도면 글 · 숫자만 — 가운데 칸은 비어도 자리를 지킨다(숫자가 가운데 칸으로 밀리지 않게) #}
+      {%- elif flow %}{# 태블릿(새 흐름 문 안, 설계서 2026-11-28-production-my-steps-flow §3-8 · 사장님 답 20 · 21 · 25): "도면 7/9" 글 대신 PC 와
+         같은 막대만 — 완료 초록 · 작업 중 보라 · 미정 주황 · 안 온 도면 빨강(home.css .fph-strip:has(.fph-lg)), 마감 색 글 없음. 빈 날은 빈 가운데 칸 #}
+      <span class="fph-sd__mid">{% if d.segs %}{{ _bar }}{% endif %}</span>
+      {%- else %}{# 폰 · 문 밖 터치 화면: 막대를 빼고 도면 글 · 숫자만(11-27 그대로) — 가운데 칸은 비어도 자리를 지킨다(숫자가 가운데 칸으로 밀리지 않게) #}
       <span class="fph-sd__mid">{% if d.arrival %}<span class="fph-sd__dw is-{{ d.arrival.state }}">{{ d.arrival.strip }}</span>{% endif %}</span>
       {%- endif %}
       <span class="fph-sd__n">{% if d.total or d.show_day %}<b>{{ d.make }}</b><small> / {{ d.total }}</small>{% endif %}</span>{# 빈 날은 '없음'만(사장님 2026-11-26 — "0 / 0"과 겹침) #}
@@ -33,6 +37,10 @@
       <a class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" href="{{ home_href(tab, part_board.url_part if part_board else None, d.key, factory=part_board.url_factory if part_board else None) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>{{ d.label }} {{ d.total }}건{% if d.hidden %}<small>{{ d.hidden }}건 더</small>{% endif %}</a>
       {% endfor %}
     </div>
+    {%- if flow %}{# 막대 색 설명 한 줄(사장님 답 25 "날짜 status bar 설명을 날짜 카드 하단에") — 태블릿만, 아래 단추 둘 밑. 띠가 굴러도 바닥에 붙어
+       늘 보인다(home.css). 글은 막대와 같이 그림 설명이라 읽기 도구에는 숨긴다(막대 SVG 도 aria-hidden) #}
+    <p class="fph-lg" aria-hidden="true"><span><i class="is-f"></i>완료</span><span><i class="is-p"></i>작업 중</span><span><i class="is-w"></i>미정</span><span><i class="is-x"></i>안 온 도면</span></p>
+    {%- endif %}
   </aside>
   </div>
 

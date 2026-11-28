@@ -34,16 +34,19 @@ def test_1_steps_tab_drops_the_note_line_on_tablet_but_pc_keeps_it(client, cohor
     assert 'class="fph-stepnote"' in pc and NOTE in pc
 
 
-def test_2_date_strip_drops_the_bar_on_tablet_keeps_text_and_number_and_pc_keeps_bar(client, cohort):  # noqa: F811
+def test_2_date_strip_on_tablet_is_bar_and_number_and_pc_keeps_bar(client, cohort):  # noqa: F811
+    """11-26 은 태블릿 띠에서 막대를 뺐다 → 2026-11-28 흐름(사장님 답 20 · 21 · 25)부터 태블릿(새 흐름 문 안)은 거꾸로 도면 글을 빼고 막대 +
+    맨 아래 색 설명(자세한 시험은 test_production_flow_c2_screen). 가운데 칸 · 숫자 칸 · 머리 글은 그대로."""
     _order("한빛", _files("n2", 1))
     _tablet(client, _user("최보기"))
     tablet = _get(client, HOME)
     strip = tablet.split('<aside class="fph-strip"', 1)[1].split("</aside>", 1)[0]
-    assert "fph-sd__bar" not in strip and "<rect" not in strip
+    assert "fph-sd__dw" not in strip and "<rect" in strip and 'class="fph-lg"' in strip
     rows = re.findall(r'<a class="fph-sd[ "].*?</a>', strip, re.S)
     assert len(rows) == 13
-    # 줄마다 가운데 칸이 있어(비어도) 숫자 칸이 가운데로 밀리지 않는다
+    # 줄마다 가운데 칸이 있어(비어도) 숫자 칸이 가운데로 밀리지 않는다 — 막대는 그 칸 안
     assert all('<span class="fph-sd__mid">' in r and '<span class="fph-sd__n">' in r for r in rows)
+    assert all("fph-sd__bar" not in r.split('<span class="fph-sd__mid">', 1)[0] for r in rows)
     assert "만들 것 / 전체" in strip
     _pc(client)
     pc_strip = _get(client, HOME).split('<aside class="fph-strip"', 1)[1].split("</aside>", 1)[0]

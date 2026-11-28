@@ -286,6 +286,8 @@ button.fph-wi { font-family: inherit; width: 100%; cursor: pointer; text-align: 
 .foms-prod-home .pp-modal .pp-mdirect:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 0; }
 .foms-prod-home .pp-modal .pp-mdirect:active { background: var(--fph-brand-50); }
 .foms-prod-home .pp-modal .pp-mdirect:disabled { opacity: .6; cursor: wait; }
+/* '도면 없음' 카드(도면이 0장인 주문 한 장, 2026-11-28 흐름 §3-5) — 그림 칸 자리 · 키 그대로 글만, 누를 것 없음(크게 보기 아님) */
+.pp-img.pp-none { cursor: default; font-size: calc(18px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); }
 /* 창이 열린 동안 뒤 페이지가 굴러가지 않게(P7) */
 body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 

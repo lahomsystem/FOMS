@@ -263,7 +263,7 @@ def _normalize(html: str) -> str:
     html = re.sub(r'data-loaded-at="[^"]*"', "", html)
     html = re.sub(r"\d\d:\d\d 에 받음|\d\d:\d\d 에 받은", "HH:MM", html)
     html = re.sub(r'content="[0-9a-f]{20,}[^"]*"', "", html)  # csrf 토큰
-    return re.sub(r'nonce="[^"]*"', "", html)
+    return re.sub(r'nonce="[^"]*"|<div class="fph-stripbox">.*?</aside>', "", html, flags=re.S)  # 날짜 띠 = 문 안(태블릿)만 막대 · 색 설명(11-28 §3-8, test_production_flow_c2_screen)
 
 
 @pytest.mark.parametrize("who", ["admin", "prod"])

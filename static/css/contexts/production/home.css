@@ -469,6 +469,18 @@
 .fph-sf small { display: block; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); } /* 안 읽은 수는 둘째 줄(M5) */
 .fph-sf + .fph-sf { border-left: 1px solid var(--fph-line); }
 .fph-sf.is-on { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
+/* 막대 색 설명(설계서 2026-11-28-production-my-steps-flow §3-8, 사장님 답 20 "안 온 도면은 빨간색" · 25 "설명을 날짜 카드 하단에") — 태블릿
+   (새 흐름 문 안)만 그린다(home_date.html flow). 완료 · 작업 중 · 미정은 위 막대 색 그대로, 안 온 도면(is-x)만 설명이 있는 띠에서 빨강 —
+   PC 띠의 기다림 연두는 그대로. 넷은 짝마다 ΔE2000 17 이상(정상 · 녹색맹 · 적색맹 흉내 — test_production_flow_c2_screen).
+   설명 줄은 띠 바닥에 붙어(sticky) 띠가 굴러도 늘 보이고, 끝까지 굴리면 아래 단추 둘 밑 제자리. 키 = 6 + 6 + 12px × 1.25 × 글자 배율 + 선 1 */
+.fph-strip:has(> .fph-lg) .fph-sd__bar rect.is-x { fill: var(--fph-dw-late); }
+.fph-lg { position: sticky; bottom: 0; z-index: 1; flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: 0; padding: 6px 14px; border-top: 1px solid var(--fph-line); background: var(--fph-surface); font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.25; color: var(--fph-text2); }
+.fph-lg span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.fph-lg i { flex-shrink: 0; width: calc(12px * var(--foms-fs, 1)); height: calc(10px * var(--foms-fs, 1)); border-radius: 3px; }
+.fph-lg .is-f { background: var(--fph-ok); }
+.fph-lg .is-p { background: var(--fph-brand); }
+.fph-lg .is-w { background: #f59e0b; }
+.fph-lg .is-x { background: var(--fph-dw-late); }
 .fph-panes { min-width: 0; padding: 4px 16px 24px 12px; }
 .fph-pane { display: flex; flex-direction: column; gap: 6px; }
 .fph-pane[hidden] { display: none; }
@@ -715,6 +727,11 @@
 @container fph-strip (min-height: calc(max(40px, 1.375rem + 2px) + 13 * max(44px, 2.0125rem + 5px) + max(49px, 2.34rem))) {
   .fph-sd { flex-shrink: 1; min-height: max(44px, 2.0125rem + 5px); }
 }
+/* 색 설명 줄이 있는 띠(태블릿, 2026-11-28 §3-8): 위 식 + 설명 줄 키(13px + 0.9375rem)까지 들어갈 때만 44px 까지 줄인다 — 모자라면 줄은
+   48px 그대로 띠 안에서 굴리고 설명 줄은 바닥에 붙어 보인다(줄이 44px 아래로 가거나 설명 줄이 잘리지 않게) */
+@container fph-strip (max-height: calc(max(40px, 1.375rem + 2px) + 13 * max(44px, 2.0125rem + 5px) + max(49px, 2.34rem) + 13px + 0.9375rem - 0.02px)) {
+  .fph-strip:has(> .fph-lg) .fph-sd { flex-shrink: 0; min-height: 48px; }
+}
 
 /* ── 화면 크기 · 글자 배율을 키운 넓은 화면: 이름 칸이 좁아지면 카드를 두 줄로(11-14 실측, 컨테이너 쿼리) ──
    카드의 단계 · 공정 · 도면 칸은 너비가 정해져 있어(글자 배율을 따라 커지는 칸도 있다) 남는 너비를 이름 칸 하나가 다 잃는다.
@@ -820,6 +837,7 @@
   .fph-sd__mid { grid-column: 1 / 3; grid-row: 2; gap: 2px; } /* 도면 글이 있는 줄: 막대 + 글 묶음이 막대 자리(둘째 줄)에 */
   .fph-strip__f { margin-top: 0; display: flex; border-top: 0; }
   .fph-sf { flex: 0 0 calc(124px * var(--foms-fs, 1)); border-left: 1px solid var(--fph-line); }
+  .fph-lg { position: static; flex: 0 0 auto; display: grid; grid-template-columns: auto auto; align-content: center; border-top: 0; border-left: 1px solid var(--fph-line); } /* 세로 태블릿: 옆으로 굴리는 띠 끝 두 줄 칸 */
   .fph-panes { padding: 4px 10px 90px; }
   .fph-dr { grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto; padding: 0 10px 8px 0; contain-intrinsic-size: auto calc(140px * var(--foms-fs, 1)); }
   .fph-dr__sg { grid-row: 1 / 3; font-size: calc(16px * var(--foms-fs, 1)); }

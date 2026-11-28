@@ -109,13 +109,13 @@
     var li = el('li', 'foms-prod-change-modal__item pp-mitem');
     var pic = el('div', 'pp-mimg');
     var img = card.querySelector('.pp-thumb');
-    pic.appendChild(img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' }) : img ? el('span', 'pp-broken', '그림을 못 불러왔어요') : el('b', '', (card.querySelector('.pp-file b') || {}).textContent || '파일'));
+    pic.appendChild(img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' }) : img ? el('span', 'pp-broken', '그림을 못 불러왔어요') : el('b', '', (card.querySelector('.pp-file b, .pp-none') || {}).textContent || '파일'));
     var body = el('div', 'foms-prod-change-modal__item-body');
     var head = el('div', 'foms-prod-change-modal__item-head');
     var who = el('span', 'foms-prod-change-modal__item-customer', ((card.querySelector('.fph-dr__nm b') || {}).textContent || '') + ' ');
     who.appendChild(el('small', '', '#' + attr(card, 'data-order-id')));
     head.appendChild(who);
-    head.appendChild(el('span', 'foms-prod-change-modal__item-id', '도면 ' + attr(card, 'data-no') + '/' + attr(card, 'data-of')));
+    head.appendChild(el('span', 'foms-prod-change-modal__item-id', (card.querySelector('.pp-no') || {}).textContent || '도면 ' + attr(card, 'data-no') + '/' + attr(card, 'data-of'))); // '도면 없음' 카드도 카드 글 그대로
     body.appendChild(head);
     body.appendChild(el('span', 'foms-prod-change-modal__alert-detail', (card.querySelector('.pp-item') || {}).textContent || ''));
     var alert = el('div', 'foms-prod-change-modal__alert pp-al--' + tone);

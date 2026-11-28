@@ -119,18 +119,22 @@
                {%- if c.block and c.block.kind == 'pre' %} data-pp-pre="{{ c.block.text }}" data-pp-pre-why="{{ c.block.why }}"{% endif %}
                {%- if c.hand %} data-pp-hand="{{ c.hand.text }}" data-pp-hand-why="{{ c.hand.why }}"{% endif %}
                {%- if flag_pen_record and c.note %} data-note-v="{{ c.note.version }}" data-note-by="{{ c.note.by }}" data-note-at="{{ c.note.at }}" data-note-url="{{ c.note.view_url }}"{% endif %}
-               {%- if flag_pen_record and c.note_old %} data-note-old="1"{% endif %}>
-        {% if c.is_image %}
+               {%- if flag_pen_record and c.note_old %} data-note-old="1"{% endif %}{% if c.order_card %} data-order-card="1"{% endif %}>
+        {#- '도면 없음' 카드(도면이 0장인 주문 한 장, key @order — 설계서 2026-11-28 흐름 §3-5): 그림 칸 · 번호 칸 = "도면 없음"(누를 것 없음),
+            크게 보기 · 펜 기록 · [도면 수정 요청] 없음, 나머지 줄 · 단추 · 카드 키는 보통 카드와 같다 #}
+        {% if c.order_card %}<span class="pp-img pp-none">도면 없음</span>
+        {% elif c.is_image %}
         <button type="button" class="pp-img" data-pp-open aria-label="{{ c.customer_name }} 도면 {{ c.no }}/{{ c.of }} 크게 보기{% if flag_pen_record and c.note %} · 생산 기록{% endif %}"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt="">{% if flag_pen_record and c.note %}<span class="pp-ptag" data-pp-ptag>생산 기록</span>{% endif %}</button>
         {% else %}
         <a class="pp-img pp-file" href="{{ c.view_url }}" target="_blank" rel="noopener"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></a>
         {% endif %}
-        <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · 도면 {{ c.no }}/{{ c.of }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">도면 {{ c.no }}/{{ c.of }}</span></a>
+        {%- set sheet_no = '도면 없음' if c.order_card else '도면 ' ~ c.no ~ '/' ~ c.of %}
+        <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · {{ sheet_no }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">{{ sheet_no }}</span></a>
         <div class="pp-duerow">{{ fph_due(c) }}{% if c.has_changes %}<em class="pp-chg">{{ c.chg_text or '바뀜' }}</em>{% endif %}</div>
         <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
         {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
         <span class="fph-dr__by pp-by{% if c.tag %} has-tag{% endif %}">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}{{ pp_tag(c) }}</span>
-        {%- set req_opts = (pb.req_opts or {}).get(c.order_id) %}{% if req_opts and not (c.order_block and c.order_block.kind == 'revise') and req_opts | selectattr('no', 'equalto', c.no) | list %}
+        {%- set req_opts = (pb.req_opts or {}).get(c.order_id) %}{% if req_opts and not c.order_card and not (c.order_block and c.order_block.kind == 'revise') and req_opts | selectattr('no', 'equalto', c.no) | list %}
         {#- [도면 수정 요청](설계서 2026-11-25 §2-4 · N3) — 그 공장 도면 위, 막히지 않은 장에만(막히면 '도면 고치는 중' 칸이 대신). 창 고르기 = 이 사람이
            요청할 수 있는 그 주문 장(관리자 · 반장 모든 장, 파트 계정 자기 공장 장). 카드 단추 칸(data-pp-actbox) 밖이라 카드 고치기가 안 지운다. #}
         <button type="button" class="foms-prod-home__btn pp-req" data-pp-req data-pp-req-opts="{{ req_opts | tojson | forceescape }}">도면 수정 요청</button>
