@@ -45,7 +45,8 @@ from foms.services.production.part_mark_rules import (
     SEEN_VALUES,
     STALE_MESSAGE,
 )
-from foms.services.production.part_mark_write import MarkRefusal, MarkRequest, bulk_basic, mark_one
+from foms.services.production.part_mark_bulk import bulk_basic
+from foms.services.production.part_mark_write import MarkRefusal, MarkRequest, mark_one
 
 production_part_marks_bp = Blueprint("production_part_marks", __name__, url_prefix="/api/production")
 
