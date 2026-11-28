@@ -25,6 +25,7 @@ from foms.services.production.part_screen import morning_chip
 from foms.services.production_home_days import production_home_days
 from foms.services.production_home_read_model import build_production_home
 from models import Order, ProductionPartMark, ProductionRun, User
+from tests.domains.test_production_flow_read import my_steps_of
 
 TODAY = datetime.date(2026, 11, 24)
 _seq = count(1)
@@ -195,7 +196,10 @@ def test_내_담당_한_층_꼬리_남의_담당_둘째_줄_첫_카드(app) -> N
     _mark(order, 0, "edge", "NEED", me, picked_at=yesterday)
     _mark(order, 1, "edge", "NEED", park, handed="최가은")
     pane = _pane(me)
-    mine, other = _card(pane, "한빛", 0), _card(pane, "한빛", 1)
+    # 내 카드(d0)는 판에서 빠져 '내 공정' 탭 재료로(2026-11-28 흐름) — 같은 build_card dict
+    assert pane["mine_out"] == 1 and all(c["key"] != "한빛/d0.png" for c in pane["cards"])
+    mine = next(c for d in my_steps_of(me)["days"] for o in d["orders"] for c in o["cards"] if c["key"] == "한빛/d0.png")
+    other = _card(pane, "한빛", 1)
     assert mine["mine_row"] and mine["tag"] == {"crew": "", "old": "어제부터", "chg": "", "aria": "내 작업 · 어제부터"}
     assert mine["picked_by_user_id"] == me.id and mine["picked_day"] and mine["picked_at"]
     assert not other["mine_row"] and other["tag"] is None and other["held_note"].startswith("최가은에서 바뀜 ")

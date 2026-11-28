@@ -16,13 +16,15 @@ from typing import Any, Iterable, Optional
 
 from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.orders.drawing_factory import sheet_factory
 from foms.services.orders.drawing_fix import blocked
 from foms.services.orders.drawing_fix_requests import board_request_options
+from foms.services.production import mark_crew as mc
 from foms.services.production.drawing_notes_read import board_notes
 from foms.services.production.factory_scope import board_factory, scene_on
 from foms.services.production.part_access import VIEW_PART, own_parts, writable_parts
 from foms.services.production.part_card_state import hand_cell, order_block
-from foms.services.production.part_constants import PRODUCTION_PART_KEYS
+from foms.services.production.part_constants import MARK_STATE_NEED, PRODUCTION_PART_KEYS
 from foms.services.production.part_mark_notes import actor_name
 from models import ProductionPartMark
 
@@ -118,4 +120,51 @@ def for_part(ctx: dict[str, Any], user: Any, part: str) -> dict[str, Any]:
     return {**ctx, "part": part, "writable": part in writable_parts(user)}
 
 
-__all__ = ["MarkIndex", "SheetIndex", "board_ctx", "fetch_part_marks", "for_part", "index_marks", "order_marks_of"]
+def card_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """'내 공정' · '작업 중' · 탭 숫자가 카드를 세는 줄 — 화면의 생산 단계 주문 전부(날짜와 무관 · 행 순서 그대로)."""
+    return [row for row in rows if row.get("home_view") == "prod"]
+
+
+def factory_files(row: dict[str, Any], files: list[dict[str, Any]], *, factory: int, scene: bool) -> list[tuple[int, dict[str, Any]]]:
+    """그 줄 확정 도면 가운데 보는 공장 장 ``[(장 번호 1부터, 항목)]`` — 판(:func:`~part_board.build_pane_board`)과 같은 공장 판정.
+
+    남의 공장 장은 날짜 탭에서만 판 뒤 묶음(누름 없음)으로 보이고 '내 공정' · '작업 중' · 탭 숫자에는 안 든다.
+    """
+    sd = row.get("structured_data") or {}
+    return [(index + 1, entry) for index, entry in enumerate(files)
+            if (sheet_factory(sd, entry) if scene else factory) == factory]
+
+
+def held_counts(rows: Iterable[dict[str, Any]], marks: Iterable[Any], user: Any, *, factory: int, scene: bool) -> dict[str, int]:
+    """위 탭 숫자(쿼리 0) — ``mine`` = 내 몫이 작업 중인 장(내가 쓸 수 있는 파트 — 판 카드 ``mine_row`` 와 같은 판정),
+    ``crew`` = 아직인 몫이 한 사람이라도 있는 작업 중 장(파트 넷 합). 장 = 확정 도면 한 장 × 파트, 보는 공장 장만.
+
+    Args:
+        rows: 첫 화면 행 전부(생산 단계 줄만 센다).
+        marks: 그 주문들 표시 줄(화면 생산 주문 전체를 한 번 읽은 것).
+        user: 보는 사람.
+        factory · scene: 보는 공장 · 2공장 그림 켬(:func:`board_ctx` 와 같은 값).
+
+    Returns:
+        ``{"mine": n, "crew": n}``.
+    """
+    slots = {(int(m.order_id), str(m.drawing_key), str(m.part)): m for m in marks}
+    uid = getattr(user, "id", None)
+    mine_parts = set(writable_parts(user))
+    mine = crew = 0
+    for row in card_rows(rows):
+        oid = int(row["id"])
+        files = resolve_final_drawing_files(row.get("structured_data") or {})
+        for _no, entry in factory_files(row, files, factory=factory, scene=scene):
+            for part in PRODUCTION_PART_KEYS:
+                mark = slots.get((oid, str(entry["key"]), part))
+                if mark is None or str(mark.state or "") != MARK_STATE_NEED:
+                    continue
+                people = mc.crew_of(mark)
+                crew += any(not mc.is_done(m) for m in people)
+                mine += part in mine_parts and mc.share_of(people, uid) == mc.SHARE_HELD
+    return {"mine": mine, "crew": crew}
+
+
+__all__ = ["MarkIndex", "SheetIndex", "board_ctx", "card_rows", "factory_files", "fetch_part_marks", "for_part", "held_counts",
+           "index_marks", "order_marks_of"]

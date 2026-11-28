@@ -28,7 +28,17 @@ from foms.services.production.part_mark_write import NOT_IN_PRODUCTION_MESSAGE
 from foms.services.production.sync_blocks import DONE_WHY
 from models import ProductionPartMark
 from tests.support.production_factory_seed import HOME_NONE, PC, TABLET, factory_user, mixed_order, put_mark, set_cookies
-from tests.support.production_part_claim_seed import check_step, code, fresh, login, make_order, make_user, mark, patch_sd
+from tests.support.production_part_claim_seed import (
+    check_step,
+    code,
+    fresh,
+    keep_mine_on_date_board,
+    login,
+    make_order,
+    make_user,
+    mark,
+    patch_sd,
+)
 from tests.domains.test_production_home_query_count import _count_queries
 from tests.support.production_steps_read import steps_read
 
@@ -301,7 +311,8 @@ def test_head_line_receive_time_follows_every_sync():
 # --------------------------------------------------------------------------- #
 # C09 — 제작 완료 뒤 그 주문 카드
 # --------------------------------------------------------------------------- #
-def test_js_complete_from_the_last_inspect_card_drops_undo_for_that_order(client, cohort, tmp_path):
+def test_js_complete_from_the_last_inspect_card_drops_undo_for_that_order(client, cohort, tmp_path, monkeypatch):
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     order = make_order(2, steps_done=("cut", "edge", "assemble"))
     kang = make_user("강검수", part="inspect")
     login(client, kang)

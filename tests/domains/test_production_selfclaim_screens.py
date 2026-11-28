@@ -24,6 +24,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from models import Order, ProductionPartMark, ProductionRun, User
+from tests.support.production_part_claim_seed import keep_mine_on_date_board
 
 ROOT = Path(__file__).resolve().parents[2]
 HOME = "/erp/production/home"
@@ -101,7 +102,8 @@ def _card(html: str, name: str, j: int) -> str:
 # --------------------------------------------------------------------------- #
 # 파트 계정 카드
 # --------------------------------------------------------------------------- #
-def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘은_까닭(client, cohort) -> None:
+def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘은_까닭(client, cohort, monkeypatch) -> None:
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     me, park = _user("김민준", "edge"), _user("박엣지", "edge")
     order = _order("한빛", 4)
     held = _order("보류집", 1, hold=True)
@@ -151,9 +153,10 @@ def test_손_체크한_파트_카드는_완료_칸이고_단추가_없다(client
     assert 'data-pp-act="' not in card and "안 본 도면 없어요" in html  # 미정 수 · 일괄 기본에서 빠짐
 
 
-def test_보류_주문은_완료_기본_카드에도_막힘을_싣고_되돌린_뒤_그림_규칙이_서버와_같다(client, cohort) -> None:
+def test_보류_주문은_완료_기본_카드에도_막힘을_싣고_되돌린_뒤_그림_규칙이_서버와_같다(client, cohort, monkeypatch) -> None:
     """완료 · 기본 카드에도 data-pp-block — 되돌리면(완료 → 담당 · 기본 → 안 봄) JS 가 그 값으로 그린다. 서버는 같은 상태를
     [시작 취소][보류 칸] · 보류 칸으로 그린다. JS 규칙(claim.special 은 상태와 상관없이 카드의 data-pp-block 을 읽음)은 아래 정적 단언."""
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     me = _user("김재단", "cut")
     held = _order("보류집", 4, hold=True)
     _mark(held, 0, "cut", "DONE", me)

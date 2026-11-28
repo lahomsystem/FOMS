@@ -28,18 +28,20 @@ def drawn_order_ids(rows: Iterable[dict[str, Any]]) -> list[int]:
     return [int(r["id"]) for r in rows if resolve_final_drawing_files(r.get("structured_data") or {})]
 
 
-def read_screen_marks(db: Any, rows: list[dict[str, Any]], today: datetime.date) -> list[Any]:
+def read_screen_marks(db: Any, rows: list[dict[str, Any]], today: datetime.date,
+                      more: Iterable[dict[str, Any]] = ()) -> list[Any]:
     """그리는 줄의 표시 줄을 한 번 읽고 칸 아래 이름을 단다. 읽은 줄을 돌려준다(파트 판이 다시 쓴다).
 
     Args:
         db: 세션.
         rows: 칸 아래 이름을 달 첫 화면 행(생산 줄만 단다).
         today: KST 오늘.
+        more: 같은 한 번에 표시 줄만 더 읽을 행(이름은 안 단다 — 태블릿 위 탭 숫자 · '내 공정' · '작업 중', 2026-11-28 흐름).
 
     Returns:
         읽은 ``ProductionPartMark`` 줄 목록(도면 있는 주문이 없으면 빈 목록 · 쿼리 0).
     """
-    ids = drawn_order_ids(r for r in rows if r.get("home_view") == "prod")
+    ids = list(dict.fromkeys(drawn_order_ids(r for r in [*rows, *more] if r.get("home_view") == "prod")))
     marks = db.query(ProductionPartMark).filter(ProductionPartMark.order_id.in_(ids)).all() if ids else []
     by_order: dict[int, list[Any]] = {}
     for mark in marks:

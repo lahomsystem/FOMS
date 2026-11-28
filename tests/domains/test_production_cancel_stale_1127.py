@@ -43,7 +43,17 @@ from tests.domains.test_production_cancel_notice_undo_1127 import UNDO_LINE, _un
 from tests.domains.test_production_home_query_count import _count_queries
 from tests.domains.test_production_lead_direct_done_1127 import _check, _lead
 from tests.domains.test_production_multi_holder_board import CUT_ADMIN, _node, _page, _post, cohort  # noqa: F401
-from tests.support.production_part_claim_seed import ONE, code, current_runs, fresh, login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import (
+    code,
+    current_runs,
+    fresh,
+    keep_mine_on_date_board,
+    login,
+    make_order,
+    make_user,
+    mark,
+    ONE,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 MESSAGE = "그 사이 이 주문이 바뀌었어요. 다시 확인해 주세요."
@@ -285,7 +295,8 @@ def _sync(client, who, order) -> dict:
     return client.get(SYNC.format(order.id)).get_json()
 
 
-def test_js_release_window_stops_reasks_and_resends_both_ways(client, cohort, tmp_path):
+def test_js_release_window_stops_reasks_and_resends_both_ways(client, cohort, tmp_path, monkeypatch):
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     kim, oh = _kim(), _oh()
     order = _took(client, kim, 2)
     k = order.keys
@@ -427,8 +438,9 @@ def test_js_undo_window_stops_and_reasks(client, cohort, tmp_path):
     assert [c["body"].get("seen_cancel") for c in res["calls"]] == [True, False] and len(res["previews"]) == 2
 
 
-def test_js_window_that_got_no_answer_in_time_sends_false(client, cohort, tmp_path):
+def test_js_window_that_got_no_answer_in_time_sends_false(client, cohort, tmp_path, monkeypatch):
     """3초 안에 답을 못 받아 줄 없이 열린 창도 같은 규칙 — 안 보였다(false)로 나가고, 같이 취소될 차례면 멈춘 뒤 다시 물어 줄이 나타난다."""
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     kim = _kim()
     order = _took(client, kim, 2)
     page = tmp_path / "kim.html"

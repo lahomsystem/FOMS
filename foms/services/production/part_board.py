@@ -313,6 +313,12 @@ def bulk_count(cards: list[dict[str, Any]]) -> int:
     return sum(1 for c in cards if c["state"] == "none" and not c.get("order_block"))
 
 
+def goes_to_mine_tab(card: dict[str, Any], ctx: dict[str, Any]) -> bool:
+    """파트 계정 판에서 뺄 카드 — 내가 담았거나 같이 작업하는 카드(``mine_row``). 그 카드는 '내 공정' 탭에 같은 조각으로 모인다(설계서
+    2026-11-28-production-my-steps-flow 답 2 · 19). 반장 · 관리자 · 읽기 전용 판은 늘 거짓(아무것도 안 빠진다). 내가 끝낸 카드는 판에 남는다."""
+    return bool(ctx["mine"] and card["mine_row"])
+
+
 def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]) -> dict[str, Any]:
     """날짜 한 장의 파트 판 — 카드 · 칸 숫자 · 캡 · 기다림 · 제작 완료 수.
 
@@ -322,11 +328,14 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
         ctx: :func:`build_card` 와 같은 맥락.
 
     Returns:
-        ``{key, cards, hidden, counts, orders_total, drawn_orders, wait_rows, no_drawing_rows, wait_count, done_count}``.
+        ``{key, cards, hidden, counts, mine_out, orders_total, drawn_orders, wait_rows, no_drawing_rows, wait_count, done_count}``.
+        파트 계정 판은 내가 담았거나 같이 작업하는 카드(``mine_row``)를 뺀다 — 그 카드는 '내 공정' 탭에 모인다(설계서
+        2026-11-28-production-my-steps-flow 답 2 · 19). 뺀 수 = ``mine_out``, 칸 숫자 · 200장 캡은 뺀 뒤 기준. 반장 · 관리자 · 읽기 전용은 0.
     """
     cards: list[dict[str, Any]] = []
     elsewhere: list[dict[str, Any]] = []
     no_drawing: list[dict[str, Any]] = []
+    mine_out = 0
     # 2공장(§4-13): 남의 공장 장만 있는 줄(elsewhere_rows)도 카드로 — 남의 공장 카드는 판 뒤 묶음(누름 없음 · 숫자 밖)
     for order_pos, row in enumerate([*(pane.get("make_rows") or []), *(pane.get("elsewhere_rows") or [])]):
         files = ctx["files"][int(row["id"])]
@@ -340,6 +349,8 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
             if factory != ctx["factory"]:  # 남의 공장 글 이름 = 작업하는 사람 목록(이미 읽은 줄 — multi-holder Q20)
                 card["elsewhere"] = elsewhere_info(card, ctx["part"], factory, marks.get((int(row["id"]), entry["key"], ctx["part"])))
                 elsewhere.append(card)
+            elif goes_to_mine_tab(card, ctx):  # 내 공장 카드만 뺀다(남의 공장 묶음은 지금 그대로 — 누름 없음)
+                mine_out += 1
             else:
                 cards.append(card)
     cards = sort_cards(cards, ctx["part"], ctx["mine"])
@@ -350,6 +361,7 @@ def build_pane_board(pane: dict[str, Any], marks: MarkIndex, ctx: dict[str, Any]
         "cards": cards[:PART_BOARD_CARD_CAP],
         "hidden": max(0, len(cards) - PART_BOARD_CARD_CAP),
         "counts": card_counts(cards),
+        "mine_out": mine_out,
         "bulk": bulk_count(cards),
         "elsewhere": elsewhere[:PART_BOARD_CARD_CAP],
         "elsewhere_head": elsewhere_head(other_factories(ctx["factory"])[0], len(elsewhere)) if elsewhere else "",
@@ -411,6 +423,12 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
     # 맥락(확정 도면 · 표시 줄 사전 · 손 체크 · 막힘 · 펜 기록 · 고치기 요청) = part_board_ctx(옮김 — 동작 그대로, 2026-11-28)
     ctx = board_ctx(db, user, rows, mode=mode, part=board_part, marks=marks, today=today, factory=factory,
                     scene_rows=days.get("all_rows") or rows)
+    return {**board_head(user, mode, board_part, ctx),
+            "panes": {pane.get("key"): build_pane_board(pane, ctx["slots"], ctx) for pane in panes}}
+
+
+def board_head(user: Any, mode: str, board_part: str, ctx: dict[str, Any]) -> dict[str, Any]:
+    """판 머리(장 판 ``panes`` 를 뺀 :func:`build_part_board` 값) — '내 공정' · '작업 중' 탭이 같은 머리로 판 설정 · 확인 창 · 스크립트를 싣는다."""
     writable, factory, scene = ctx["writable"], ctx["factory"], ctx["scene"]
     parts = board_parts(mode, user)
     pick = mode == VIEW_PART and len(parts) > 1
@@ -423,5 +441,4 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         "factory": factory, "scene": scene, "factory_pick": scene and mode == VIEW_ADMIN, "req_opts": ctx["req"],
         "can_request": can_request_people(user),  # [도면 수정 요청] 창을 둘 사람(관리자 · 반장 · 파트 계정 — 날 조각 판도 같은 창)
         "url_factory": factory if scene and mode == VIEW_ADMIN else None,
-        "panes": {pane.get("key"): build_pane_board(pane, ctx["slots"], ctx) for pane in panes},
     }

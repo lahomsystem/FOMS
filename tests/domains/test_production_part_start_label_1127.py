@@ -122,6 +122,11 @@ def _counts(client) -> dict:
     return body["data"]["counts"]
 
 
+def _old(counts: dict) -> dict:
+    """옛 두 숫자('남은 공정 N' · '바뀐 것 N') — 태블릿 문 안 숫자 길은 새 탭 숫자 mine · crew 도 싣는다(2026-11-28 흐름)."""
+    return {k: counts[k] for k in ("making", "changed")}
+
+
 def _take(client, who, order, j: int) -> dict:
     return _post(client, who, {"order_id": order.id, "drawing_key": order.keys[j], "part": "cut", "action": "take",
                                "seen": "none", "seen_me": "none"})
@@ -132,16 +137,18 @@ def test_counts_view_matches_the_drawn_tabs_and_moves_with_first_card(client, co
     order = make_order(3, run=False)  # 제작 대기 — 아직 '남은 공정' 줄에 없다
     login(client, admin)
     before = _counts(client)
-    assert before == _nav(_page(client, admin, HOME_NONE + "&tab=parts&part=cut"))  # 화면과 같은 함수 · 같은 묘비
+    assert set(before) == {"making", "changed", "mine", "crew"}  # 태블릿 문 안(쿠키 없음 = 넓은 화면으로 봄) — 새 탭 숫자 키도
+    assert _old(before) == _nav(_page(client, admin, HOME_NONE + "&tab=parts&part=cut"))  # 화면과 같은 함수 · 같은 묘비
     took = _take(client, admin, order, 0)
     assert took["data"]["run_started"] is True  # 첫 카드 = 제작 시작(STARTING_ACTIONS)
     after = _counts(client)
     assert after["making"] == before["making"] + 1 and after["changed"] == before["changed"]
-    assert after == _nav(_page(client, admin, HOME_NONE + "&tab=parts&part=cut"))  # 다시 그린 화면과 같다
-    # 음성 대조 — 둘째 카드 [재단 시작]은 주문 칸을 안 바꾼다(제작 시작 · 공정 칸 없음) → 숫자 그대로
+    assert _old(after) == _nav(_page(client, admin, HOME_NONE + "&tab=parts&part=cut"))  # 다시 그린 화면과 같다
+    # 음성 대조 — 둘째 카드 [재단 시작]은 주문 칸을 안 바꾼다(제작 시작 · 공정 칸 없음) → 옛 숫자 그대로, 작업 중 장만 +1
     again = _take(client, admin, order, 1)
     assert again["data"]["run_started"] is False and again["data"]["order_step"] is None
-    assert _counts(client) == after
+    now = _counts(client)
+    assert _old(now) == _old(after) and (now["crew"], now["mine"]) == (after["crew"] + 1, after["mine"] + 1)
 
 
 def test_start_cancel_rollback_recounts_and_remaining_number_goes_down(client, cohort):
@@ -176,7 +183,14 @@ def test_counts_view_is_lighter_than_a_screen_and_the_write_path_is_unchanged(cl
     _, q_counts = _count_queries(lambda: client.get(COUNTS))
     _, q_steps = _count_queries(lambda: client.get(HOME_NONE + "&tab=steps"))
     _, q_parts = _count_queries(lambda: client.get(HOME_NONE + "&tab=parts&part=cut"))
-    assert q_counts < q_steps and q_counts < q_parts, (q_counts, q_steps, q_parts)
+    # 태블릿 문 안 숫자 길은 '작업 중 N'(2026-11-28 흐름)을 세려고 표시 줄 한 번을 더 읽는다 — 표시 줄을 안 읽는 '남은 공정' 화면과 같고
+    # 도면 카드 화면보다 가볍다. 문 밖(PC)은 지금 그대로 한 번 적다.
+    assert q_counts <= q_steps and q_counts < q_parts, (q_counts, q_steps, q_parts)
+    client.set_cookie("foms_ptr", "fine", domain="localhost")
+    _counts(client)
+    _, q_counts_pc = _count_queries(lambda: client.get(COUNTS))
+    client.delete_cookie("foms_ptr", domain="localhost")
+    assert q_counts == q_counts_pc + 1, (q_counts, q_counts_pc)
     assert q_counts <= 11  # 첫 화면 절대 상한(test_production_home_query_count ABS_QUERY_CAP)과 같은 줄
     body = {"order_id": order.id, "drawing_key": order.keys[0], "part": "cut", "action": "take", "seen": "none", "seen_me": "none"}
     resp, q_write = _count_queries(lambda: client.post("/api/production/part-marks", json=body))

@@ -17,14 +17,15 @@ def _keys(html: str, name: str) -> list[str]:
     return re.findall(rf'data-pp-card[^>]*data-key="{name}/d(\d)\.png"', html)
 
 
-def test_파트_계정_판은_내_작업이_맨_앞_반장_판은_그대로(client, cohort) -> None:
+def test_파트_계정_판은_내_작업을_빼고_반장_판은_그대로(client, cohort) -> None:
     me, park = _user("김민준", "cut"), _user("박재단", "cut")
     order = _order("새집", 5)
     _mark(order, 2, "cut", "NEED", me)  # 내 작업
     _mark(order, 3, "cut", "NEED", park)  # 남의 작업
     _mark(order, 4, "cut", "DONE", me)  # 완료
     _login(client, me)
-    assert _keys(_get(client, HOME), "새집") == ["2", "0", "1", "3", "4"]  # 내 작업 → 미정 → 남의 작업 → 완료
+    # 내 작업(2)은 판 밖 '내 공정' 탭(2026-11-28 흐름 — 11-27 '맨 앞'을 대신함) → 미정 → 남의 작업 → 완료
+    assert _keys(_get(client, HOME), "새집") == ["0", "1", "3", "4"]
     boss = _user("박반장")
     boss.production_lead = True
     db_session.commit()

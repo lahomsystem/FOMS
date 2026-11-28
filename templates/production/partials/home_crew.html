@@ -1,0 +1,9 @@
+{# 탭 "작업 중"(?tab=crew) — 반장 · 관리자 · 읽기 전용 · 태블릿(도면 카드 기기 문 + 폰 아님)만(설계서 2026-11-28-production-my-steps-flow
+   §3-6, 사장님 답 30 "가 · 탭을 따로 둠" — '남은 공정'(tab=steps)은 그대로). 빈 틀(읽기 일꾼 ⓐ) — 화면 글 · 마크업은 화면 일꾼(ⓒ)이 채운다.
+   서버 재료(foms/services/production/crew_board.py · home_flow.py):
+   - crew.part = 'all' 또는 파트 key(주소 ?part=), crew.parts = [{key, label, href}] — 첫 칸 {key: 'all', label: '전체'}.
+   - crew.people = [{name, part, part_label, cards: [카드]}] — 그 파트에서 자기 몫이 작업 중인 사람마다(파트 순서 → 이름순),
+     같이 작업 카드는 아직인 사람 모두의 묶음에 같은 카드. crew.hidden = 200장 캡에 밀린 장 수.
+   - crew.none = {counts: {파트 key: 미정 장수}, cards: [카드](파트를 고르면 — 시공일 순 · 200장 캡) 또는 None('전체'), hidden}.
+   - 카드 = part_board.build_card 그 dict(반장 · 관리자 판과 같은 조각) + part · part_label · day_key.
+   - 판 머리 part_board · 판 설정 part_config(flow = {tab: 'crew', mine_href}) · counts.crew 는 '도면 카드' 화면과 같다. #}

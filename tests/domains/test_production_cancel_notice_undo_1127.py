@@ -34,7 +34,16 @@ from tests.domains.test_production_cancel_notice_1127 import (
 )
 from tests.domains.test_production_lead_direct_done_1127 import _admin, _check, _lead
 from tests.domains.test_production_multi_holder_board import CUT_ADMIN, _node, _page, _post, cohort  # noqa: F401
-from tests.support.production_part_claim_seed import BULK, current_runs, finish, login, make_order, mark, patch_sd
+from tests.support.production_part_claim_seed import (
+    BULK,
+    current_runs,
+    finish,
+    keep_mine_on_date_board,
+    login,
+    make_order,
+    mark,
+    patch_sd,
+)
 
 UNDO_LINE = "이 주문에서 작업한 도면이 이것뿐이라 제작 시작도 같이 취소돼요."
 
@@ -200,8 +209,9 @@ def test_js_basic_undo_dialog_and_part_account_done_undo(client, cohort, tmp_pat
     assert [c["body"] for c in res["calls"]] == [sent]
 
 
-def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path):
+def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path, monkeypatch):
     """[시작] · [기본] · [완료] · [같이 작업] · [담당 바꾸기] · 반장 [완료] · [남은 N장 모두 기본] 창은 미리 보기 요청 0."""
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     kim, oh, lead = _kim(), _oh(), _lead()
     order = make_order(4, run=False)
     login(client, kim)

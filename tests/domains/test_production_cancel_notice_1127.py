@@ -37,6 +37,7 @@ from tests.support.production_part_claim_seed import (
     current_runs,
     events,
     fresh,
+    keep_mine_on_date_board,
     login,
     make_order,
     make_user,
@@ -367,7 +368,8 @@ def test_js_release_dialog_shows_the_line_only_when_the_server_says_so(client, c
     assert [_query(u) for u in previews] == [_as_query(b) for b in (rel0, rel0, rel1, rel0)]  # 묻는 칸 = 그 창이 보낼 몸(본 것 칸만 빼고)
 
 
-def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, cohort, tmp_path):
+def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, cohort, tmp_path, monkeypatch):
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     kim = _kim()
     order = _took(client, kim, 2)
     page = tmp_path / "kim.html"
@@ -402,7 +404,8 @@ def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, 
     assert len(res["previews"]) == 4 and [c["body"].get("seen_cancel") for c in res["calls"]] == [False, True]
 
 
-def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, tmp_path):
+def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, tmp_path, monkeypatch):
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     kim, oh, lead = _kim(), _oh(), _lead()
     solo = _took(client, kim)  # 김재단 혼자 시작한 한 장짜리 주문
     both = _took(client, kim)  # 김재단 · 오재단이 같이 작업

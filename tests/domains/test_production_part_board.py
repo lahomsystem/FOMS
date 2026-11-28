@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime
 from itertools import count
 
+import pytest
 from sqlalchemy import event
 from werkzeug.security import generate_password_hash
 
@@ -65,9 +66,14 @@ def _mark(order: Order, key: str, part: str, state: str, *, picked: User | None 
     db_session.commit()
 
 
-def _board(user: User, part: str | None = None) -> dict:
+def _board(user: User, part: str | None = None, *, keep_mine: bool = False) -> dict:
+    """``keep_mine`` = 내 카드를 판에서 빼지 않은 판(카드 dict 만 보는 단언 — 빼는 규칙은 test_production_flow_read)."""
     rows, stats = build_production_home(db_session, user)
     days = production_home_days(rows, get_today_kst(), None, past_hidden=stats["past_hidden"])
+    if keep_mine:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr("foms.services.production.part_board.goes_to_mine_tab", lambda card, ctx: False)
+            return build_part_board(db_session, user, days, part=part)
     return build_part_board(db_session, user, days, part=part)
 
 
@@ -106,7 +112,10 @@ def test_cards_carry_state_names_badges_and_other_part_line(app):
     board = _board(me)
     assert (board["mode"], board["part"], board["part_label"], board["mine"]) == ("part", "cut", "재단", True)
     pane = _today(board)
-    mine, taken, basic, fresh = (_card(pane, f"o1/d{j}.png") for j in range(4))
+    # 내가 담은 카드(d0)는 판에서 빠져 '내 공정' 탭으로 간다(2026-11-28 흐름 답 2) — 남이 담은 · 끝난 · 안 본 카드는 그대로
+    assert pane["mine_out"] == 1 and "o1/d0.png" not in {c["key"] for c in pane["cards"]}
+    taken, basic, fresh = (_card(pane, f"o1/d{j}.png") for j in range(1, 4))
+    mine = _card(_today(_board(me, keep_mine=True)), "o1/d0.png")  # 같은 카드 dict('내 공정' 탭이 같은 build_card 로 만든다)
     assert (mine["state"], mine["badge"], mine["picked_by_name"], mine["picked_by_me"]) == ("need", "need", "김재단", True)
     assert (taken["state"], taken["badge"], taken["taken_by_other"]) == ("need", "taken", True)
     assert (basic["state"], basic["badge"], basic["done_by_name"]) == ("basic", "basic", "박재단")
@@ -146,9 +155,10 @@ def test_counts_are_mine_for_part_account_and_whole_part_for_admin_and_readonly(
     _mark(order, "o3/d3.png", "cut", "BASIC", done=me)
     _mark(order, "o3/d4.png", "cut", "DONE", picked=park, done=park)
 
-    mine = _today(_board(me))["counts"]
-    assert mine == {"all": 6, "need": 1, "done": 2, "unseen": 1}  # 남이 맡은 · 남이 끝낸 장은 내 숫자 밖(대조군)
-    assert _today(_board(park))["counts"] == {"all": 6, "need": 1, "done": 1, "unseen": 1}
+    mine = _today(_board(me))
+    # 내가 담은 장(d0)은 판 밖('내 공정' 탭 — 2026-11-28 흐름) → 전체 도면 5 · 작업 필요 0. 남이 맡은 · 남이 끝낸 장은 내 숫자 밖(대조군)
+    assert mine["counts"] == {"all": 5, "need": 0, "done": 2, "unseen": 1} and mine["mine_out"] == 1
+    assert _today(_board(park))["counts"] == {"all": 5, "need": 0, "done": 1, "unseen": 1}
 
     admin = _user("관리자", team="CS", role="ADMIN", part=None)
     readonly = _user("영업", team="SALES")
@@ -156,6 +166,7 @@ def test_counts_are_mine_for_part_account_and_whole_part_for_admin_and_readonly(
         board = _board(viewer)
         assert board["mine"] is False and board["part"] == "cut"
         assert _today(board)["counts"] == {"all": 6, "need": 2, "done": 3, "unseen": 1}
+        assert _today(board)["mine_out"] == 0  # 반장 · 관리자 · 읽기 전용 판은 아무것도 안 빠진다(답 19)
     assert _board(admin)["writable"] is True and _board(readonly)["writable"] is False
     assert all(c["badge"] != "taken" for c in _today(_board(readonly))["cards"])  # '맡음'은 파트 계정 말
 
@@ -220,10 +231,10 @@ def test_cut_puts_unseen_first_then_order_and_sheet_others_keep_order(app):
     assert all(c["order_pos"] == order_of[c["order_id"]] for c in pane["cards"])
     keys = [c["key"] for c in pane["cards"]]
     # 2026-11-23 §8-1 '판 순서': 모든 파트 남은 일 앞 — 미정 → 담당 → 완료(재단만 '안 본 장 먼저'이던 것을 넓힘)
-    assert keys[0] == "o6/d2.png"  # 파트 계정 화면: 내 작업(내 몫이 작업 중)이 맨 앞(사장님 11-27)
-    assert set(keys[1:3]) == {"o6/d1.png", "o7/d0.png"}  # 그다음 미정(안 본 장)
-    assert set(keys[3:]) == {"o6/d0.png", "o7/d1.png"}  # 완료 · 기본은 뒤
-    for group in (pane["cards"][1:3], pane["cards"][3:]):  # 묶음 안은 주문 · 장 번호 순
+    assert "o6/d2.png" not in keys and pane["mine_out"] == 1  # 내 작업은 판 밖 '내 공정' 탭(2026-11-28 흐름 — 11-27 '맨 앞'을 대신함)
+    assert set(keys[0:2]) == {"o6/d1.png", "o7/d0.png"}  # 미정(안 본 장)
+    assert set(keys[2:]) == {"o6/d0.png", "o7/d1.png"}  # 완료 · 기본은 뒤
+    for group in (pane["cards"][0:2], pane["cards"][2:]):  # 묶음 안은 주문 · 장 번호 순
         assert [(c["order_pos"], c["no"]) for c in group] == sorted((c["order_pos"], c["no"]) for c in group)
     edge_cards = _today(_board(edge))["cards"]  # 엣지는 모두 미정 — 주문 · 장 번호 순 그대로
     assert [(c["order_id"], c["no"]) for c in edge_cards] == \

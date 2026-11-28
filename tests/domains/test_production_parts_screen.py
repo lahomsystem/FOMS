@@ -129,11 +129,11 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
     pane = _first_pane(html)
     block = _parts_block(pane)
 
-    assert block.count("data-pp-card ") == 5  # 확정 도면 한 장 = 카드 한 장(3 + 2)
+    assert block.count("data-pp-card ") == 4 and 'data-key="oa/d0.png"' not in block  # 3 + 2 장 — 내가 담은 d0 은 '내 공정' 탭(11-28)
     for view in ("all", "need", "done"):
         assert f'data-pp-view="{view}"' in block
-    # 칸 숫자 = 내 것(작업 필요 = 내가 맡은 장, 완료 = 내가 끝낸 장)
-    assert 'data-pp-count="all">5<' in block and 'data-pp-count="need">1<' in block and 'data-pp-count="done">1<' in block
+    # 칸 숫자 = 내 것(뺀 뒤 — 작업 필요 0, 완료 = 내가 끝낸 장)
+    assert 'data-pp-count="all">4<' in block and 'data-pp-count="need">0<' in block and 'data-pp-count="done">1<' in block
     assert 'data-pp-act="bulk"' in block and "<span>남은 <span data-pp-count=\"unseen\">1</span>장 모두 기본</span>" in block
     assert block.count('data-pp-act="basic"') == 1 and block.count('data-pp-act="take"') == 1  # 안 본 장 하나
     assert "<b>박재단 작업\u00a0중</b>" in block and "pp-st-taken" in block and 'data-pp-act="join">재단 같이&nbsp;작업</button>' in block
@@ -479,7 +479,7 @@ def test_cards_point_images_at_thumb_route_lazily(client, cohort):
     _login(client, me)
     block = _parts_block(_first_pane(_get(client, HOME)))
     imgs = re.findall(r'<img class="pp-thumb" src="([^"]+)" loading="lazy"', block)
-    assert len(imgs) == 5 and f"/erp/production/parts/thumb/{ids['a']}?key=oa/d0.png" in [i.replace("%2F", "/") for i in imgs]
+    assert len(imgs) == 4 and f"/erp/production/parts/thumb/{ids['a']}?key=oa/d1.png" in [i.replace("%2F", "/") for i in imgs]  # d0 = 내 공정
     assert 'class="pp-img pp-file" href="/api/files/view/oc/d0.pdf"' in block and "<b>PDF</b>" in block
 
 

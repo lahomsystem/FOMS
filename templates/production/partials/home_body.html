@@ -40,6 +40,10 @@
       {% include 'production/partials/home_changes.html' %}
     {% elif tab == 'all' %}
       {% include ('production/partials/home_pc_all.html' if pc_view else 'production/partials/home_all.html') %}
+    {% elif tab == 'mine' %}{# '내 공정' · '작업 중'(태블릿 문 안만 — home_flow.resolve_home_tab, 2026-11-28 흐름) #}
+      {% include 'production/partials/home_mine.html' %}
+    {% elif tab == 'crew' %}
+      {% include 'production/partials/home_crew.html' %}
     {% else %}
       {% include 'production/partials/home_date.html' %}
     {% endif %}

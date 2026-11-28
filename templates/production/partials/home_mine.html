@@ -1,0 +1,9 @@
+{# 탭 "내 공정"(?tab=mine) — 파트 계정 · 태블릿(도면 카드 기기 문 + 폰 아님)만(설계서 2026-11-28-production-my-steps-flow §3-4).
+   빈 틀(읽기 일꾼 ⓐ) — 화면 글 · 마크업은 화면 일꾼(ⓒ)이 채운다. 서버 재료(foms/services/production/my_steps.py · home_flow.py):
+   - my_steps.strip = [{key, label, sub, count}] — strip[0] = {key: 'all', label: '전체', sub: '모든 날', count: 안 끝낸 전체 장수}, 그 뒤는
+     날짜 탭 띠와 같은 줄(recent · 날 줄 'YYYY-MM-DD' · later). count = 그 줄 카드 가운데 안 끝낸 장수.
+   - my_steps.days = [{key('YYYY-MM-DD' · 'none'), title("12/1 (화)" — 날짜 탭 장 제목과 같은 함수), day_key, count,
+     orders: [{id, name, count, cards: [카드]}]}] — 가까운 날 먼저 · 지난 날이 맨 위 · 출고일 없음 맨 뒤.
+   - my_steps.done = [카드] — 오늘(KST) 내가 끝낸 것(늦게 끝낸 것부터). my_steps.hidden · done_hidden = 200장 캡에 밀린 수.
+   - 카드 = part_board.build_card 그 dict(날짜 판과 같은 조각) + part · part_label(여러 파트 계정은 섞인다) + day_key(띠 줄 열쇠, 띠 밖은 '').
+   - 판 머리 part_board(확인 창 · 스크립트) · 판 설정 part_config(flow = {tab: 'mine', mine_href}) · counts.mine 은 날짜 탭과 같다. #}

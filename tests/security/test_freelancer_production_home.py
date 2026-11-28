@@ -259,8 +259,9 @@ def test_counts_view_is_own_only(world, app, monkeypatch):
     프리랜서 가 = 내 주문 1 · 내 묘비 1, 직원 대조군 = 남은 공정 4 · 바뀐 것 3(위 시험의 화면 숫자와 같은 값).
     음성 대조: 이 길의 묘비 들머리만 거르기를 끄면 남의 취소 주문 수가 '바뀐 것'에 샌다(2026-11-27 고친 자리).
     """
-    assert _counts(app, world.fl_a) == {"making": 1, "changed": 1}
-    assert _counts(app, world.staff) == {"making": 4, "changed": 3}
+    assert _counts(app, world.fl_a) == {"making": 1, "changed": 1}  # 켜진 프리랜서 = 도면 카드 못 봄 → 새 탭 숫자 키 없음
+    # 직원 대조군(태블릿 읽기 전용 = '작업 중' 탭 문 안) — 새 탭 숫자 mine · crew 도 싣는다(2026-11-28 흐름)
+    assert _counts(app, world.staff) == {"making": 4, "changed": 3, "mine": 0, "crew": 0}
     monkeypatch.setattr(home_page, "production_home_mine_only", lambda user: False)  # 행은 읽기 모델이 여전히 거른다
     assert _counts(app, world.fl_a) == {"making": 1, "changed": 3}
 

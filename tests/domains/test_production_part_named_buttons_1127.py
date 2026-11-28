@@ -18,7 +18,7 @@ import pytest
 
 from tests.domains.test_production_multi_holder_board import _act, _card, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_factory_seed import HOME_NONE
-from tests.support.production_part_claim_seed import login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import keep_mine_on_date_board, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
 JS = ROOT / "static/js/production"
@@ -36,7 +36,8 @@ def _press(client, who, order, j, part, action, seen, **extra):
 
 
 @pytest.mark.parametrize("part,label", PARTS)
-def test_part_account_card_buttons_say_part_name(client, cohort, part, label):
+def test_part_account_card_buttons_say_part_name(client, cohort, part, label, monkeypatch):
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     order = make_order(3, steps_done=("cut", "edge", "assemble") if part == "inspect" else ())
     me, other = make_user(f"김{label}", part=part), make_user(f"최{label}", part=part)
     _press(client, me, order, 0, part, "take", "none")  # 도면 1 = 내 작업 한 층

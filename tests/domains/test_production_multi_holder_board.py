@@ -27,7 +27,7 @@ import pytest
 from foms.services.production import mark_crew as mc, part_card_crew
 from foms.services.production.part_card_crew import NBSP, crew_view, with_particle
 from tests.support.production_factory_seed import HOME_NONE, TABLET, factory_user, mixed_order, set_cookies
-from tests.support.production_part_claim_seed import ONE, login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import ONE, keep_mine_on_date_board, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECK = ROOT / "tests/support/production_multi_holder_node_checks.js"
@@ -151,7 +151,8 @@ def test_crew_view_lines_for_each_viewer() -> None:
 # --------------------------------------------------------------------------- #
 # 서버가 그린 판(시안 01 A ~ I)
 # --------------------------------------------------------------------------- #
-def test_board_cards_follow_the_mockup(client, cohort) -> None:
+def test_board_cards_follow_the_mockup(client, cohort, monkeypatch) -> None:
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     p = _seed(client)
     k = p.order.keys
     kim = _page(client, p.kim)
@@ -230,7 +231,8 @@ def test_write_sync_and_refusal_carry_the_viewers_crew(client, cohort) -> None:
 # --------------------------------------------------------------------------- #
 # JS — 서버가 그린 판 위에서
 # --------------------------------------------------------------------------- #
-def test_js_redraws_every_card_like_the_server(client, cohort, tmp_path) -> None:
+def test_js_redraws_every_card_like_the_server(client, cohort, tmp_path, monkeypatch) -> None:
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     p = _seed(client)
     _press(client, p.kim, p.order, 1, "join", "need")
     for who, url in ((p.kim, HOME_NONE), (p.lee, HOME_NONE), (p.park, HOME_NONE), (p.insp, HOME_NONE), (p.lead, CUT_ADMIN),
@@ -241,7 +243,8 @@ def test_js_redraws_every_card_like_the_server(client, cohort, tmp_path) -> None
         assert out["cards"] == 6 and out["diffs"] == [], (who.name, out["diffs"])
 
 
-def test_js_join_window_and_late_start_notice(client, cohort, tmp_path) -> None:
+def test_js_join_window_and_late_start_notice(client, cohort, tmp_path, monkeypatch) -> None:
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     p = _seed(client)
     k = p.order.keys
     page = tmp_path / "kim.html"
@@ -324,7 +327,8 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     assert after["state"] == "done" and after["act"][0]["text"] == "재단 완료 · 이시영" and out[4]["status"] == "김재단 시작 취소했어요"
 
 
-def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_path) -> None:
+def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_path, monkeypatch) -> None:
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     p = _seed(client)
     k = p.order.keys
     page = tmp_path / "kim.html"
@@ -395,9 +399,10 @@ def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_
     assert "data-pp-act" not in other and "같이 작업" not in other and "이시영 작업 중" in other
 
 
-def test_sentences_say_n_people_and_js_adds_no_particles(client, cohort, tmp_path) -> None:
+def test_sentences_say_n_people_and_js_adds_no_particles(client, cohort, tmp_path, monkeypatch) -> None:
     """이름 줄이 "외 n"으로 끝나는 문장은 "외 n명"(Q20) — [같이 작업] 창 안내 · 내 [재단 완료] 창 안내 · 내 작업 꼬리. 토씨는 서버가 붙인
     완성 조각만 쓴다(JS 가 이름 줄에 토씨를 붙이지 않는다)."""
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     p = _seed(client)
     k = p.order.keys
     _press(client, p.park, p.order, 5, "join", "need")  # 도면 6 = 이시영 · 김재단 · 최재단 · 박재단

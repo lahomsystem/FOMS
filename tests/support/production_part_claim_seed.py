@@ -128,3 +128,13 @@ def code(resp) -> str | None:
 
 def check_step(client, oid: int, key: str, done: bool):
     return client.post(f"/api/orders/{oid}/production/steps", json={"key": key, "done": done})
+
+
+def keep_mine_on_date_board(monkeypatch) -> None:
+    """파트 계정 날짜 판에 내 카드(내가 담은 · 같이 작업하는 카드)를 옛 자리 그대로 둔다 — 카드 조각 · 판 JS 규칙만 보는 시험용.
+
+    2026-11-28 흐름(설계서 production-my-steps-flow 답 2 · 19)부터 그 카드는 날짜 판에서 빠지고 '내 공정' 탭(?tab=mine)에 같은 조각
+    (home_parts.html 의 pp_act · 같은 스크립트)으로 모인다. 그 탭을 그리는 화면 일꾼(ⓒ)이 이 시험들을 '내 공정' 탭 화면으로 옮긴다.
+    빠지는 규칙 자체는 tests/domains/test_production_flow_read.py 가 본다.
+    """
+    monkeypatch.setattr("foms.services.production.part_board.goes_to_mine_tab", lambda card, ctx: False)

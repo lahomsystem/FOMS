@@ -37,7 +37,7 @@ def test_파트_계정_기다림_묶음은_카드_위_머리에_마감_칩에_�
     assert '<small><span class="is-late">마감 ' in head and "지났어요</span> · 도면이 오면 여기 나와요</small>" in head
     assert f'<a class="fph-wi has-why pp-wait" href="/erp/production/sheet/{ids["wait"]}">' in block
     assert '<span class="fph-wi__why"><b class="is-none">도면 담당 없음</b></span>' in block
-    assert block.count("data-pp-card ") == 5  # 카드는 그대로
+    assert block.count("data-pp-card ") == 4  # 카드는 그대로(내가 담은 1장만 '내 공정' 탭으로 — 2026-11-28 흐름)
 
 
 def _wait_order(name: str, off: int, **sd_extra) -> Order:

@@ -62,7 +62,7 @@ def test_part_account_first_response_has_only_chosen_day_and_day_fragment_brings
     _login(client, me)
     html = _get(client, HOME)
     assert _pane_keys(html) == [_day(1)]
-    assert html.count('data-pp-pane="') == 1 and html.count("data-pp-card ") == 5
+    assert html.count('data-pp-pane="') == 1 and html.count("data-pp-card ") == 4  # 5장 중 내가 담은 1장은 '내 공정' 탭(2026-11-28 흐름)
     assert 'data-key="om/' not in html  # 다른 날 카드 0(미리 보기 줄은 카드가 아니다)
     assert html.count('data-foms-home-daybtn="') == 15  # 띠 단추 · 숫자는 그대로 다 있다
     later_btn = re.search(rf'data-foms-home-daybtn="{_day(2)}".*?</a>', html, re.S).group(0)

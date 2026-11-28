@@ -19,7 +19,7 @@ import pytest
 
 from tests.domains.test_production_multi_holder_board import _act, _card, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_factory_seed import HOME_NONE
-from tests.support.production_part_claim_seed import login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import keep_mine_on_date_board, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
 JS = ROOT / "static/js/production"
@@ -151,7 +151,8 @@ def test_lead_done_drawing_viewer_shows_card_done_line(client, cohort, tmp_path)
     assert [p for p, _ in _acts(out[4])] == ["basic", "take", "check"]
 
 
-def test_part_account_viewer_adds_only_own_done_line(client, cohort, tmp_path):
+def test_part_account_viewer_adds_only_own_done_line(client, cohort, tmp_path, monkeypatch):
+    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     park, _oh, _lead, order = _seed(client)
     html = _page(client, park)
     out = _viewer(html, tmp_path, [{"do": "open", "no": n} for n in (1, 2, 4, 5, 7)])
