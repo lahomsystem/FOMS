@@ -34,6 +34,10 @@ __all__ = [
 #: ``orders/{order_id}/`` 바로 뒤에 올 수 있는 첫 subfolder segment 화이트리스트.
 #: 프론트 실사용 folder(attachments/measurement/drawing/drawing_gateway/blueprint/
 #: construction/as) 를 근거로 확정한다. 그 외 값은 arbitrary folder 로 거부한다.
+#: ``production``(생산 — 설계서 2026-11-28 생산 도면 펜 기록 §5-1): 이 집합을 쓰는 곳은 셋이다 — ① 이 모듈의 folder · key 검증
+#: (``orders/<id>/production`` 이 분류 '생산'으로 풀리고 권한은 아래 정책이 본다), ② ``upload_ticket._derive_object_key`` 의
+#: 서버 key 폴더(없으면 '생산' 표가 ``attachments/`` 로 가서 완료 때 분류가 '실측'으로 풀린다), ③ ``drawing_key_safety`` 의
+#: "자기 주문 폴더"(없으면 '생산' 그림은 첨부를 지워도 저장소에서 영영 안 지워진다 — 지금 첨부 · 도면 기록이 쓰는 key 는 그대로 남긴다).
 ALLOWED_UPLOAD_SUBFOLDERS = frozenset({
     "attachments",
     "measurement",
@@ -42,6 +46,7 @@ ALLOWED_UPLOAD_SUBFOLDERS = frozenset({
     "blueprint",
     "construction",
     "as",
+    "production",
 })
 
 #: 깊은 segment(예: drawing_gateway/**revisions**, 서버 생성 파일명)에 허용되는 문자.
@@ -53,11 +58,14 @@ _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 #:   - drawing(도면): DRAWING team ∪ CS/SALES(gateway 는 ERP_EDIT 로 CS/SALES 가 실사용).
 #:   - construction/as(시공·AS): CS/SALES/CONSTRUCTION.
 #:   - measurement/general(실측·일반): 전 STAFF(현행 유지, 비파괴).
+#:   - production(생산 — 펜 기록 합친 그림, 설계서 2026-11-28 §5-2 · 17번 답 "생산팀 · 관리자만"): 생산 쓰기 정책 하나.
+#:     안 넣으면 기본값(전 STAFF)이 된다.
 _CATEGORY_POLICIES: dict[str, tuple[str, ...]] = {
     "drawing": ("DRAWING_TEAM", "ERP_EDIT"),
     "construction": ("CONSTRUCTION_EDIT",),
     "as": ("CONSTRUCTION_EDIT",),
     "measurement": ("STAFF_MUTATION",),
+    "production": ("PRODUCTION_EDIT",),
 }
 _DEFAULT_CATEGORY_POLICIES: tuple[str, ...] = ("STAFF_MUTATION",)
 

@@ -179,6 +179,7 @@ def _queue_preview_item_from_attachment(att) -> dict[str, str] | None:
         "drawing": "도면",
         "construction": "시공",
         "as": "AS",
+        "production": "생산",
     }
     label = filename or category_labels.get(cat, "첨부")
     storage_key = (getattr(att, "storage_key", None) or "").strip()
@@ -491,6 +492,7 @@ def _mobile_attachment_item_dict(att) -> dict[str, Any]:
         "drawing": "도면",
         "construction": "시공",
         "as": "AS",
+        "production": "생산",
     }
     cat = (att.category or "measurement").lower()
     label = att.filename or category_labels.get(cat, cat)

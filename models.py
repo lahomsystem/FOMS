@@ -359,7 +359,7 @@ class OrderAttachment(Base):
 
     filename = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # image / video
-    category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction / as
+    category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction / as / production
     item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통, legacy provenance)
     # ITEM-ID-00: 아이템 결합 SSOT = 안정 UUID(order_item_identities.id). item_index 는
     # legacy positional provenance 로만 남고, 결합/authz 판정은 이 UUID 를 쓴다. expand
@@ -627,6 +627,50 @@ class ProductionPartMark(Base):
         # 사람 손 없이 끝낸 줄(BASIC)은 재단('기본' — D49) · 조립('조립 없음' — 사장님 2026-11-28 "조립만")에만 있다.
         # 글 · 이름은 마이그레이션 ``prodpart_03_basic_parts`` 와 글자 단위로 같다(옛 이름 ``…_basic_cut`` = 재단만).
         CheckConstraint("state <> 'BASIC' OR part IN ('cut', 'assemble')", name='ck_production_part_marks_basic_part'),
+    )
+
+
+class ProductionDrawingNote(Base):
+    """PRODPEN-01: 확정 도면 한 장에 생산팀이 펜으로 적은 기록 원본(설계서 2026-11-28 생산 도면 펜 기록 §3-1 · §3-2).
+
+    :class:`ProductionPartMark` 와 같은 꼴(주문 + 도면 key 로 한 줄)이고, 주문 ``structured_data`` 밖에 두는 까닭도 같다 — 주문 폼
+    저장(``PUT /api/orders/<id>/structured``)이 연 순간의 사본을 통째로 되실어 기록을 지울 수 없고, 주문을 읽을 때 선 좌표가 딸려 오지 않는다.
+
+    * ``drawing_key`` = 그 도면의 저장 key(``drawing_current_files[].key`` — 올릴 때마다 새 이름). 도면이 바뀌면 새 key 라 기록이
+      저절로 없고, 옛 key 줄은 '바뀌기 전 기록'으로 남는다(4번 답 "옛 기록은 따로 남김" — 바뀌는 순간에 쓰는 코드는 없다).
+    * ``objects`` = 기록 목록(펜 · 화살표 · 글 — 위자드 저장 꼴과 칸 이름이 같다). 좌표 기준은 ``base_w`` × ``base_h``.
+    * ``version`` = 저장할 때마다 +1(둘이 같이 고칠 때 견준다). ``attachment_id`` = 지금 합친 그림(주문 첨부 '생산' 분류).
+    * 이름 칸(``updated_by_name``)은 저장 때 스냅샷이다 — 사용자가 지워져도(FK SET NULL) 이름은 남는다.
+    * 주문이 하드 삭제되면 같이 지워진다(``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
+
+    DDL(이름 · 칸 · 제약)은 마이그레이션 ``prodpen_01_pen_record`` 와 같아야 한다(PG 왕복 시험이 강제). 읽고 쓰는 곳은
+    ``foms/services/production`` 의 펜 기록 모듈(쓰기 문 :mod:`foms.services.production.pen_record`).
+    """
+
+    __tablename__ = 'production_drawing_notes'
+
+    # SQLite 는 ``BIGINT PRIMARY KEY`` 를 rowid 별칭으로 보지 않아 자동증가가 죽는다 — 그 레인에서만 INTEGER(표시 표와 같음).
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False)
+    drawing_key = Column(String(500), nullable=False)
+    sheet_id = Column(String(64), nullable=True)
+    drawing_no = Column(Integer, nullable=True)
+    # none_as_null: 파이썬 None 을 JSON 'null' 이 아니라 SQL NULL 로 쓴다(표시 표 holders 와 같은 꼴) — NOT NULL 이라 None 은 거부된다.
+    objects = Column(JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), 'postgresql'), nullable=False)
+    base_w = Column(Integer, nullable=False)
+    base_h = Column(Integer, nullable=False)
+    version = Column(Integer, nullable=False, default=1, server_default='1')
+    attachment_id = Column(Integer, ForeignKey('order_attachments.id', ondelete='SET NULL'), nullable=True)
+    updated_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    updated_by_name = Column(String(120), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
+                        server_default=func.now())
+    created_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 장 하나에 한 줄. 앞머리 order_id 라 ``order_id IN (…)`` 읽기 색인도 겸한다.
+        UniqueConstraint('order_id', 'drawing_key', name='uq_production_drawing_notes_order_key'),
     )
 
 
@@ -1666,6 +1710,11 @@ class User(Base):
     # 관리자 화면은 2공장만 적고 1공장은 비운다(NULL — 저장해도 헛바뀜이 없게), 생산팀이 아니면 저장 때 비운다. 관리자는 칸과 상관없이
     # 두 공장. 세션은 안 끊는다(요청마다 이 행을 읽는다). 읽는 쪽은 factory_constants.account_production_factory · part_access.
     production_factory = Column(SmallInteger, nullable=True)
+    # PRODPEN-01(설계서 2026-11-28 생산 도면 펜 기록 §4-1): 펜 기록 쓰기 · 생산 기록 먼저 보기 — 관리자가 체크한 계정만(3 · 5번 답
+    # "따로 정한 사람만" · "따로 정함"). 반장 칸과 같은 꼴(NULL · 거짓 = 꺼짐, 기본값 · 색인 · 채우기 없음). 생산팀 · 관리자(ADMIN)가 아니면
+    # 저장 때 비운다(13번 답 "관리자도 칸을 켜야 씀"). 읽는 쪽은 part_constants.account_pen_write · account_pen_first.
+    production_pen_write = Column(Boolean, nullable=True)
+    production_pen_first = Column(Boolean, nullable=True)
     # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
     partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
     # SESSION-REVOKE-01: 세션 세대 번호(비밀번호·역할 변경 때 +1 → 모든 세션 끊김)와

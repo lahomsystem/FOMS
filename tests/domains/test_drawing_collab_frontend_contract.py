@@ -51,7 +51,7 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     assert entry.split("erp-dashboard-core.js?v=", 1)[1].split("'", 1)[0] >= "20261120m"
     assert "erp-dashboard-attachments.js?v=20261120m" in entry  # 2026-11-20 교체 대상 카드 640(이전 20261004a 도면 최종본 순서)
     assert "erp-dashboard-gateway.js?v=20261120m" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261125c" in layout
+    assert "erp-dashboard-entry.js') }}?v=20261128p" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

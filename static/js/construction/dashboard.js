@@ -149,12 +149,14 @@
     measurement: { label: '실측', icon: 'fa-ruler-combined' },
     drawing: { label: '도면', icon: 'fa-drafting-compass' },
     construction: { label: '시공', icon: 'fa-hammer' },
-    as: { label: 'AS', icon: 'fa-wrench' }
+    as: { label: 'AS', icon: 'fa-wrench' },
+    // 생산 도면 펜 기록(설계서 2026-11-28 §5) — 그림이 있을 때만 탭이 생긴다(없으면 탭 넷 그대로)
+    production: { label: '생산', icon: 'fa-pen-nib' }
   };
 
   function normalizeAttachmentCategory(category) {
     const c = String(category || '').trim().toLowerCase();
-    if (c === 'drawing' || c === 'construction' || c === 'as') return c;
+    if (c === 'drawing' || c === 'construction' || c === 'as' || c === 'production') return c;
     return 'measurement';
   }
 
@@ -170,7 +172,8 @@
   function renderAttachmentCategoryTabs() {
     const tabsEl = document.getElementById('erp-attachments-category-tabs');
     if (!tabsEl) return;
-    const keys = ['measurement', 'drawing', 'construction', 'as'];
+    const keys = ['measurement', 'drawing', 'construction', 'as', 'production']
+      .filter((key) => key !== 'production' || (__attachmentsByCategory.production || []).length);
     tabsEl.innerHTML = keys.map((key) => {
       const meta = ATTACHMENT_CATEGORY_META[key];
       const count = (__attachmentsByCategory[key] || []).length;

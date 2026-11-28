@@ -4067,12 +4067,13 @@ const ERP_ATTACHMENT_CATEGORY_LABELS = {
     measurement: '실측',
     drawing: '도면',
     construction: '시공',
-    as: 'AS'
+    as: 'AS',
+    production: '생산'  // 생산 도면 펜 기록(설계서 2026-11-28 §5) — 그림이 있을 때만 무리가 생긴다
 };
 
 function erpNormalizeAttachmentCategory(category) {
     const c = String(category || '').trim().toLowerCase();
-    if (c === 'drawing' || c === 'construction' || c === 'as') return c;
+    if (c === 'drawing' || c === 'construction' || c === 'as' || c === 'production') return c;
     return 'measurement';
 }
 
@@ -4521,13 +4522,13 @@ function erpRenderAttachments() {
         return;
     }
 
-    const grouped = { measurement: [], drawing: [], construction: [], as: [] };
+    const grouped = { measurement: [], drawing: [], construction: [], as: [], production: [] };
     items.forEach((a) => {
         const key = erpNormalizeAttachmentCategory(a.category);
         grouped[key].push(Object.assign({}, a, { category: key }));
     });
 
-    const order = ['measurement', 'drawing', 'construction', 'as'];
+    const order = ['measurement', 'drawing', 'construction', 'as', 'production'];
 
     if (isMobileLayout) {
         const sections = order
@@ -4615,6 +4616,7 @@ style="height: 220px;">
     wrap.innerHTML = order.map((key) => {
         const list = grouped[key] || [];
         const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
+        if (!list.length && key === 'production') return '';  // '생산'은 그림이 있을 때만(빈 무리를 그리지 않는다)
         if (!list.length) {
             return `
 <div class="col-12">
@@ -4757,7 +4759,7 @@ function erpBuildAttachmentFullscreenPayload(attachmentId) {
     const targetId = Number(attachmentId);
     // 갤러리는 measurement→drawing→construction→as 로 묶어 그린다(erpRenderAttachments).
     // 화살표 순서가 화면 순서와 어긋나면 사용자가 본 적 없는 순서로 넘어가므로 같은 순서로 세운다.
-    const order = ['measurement', 'drawing', 'construction', 'as'];
+    const order = ['measurement', 'drawing', 'construction', 'as', 'production'];
     const all = Array.isArray(__erpAttachments) ? __erpAttachments : [];
     // 뷰어에는 '교체됨' 표시가 없다 — 누른 첨부와 같은 무리(현재 / 교체된 옛 도면)만 넘김 목록에
     // 담아 표시 없이 옛 도면으로 넘어가지 않게 한다(R4).

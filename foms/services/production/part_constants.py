@@ -13,6 +13,8 @@ D49 재단 상태 넷 · D51/D52 배지 색).
   :func:`account_production_parts` 를 거친다(생산팀이 아니면 빈 것).
 * 반장(설계서 2026-11-23 '승인 때 고친 것' 5) = 생산팀 계정에서 관리자가 체크한 사람(``users.production_lead``) —
   :func:`account_production_lead`. 파트와 따로다(반장이 파트를 가져도 된다).
+* 펜 기록 칸 둘(설계서 2026-11-28 펜 기록 §4-1) = '펜 기록 쓰기' · '생산 기록 먼저 보기'(``users.production_pen_write`` ·
+  ``production_pen_first``) — :func:`account_pen_write` · :func:`account_pen_first`. 반장과 달리 관리자(ADMIN)도 칸을 가진다.
 * 계정마다 파트 0 ~ 4개(설계서 ``docs/specs/2026-11-23-production-self-claim-and-factory2_SPEC.md`` §4-12 · §6-1, P2).
   새 칸 ``users.production_parts``(목록)가 기준이고, 옛 칸 ``production_part`` 는 한 판 동안 첫 파트를 같이 적는다
   (:func:`production_part_columns` — 되돌린 옛 코드가 맞는 파트를 읽게). 둘이 어긋나면 옛 코드가 나중에 고친 것이라
@@ -253,6 +255,47 @@ def account_production_lead(user: Any) -> bool:
         생산팀 + 반장 칸 참이면 True.
     """
     return user is not None and team_can_hold_production_part(getattr(user, "team", None)) and stored_production_lead(user)
+
+
+def pen_account_eligible(team: Optional[str], role: Optional[str]) -> bool:
+    """펜 기록 칸 둘(설계서 2026-11-28 펜 기록 §4-1)을 가질 수 있는 계정인지 — 생산팀 또는 관리자(ADMIN, 13번 답 "관리자도 칸을 켜야 씀").
+
+    반장 칸(:func:`production_lead_for_team`)은 생산팀만이지만 이 칸 둘은 관리자도 켤 수 있어야 해서 역할을 같이 본다.
+    """
+    return team_can_hold_production_part(team) or str(role or "").strip().upper() == "ADMIN"
+
+
+def pen_flag_for(team: Optional[str], role: Optional[str], checked: bool) -> Optional[bool]:
+    """저장할 펜 기록 칸 하나(쓰기 · 먼저 보기 같은 규칙) — 켰고 생산팀 · 관리자면 참, 아니면 None(NULL = 꺼짐).
+
+    Args:
+        team: 같이 저장할 팀 글.
+        role: 같이 저장할 역할 글.
+        checked: 관리자 화면의 체크칸이 켜졌는지(화면에 칸이 없을 때는 지금 값).
+
+    Returns:
+        ``True`` 또는 None — 다른 팀(관리자 아님)이면 켰어도 비운다(팀 · 역할을 바꾸면 같이 비워진다).
+    """
+    return True if checked and pen_account_eligible(team, role) else None
+
+
+def _account_pen_flag(user: Any, column: str) -> bool:
+    if user is None or getattr(user, column, None) is not True:
+        return False
+    return pen_account_eligible(getattr(user, "team", None), getattr(user, "role", None))
+
+
+def account_pen_write(user: Any) -> bool:
+    """계정의 '펜 기록 쓰기' 칸이 켜졌는지 — 생산팀 · 관리자이고 칸이 참(이미 읽은 행, 쿼리 0).
+
+    쓰기 문 전체(스위치 · 생산 쓰기 권한 · 활성)는 :func:`foms.services.production.pen_record.can_write` 가 본다.
+    """
+    return _account_pen_flag(user, "production_pen_write")
+
+
+def account_pen_first(user: Any) -> bool:
+    """계정의 '생산 기록 먼저 보기' 칸이 켜졌는지 — 생산팀 · 관리자이고 칸이 참(쿼리 0). 화면 판정은 ``pen_record.sees_note_first``."""
+    return _account_pen_flag(user, "production_pen_first")
 
 
 def production_part_label(part: Optional[str]) -> Optional[str]:

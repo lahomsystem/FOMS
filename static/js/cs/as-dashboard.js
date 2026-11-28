@@ -2768,11 +2768,13 @@
         measurement: { label: '실측', icon: 'fa-ruler-combined' },
         drawing: { label: '도면', icon: 'fa-drafting-compass' },
         construction: { label: '시공', icon: 'fa-hammer' },
-        as: { label: 'AS', icon: 'fa-wrench' }
+        as: { label: 'AS', icon: 'fa-wrench' },
+        // 생산 도면 펜 기록(설계서 2026-11-28 §5) — 그림이 있을 때만 탭이 생긴다(없으면 탭 넷 그대로)
+        production: { label: '생산', icon: 'fa-pen-nib' }
       };
       function normalizeAttachmentCategory(category) {
         var c = String(category || '').trim().toLowerCase();
-        if (c === 'drawing' || c === 'construction' || c === 'as') return c;
+        if (c === 'drawing' || c === 'construction' || c === 'as' || c === 'production') return c;
         return 'measurement';
       }
       function attachmentCanDelete(a) {
@@ -2789,7 +2791,9 @@
       function renderAttachmentCategoryTabs() {
         var tabsEl = document.getElementById('erp-attachments-category-tabs');
         if (!tabsEl) return;
-        var keys = ['measurement', 'drawing', 'construction', 'as'];
+        var keys = ['measurement', 'drawing', 'construction', 'as', 'production'].filter(function (key) {
+          return key !== 'production' || (__attachmentsByCategory.production || []).length > 0;
+        });
         tabsEl.innerHTML = keys.map(function (key) {
           var meta = ATTACHMENT_CATEGORY_META[key];
           var count = (__attachmentsByCategory[key] || []).length;

@@ -2830,7 +2830,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "add_user",
-      "lineno": 960,
+      "lineno": 986,
       "methods": [
         "POST"
       ],
@@ -2839,7 +2839,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 1268,
+      "lineno": 1299,
       "methods": [
         "POST"
       ],
@@ -2848,7 +2848,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 1192,
+      "lineno": 1223,
       "methods": [
         "POST"
       ],
@@ -2857,7 +2857,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "edit_user",
-      "lineno": 1033,
+      "lineno": 1062,
       "methods": [
         "POST"
       ],
@@ -2866,7 +2866,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 1365,
+      "lineno": 1397,
       "methods": [
         "POST"
       ],
@@ -2875,7 +2875,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "login",
-      "lineno": 469,
+      "lineno": 478,
       "methods": [
         "POST"
       ],
@@ -2884,7 +2884,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "logout",
-      "lineno": 561,
+      "lineno": 570,
       "methods": [
         "POST"
       ],
@@ -2893,7 +2893,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "password_reset_request",
-      "lineno": 774,
+      "lineno": 783,
       "methods": [
         "POST"
       ],
@@ -2902,7 +2902,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1413,
+      "lineno": 1445,
       "methods": [
         "POST"
       ],
@@ -2911,7 +2911,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "register",
-      "lineno": 669,
+      "lineno": 678,
       "methods": [
         "POST"
       ],
@@ -2920,7 +2920,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 1329,
+      "lineno": 1361,
       "methods": [
         "POST"
       ],
@@ -2929,7 +2929,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_back",
-      "lineno": 640,
+      "lineno": 649,
       "methods": [
         "POST"
       ],
@@ -2938,7 +2938,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_user",
-      "lineno": 587,
+      "lineno": 596,
       "methods": [
         "POST"
       ],

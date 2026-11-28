@@ -34,6 +34,7 @@ CATEGORY_LABELS = {
     "drawing": "Drawing",
     "construction": "Construction",
     "as": "AS",
+    "production": "Production",
 }
 
 CATEGORY_PRIORITY = {
@@ -43,6 +44,7 @@ CATEGORY_PRIORITY = {
     "drawing": 30,
     "construction": 40,
     "as": 50,
+    "production": 60,
 }
 
 

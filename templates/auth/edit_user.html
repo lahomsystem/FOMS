@@ -106,6 +106,21 @@
                 <label class="form-check-label" for="production_lead">반장</label>
                 <div class="form-text">반장은 모든 파트 도면을 대신 처리하고 공정을 직접 체크할 수 있어요.</div>
             </div>
+            {# 펜 기록 칸 둘(설계서 2026-11-28 생산 도면 펜 기록 §4-2) — 스위치(flag_pen_record)가 꺼지면 묶음이 없다(저장은 지금 값을 지킨다).
+               생산팀 · 관리자일 때만 뜻이 있다(13번 답 "관리자도 칸을 켜야 씀" — 그 밖 팀이면 저장할 때 비운다). #}
+            {% if flag_pen_record %}
+            <input type="hidden" name="production_pen_fields" value="1">
+            <div class="mb-3 form-check" data-production-pen-field>
+                <input class="form-check-input" type="checkbox" id="production_pen_write" name="production_pen_write"{% if user.production_pen_write %} checked{% endif %}>
+                <label class="form-check-label" for="production_pen_write">펜 기록 쓰기</label>
+                <div class="form-text">켠 사람만 도면에 펜으로 적을 수 있어요. 생산팀 · 관리자일 때만 쓰여요.</div>
+            </div>
+            <div class="mb-3 form-check" data-production-pen-field>
+                <input class="form-check-input" type="checkbox" id="production_pen_first" name="production_pen_first"{% if user.production_pen_first %} checked{% endif %}>
+                <label class="form-check-label" for="production_pen_first">생산 기록 먼저 보기</label>
+                <div class="form-text">켠 사람은 생산 기록이 든 도면이 먼저 보여요. 생산팀 · 관리자일 때만 쓰여요.</div>
+            </div>
+            {% endif %}
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if user.is_active
                     %}checked{% endif %} autocomplete="off">

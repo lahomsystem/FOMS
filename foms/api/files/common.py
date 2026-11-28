@@ -16,7 +16,9 @@ from models import OrderAttachment
 
 
 DRAWING_ATTACHMENT_EXTRA_EXTENSIONS = {"pdf", "zip", "dwg", "dxf"}
-ATTACHMENT_CATEGORIES = ("measurement", "drawing", "construction", "as")
+#: 주문 첨부 분류. "production"(생산) = 생산 도면 펜 기록의 합친 그림(설계서 2026-11-28 §5) — 손으로 올리기는 생산팀 · 관리자만
+#: (``upload_authz._CATEGORY_POLICIES``). 폴더 ``orders/<id>/production`` 풀이(:func:`resolve_attachment_category`)도 이 튜플을 탄다.
+ATTACHMENT_CATEGORIES = ("measurement", "drawing", "construction", "as", "production")
 
 
 def _att_key(att: OrderAttachment, key: str) -> str | None:

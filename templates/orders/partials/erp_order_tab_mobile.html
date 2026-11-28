@@ -332,6 +332,8 @@ ERP Order mobile-v2 tab pane.
                                         <option value="drawing">도면</option>
                                         <option value="construction">시공</option>
                                         <option value="as">AS</option>
+                                        {# 생산 도면 펜 기록의 합친 그림 분류(설계서 2026-11-28 §5) — 스위치가 꺼지면 항목이 없다(서버는 분류 값을 받고, 올리기는 생산팀 · 관리자만) #}
+                                        {% if flag_pen_record %}<option value="production">생산</option>{% endif %}
                                     </select>
                                 </div>
                                 <div class="field">

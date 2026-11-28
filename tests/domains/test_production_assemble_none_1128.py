@@ -302,7 +302,9 @@ def test_migration_chains_after_holders_and_stays_one_head():
     assert (module.revision, module.down_revision) == ("prodpart_03_basic_parts", "prodpart_02_holders")
     config = Config()
     config.set_main_option("script_location", str(ROOT / "migrations"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["prodpart_03_basic_parts"]
+    script = ScriptDirectory.from_config(config)
+    heads = script.get_heads()  # 뒤 마이그레이션(prodpen_01_pen_record · …)이 이 위에 이어도 머리는 하나
+    assert len(heads) == 1 and "prodpart_03_basic_parts" in {r.revision for r in script.iterate_revisions(heads[0], "base")}
     assert "import models" not in (VERSIONS / "prodpart_03_basic_parts.py").read_text(encoding="utf-8")  # 상수 동결
 
 

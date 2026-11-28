@@ -49,6 +49,7 @@ from foms.services.production.part_constants import (
     account_production_lead,
     account_production_parts,
     normalize_production_parts,
+    pen_flag_for,
     production_lead_for_team,
     production_part_columns,
     production_parts_label,
@@ -216,9 +217,13 @@ def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | 
 # 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자). 생산 파트는 목록 칸 하나로 본다(옛 칸
 # production_part 는 첫 파트를 같이 적는 사본이라 따로 감사하지 않는다 — 설계서 2026-11-23 §8-6). 반장은 '승인 때 고친 것' 5.
 _AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active', 'sender_phone',
-                        'channel_drawing_group_id', 'production_parts', 'production_lead', 'production_factory')
-#: 감사 글에서 사람 말로 적는 칸(그 밖 칸은 ``field from→to`` 그대로). 공장은 설계서 2026-11-23 §6-2 · §8-6.
-_AUDIT_FIELD_LABELS = {'production_parts': '생산 파트', 'production_lead': '반장', 'production_factory': '공장'}
+                        'channel_drawing_group_id', 'production_parts', 'production_lead', 'production_factory',
+                        'production_pen_write', 'production_pen_first')
+#: 감사 글에서 사람 말로 적는 칸(그 밖 칸은 ``field from→to`` 그대로). 공장은 설계서 2026-11-23 §6-2 · §8-6, 펜 기록 둘은 2026-11-28 §4-2.
+_AUDIT_FIELD_LABELS = {'production_parts': '생산 파트', 'production_lead': '반장', 'production_factory': '공장',
+                       'production_pen_write': '펜 기록 쓰기', 'production_pen_first': '생산 기록 먼저 보기'}
+#: 펜 기록 칸 둘(체크칸 이름 = 사용자 칸 이름). 켬 · 끔으로 감사한다(NULL = 끔 — 헛바뀜 없게).
+_PEN_FIELDS = ('production_pen_write', 'production_pen_first')
 
 
 def _user_audit_snapshot(user):
@@ -234,6 +239,8 @@ def _user_audit_snapshot(user):
     snapshot['production_parts'] = list(stored_production_parts(user)) or None
     snapshot['production_lead'] = stored_production_lead(user)
     snapshot['production_factory'] = stored_production_factory(user)  # NULL = 1공장(헛바뀜 없게 1 · 2 로)
+    for field in _PEN_FIELDS:  # NULL = 끔(반장과 같은 까닭)
+        snapshot[field] = getattr(user, field, None) is True
     return snapshot
 
 
@@ -248,6 +255,8 @@ def _format_audit_value(value, field=None):
         return '지정' if value is True else '해제'
     if field == 'production_factory':  # "공장 1공장 → 2공장"
         return factory_label(value)
+    if field in _PEN_FIELDS:  # "펜 기록 쓰기 끔 → 켬"
+        return '켬' if value is True else '끔'
     if value is None or value == '' or value == []:
         return '미지정'
     if field == 'production_parts':
@@ -814,6 +823,23 @@ def _production_lead_from_form(team: str | None) -> bool | None:
     return production_lead_for_team(team, request.form.get('production_lead') == 'on')
 
 
+def _pen_flags_from_form(team: str | None, role: str | None, user: Any = None) -> tuple[bool | None, bool | None]:
+    """폼의 펜 기록 체크칸 둘 → 저장할 두 칸(설계서 2026-11-28 펜 기록 §4-2). 생산팀 · 관리자(ADMIN)만 지키고 그 밖은 비운다.
+
+    체크칸 묶음은 스위치(``FOMS_PRODUCTION_PEN_RECORD``)가 켜졌을 때만 화면에 있고 표지 ``production_pen_fields`` 를 같이 보낸다.
+    표지도 칸 이름도 없으면(스위치 꺼짐 · 배포 전에 열어 둔 화면 · 가입 승인 줄) 체크를 끈 것이 아니라 칸이 없는 것이라 지금 값을
+    지킨다 — 같은 규칙으로 걸러 팀 · 역할을 바꾸면 같이 비워진다. 새 계정(``user`` None)은 꺼짐.
+
+    :param team: 같이 저장할 팀 글.
+    :param role: 같이 저장할 역할 글.
+    :param user: 고치는 :class:`~models.User`(추가면 None).
+    :return: ``(펜 기록 쓰기, 생산 기록 먼저 보기)`` — 각각 ``True`` 또는 None.
+    """
+    shown = 'production_pen_fields' in request.form or any(field in request.form for field in _PEN_FIELDS)
+    checked = [(request.form.get(field) == 'on') if shown else (getattr(user, field, None) is True) for field in _PEN_FIELDS]
+    return pen_flag_for(team, role, checked[0]), pen_flag_for(team, role, checked[1])
+
+
 def _production_factory_from_form(team: str | None) -> int | None:
     """폼의 '공장' 고르기 → 저장할 계정 공장(설계서 2026-11-23 §6-2 · §8-6). 2공장만 적고 1공장 · 다른 팀은 비운다(NULL = 1공장).
 
@@ -995,6 +1021,7 @@ def add_user():
 
         try:
             db = get_db()
+            pen_write, pen_first = _pen_flags_from_form(team, role)  # 펜 기록 칸 둘(생산팀 · 관리자만)
 
             # Create new user with a policy-versioned strong password (records STRONG).
             new_user = User(
@@ -1006,6 +1033,8 @@ def add_user():
                 production_parts=production_parts,
                 production_lead=_production_lead_from_form(team),
                 production_factory=production_factory,
+                production_pen_write=pen_write,
+                production_pen_first=pen_first,
                 is_active=True
             )
             set_strong_password(new_user, password)
@@ -1127,6 +1156,8 @@ def edit_user(user_id):
             # 파트만 바뀌면 세션을 끊지 않는다(위 bump 는 역할 · 팀만 본다 — 설계서 §15.3). 두 칸을 같이 쓴다(옛 칸 = 첫 파트).
             user.production_parts, user.production_part = production_parts, production_part
             user.production_lead = _production_lead_from_form(team)  # 반장(생산팀만 — 팀을 바꾸면 같이 비움)
+            # 펜 기록 칸 둘(생산팀 · 관리자만 — 팀 · 역할을 바꾸면 같이 비움, 칸이 화면에 없으면 지금 값)
+            user.production_pen_write, user.production_pen_first = _pen_flags_from_form(team, role, user)
             user.production_factory = production_factory  # 공장(2공장만 적음, 생산팀만 — 설계서 2026-11-23 §6-2)
             user.is_active = is_active
             # SHARE-SMS(D2): 개인 발신번호 — 숫자만 격납(하이픈 제거), 빈 값은 NULL(대표번호 폴백).
@@ -1300,6 +1331,7 @@ def approve_user(user_id):
         user.team = team
         user.production_parts, user.production_part = production_parts, production_part
         user.production_lead = _production_lead_from_form(team)
+        user.production_pen_write, user.production_pen_first = _pen_flags_from_form(team, role, user)
         user.approval_status = APPROVAL_ACTIVE
         # 승인은 권한 부여 행위다 — 무엇이 무엇으로 바뀌었는지 field 별로 남긴다.
         audit_after = _user_audit_snapshot(user)
