@@ -47,6 +47,9 @@ PART_ACCOUNT_STEPS_CODE = "PART_ACCOUNT_USE_CARDS"
 #: 파트도 반장도 아닌 생산팀 계정이 공정 칸을 쓰려 할 때의 글(403 ``LEAD_REQUIRED`` · 시트 단추 아래 한 줄, '승인 때 고친 것' 5).
 LEAD_ONLY_STEPS_MESSAGE = "반장으로 지정된 계정만 작업할 수 있어요."
 LEAD_ONLY_STEPS_CODE = "LEAD_REQUIRED"
+#: 반장도 관리자도 아닌 생산팀이 [완료 취소] · [수정 제작]을 누를 때의 글(403 ``LEAD_REQUIRED`` — :func:`can_revert_completed`).
+UNCOMPLETE_LEAD_ONLY_MESSAGE = "[완료 취소]는 반장이나 관리자만 할 수 있어요."
+REWORK_LEAD_ONLY_MESSAGE = "[수정 제작]은 반장이나 관리자만 할 수 있어요."
 
 
 @dataclass(frozen=True)
@@ -171,6 +174,19 @@ def can_override_marks(user: Any) -> bool:
         보기 모드가 관리자 또는 대신이면 True.
     """
     return part_view_mode(user) in (VIEW_ADMIN, VIEW_SUB)
+
+
+def can_revert_completed(user: Any) -> bool:
+    """제작 완료한 주문을 되돌릴 수 있는지 — [완료 취소] · [수정 제작]은 반장 · 관리자만(사장님 2026-11-28 "파트 계정은 제작 완료 ·
+    보류까지"). PC [완료 처리]를 막는 것과 같은 판정(:func:`can_override_marks`)이고, 두 API 403 과 작업 시트 단추가 이 함수 하나를 본다.
+
+    Args:
+        user: 사용자 객체(None 허용).
+
+    Returns:
+        관리자 · 반장이면 True. 파트 계정 · 파트도 반장도 아닌 생산팀(매니저 등급 포함)은 False.
+    """
+    return can_override_marks(user)
 
 
 def steps_lock(user: Any) -> Optional[StepsLock]:

@@ -94,13 +94,16 @@ def test_write_api_matrix(client, name, role, team, write, view):
 
 @pytest.mark.parametrize("role", ["STAFF", "MANAGER"])
 def test_production_account_without_lead_keeps_other_writes(client, role):
-    """파트도 반장도 아닌 생산팀 — 공정 칸(steps)만 403 ``LEAD_REQUIRED``, 그 밖 일곱은 지금 권한 그대로 문을 지난다."""
+    """파트도 반장도 아닌 생산팀 — 공정 칸(steps) · 완료 취소 · 수정 제작만 403 ``LEAD_REQUIRED``(뒤 둘은 사장님 2026-11-28
+    "반장과 관리자만"), 그 밖 다섯은 지금 권한 그대로 문을 지난다."""
     login(client, make_user(f"pw_nolead_{role}", role, "PRODUCTION"))
     order_id = make_order().id
     for path, body in WRITE_ENDPOINTS:
         resp = client.post(f"/api/orders/{order_id}/production/{path}", json=body)
         if path == "steps":
             assert resp.status_code == 403 and resp.get_json()["data"] == {"code": "LEAD_REQUIRED"}, resp.get_json()
+        elif path in ("rework", "uncomplete"):
+            assert resp.status_code == 403 and resp.get_json()["code"] == "LEAD_REQUIRED", (role, path, resp.get_json())
         else:
             assert resp.status_code != 403, (role, path, resp.get_json())
 

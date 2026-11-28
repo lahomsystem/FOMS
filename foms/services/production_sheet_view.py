@@ -47,7 +47,7 @@ from foms.services.production_home_read_model import (
     production_home_stage,
     production_home_steps,
 )
-from foms.services.production.part_access import steps_lock
+from foms.services.production.part_access import can_revert_completed, steps_lock
 from foms.services.production.part_marks_query import order_marks
 from foms.services.production.part_progress import complete_ready, parts_progress, step_api_extras
 from foms.services.production.sheet_parts import sheet_part_extras
@@ -333,7 +333,8 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
         # · 반장에게 장이 모두 남의 공장인 주문(비평 C02 — 공정 API 403 OTHER_FACTORY 와 같은 판정, 글 = 남의 공장 카드 글)
         lock = steps_lock(user)
         note = lock.message if lock else steps_factory_note(user, sd)
-        sheet.update(steps_locked=bool(note), steps_locked_note=note or '')
+        # [완료 취소] · [수정 제작] 단추 = 반장 · 관리자만(사장님 2026-11-28 — 두 API 403 LEAD_REQUIRED 와 같은 함수). 파트 계정에게는 안 그린다
+        sheet.update(steps_locked=bool(note), steps_locked_note=note or '', can_revert=can_revert_completed(user))
         # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4, 쿼리 0). 없으면 None
         sheet['fix_confirm'] = confirm_extras(sd).get('fix')
         sheet['dw_wait'] = _drawing_wait(db, order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7 · 알림 켬이면 +1)
