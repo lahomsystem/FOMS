@@ -1,7 +1,7 @@
 /**
  * 긴급(P0) 전체화면 빨간 창 공용 모듈 — SPEC docs/specs/2026-10-02-urgent-alert-everywhere_SPEC.md.
  * 공개 계약(이름 고정 — standalone 브리지가 부른다): handle(data) · show(data) · bindSocket(socket)
- *   · resync(reason) · openFromPush(notificationId). 대기열로 한 건씩, notification_id 로 중복 제거,
+ *   · resync(reason) · openFromPush(notificationId) · dismiss(notificationId). 대기열로 한 건씩, notification_id 로 중복 제거,
  *   BroadcastChannel('foms-urgent') 로 탭 간 ack 동기. "확인" 버튼 하나로만 닫힌다(배경·Esc 무시).
  */
 (function () {
@@ -201,13 +201,12 @@
   try {
     if (typeof window.BroadcastChannel === 'function') channel = new BroadcastChannel(CHANNEL_NAME);
   } catch (e) { channel = null; } // 미지원·차단 환경 — 동기만 빠진다.
+  // 다른 곳에서 확인 · 닫힌 건 빼기 — 다른 탭(통로)과 같은 창의 서버 닫음(생산 알람 floor_closed: 바로 빼야 소리가 먼저 그친다)
+  function dismiss(id) { id = norm(id); if (!id) return; acked[id] = true; removeId(id); }
   if (channel) {
     channel.onmessage = function (event) {
       var msg = event && event.data;
-      var id = msg && msg.type === 'ack' ? idOf(msg) : '';
-      if (!id) return;
-      acked[id] = true;
-      removeId(id);
+      if (msg && msg.type === 'ack') dismiss(idOf(msg));
     };
   }
 
@@ -270,7 +269,7 @@
     socket.on('connect', function () { resync('socket-connect'); });
   }
 
-  window.FOMSUrgentAlert = { show: show, handle: handle, bindSocket: bindSocket, resync: resync, openFromPush: openFromPush };
+  window.FOMSUrgentAlert = { show: show, handle: handle, bindSocket: bindSocket, resync: resync, openFromPush: openFromPush, dismiss: dismiss };
   // 호환 별칭: 예전 인라인 함수 이름으로 부르는 곳이 남아 있어도 같은 창을 쓴다.
   window.triggerUrgentBriefingAlert = function (d) {
     return window.FOMSUrgentAlert.show(Object.assign({ urgent: true }, d));

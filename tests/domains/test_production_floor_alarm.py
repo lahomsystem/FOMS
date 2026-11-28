@@ -93,7 +93,7 @@ def test_give_to_someone_alarms_receiver_and_previous_holder(crew, monkeypatch):
     (new,), (stop,) = alarms(crew["oh"].id), alarms(crew["kim"].id)
     assert (new.notification_type, new.is_urgent, new.target_type) == (T.NEW_GIVEN, True, "USER")
     assert new.title == "박반장이 재단 담당을 당신으로 변경했어요"
-    assert new.message == "11/30 시공 · 정하늘 · 도면 2번\n[확인]을 누르면 그 도면이 열려요."
+    assert new.message == "11/30 시공 · 정하늘 · 도면 2번\n[확인]을 누르면 그 주문 도면 칸으로 가요."
     assert (stop.notification_type, stop.is_urgent) == (T.STOP_TAKEN, True)
     assert stop.title == "박반장이 재단 담당을 오재단으로 변경했어요"
     assert stop.message == "11/30 시공 · 정하늘 · 도면 2번 · 하던 작업은 멈춰 주세요."

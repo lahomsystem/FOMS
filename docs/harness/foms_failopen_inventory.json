@@ -5516,7 +5516,7 @@
     },
     {
       "path": "foms/services/production/floor_alarm.py",
-      "lineno": 245,
+      "lineno": 247,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5525,7 +5525,7 @@
     },
     {
       "path": "foms/services/production/floor_alarm.py",
-      "lineno": 270,
+      "lineno": 272,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5534,7 +5534,7 @@
     },
     {
       "path": "foms/services/production/floor_alarm.py",
-      "lineno": 274,
+      "lineno": 276,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

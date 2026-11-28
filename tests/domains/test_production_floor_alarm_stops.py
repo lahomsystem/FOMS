@@ -102,6 +102,19 @@ def test_hold_stops_only_people_working_and_release_closes_it(floor):
     assert alarms(floor["park"].id)[-1].message == f"{WHERE}\n김재단이 보류했어요."  # 사유가 없으면 사유 글도 없다
 
 
+def test_release_sends_the_close_before_the_band_so_the_band_sound_plays(floor):
+    """안 누른 멈춤 창을 닫으며 띠를 보낼 때는 닫기가 먼저 간다(11-28 실측 결함 — 띠가 먼저 가면 화면은 멈춤 소리가 울리는 중이라
+    띠 소리를 건너뛰고 곧이어 창만 닫혀 띠 소리 0회). 되돌리면(띠 먼저) 실패."""
+    order, wire = floor["order"], floor["wire"]
+    fire("hold", order, floor["lead"], reason="자재 기다림")
+    park_stop = alarms(floor["park"].id)[0]
+    wire.sent.clear()
+    fire("hold_released", order, floor["lead"])
+    seen = [("closed", body["notification_ids"]) if body.get("floor_closed") else ("band", body.get("notification_type"))
+            for body in wire.to(floor["park"].id)]
+    assert seen == [("closed", [park_stop.id]), ("band", "PRODUCTION_FLOOR_NOTICE_HOLD_RELEASED")]
+
+
 def _reads_of(kind: str, order, actor, **material) -> tuple[int, int]:
     """그 사건의 ``flush`` 가 낸 (읽기 수, 넣기 수)."""
     floor_alarm.note(db_session, kind, order.id, actor, **material)
