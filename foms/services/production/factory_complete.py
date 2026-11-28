@@ -1,7 +1,9 @@
 """공장마다 제작 완료 API 본문(설계서 2026-11-23 §4-4 · §4-14 · §7 ``POST /api/orders/<id>/production/factory-done``, 3단계 ⑥).
 
 판정 · 쓰기 순서(주문 행 잠금 아래 — 두 공장 마지막 검수가 동시에 와도 한쪽만 '마지막'):
-공장 문(:func:`~foms.services.production.part_access.can_finish_factory` — 403 ``FACTORY_FORBIDDEN``) → 그 공장 장이 있음
+공장 문(:func:`~foms.services.production.part_access.can_finish_factory` — 403 ``FACTORY_FORBIDDEN``) → 완료 취소면 반장 · 관리자
+문(:func:`~foms.services.production.part_access.can_revert_completed` — 403 ``LEAD_REQUIRED`` "[2공장 완료 취소]는 반장이나 관리자만 할
+수 있어요.", 사장님 2026-11-28 · 공장 범위는 앞 문 그대로) → 그 공장 장이 있음
 (409 ``NO_FACTORY_SHEETS``) → 생산 단계(409 ``INVALID_STAGE`` — 이미 시공 대기면 "그사이 윤검수가 제작 완료했어요. …") →
 완료 취소면 그 공장 표지만 지움 → 이미 살아 있으면 같은 사람 200(바뀜 없음) · 다른 사람 409 ``FACTORY_DONE_ALREADY`` → 보류(409
 ``HOLD_ACTIVE``) → 도면 고치는 중(409 ``DRAWING_REVISING`` — 사장님 2026-11-25 "제작 완료도 막기", 보류와 같은 자리 · 같은 꼴 · 글은
@@ -50,7 +52,12 @@ from foms.services.production.order_write_helpers import (
     _steps_incomplete_block,
     _transition_error_response,
 )
-from foms.services.production.part_access import can_finish_factory
+from foms.services.production.part_access import (
+    LEAD_ONLY_STEPS_CODE,
+    can_finish_factory,
+    can_revert_completed,
+    factory_uncomplete_lead_only_message,
+)
 from foms.services.production.part_mark_gates import DRAWING_REVISING, HOLD_MESSAGE, REVISING_MESSAGE
 from foms.services.production.part_mark_rules import subject_particle
 from foms.services.production.part_marks_query import order_marks
@@ -101,6 +108,8 @@ def _factory_gate(db: Any, order: Optional[Order], user: Any, factory: int, done
     if not can_finish_factory(user, factory):
         return _fail(403, "FACTORY_FORBIDDEN", f"{factory_label(factory)} 제작 완료는 {factory_label(factory)} 계정이나 관리자만 할 수 있어요.",
                      factory=factory)
+    if not done and not can_revert_completed(user):  # 공장 완료 취소 = 반장 · 관리자만(사장님 2026-11-28, [완료 취소]와 같은 함수)
+        return _fail(403, LEAD_ONLY_STEPS_CODE, factory_uncomplete_lead_only_message(factory), factory=factory)
     sd = _ensure_dict(order.structured_data)
     if factory not in present_factories(sd):
         return _fail(409, "NO_FACTORY_SHEETS", f"이 주문에는 {factory_label(factory)} 도면이 없어요.", factory=factory)

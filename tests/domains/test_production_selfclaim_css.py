@@ -26,13 +26,13 @@ CSS_DIR = ROOT / "static/css/contexts/production"
 PIN = "20261127g"
 #: P2(2026-11-23 §4-12 여러 파트 고르기 · 다른 파트 줄 '내 담당')가 parts.css 만 다시 올렸다 — 2026-11-25 D4 [도면 수정 요청] 단추 · 창이
 #: 한 번 더, 여러 명 같이 작업 M2(2026-11-25 multi-holder — [같이 작업] 짝 1.4 : 1 · 이름 두 줄 · 사람 고르기)가 또 한 번 올렸다.
-PARTS_PIN = "20261127w"
+PARTS_PIN = "20261128h"
 #: PC 도면 목록 창(2026-11-24 "PC 에서도 도면별로 체크" · 둘째 · 셋째 판)이 pc.css 만 다시 올렸다(home_styles.html · sheet.html 같은 핀).
 #: 2026-11-27 옛 보드 없애기가 [보드 →] 규칙을 지우며 한 번 더 올렸다.
 PC_PIN = "20261127h"
 #: 작업 시트 sheet.css(sheet.html — 칸반 본문은 2026-11-27 지움) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
 #: 2026-11-27 m: 도면 밀어 넘기기(touch-action) · u: 도면 있는 주문 공정 보기 줄(사장님 "도면이 주, 작업 시트는 보기" — test_production_steps_view_only_1127).
-SHEET_PIN = "20261127x"
+SHEET_PIN = "20261128a"
 
 
 def _css(name: str) -> str:

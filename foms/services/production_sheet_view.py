@@ -21,7 +21,7 @@ from foms.services.orders.drawing_factory import has_second_factory, sheet_facto
 from foms.services.orders.drawing_fix import confirm_extras
 from foms.services.production.factory_constants import FACTORY_2, factory_label
 from foms.services.production.factory_home import factory_sheet_view
-from foms.services.production.factory_scope import steps_factory_note
+from foms.services.production.factory_scope import other_factory_note, steps_factory_note
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import (
     _ensure_dict,
@@ -47,11 +47,12 @@ from foms.services.production_home_read_model import (
     production_home_stage,
     production_home_steps,
 )
-from foms.services.production.part_access import steps_lock
+from foms.services.production.part_access import can_revert_completed, can_write_sheet, steps_lock
 from foms.services.production.part_marks_query import order_marks
-from foms.services.production.part_progress import complete_ready, parts_progress, step_api_extras
+from foms.services.production.part_progress import complete_block_body, complete_ready, parts_in_use, parts_progress, step_api_extras
 from foms.services.production.sheet_parts import sheet_part_extras
 from foms.services.production.sheet_step_lines import sheet_step_lines
+from foms.services.production.steps import PRODUCTION_STEP_DEFS
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
@@ -150,6 +151,43 @@ def _prod_sheet_drawing_thumb(sd: dict[str, Any]) -> dict[str, str] | None:
     return None
 
 
+def _item_refs(sd: dict[str, Any]) -> dict[str, Any]:
+    items = sd.get('items') if isinstance(sd.get('items'), list) else []
+    return {item_ref(items, i): it for i, it in enumerate(items) if isinstance(it, dict)}
+
+
+def _drawing_title(sd: dict[str, Any], refs: dict[str, Any], f: dict[str, Any]) -> str:
+    """도면 한 장의 품목 이름("거실장, 신발장") — 못 이으면 ''."""
+    return ', '.join(n for n in (str(refs[u].get('product_name') or refs[u].get('name') or '').strip()
+                                 for u in file_item_uids(sd, f) if u in refs) if n)
+
+
+def _rework_pick(sd: dict[str, Any], user: Any) -> dict[str, Any]:
+    """[수정 제작] 고르기 창 재료(설계서 2026-11-28 흐름 셋 §2-2 · 쿼리 0 — 이미 읽은 주문 JSON · 사용자 행).
+
+    도면이 있는 주문 = 지금 도면 줄(``key`` · 번호 · 품목 · 작은 그림(그림 파일만 — 그 밖은 파일 이름) · 섞인 주문이면 공장 칩 ·
+    ``locked`` = 반장이 못 고르는 남의 공장 도면의 글 "2공장에서 작업하는 도면이에요."), 도면이 없는 주문 = 공정 넷. 서버 문
+    (``rework_sheets.read_pick``)과 같은 판정이다(지금 확정 도면 · ``can_write_sheet``).
+    """
+    files = resolve_final_drawing_files(sd)
+    if not files:
+        return {'kind': 'steps', 'rows': [{'key': key, 'label': label} for key, label in PRODUCTION_STEP_DEFS]}
+    mixed = has_second_factory(sd)
+    refs = _item_refs(sd)
+    rows: list[dict[str, Any]] = []
+    for number, f in enumerate(files, 1):
+        factory = sheet_factory(sd, f)
+        name = f.get('filename') or '도면'
+        view = (f.get('view_url') or '').strip()
+        rows.append({
+            'key': f['key'], 'no': number, 'title': _drawing_title(sd, refs, f), 'label': name,
+            'thumb': _small_drawing_url(f, view) if view and name.lower().endswith(_PROD_SHEET_IMG_EXT) else '',
+            'fac': factory_label(factory) if mixed else '',
+            'locked': '' if can_write_sheet(user, factory) else other_factory_note(factory),
+        })
+    return {'kind': 'drawings', 'total': len(files), 'rows': rows}
+
+
 def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
     """도면 전달본 **전체**(저장 순서 = 도면 번호). 이미지는 kind 'image', 그 밖(PDF 등)은 'file'.
 
@@ -157,8 +195,7 @@ def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
     """
     out: list[dict[str, str]] = []
     mixed = has_second_factory(sd)
-    items = sd.get('items') if isinstance(sd.get('items'), list) else []
-    refs = {item_ref(items, i): it for i, it in enumerate(items) if isinstance(it, dict)}
+    refs = _item_refs(sd)
     for f in resolve_final_drawing_files(sd):
         view = (f.get('view_url') or '').strip()
         if not view:
@@ -171,8 +208,7 @@ def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
             'download': (f.get('download_url') or view).strip(),
             'label': name,
             # 그림 위 제목 = 품목 이름(도면 칸 "도면 1 · 거실장"과 같은 이음 — 사장님 2026-11-26, 파일 이름 · 확장자 대신). 못 이으면 ''.
-            'title': ', '.join(n for n in (str(refs[u].get('product_name') or refs[u].get('name') or '').strip()
-                                           for u in file_item_uids(sd, f) if u in refs) if n),
+            'title': _drawing_title(sd, refs, f),
         }
         if mixed and sheet_factory(sd, f) == FACTORY_2:
             item['fac'] = factory_label(FACTORY_2)
@@ -333,7 +369,13 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
         # · 반장에게 장이 모두 남의 공장인 주문(비평 C02 — 공정 API 403 OTHER_FACTORY 와 같은 판정, 글 = 남의 공장 카드 글)
         lock = steps_lock(user)
         note = lock.message if lock else steps_factory_note(user, sd)
-        sheet.update(steps_locked=bool(note), steps_locked_note=note or '')
+        # [완료 취소] · [수정 제작] 단추 = 반장 · 관리자만(사장님 2026-11-28 — 두 API 403 LEAD_REQUIRED 와 같은 함수). 파트 계정에게는 안 그린다
+        sheet.update(steps_locked=bool(note), steps_locked_note=note or '', can_revert=can_revert_completed(user))
+        # 다시 만들 도면을 골라 수정 제작 중인 주문은 고른 도면 표시가 전부 미정이어도 도면으로 본다(parts_in_use) — 바뀐 기록 · [제작 완료] 까닭
+        if not sheet['uses_cards'] and parts_in_use(sd, marks):
+            sheet.update(uses_cards=True, complete_why=(complete_block_body(sd, marks) or {}).get('message', ''))
+        # [수정 제작] 고르기 창 재료 — 그 단추가 그려지는 화면만(제작 완료 단계 · 반장 · 관리자), 그 밖은 None
+        sheet['rework_pick'] = _rework_pick(sd, user) if sheet['can_revert'] and stage_label == '제작완료' else None
         # 막힌 도면이 있는 주문만 통째 작업 확인 창 본문 재료(2026-11-25 설계서 §2-4, 쿼리 0). 없으면 None
         sheet['fix_confirm'] = confirm_extras(sd).get('fix')
         sheet['dw_wait'] = _drawing_wait(db, order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7 · 알림 켬이면 +1)

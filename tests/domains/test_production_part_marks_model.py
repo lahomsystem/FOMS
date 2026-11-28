@@ -31,6 +31,8 @@ MIGRATION_PATH = ROOT / "migrations" / "versions" / "prodpart_00_production_part
 HANDOVER_MIGRATION_PATH = ROOT / "migrations" / "versions" / "prodpart_01_handover.py"
 #: 작업하는 사람 목록 칸(2026-11-25 multi-holder §4) — 칸만 더한다.
 HOLDERS_MIGRATION_PATH = ROOT / "migrations" / "versions" / "prodpart_02_holders.py"
+#: BASIC 제약을 재단만 → 재단 · 조립만으로 바꾼 마이그레이션(2026-11-28 조립 없음) — 지금 모델의 그 제약 이름 · 글은 여기 것과 같다.
+BASIC_PARTS_MIGRATION_PATH = ROOT / "migrations" / "versions" / "prodpart_03_basic_parts.py"
 
 
 def _order_kwargs() -> dict:
@@ -96,7 +98,7 @@ def test_same_drawing_other_part_and_other_drawing_same_part_are_allowed(app):
     assert db_session.query(ProductionPartMark).count() == 3
 
 
-@pytest.mark.parametrize("part", ["edge", "assemble", "inspect"])
+@pytest.mark.parametrize("part", ["edge", "inspect"])  # 조립은 2026-11-28 부터 받는다('조립 없음' — test_production_assemble_none_1128.py)
 def test_basic_is_cut_only(app, part):
     order = _create_order()
     db_session.add(_mark(order.id, part=part, state="BASIC"))
@@ -324,12 +326,16 @@ def test_migration_is_single_head_and_chains_from_previous_head():
 def test_migration_check_snapshots_equal_model_ddl():
     """마이그레이션의 CHECK · UNIQUE 이름 · 글이 models 와 글자 단위로 같다(create_all 레인 ↔ alembic 레인)."""
     module = _load_migration()
+    spec = importlib.util.spec_from_file_location("prodpart_03_unit", BASIC_PARTS_MIGRATION_PATH)
+    widened = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(widened)
+    assert (widened.OLD_CHECK, widened.OLD_CHECK_SQL) == (module.MARKS_BASIC_CHECK, module.MARKS_BASIC_CHECK_SQL)  # 바꾸는 것은 그 제약 하나
     table = ProductionPartMark.__table__
     model_checks = {c.name: str(c.sqltext) for c in table.constraints if c.name and c.name.startswith("ck_")}
     assert model_checks == {
         module.MARKS_PART_CHECK: module.MARKS_PART_CHECK_SQL,
         module.MARKS_STATE_CHECK: module.MARKS_STATE_CHECK_SQL,
-        module.MARKS_BASIC_CHECK: module.MARKS_BASIC_CHECK_SQL,
+        widened.NEW_CHECK: widened.NEW_CHECK_SQL,  # prodpart_03_basic_parts 가 옛 '재단만' 제약을 이것으로 바꿨다
     }
     uniques = {c.name: tuple(col.name for col in c.columns) for c in table.constraints if c.name and c.name.startswith("uq_")}
     assert uniques == {module.MARKS_UNIQUE: ("order_id", "drawing_key", "part")}

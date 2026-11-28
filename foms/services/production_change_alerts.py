@@ -43,7 +43,7 @@ from foms.services.production_read_model import fetch_production_current_run_ids
 from foms.services.orders.drawing_transfer_plan import changed_detail
 from foms.services.production.factory_constants import factory_label
 from foms.services.orders.drawing_fix import numbers_text
-from foms.services.orders.drawing_fix_marks import FIX_STARTED_EVENT, FIX_STOPPED_EVENT
+from foms.services.orders.drawing_fix_marks import FIX_STARTED_EVENT, FIX_STOPPED_EVENT, written_by_current_stage_move
 from foms.services.orders.drawing_fix_requests import REJECT_EVENT, reject_detail
 
 __all__ = [
@@ -206,12 +206,15 @@ def _build_change_lists(
     sd: dict[str, Any],
     entry_window: datetime.datetime | None,
     ack_window: datetime.datetime | None,
+    acked_at: datetime.datetime | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """단일 주문의 변경을 한 번만 파싱해 두 윈도로 분류한다.
 
     - ``history``: ``entry_window``(생산 진입) 이후 전체 변경(ack 무관, 상설 이력).
     - ``alerts``: ``ack_window``(본인 확인) 이후 미확인 변경. ``ack_window >= entry_window``
       이므로 alerts ⊆ history. 같은 dict 를 두 리스트에 공유한다(읽기 전용).
+    - 창 시작과 **같은 때**는 '앞'이다(빠짐). 단 주문의 지금 단계를 만든 단계 쓰기가 같이 남긴 줄(``same_write`` — 표지로 읽는다)은
+      같은 때여도 '뒤'이고, 본인이 실제로 확인한 때(``acked_at``)로만 조용해진다 — 창이 그 쓰기의 단계 시각일 수 있어서다.
 
     항목마다 ``at``(바뀐 시각, naive UTC) · ``by_id``(바꾼 사람 id, 모르면 None) · ``by_name``(도면 이력에 적힌
     이름, 없으면 '')을 싣는다 — 생산 첫 화면 '바뀐 것'의 '누가 · 언제'(11-21). 시공일은 이벤트의
@@ -223,12 +226,13 @@ def _build_change_lists(
     alerts: list[dict[str, Any]] = []
     history: list[dict[str, Any]] = []
 
-    def _classify(ts: datetime.datetime, item: dict[str, Any]) -> None:
-        if entry_window is not None and ts <= entry_window:
+    def _classify(ts: datetime.datetime, item: dict[str, Any], same_write: bool = False) -> None:
+        if entry_window is not None and (ts < entry_window or (ts == entry_window and not same_write)):
             return
         item["at"] = ts
         history.append(item)
-        if ack_window is not None and ts <= ack_window:
+        seen_until = acked_at if same_write else ack_window
+        if seen_until is not None and ts <= seen_until:
             return
         alerts.append(item)
 
@@ -254,7 +258,7 @@ def _build_change_lists(
     for e in events:
         fix_item = _drawing_fix_item(e) if e.created_at is not None else None
         if fix_item is not None:
-            _classify(e.created_at, fix_item)
+            _classify(e.created_at, fix_item, written_by_current_stage_move(e.payload, (sd.get("workflow") or {}).get("stage")))
 
     for e in events:
         if e.event_type != SHEET_FACTORY_CHANGE_EVENT or e.created_at is None:
@@ -388,10 +392,11 @@ def collect_production_change_alerts(
         entry_window = compute_window_start(o, events, None)
         ack_window = compute_window_start(o, events, user_id)
         sd = _ensure_dict(getattr(o, "structured_data", None))
-        alerts, history = _build_change_lists(events, sd, entry_window, ack_window)
+        acked_at = _last_ack_time(events, user_id)
+        alerts, history = _build_change_lists(events, sd, entry_window, ack_window, acked_at)
         result[o.id] = {"alerts": alerts, "history": history}
         if with_ack_time:
-            result[o.id]["acked_at"] = _last_ack_time(events, user_id)
+            result[o.id]["acked_at"] = acked_at
     return result
 
 

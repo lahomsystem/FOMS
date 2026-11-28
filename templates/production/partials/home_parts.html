@@ -12,11 +12,13 @@
    막힌 칸(보류 · 도면 고치는 중 · 검수 전 · 손 체크) = button aria-disabled, 누르면 까닭 말풍선(.pp-why, 글 = 서버 거절 글 그대로) ·
    이름 줄 = 작업 시트 링크. 카드 단추 그리기는 JS(foms-production-parts-crew.js render · -claim.js special)와 같은 규칙이다 — 같이 고친다.
    여러 파트(2026-11-23 §4-12 · §8-1, P2): 파트가 둘 이상인 계정만 판 머리 첫 자리에 내 파트 고르기(.pp-picks — 같은 날, 주소 part).
-   파트 하나인 계정은 고르기 없이 지금 그대로. 반장(대신)은 관리자와 같은 판(네 파트 고르기 .pp-parts · 단추). #}
+   파트 하나인 계정은 고르기 없이 지금 그대로. 반장(대신)은 관리자와 같은 판(네 파트 고르기 .pp-parts · 단추).
+   조립 없음(설계서 2026-11-28 흐름 셋 §3): 재단 [기본] 자리 · 꼴 그대로 조립 판에 [조립 없음] — 단추 · 칸 · 취소 · 판 머리 일괄 글은 모두
+   pb.basic(part_constants.basic_view — 재단 '기본' · 조립 '조립 없음', 그 처리가 없는 엣지 · 검수는 none)에서 읽는다. #}
 {% from 'production/partials/home_date_macros.html' import home_href, fph_due, fph_chip, fph_wait, fph_wait_head %}
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
-{% set is_cut = pb.part == 'cut' %}
+{% set is_cut = pb.basic is not none %}{#- 이름은 옛 것 — 뜻은 "기본이 되는 파트"(재단 '기본' · 조립 '조립 없음', 2026-11-28) -#}
 {#- 알림 · 검색 바로가기로 연 주문(주소 order= · 옛 focus_order=, 2026-11-26 결정 C69) — 그 주문 도면 칸에 is-focus 테두리, 첫 칸으로 굴림(parts-claim.js) -#}
 {% set pp_focus = (request.args.get('order') or request.args.get('focus_order') or '0') | int(0) %}
 {% macro pp_block(c) -%}
@@ -43,7 +45,7 @@
      시작 단추 글 = [<파트> 시작](사장님 2026-11-27 "재단 탭 = 재단 시작, 엣지 탭 = 엣지 시작" — 옛 [작업 시작], 완료 단추와 같은 파트 이름) -#}
   {%- if pb.writable and c.block -%}{{ pp_block(c) }}
   {%- elif pb.writable and is_cut -%}
-<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %}" data-pp-act="take">{{ pb.part_label }} 시작</button></div>{% if not pb.mine %}{{ pp_fin_now(pb) }}{% endif %}
+<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">{{ pb.basic.word }}</button><button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %}" data-pp-act="take">{{ pb.part_label }} 시작</button></div>{% if not pb.mine %}{{ pp_fin_now(pb) }}{% endif %}
   {%- elif pb.writable and not pb.mine -%}
 <div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>{{ pp_fin_now(pb) }}</div>
   {%- elif pb.writable -%}{#- 파트 계정(엣지 · 조립 · 검수) 자기 판 — 재단 계정처럼 진한 [<파트> 시작](사장님 2026-11-27 "재단처럼 진하게") -#}
@@ -66,15 +68,15 @@
   {%- endif -%}
 {%- else -%}
   {%- set by = (cr.done or c.done_by_name) if c.state == 'done' else c.done_by_name -%}
-  {%- set word = ((pb.part_label ~ ' 완료') if c.state == 'done' else '기본') ~ (' · ' ~ by if by else '') -%}
+  {%- set word = ((pb.part_label ~ ' 완료') if c.state == 'done' else pb.basic.word if pb.basic else '기본') ~ (' · ' ~ by if by else '') -%}
 <span class="fph-wi pp-act pp-st-{{ c.state }}{% if can_undo %} pp-not-done{% endif %}">{{ word }}</span>
-  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '기본 취소' }}</button></div>{%- endif -%}
+  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else pb.basic.undo if pb.basic else '기본 취소' }}</button></div>{%- endif -%}
 {%- endif -%}
 {% endmacro %}
 {% macro pp_tag(c) -%}
 {%- if c.tag -%}<span class="pp-tag" data-pp-tag aria-label="{{ c.tag.aria }}">내 작업{% if c.tag.crew %} · {{ c.tag.crew }}{% endif %}{% if c.tag.old %} · <span class="is-old">{{ c.tag.old }}</span>{% endif %}{% if c.tag.chg %} · <span class="is-chg">{{ c.tag.chg }}</span>{% endif %}</span>{%- endif -%}
 {%- endmacro %}
-{#- pp-finrow = 반장 · 관리자 재단 판(미정 도면 단추가 두 줄 — [기본][재단 시작] 아래 [재단 완료]). 카드 키를 그 두 줄 꼴에 맞춘다(parts.css 끝, 2026-11-27 "높이 일괄") -#}
+{#- pp-finrow = 반장 · 관리자 재단 · 조립 판(미정 도면 단추가 두 줄 — [기본][재단 시작] 아래 [재단 완료]). 카드 키를 그 두 줄 꼴에 맞춘다(parts.css 끝, 2026-11-27 "높이 일괄") -#}
 <div class="fph-parts{% if pb.writable and is_cut and not pb.mine %} pp-finrow{% endif %}" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
@@ -90,9 +92,9 @@
     {% endif %}
     {% if is_cut %}
     <div class="pp-bulk">
-      <span class="pp-unseen" data-pp-unseen-text="{{ pp.counts.unseen }}">{% if pp.counts.unseen %}안 본 도면 <b>{{ pp.counts.unseen }}</b>장{% else %}안 본 도면 없어요{% endif %}</span>
-      {# [남은 N장 모두 기본]: 막힌(보류 · 도면 고치는 중) 안 본 장은 빼고 센다 — 창이 여는 목록과 같은 기준. 안 본 도면 글은 모두 센다 #}
-      {% if pb.writable %}<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"{% if not pp.bulk %} hidden{% endif %}><span>남은 <span data-pp-count="unseen">{{ pp.bulk }}</span>장 모두 기본</span></button>{% endif %}
+      <span class="pp-unseen" data-pp-unseen-text="{{ pp.counts.unseen }}">{% if pp.counts.unseen %}{{ pb.basic.unseen }} <b>{{ pp.counts.unseen }}</b>장{% else %}{{ pb.basic.unseen }} 없어요{% endif %}</span>
+      {# [남은 N장 모두 기본] · 조립 [남은 N장 모두 조립 없음]: 막힌(보류 · 도면 고치는 중) 안 본 장은 빼고 센다 — 창이 여는 목록과 같은 기준. 안 본 도면 글은 모두 센다 #}
+      {% if pb.writable %}<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"{% if not pp.bulk %} hidden{% endif %}><span>남은 <span data-pp-count="unseen">{{ pp.bulk }}</span>장 모두 {{ pb.basic.word }}</span></button>{% endif %}
     </div>
     {% endif %}
     <div class="foms-prod-home__tabs pp-tabs" role="group" aria-label="칸">

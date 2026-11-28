@@ -24,7 +24,7 @@ from typing import Any, Iterable, Optional
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production import mark_crew as _mark_crew
 from foms.services.production.part_constants import (
-    BASIC_ALLOWED_PART,
+    BASIC_ALLOWED_PARTS,
     MARK_STATE_BASIC,
     MARK_STATE_DONE,
     MARK_STATE_NEED,
@@ -37,9 +37,11 @@ from foms.services.production.part_constants import (
 )
 from foms.services.production.steps import (
     PRODUCTION_STEP_DEFS,
+    REWORK_KEYS,
     STEPS_INCOMPLETE_CODE,
     production_complete_block_body,
     production_steps_missing,
+    rework_pick,
     step_done_map,
 )
 
@@ -68,7 +70,7 @@ def mark_finished(part: str, state: Optional[str]) -> bool:
     Returns:
         완료면 True.
     """
-    if part == BASIC_ALLOWED_PART:
+    if part in BASIC_ALLOWED_PARTS:
         return state in (MARK_STATE_DONE, MARK_STATE_BASIC)
     return state == MARK_STATE_DONE
 
@@ -85,6 +87,24 @@ def cards_used(marks: Iterable[Any]) -> set[str]:
     return {str(getattr(m, "part", "")) for m in marks
             if getattr(m, "part", None) in PRODUCTION_PART_KEYS
             and str(getattr(m, "state", None) or MARK_STATE_NONE) != MARK_STATE_NONE}
+
+
+def parts_in_use(sd: Any, marks: Iterable[Any]) -> set[str]:
+    """이 주문에서 카드로 보는 파트들 — 진행 · 제작 완료 · 검수 순서 · 손 체크 문 · 공정 칸 동기화가 같이 읽는 한 자리.
+
+    :func:`cards_used` + 수정 제작 규칙(설계서 2026-11-28 흐름 셋 §2-3): 다시 만들 도면을 골라 수정 제작 중인 주문은 **네 파트 모두**
+    도면을 쓰는 파트다 — 고른 도면의 표시가 전부 미정이어도 공정 칸 규칙으로 떨어지지 않는다(고른 도면이 끝나야 제작 완료).
+
+    Args:
+        sd: 주문 ``structured_data``(읽기만).
+        marks: 한 주문의 표시 줄들.
+
+    Returns:
+        파트 key 집합.
+    """
+    if rework_pick(sd, REWORK_KEYS):
+        return set(PRODUCTION_PART_KEYS)
+    return cards_used(marks)
 
 
 def current_keys(sd: Any, *, factory: Optional[int] = None) -> list[str]:
@@ -143,7 +163,7 @@ def part_progress(sd: Any, marks: Iterable[Any], part: str, *, factory: Optional
     """
     marks = list(marks)
     keys = current_keys(sd, factory=factory)
-    uses = part in cards_used(marks)
+    uses = part in parts_in_use(sd, marks)
     step_on = step_done_map(sd).get(part, False)
     via = _stored_step(sd, part).get("via") if step_on else None
     if uses and keys:
@@ -179,7 +199,7 @@ def complete_state(sd: Any, marks: Iterable[Any], *, factory: Optional[int] = No
     """
     marks = list(marks)
     sheets = len(current_keys(sd, factory=factory))
-    if not cards_used(marks):
+    if not parts_in_use(sd, marks):
         missing = production_steps_missing(sd)
         return {"ready": not missing, "left": {m["key"]: sheets for m in missing}, "missing_steps": missing,
                 "uses_cards": False, "sheets": sheets}
@@ -233,7 +253,7 @@ def inspect_left(sd: Any, marks: Iterable[Any], key: str) -> list[dict[str, Any]
         None = 미정, multi-holder Q20). 문장 속 "외 n명" 꼴은 부르는 쪽이 표시 줄에서 만든다(``part_mark_gates``).
     """
     marks = list(marks)
-    used = cards_used(marks)
+    used = parts_in_use(sd, marks)
     rows = marks_by_part(marks)
     done = step_done_map(sd)
     out: list[dict[str, Any]] = []

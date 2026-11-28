@@ -107,8 +107,10 @@ _READ_ROUTES = {
     "erp_production_page.erp_production_part_thumb": _DENIED,    # 도면 카드 작은 그림
     "production_part_marks.api_part_marks_since": _DENIED,       # 도면 카드 30초 받아 오기
     "production_part_marks.api_part_mark_cancel_preview": _DENIED,  # [시작 취소] 창 미리 보기(2026-11-27 — 읽기 전용, 문은 카드 쓰기와 같다)
+    "production_part_marks.api_part_mark_receivers": _DENIED,    # [담당 바꾸기 ›] 받을 사람 목록(2026-11-28 — 읽기 전용, 반장 · 관리자만)
     "production_part_marks.api_part_sheet": _DENIED,             # PC 도면 창
     "production_part_marks.api_part_history": _DENIED,           # 바뀐 기록
+    "production_alarms.api_production_alarms_pending": _DENIED,  # 생산 현장 알람 다시 받기(2026-11-28 — 받는 사람 문이 프리랜서를 뺀다)
 }
 #: 다음 조각이 라우트째 지우는 길 — 지워진 뒤 표에만 남아도 된다(없는 길도 문지기 기본 거부다).
 #: 옛 보드 · 옛 옆 시트 라우트와 공정 읽기 GET(설계서 §6-3)은 2026-11-27 지웠다(표에서도 뺐다). 지금 지우는 중인 길은 없다.

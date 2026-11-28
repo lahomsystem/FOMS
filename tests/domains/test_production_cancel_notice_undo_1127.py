@@ -216,7 +216,7 @@ def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path):
         steps += [{"do": "click", "key": key, "act": act}, {"do": "close"}]
     res = _node(page, {"steps": steps})
     titles = [o["modal"]["title"] for o in res["out"] if o["do"] == "click"]
-    assert titles == ["재단 시작할까요?", "기본으로 할까요?", "재단 완료로 바꿀까요?", "재단 같이 작업할까요?", "담당을 오재단에서 김재단으로 바꿀까요?"]
+    assert titles == ["재단 시작할까요?", "기본으로 처리할까요?", "재단 완료할까요?", "재단 같이 작업할까요?", "담당을 오재단에서 김재단으로 바꿀까요?"]
     assert res["previews"] == [] and res["calls"] == []
     assert all(o["modal"]["run"]["locked"] is False for o in res["out"] if o["do"] == "click")
     fresh_order = make_order(1, run=False)

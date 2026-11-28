@@ -55,6 +55,8 @@ _TARGETS_META_KEY = "escalation_target_user_ids"
 # 관리자 전원에게 같은 내용이 뿌려지는 브로드캐스트 성격이면, 미ack 상태가 정상이라
 # 에스컬레이션 사슬이 (원본 수 × 관리자 수) 로 증식하기만 한다.
 _DEFAULT_EXEMPT_TYPES = ("NAVER_ORDER_CLAIMED",)
+_FLOOR_ALARM_PREFIX = "PRODUCTION_FLOOR_"  # foms/services/production/floor_alarm_text.py ``PREFIX`` 와 같은 글(시험이 고정)
+_FLOOR_ALARM_LIKE = _FLOOR_ALARM_PREFIX.replace("_", chr(92) + "_") + "%"  # 밑줄은 LIKE 와일드카드라 풀어 쓴다
 
 
 def _stage_minutes() -> int:
@@ -90,6 +92,8 @@ def _urgent_pending_query(db: Any):
             Notification.is_urgent == True,  # noqa: E712
             NotificationUserState.ack_at.is_(None),
             NotificationUserState.resolved_at.is_(None),
+            # 생산 현장 알람은 늘 뺀다(환경 변수로 못 푼다) — 기계 앞이라 못 누른 알람마다 매니저 · 관리자 폰이 울리면 안 된다.
+            ~Notification.notification_type.like(_FLOOR_ALARM_LIKE, escape=chr(92)),  # 칸은 NOT NULL
         )
     )
     exempt = _exempt_types()

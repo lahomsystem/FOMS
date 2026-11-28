@@ -24,6 +24,7 @@
   var LABEL = cfg.label || '';
   var NAME = cfg.me || '';
   var LOCK_MS = 800;
+  var BASIC = cfg.basic || {}; // 재단 '기본' · 조립 '조립 없음' 글 한 벌(서버 part_constants.basic_view — 창 글이 여기서 읽는다)
   var claim = window.FomsPartsClaim || {};
   function q(sel) { return modal.querySelector(sel); }
   function attr(card, name) { return card.getAttribute(name) || ''; }
@@ -46,17 +47,17 @@
     if (action === 'take') {
       return { title: LABEL + ' 시작할까요?', line: '미정 → 작업 중 · ' + NAME, run: LABEL + ' 시작', tone: 'need' }; // 카드 단추 [재단 시작]과 같은 낱말(11-27)
     }
-    if (action === 'basic') { return { title: '기본으로 할까요?', line: '미정 → 기본 · ' + NAME, run: '기본으로', tone: 'basic' }; }
+    if (action === 'basic') { return { title: BASIC.ask, line: '미정 → ' + BASIC.word + ' · ' + NAME, run: BASIC.word, tone: 'basic' }; } // "기본으로 처리할까요?" · "조립할 것이 없는 도면인가요?"
     if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두 · 미정 도면은 바로 완료 11-27)
       var from = card && attr(card, 'data-state') === 'none' ? '미정 ' : '작업 중 '; // 미정 = [<파트> 시작] 창처럼 네 파트 모두 "미정"(사장님 11-27)
-      return { title: LABEL + ' 완료로 바꿀까요?', line: from + '→ ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
+      return { title: LABEL + ' 완료할까요?', line: from + '→ ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
-    if (card && attr(card, 'data-state') === 'basic') { return { title: '기본을 취소할까요?', line: '기본 → 미정', run: '기본 취소', tone: 'unbasic' }; }
+    if (card && attr(card, 'data-state') === 'basic') { return { title: BASIC.undo_ask, line: BASIC.word + ' → 미정', run: BASIC.undo, tone: 'unbasic' }; }
     return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 작업 중 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need' };
   }
   function bulkPlan(cards) {
-    return { title: cards.length + '장을 기본으로 할까요?', line: '미정 → 기본 · ' + NAME, run: cards.length + '장 기본으로', tone: 'basic' };
+    return { title: cards.length + '장을 ' + BASIC.toward + ' 할까요?', line: '미정 → ' + BASIC.word + ' · ' + NAME, run: cards.length + '장 ' + BASIC.toward, tone: 'basic' };
   }
   // ── 새 누름 문구(§9 — 미정 · 작업 중 · 시작 취소 · 담당 바꾸기, multi-holder §8-2 4 · 5 · 12 · 13) ──
   function heldSince(card, subject, iso) {
@@ -81,7 +82,7 @@
         note: heldSince(card) + (attr(card, 'data-picked-name') ? ' 바꾸기 전에 ' + holder + '에게 말해 주세요.' : '') };
     }
     return { title: heldTitle(card, holder), line: '', run: '', tone: 'taken',
-      choices: [['release', '시작 취소', 'release'], ['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done']] }; // 되돌리는 쪽 왼쪽 · 끝내는 쪽 오른쪽(C59)
+      choices: [['release', '시작 취소', 'release'], ['give', '담당 바꾸기 ›', 'taken', null, true], ['done', '대신 완료', 'done']] }; // 되돌리는 쪽 왼쪽 · 끝내는 쪽 오른쪽(C59) · [담당 바꾸기 ›] = "누구에게 줄까요?"(11-28)
   }
   // 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12)이 남이 작업 중이거나 완료한 장을 누를 때 한 줄 더(D55, §8-2 14 · 34)
   function ownerNote(card) {
@@ -92,13 +93,36 @@
     var done = (st === 'done' && crewOf(card).done_subj) || (name ? josa(name) : '');
     if (st === 'need' && picked && attr(card, 'data-picked-me') !== '1') { return picked + ' 작업 중인 도면이에요'; }
     if ((st === 'done' || st === 'basic') && done && attr(card, 'data-done-me') !== '1') {
-      return done + (st === 'basic' ? ' 기본으로 한 도면이에요' : ' 완료한 도면이에요');
+      return done + (st === 'basic' ? ' ' + BASIC.toward + ' 한 도면이에요' : ' 완료한 도면이에요');
     }
     return '';
   }
   function firstLine(action, cards) {
     var first = cards.some(function (c) { return attr(c, 'data-pp-first') === '1'; });
     return first && ['take', 'basic', 'bulk', 'check'].indexOf(action) >= 0 ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : ''; // check = 반장 미정 바로 완료(11-27)
+  }
+
+  // ── 확인 창 목록 줄(카드 그림 · 이름 · 도면 n/m · 품목 · 바뀔 상태 한 줄 — 2026-11-28 parts.js 에서 옮김, 동작 그대로) ──
+  function el(tag, cls, text) { var n = document.createElement(tag); n.className = cls || ''; n.textContent = text || ''; return n; }
+  function listItem(card, line, tone) {
+    var li = el('li', 'foms-prod-change-modal__item pp-mitem');
+    var pic = el('div', 'pp-mimg');
+    var img = card.querySelector('.pp-thumb');
+    pic.appendChild(img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' }) : img ? el('span', 'pp-broken', '그림을 못 불러왔어요') : el('b', '', (card.querySelector('.pp-file b') || {}).textContent || '파일'));
+    var body = el('div', 'foms-prod-change-modal__item-body');
+    var head = el('div', 'foms-prod-change-modal__item-head');
+    var who = el('span', 'foms-prod-change-modal__item-customer', ((card.querySelector('.fph-dr__nm b') || {}).textContent || '') + ' ');
+    who.appendChild(el('small', '', '#' + attr(card, 'data-order-id')));
+    head.appendChild(who);
+    head.appendChild(el('span', 'foms-prod-change-modal__item-id', '도면 ' + attr(card, 'data-no') + '/' + attr(card, 'data-of')));
+    body.appendChild(head);
+    body.appendChild(el('span', 'foms-prod-change-modal__alert-detail', (card.querySelector('.pp-item') || {}).textContent || ''));
+    var alert = el('div', 'foms-prod-change-modal__alert pp-al--' + tone);
+    alert.appendChild(el('span', 'foms-prod-change-modal__alert-label', line));
+    body.appendChild(alert); alert.hidden = !line; // 줄 글이 없으면(반장 고르기 창) 빈 띠를 안 남긴다
+    li.appendChild(pic);
+    li.appendChild(body);
+    return li;
   }
 
   // ── 창 그리기 ──
@@ -229,7 +253,7 @@
     if (mark.state === 'need') { return '지금: ' + (cr.who || mark.picked_by_name || '다른 사람') + ' 작업 중'; }
     var done = cr.done || mark.done_by_name;
     if (mark.state === 'done') { return '지금: ' + LABEL + ' 완료' + (done ? ' · ' + done : ''); }
-    if (mark.state === 'basic') { return '지금: 기본' + (mark.done_by_name ? ' · ' + mark.done_by_name : ''); }
+    if (mark.state === 'basic') { return '지금: ' + BASIC.word + (mark.done_by_name ? ' · ' + mark.done_by_name : ''); }
     return '지금: 담당 미정';
   }
   // 검수 마지막 장 완료 뒤 같은 창이 이어서 묻는다(§4-4) — 실행 단추 0.8초 잠금, 초점은 [나중에].
@@ -256,7 +280,7 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
-  window.FomsPartsModal = { plan: plan, bulkPlan: bulkPlan, ownerNote: ownerNote, firstLine: firstLine, open: open, close: close,
+  window.FomsPartsModal = { plan: plan, bulkPlan: bulkPlan, ownerNote: ownerNote, firstLine: firstLine, listItem: listItem, open: open, close: close,
     busy: busy, error: error, lost: lost, nowLine: nowLine, complete: complete, pick: pick, heldSince: heldSince, heldTitle: heldTitle, toward: toward,
     turn: function () { return turn; }, runBtn: runBtn, setText: setText }; // 뒤 셋 = parts-cancel.js 가 쓴다(cancelLine · seenCancel · staleCancel 을 여기에 붙인다)
 })();

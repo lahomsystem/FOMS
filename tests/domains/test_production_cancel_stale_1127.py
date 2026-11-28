@@ -358,7 +358,7 @@ def test_js_lead_choice_window_stops_and_keeps_its_buttons(client, cohort, tmp_p
     out = res["out"]
     line = "[김재단 시작 취소]를 누르면 제작 시작도 같이 취소돼요."
     buttons = [c["text"] for c in out[1]["modal"]["choices"]]
-    assert out[1]["modal"]["body"] == line and buttons == ["김재단 시작 취소", "담당 바꾸기", "같이 작업", "대신 완료"]
+    assert out[1]["modal"]["body"] == line and buttons == ["김재단 시작 취소", "담당 바꾸기 ›", "같이 작업", "대신 완료"]
     stop = out[2]["modal"]  # 고르기 창 그대로 — 단추 넷 · 서버 글 · 줄만 새 답으로(사라짐)
     assert (stop["hidden"], stop["lost"], stop["err"], stop["body"]) == (False, False, MESSAGE, "")
     assert [c["text"] for c in stop["choices"]] == buttons and stop["choices_hidden"] is False and stop["title"] == out[1]["modal"]["title"]

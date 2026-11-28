@@ -1,7 +1,7 @@
 /**
  * 긴급(P0) 전체화면 빨간 창 공용 모듈 — SPEC docs/specs/2026-10-02-urgent-alert-everywhere_SPEC.md.
  * 공개 계약(이름 고정 — standalone 브리지가 부른다): handle(data) · show(data) · bindSocket(socket)
- *   · resync(reason) · openFromPush(notificationId). 대기열로 한 건씩, notification_id 로 중복 제거,
+ *   · resync(reason) · openFromPush(notificationId) · dismiss(notificationId). 대기열로 한 건씩, notification_id 로 중복 제거,
  *   BroadcastChannel('foms-urgent') 로 탭 간 ack 동기. "확인" 버튼 하나로만 닫힌다(배경·Esc 무시).
  */
 (function () {
@@ -128,6 +128,7 @@
     refs.count.hidden = queue.length <= 1;
     if (shownItem === item) return; // 대기 건수만 바뀜 — 진행 중인 확인 처리는 건드리지 않는다.
     shownItem = item;
+    overlay.setAttribute('data-ntype', item.notification_type ? String(item.notification_type) : ''); // 생산 알람 색(CSS)
     refs.title.textContent = item.title ? String(item.title) : '긴급 알림';
     refs.message.textContent = item.message ? String(item.message) : '상세 내용은 알림 패널을 확인하세요.';
     refs.sender.textContent = item.created_by_name ? ('보낸 사람: ' + String(item.created_by_name)) : '';
@@ -137,7 +138,8 @@
     refs.btn.disabled = false;
     busy = false;
     refs.btn.focus();
-    if (window.FOMSUrgentSound) window.FOMSUrgentSound.start();
+    if (window.FOMSUrgentSound) window.FOMSUrgentSound.start(item.notification_type);
+    document.dispatchEvent(new CustomEvent('foms:urgent-shown', { detail: item })); // foms-floor-alarm.js 가 듣는다
   }
 
   function removeId(id) {
@@ -181,6 +183,7 @@
           return;
         }
         acked[id] = true;
+        document.dispatchEvent(new CustomEvent('foms:urgent-acked', { detail: queue[indexOfId(id)] || { notification_id: id } }));
         removeId(id);
         if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
           window.FOMSNotificationBadge.refresh({ force: true });
@@ -198,13 +201,12 @@
   try {
     if (typeof window.BroadcastChannel === 'function') channel = new BroadcastChannel(CHANNEL_NAME);
   } catch (e) { channel = null; } // 미지원·차단 환경 — 동기만 빠진다.
+  // 다른 곳에서 확인 · 닫힌 건 빼기 — 다른 탭(통로)과 같은 창의 서버 닫음(생산 알람 floor_closed: 바로 빼야 소리가 먼저 그친다)
+  function dismiss(id) { id = norm(id); if (!id) return; acked[id] = true; removeId(id); }
   if (channel) {
     channel.onmessage = function (event) {
       var msg = event && event.data;
-      var id = msg && msg.type === 'ack' ? idOf(msg) : '';
-      if (!id) return;
-      acked[id] = true;
-      removeId(id);
+      if (msg && msg.type === 'ack') dismiss(idOf(msg));
     };
   }
 
@@ -267,7 +269,7 @@
     socket.on('connect', function () { resync('socket-connect'); });
   }
 
-  window.FOMSUrgentAlert = { show: show, handle: handle, bindSocket: bindSocket, resync: resync, openFromPush: openFromPush };
+  window.FOMSUrgentAlert = { show: show, handle: handle, bindSocket: bindSocket, resync: resync, openFromPush: openFromPush, dismiss: dismiss };
   // 호환 별칭: 예전 인라인 함수 이름으로 부르는 곳이 남아 있어도 같은 창을 쓴다.
   window.triggerUrgentBriefingAlert = function (d) {
     return window.FOMSUrgentAlert.show(Object.assign({ urgent: true }, d));

@@ -101,7 +101,7 @@
     var who = cr.who || m.picked_by_name;
     if (m.state === 'need') { return who ? who + ' 작업 중' : '작업 중'; }
     if (m.state !== 'done' && m.state !== 'basic') { return '미정'; }
-    var head = m.state === 'done' ? (cfg.label || '') + ' 완료' : '기본';
+    var head = m.state === 'done' ? (cfg.label || '') + ' 완료' : (cfg.basic || {}).word || '기본'; // 조립 판 = "조립 없음"(서버 설정 글)
     var done = (m.state === 'done' && cr.done) || m.done_by_name;
     return done ? head + ' · ' + done : head;
   }

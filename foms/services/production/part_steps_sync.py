@@ -28,7 +28,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS
-from foms.services.production.part_progress import cards_used, mark_finished, marks_by_part
+from foms.services.production.part_progress import mark_finished, marks_by_part, parts_in_use
 from foms.services.production.steps import STEP_VIA_PART_MARKS, set_production_step, step_done_map
 from models import OrderEvent, ProductionPartMark
 
@@ -68,11 +68,11 @@ def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str
     if not keys:
         return {}
     marks = list(marks)
-    used = cards_used(marks) | set(cleared)
+    used = parts_in_use(sd, marks) | set(cleared)
     wanted = set(PRODUCTION_PART_KEYS if parts is None else parts)
     by_part = marks_by_part(marks)
     return {
-        part: all(mark_finished(part, getattr(by_part[part].get(key), "state", None)) for key in keys)
+        part: all(mark_finished(part, getattr(by_part.get(part, {}).get(key), "state", None)) for key in keys)
         for part in PRODUCTION_PART_KEYS if part in used and part in wanted
     }
 

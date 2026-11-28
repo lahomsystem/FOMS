@@ -34,6 +34,7 @@ from foms.services.production.part_mark_rules import (
     JOIN_DONE,
     JOIN_DONE_MESSAGE,
     NEW_ACTIONS,
+    RECEIVER_ALREADY_IN,
     RELEASE_AFTER_DONE,
     RELEASE_AFTER_DONE_MESSAGE,
     RELEASE_NOT_HOLDER,
@@ -56,6 +57,7 @@ from foms.services.production.part_mark_rules import (
     crew_line,
     holder_changed_message,
     new_action_conflict_message,
+    receiver_already_in_message,
     target_gone_message,
     took_first_message,
     undo_not_mine_message,
@@ -64,7 +66,7 @@ from foms.services.production.part_mark_rules import (
 
 @dataclass(frozen=True)
 class _Press:
-    """판정 재료 — 누른 사람 · 반장 · 관리자인지 · 시각 · 화면이 보낸 값."""
+    """판정 재료 — 누른 사람 · 반장 · 관리자인지 · 시각 · 화면이 보낸 값 · 받는 사람(담당 바꾸기 — 없으면 누른 사람)."""
 
     actor_id: int
     actor_name: Optional[str]
@@ -74,6 +76,8 @@ class _Press:
     seen_me: Optional[str]
     target_uid: Optional[int]
     label: str
+    to_uid: Optional[int] = None
+    to_name: Optional[str] = None
 
 
 def _undone_already(crew: tuple[dict[str, Any], ...], me: int, target_uid: Optional[int], seen_me: Optional[str],
@@ -109,16 +113,20 @@ def _left_already(crew: tuple[dict[str, Any], ...], me: int, target_uid: Optiona
 
 
 def _same_result(snap: MarkSnapshot, action: str, target: str, me: int, target_uid: Optional[int] = None,
-                 seen_me: Optional[str] = None, admin: bool = False) -> bool:
+                 seen_me: Optional[str] = None, admin: bool = False, to_uid: Optional[int] = None) -> bool:
     """이미 그 결과이고 그 결과를 만든 사람이 나인지(멱등 — 연결이 얼어 두 번 누름. 같은 요청을 다시 보낸 것만 ``changed:false``).
 
-    [작업 시작] · [같이 작업] · 담당 바꾸기 = 내가 이미 목록에 있음, 완료 = 내 몫이 이미 완료(사람 없는 완료는 끝낸 사람이 나),
+    [작업 시작] · [같이 작업] · 담당 바꾸기 = 내가 이미 목록에 있음(남에게 준 담당 바꾸기 ``to_uid`` = 받는 사람이 이미 목록에 있고 ·
+    마지막으로 바꾼 사람이 나 · 자리를 내준 사람은 빠짐), 완료 = 내 몫이 이미 완료(사람 없는 완료는 끝낸 사람이 나),
     되돌리기 = :func:`_undone_already`(반장 · 관리자가 바로 완료한 도면을 되돌려 미정이 된 줄은 마지막으로 바꾼 사람이 나), 시작 취소 =
     :func:`_left_already` + 마지막으로 바꾼 사람이 나, PC [완료 처리] · 반장 [대신 완료](``check``) = 이미 완료 · 기본.
     """
     crew, state = snap.crew, snap.state
     share = mc.share_of(crew, me)
     last_me = snap.updated_by_user_id == me
+    if action == ACTION_TAKEOVER and to_uid is not None:  # 남에게 주기를 두 번 — 받는 사람이 이미 그 자리에 있다
+        return (state == MARK_STATE_NEED and last_me and mc.find(crew, to_uid) is not None
+                and (target_uid is None or mc.find(crew, target_uid) is None))
     if action in (ACTION_TAKE, ACTION_JOIN, ACTION_TAKEOVER):
         return state == MARK_STATE_NEED and share != mc.SHARE_NONE
     if action == ACTION_CHECK:
@@ -265,10 +273,17 @@ def _decide_remove(snap: MarkSnapshot, p: _Press) -> MarkDecision:
 
 
 def _decide_takeover(snap: MarkSnapshot, p: _Press) -> MarkDecision:
-    """[담당 바꾸기] — 고른 한 사람 자리를 나로(완료를 누른 사람은 못 고름 — 판결 4, 고를 사람이 하나면 고르기 없이)."""
+    """[담당 바꾸기] — 고른 한 사람 자리를 받는 사람으로(완료를 누른 사람은 못 고름 — 판결 4, 고를 사람이 하나면 고르기 없이).
+
+    받는 사람 = 반장 · 관리자가 고른 사람(``to_uid`` — 2026-11-28 "누구에게 줄지 고르기"), 안 골랐으면 누른 사람(지금 동작 · 옛 화면).
+    받는 사람이 그사이 그 도면에 들어왔으면 409 ``RECEIVER_ALREADY_IN``(자리 · 남은 사람은 그대로 두고 아무것도 안 바꾼다)."""
     crew = list(snap.crew)
-    if not crew:  # 담당 없는 작업 필요 줄 — 지금처럼 나로
-        return _applied(mc.join([], p.actor_id, p.actor_name, p.now), ACTION_TAKEOVER)
+    uid, name = (p.to_uid, p.to_name) if p.to_uid is not None else (p.actor_id, p.actor_name)
+    to = {"to_uid": uid, "to_name": str(name or "")}
+    if mc.find(crew, uid) is not None:
+        return _refuse(RECEIVER_ALREADY_IN, receiver_already_in_message(to["to_name"]))
+    if not crew:  # 담당 없는 작업 필요 줄 — 지금처럼 받는 사람으로
+        return _applied(mc.join([], uid, name, p.now), ACTION_TAKEOVER, **to)
     item, gone = _pick_target(crew, p.target_uid)
     if gone:
         return _refuse(TARGET_GONE, target_gone_message(""), target_uid=p.target_uid)
@@ -276,8 +291,8 @@ def _decide_takeover(snap: MarkSnapshot, p: _Press) -> MarkDecision:
         return _refuse(TARGET_REQUIRED, TARGET_REQUIRED_SWAP, status=400)
     if mc.is_done(item):
         return _refuse(TARGET_DONE, TARGET_DONE_MESSAGE)
-    return _applied(mc.swap(crew, item.get("uid"), p.actor_id, p.actor_name, p.now), ACTION_TAKEOVER,
-                    target_uid=item.get("uid"), target_name=str(item.get("name") or ""))
+    return _applied(mc.swap(crew, item.get("uid"), uid, name, p.now), ACTION_TAKEOVER,
+                    target_uid=item.get("uid"), target_name=str(item.get("name") or ""), **to)
 
 
 def _decide_check(snap: MarkSnapshot, p: _Press) -> MarkDecision:
@@ -285,8 +300,8 @@ def _decide_check(snap: MarkSnapshot, p: _Press) -> MarkDecision:
     몫 모두를 한 번에(반장이 같이 작업자면 자기 몫 포함, 감독이 목록 밖이면 목록에 안 들어감)."""
     crew = list(snap.crew)
     if snap.state == MARK_STATE_NONE:
-        mine = mc.join([], p.actor_id, p.actor_name, p.now)
-        return _applied(mc.finish(mine, p.actor_id, by_uid=p.actor_id, by_name=p.actor_name, now=p.now), ACTION_CHECK)
+        mine = mc.join([], p.actor_id, p.actor_name, p.now)  # 시작 + 완료를 이 요청 하나가 적는다 = 바로 완료(표지 once)
+        return _applied(mc.finish(mine, p.actor_id, by_uid=p.actor_id, by_name=p.actor_name, now=p.now, once=True), ACTION_CHECK)
     if not crew:
         return _applied([], ACTION_CHECK, empty_state=MARK_STATE_DONE)
     proxied = any(not mc.is_done(m) and m.get("uid") != p.actor_id for m in crew)
@@ -313,7 +328,7 @@ def _decide_apply(snap: MarkSnapshot, action: str, seen: str, p: _Press) -> Mark
 def decide_mark(snapshot: MarkSnapshot, *, action: str, seen: str, actor_id: int, admin: bool,
                 seen_by: Any = SEEN_BY_UNSET, seen_me: Optional[str] = None, target_uid: Optional[int] = None,
                 actor_name: Optional[str] = None, now: Optional[datetime.datetime] = None,
-                label: str = "") -> MarkDecision:
+                label: str = "", to_uid: Optional[int] = None, to_name: Optional[str] = None) -> MarkDecision:
     """누름 하나를 판정한다(§7-3 차례 — 막는 까닭 · 검수 순서는 부르는 쪽이 이 결정과 사이에 끼운다).
 
     차례: 표에 없는 짝 → invalid · 같은 사람이 같은 결과 → same(멱등) · 넘김(take → join · join → take) · 지금 ≠ seen →
@@ -332,6 +347,7 @@ def decide_mark(snapshot: MarkSnapshot, *, action: str, seen: str, actor_id: int
         actor_name: 누른 사람 이름(목록 스냅샷).
         now: 쓰는 시각(UTC naive, 없으면 지금).
         label: 파트 이름(거절 글).
+        to_uid · to_name: 담당 바꾸기에서 받는 사람(없거나 누른 사람이면 누른 사람이 받는다 — 지금 동작). 다른 누름은 안 읽는다.
 
     Returns:
         :class:`MarkDecision`.
@@ -339,7 +355,9 @@ def decide_mark(snapshot: MarkSnapshot, *, action: str, seen: str, actor_id: int
     target = action_target(action, seen)
     if target is None:
         return MarkDecision(DECISION_INVALID, message="이 상태에서는 그렇게 바꿀 수 없어요.", code="BAD_REQUEST", status=400)
-    if _same_result(snapshot, action, target, actor_id, target_uid, seen_me, admin):
+    if to_uid == actor_id or action != ACTION_TAKEOVER:
+        to_uid, to_name = None, None
+    if _same_result(snapshot, action, target, actor_id, target_uid, seen_me, admin, to_uid):
         return MarkDecision(DECISION_SAME, target=snapshot.state, action=action)
     crew = list(snapshot.crew)
     action, seen, late = mc.late_join(action, seen, snapshot.state, crew, actor_id)
@@ -353,7 +371,7 @@ def decide_mark(snapshot: MarkSnapshot, *, action: str, seen: str, actor_id: int
         return MarkDecision(DECISION_CONFLICT, message=holder_changed_message(snapshot), action=action)
     if seen_me is not None and action != ACTION_CHECK and seen_me != mc.share_of(crew, actor_id):
         return MarkDecision(DECISION_CONFLICT, message=STALE_MESSAGE, action=action)
-    press = _Press(actor_id, actor_name, admin, now or now_utc_naive(), seen_by, seen_me, target_uid, label)
+    press = _Press(actor_id, actor_name, admin, now or now_utc_naive(), seen_by, seen_me, target_uid, label, to_uid, to_name)
     decision = _decide_apply(snapshot, action, seen, press)
     if late and decision.kind == DECISION_APPLY:
         decision = replace(decision, joined_late=True, notice=took_first_message(crew_line(snapshot)))

@@ -362,7 +362,7 @@ def test_packing_js_version_bumped_in_dashboards():
     assert "foms-packing.js') }}?v=20261125b" in prod_entry  # 생산 작업 시트 [패킹]도 같은 핀
     # entry CHAIN 안 핀이 바뀌었으니 entry 자신의 핀도 올린다(옛 entry 캐시가 옛 패킹 JS 를 부르지 않게).
     scripts = (_REPO_ROOT / "templates" / "shipment" / "partials" / "dashboard_scripts.html").read_text(encoding="utf-8")
-    assert "shipment-entry.js') }}?v=20261128a" in scripts
+    assert "shipment-entry.js') }}?v=20261128c" in scripts
     # JS 핀만 검사 — 무관한 foms-packing.css 핀(20260714a)까지 잡지 않도록 스코프한다.
     for src, where in ((entry, _SHIPMENT_ENTRY), (body, _CONSTRUCTION_BODY), (prod_entry, "packing_prod_entry.html")):
         for old in ("20260714a", "20261019a", "20261125a"):

@@ -6,7 +6,7 @@
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261127x">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261128a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% if pc_view %}
 {# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261127h">{% endif %}{% if order.factory_sheet %}{# 공장 칩(섞인 주문만 — 1공장뿐인 시트는 바이트 그대로) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">{% endif %}
@@ -222,7 +222,7 @@
             {%- set _fs = order.factory_sheet %}{# 2공장(설계서 2026-11-23 §4-14): 섞인 주문은 공장 단추 — 안 끝난 공장이 내 공장 하나뿐이면 지금 [제작 완료](마지막) #}
             {%- if _fs %}{% for b in _fs.buttons %}<button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--ghost' if not b.done else ('foms-prod-page__btn--pri' if b.ready else 'foms-prod-page__btn--off') }}" data-foms-sheet-factory="{{ b.factory }}" data-done="{{ '1' if b.done else '0' }}" data-order-id="{{ order.id }}"{% if not b.ready %} aria-disabled="true" data-foms-sheet-factory-why="{{ b.why }}"{% endif %}><b>{{ b.label | factory_chips }}</b></button>{% endfor %}{% endif %}
             {% if not _fs or _fs.show_complete %}<button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} aria-disabled="true"{% endif %}{% if order.complete_why %} data-foms-sheet-complete-why="{{ order.complete_why }}"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>{% endif %}
-          {% elif order.stage == '제작완료' %}
+          {% elif order.stage == '제작완료' and order.can_revert %}{# 반장 · 관리자만(사장님 2026-11-28 — part_access.can_revert_completed, 두 API 403 과 같은 판정). 파트 계정은 [제작 완료] · [보류]까지 #}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>{% if order.factory_sheet %}{% for b in order.factory_sheet.reopen %}<button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-foms-sheet-reopen="{{ b.factory }}" data-order-id="{{ order.id }}">{{ b.label | factory_chips }}</button>{% endfor %}{% endif %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
           {% endif %}
@@ -235,10 +235,10 @@
         </div>{% endif %}
       </div>
     </div>{% if pc_view and order.final_sheet_count %}{# PC(마우스)로 연 작업 시트 — 공정 칸을 누르면 첫 화면과 같은 도면 목록 창(2026-11-24 지휘 둘째 판).
-       태블릿은 이 조각이 없다(지금 그대로). 손 체크 확인 창은 아래 시트 것 하나를 같이 쓴다(pc_sheet_confirm=false). #}{% with pc_sheet_confirm = false %}{% include 'production/partials/home_pc_sheet.html' %}{% endwith %}{% endif %}
+       태블릿은 이 조각이 없다(지금 그대로). 손 체크 확인 창은 아래 시트 것 하나를 같이 쓴다(pc_sheet_confirm=false). #}{% with pc_sheet_confirm = false %}{% include 'production/partials/home_pc_sheet.html' %}{% endwith %}{% endif %}{% if can_act and order.rework_pick %}{# [수정 제작] 고르기 창(다시 만들 도면 · 다시 할 공정 — 설계서 2026-11-28 흐름 셋 §2-2). 그 단추가 있는 화면에만 #}{% include 'production/partials/sheet_rework_pick.html' %}{% endif %}
   </section>
   {# 단추 배선 세트(도메인 시트 JS · 사유 시트 · 관리자 재시도 — 하나라도 빠지면 재시도가 무음으로 실패). 핀은 첫 화면 · 출고 CHAIN 과 같은 값. #}
-  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261128a" defer></script>{% endif %}
+  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261128c" defer></script>{% endif %}
   {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}{% include 'production/partials/sheet_step_confirm.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261125a" defer></script>{% endif %}{% if write_omitted %}{# 쿠키 없는 첫 요청이라 단추 줄을 뺐다 — 터치 기기면 다시 받는다 #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
@@ -246,9 +246,10 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261128a" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261128c" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261127z" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-swipe.js') }}?v=20261127m" defer></script>{% if can_act and order.factory_sheet %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-swipe.js') }}?v=20261127m" defer></script>{% if can_act and order.can_revert %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-rework.js') }}?v=20261128a" defer></script>{% endif %}{% if can_act and order.factory_sheet %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261127a" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet.js') }}?v=20261127x" defer></script>{% if edit_on %}
 <script src="{{ url_for('static', filename='js/production/foms-production-pc-sheet-write.js') }}?v=20261127x" defer></script>{% endif %}{% endif %}{% if edit_toggle %}

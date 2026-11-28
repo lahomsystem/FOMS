@@ -26,7 +26,7 @@ PC_WRITE = "static/js/production/foms-production-pc-sheet-write.js"
 CSS = "static/css/contexts/production/sheet.css"
 PIN = "20261127x"
 WORDS_PIN = "20261127z"
-PARTS_PIN = "20261128a"  # 11-28 a: 도면 없는 주문 안내 글(test_production_wording_1127_z1)
+PARTS_PIN = "20261128c"  # 11-28 c: 담당 고르기 · 조립 없음 낱말 · 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글(test_production_wording_1127_z1)
 
 
 def _read(rel: str) -> str:
@@ -70,7 +70,7 @@ def test_고친_파일_핀은_싣는_곳마다_같다() -> None:
         assert f"js/production/{name}') }}}}?v={PIN}" in sheet, name
     for name, pin in (("foms-production-sheet-parts.js", PARTS_PIN), ("foms-production-sheet-page.js", WORDS_PIN)):  # 11-27 z: 바뀐 기록 낱말 · 공정 칸 알림(test_production_record_words_tone_1127)
         assert f"js/production/{name}') }}}}?v={pin}" in sheet, name
-    assert f"css/contexts/production/sheet.css') }}}}?v={PIN}" in sheet
+    assert "css/contexts/production/sheet.css') }}?v=20261128a" in sheet  # 11-28 a: 수정 제작 고르기 창 줄
     assert scripts.count(f"foms-production-sheet-parts.js') }}}}?v={PARTS_PIN}") == 2
     for name in ("foms-production-home.js", "foms-production-pc-sheet.js", "foms-production-pc-sheet-write.js"):
         assert f"js/production/{name}') }}}}?v={PIN}" in scripts, name

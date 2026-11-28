@@ -28,7 +28,7 @@ from typing import Any, Iterable, Optional
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.confirm_drawing_gate import drawing_revision_in_progress
 from foms.services.orders.drawing_fix import blocked, entry_blocked
-from foms.services.production.part_constants import MARK_STATE_DONE, PART_INSPECT, PRODUCTION_PART_LABELS
+from foms.services.production.part_constants import MARK_STATE_DONE, PART_INSPECT, PRODUCTION_PART_LABELS, basic_word
 from foms.services.production import mark_crew as mc
 from foms.services.production.part_mark_rules import (
     ACTION_CHECK,
@@ -44,10 +44,10 @@ from foms.services.production.part_mark_rules import (
 from foms.services.production.part_progress import (
     INSPECT_PREREQ_PARTS,
     STEP_PER_SHEET_MESSAGE,
-    cards_used,
     inspect_left,
     marks_by_part,
     part_progress,
+    parts_in_use,
     per_sheet_only,
 )
 
@@ -151,7 +151,7 @@ def hand_step_gate(sd: Any, marks: Iterable[Any], part: str) -> Optional[Gate]:
         막히면 :class:`Gate`(``checked_by`` 를 싣는다), 아니면 None.
     """
     step = _step(sd, part)
-    if not step.get("done") or part in cards_used(marks):
+    if not step.get("done") or part in parts_in_use(sd, marks):
         return None
     name = str(step.get("by_name") or "").strip()
     label = PRODUCTION_PART_LABELS[part]
@@ -176,7 +176,7 @@ def _not_ready_message(left: list[dict[str, Any]], people: Optional[dict[str, li
 
 
 def _done_first_message(inspector: str, part: str, basic: bool) -> str:
-    what = "기본을" if basic else f"{PRODUCTION_PART_LABELS[part]} 완료를"  # 받침에 맞춘 토씨(기본을 · 완료를)
+    what = f"{basic_word(part)}을" if basic else f"{PRODUCTION_PART_LABELS[part]} 완료를"  # 받침에 맞춘 토씨(기본을 · 조립 없음을 · 완료를)
     if not inspector:
         return f"이 장은 검수가 완료됐어요. {what} 취소하려면 먼저 검수 완료를 취소해 주세요."
     return (f"{subject_particle(inspector)} 이 장 검수를 완료했어요. {what} 취소하려면 "

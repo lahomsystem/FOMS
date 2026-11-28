@@ -33,9 +33,9 @@ ROOT = Path(__file__).resolve().parents[2]
 NODE_CHECK = ROOT / "tests/support/production_sheet_confirm_node_checks.js"
 PIN = "20261127a"
 #: tablet-domain-sheets.js · shipment-entry.js 핀 — 2026-11-27 옛 생산 칸반 몫을 지우며 한 번 더 올렸다(싣는 곳 셋이 같은 값).
-SHEETS_PIN = "20261128a"  # 11-28 a: 확인 창 띄어쓰기 '제작 대기' · '제작 중'(test_production_wording_1127_z1)
-SHEET_PARTS_PIN = "20261128a"  # 11-28 a: 도면 없는 주문 안내 글 '완료로 처리' · 11-27 z: 바뀐 기록 낱말(test_production_record_words_tone_1127) · 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
-SHEET_CSS_PIN = "20261127x"  # sheet.css — 도면 있는 주문 공정 보기 줄(사장님 2026-11-27 "도면이 주", test_production_steps_view_only_1127)
+SHEETS_PIN = "20261128c"  # 11-28 c: 수정 제작 고르기 창(test_production_rework_pick_1128) · 11-28 b: 보류 · 수정 제작 창 글 · 11-28 a: 확인 창 띄어쓰기 '제작 대기' · '제작 중'(test_production_wording_1127_z1)
+SHEET_PARTS_PIN = "20261128c"  # 11-28 c: 담당 고르기 · 조립 없음 낱말 · 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글 '완료로 처리' · 11-27 z: 바뀐 기록 낱말(test_production_record_words_tone_1127) · 11-27 d: 도면 여러 장 주문 공정 칸 막힘 → u: 도면 있는 주문 보기 줄(밀어 넘기기 m 과 합침)(test_production_steps_view_only_1127)
+SHEET_CSS_PIN = "20261128a"  # sheet.css — 11-28 a: 수정 제작 고르기 창 줄 · 도면 있는 주문 공정 보기 줄(사장님 2026-11-27 "도면이 주", test_production_steps_view_only_1127)
 PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 FACTORY_JS = "static/js/production/foms-production-sheet-factory.js"

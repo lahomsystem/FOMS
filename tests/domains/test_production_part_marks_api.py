@@ -223,17 +223,17 @@ def test_cut_transition_table(client):
 
 def test_other_parts_have_no_basic_and_bad_pairs_are_400(client):
     order = _order()
-    _login(client, _user("이조립", part="assemble"))
-    basic = _one(client, order, 0, "assemble", "basic", "none")
-    assert basic.status_code == 400 and _code(basic) == "BASIC_CUT_ONLY"
+    _login(client, _user("이엣지", part="edge"))
+    basic = _one(client, order, 0, "edge", "basic", "none")
+    assert basic.status_code == 400 and _code(basic) == "BASIC_NOT_ALLOWED"  # 엣지 · 검수(조립은 11-28 부터 '조립 없음')
     for action, seen, state in (("take", "none", "NEED"), ("done", "need", "DONE"), ("undo", "done", "NEED")):
-        assert _one(client, order, 0, "assemble", action, seen).status_code == 200
-        assert _row(order, 0, "assemble").state == state
+        assert _one(client, order, 0, "edge", action, seen).status_code == 200
+        assert _row(order, 0, "edge").state == state
     for action, seen in (("take", "need"), ("done", "none"), ("undo", "none"), ("join", "none"), ("remove", "none")):
-        resp = _one(client, order, 1, "assemble", action, seen)
+        resp = _one(client, order, 1, "edge", action, seen)
         assert resp.status_code == 400 and _code(resp) == "BAD_REQUEST", (action, seen)
-    # 되돌리기는 작업 필요("조립 1/2 완료")에서도 짝이 맞다(2026-11-25 multi-holder §3-1) — 아무도 안 고른 장이면 경합
-    partial = _one(client, order, 1, "assemble", "undo", "need")
+    # 되돌리기는 작업 필요("엣지 1/2 완료")에서도 짝이 맞다(2026-11-25 multi-holder §3-1) — 아무도 안 고른 장이면 경합
+    partial = _one(client, order, 1, "edge", "undo", "need")
     assert partial.status_code == 409 and _code(partial) == "MARK_CONFLICT"
     assert client.post(ONE, json={"order_id": order.id, "drawing_key": _key(order, 0), "part": "paint",
                                   "action": "take", "seen": "none"}).status_code == 400
@@ -367,7 +367,7 @@ def test_bulk_gates_and_limits(client):
     _login(client, _user("최엣지", part="edge"))
     items = [{"order_id": order.id, "drawing_key": _key(order, 0)}]
     assert _code(client.post(BULK, json={"part": "cut", "seen": "none", "items": items})) == "PART_FORBIDDEN"
-    assert _code(client.post(BULK, json={"part": "edge", "seen": "none", "items": items})) == "BASIC_CUT_ONLY"
+    assert _code(client.post(BULK, json={"part": "edge", "seen": "none", "items": items})) == "BASIC_NOT_ALLOWED"
     _login(client, _user("김재단", part="cut"))
     too_many = [{"order_id": order.id, "drawing_key": f"k{j}.png"} for j in range(201)]
     assert _code(client.post(BULK, json={"part": "cut", "seen": "none", "items": too_many})) == "TOO_MANY"

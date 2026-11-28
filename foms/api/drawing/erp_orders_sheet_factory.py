@@ -53,6 +53,7 @@ from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.orders.stage_override import STAGE_FORWARD_RANK
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.production import floor_alarm
 from foms.services.production.factory_constants import FACTORIES
 from foms.services.production.part_marks_query import order_marks
 from models import Order, OrderEvent, SecurityLog
@@ -163,6 +164,8 @@ def _mutation(user: Any, items: list[dict[str, Any]], captured: dict[str, Any], 
         sess.add(OrderEvent(order_id=order.id, event_type=SHEET_FACTORY_EVENT, created_by_user_id=user.id,
                             payload={"changes": rows, "by_name": _actor_name(user), "stage": stage}))
         _audit(sess, user, order, SHEET_FACTORY_EVENT, change_note(rows), {"changes": rows})
+        for change in changes:  # 생산 현장 알람 — 옮겨진 도면을 작업 중인 사람에게 멈춤(지금은 일이 시작된 도면 옮김을 위에서 막아 받는 사람이 없다)
+            floor_alarm.note(sess, "factory_moved", order.id, user, drawing_keys=list(change.keys), to_factory=change.after)
         captured["data"] = {"factory_by_sheet": factory_by_sheet(sd), "factory_by_key": factory_by_key(sd), "changed": rows}
         return {order.id: [f"ORDER_DETAIL:{order.id}", "ORDERS_INDEX"]}
 
@@ -197,6 +200,7 @@ def api_order_sheet_factory(order_id: int):
             scope_hash=scope_hash, request_hash=request_hash, mutation=_mutation(user, items, captured, ask_confirm=ask_confirm),
         )
         db.commit()
+        floor_alarm.flush(db)
     except _Unchanged as same:
         db.rollback()
         return jsonify({"success": True, "data": same.data, "error": None})

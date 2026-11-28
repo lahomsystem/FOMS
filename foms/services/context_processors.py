@@ -32,6 +32,7 @@ from foms.services.orders.order_flag_permissions import can_toggle_factory2_flag
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.services.orders.team_labels import team_label
+from foms.services.production import floor_alarm
 from foms.persistence.main.db import get_db
 from foms.persistence.main.models import User
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
@@ -388,6 +389,7 @@ def inject_foms_flags() -> dict[str, Any]:
         "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
         "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
         "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),
+        "flag_floor_alarm": floor_alarm.enabled(),  # 생산 현장 알람 스위치(기본 꺼짐 — 거짓이면 알람 조각은 아무것도 안 그린다)
         # 고객 공유 모달 카톡 공유(Kakao JS SDK v2) 키. 공유 전용 앱을 분리하면
         # KAKAO_SHARE_JS_KEY 로 덮어쓰고, 기본은 지도와 같은 앱 키(스펙 §5 사용자
         # 확인 대기 — 도메인 등록 전에는 SDK init 이 실패하고 버튼이 비활성으로 표면화).

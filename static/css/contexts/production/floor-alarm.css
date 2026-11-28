@@ -1,0 +1,92 @@
+/* 생산 현장 알람 — 띠(보통 등급) · 소리 단추(종 옆). 설계서 docs/specs/2026-11-28-production-floor-alarm_SPEC.md §2-4 · §3-3.
+ * 짝: static/js/foms/foms-floor-alarm.js · templates/production/partials/floor_alarm.html(flag_floor_alarm 이 참일 때만 실림).
+ * 색은 바탕 · 글을 늘 함께 정한다 — 기기 어두운 설정에서도 같은 짝으로 읽힌다(생산 머리 줄도 밝은 바탕 그대로).
+ * 상태 표시에 무채색 없음: 켬 = 초록, 켜기 · 꺼짐 = 주황, 띠 = 주황. 새 글자 크기는 전역 배율(--foms-fs)을 따른다. */
+
+/* 소리 단추 — 생산 화면 단추 꼴(__btn)에 색만 얹는다. 터치 기기(공장 태블릿)에서만 보인다. */
+.foms-floor-sound { display: none; gap: 8px; }
+.foms-floor-sound i { font-size: calc(18px * var(--foms-fs, 1)); }
+.foms-floor-sound.is-on,
+.foms-floor-sound.is-on:hover,
+.foms-floor-sound.is-on:focus-visible { background: #dff3e8; border-color: #17734a; color: #0f5535; }
+.foms-floor-sound.is-locked,
+.foms-floor-sound.is-locked:hover,
+.foms-floor-sound.is-locked:focus-visible,
+.foms-floor-sound.is-off,
+.foms-floor-sound.is-off:hover,
+.foms-floor-sound.is-off:focus-visible { background: #ffeed6; border-color: #b45a00; color: #7a3d00; }
+.foms-floor-sound:focus-visible { outline: 3px solid #b45a00; outline-offset: 2px; }
+@media (pointer: coarse) {
+  .foms-floor-sound { display: inline-flex; }
+}
+
+/* 띠 — 머리 줄 아래 한 줄 전체(머리 줄과 같이 위에 붙어 있다). 높이 64 · 글 20 이상, 넘치면 본문부터 줄임.
+ * 머리 줄은 992px 이상에서 한 줄로 막혀 있어(nowrap — home.css · sheet.css) 띠가 그 줄에 서면 옆으로 밀려 화면 밖으로 나간다
+ * (11-28 실측 1280 폭: 첫 화면 758px · 작업 시트 614px 넘침, [확인] 단추가 화면 밖). 그래서 띠는 머리 줄의 줄 배치 밖에 서고
+ * (position: absolute — 머리 줄이 sticky 라 그 안에 붙는다), 띠가 보일 때만 머리 줄 아래 여백(띠 높이 + 줄 틈)으로 자리를 비운다.
+ * 띠가 숨으면 머리 줄은 띠가 없던 때와 같다. 높이 68 = 단추 52 + 위아래 6 · 6 + 선 2 · 2(글자 150% 에서도 같다 — 한 줄 말줄임). */
+.foms-prod-home__bar, .foms-prod-page__bar { --foms-floor-band-h: 68px; }
+.foms-prod-home__bar:has(> .foms-floor-band:not([hidden])) { padding-bottom: calc(8px + var(--foms-floor-band-h) + 10px); }
+.foms-prod-page__bar:has(> .foms-floor-band:not([hidden])) { padding-bottom: calc(8px + var(--foms-floor-band-h) + 8px); }
+.foms-floor-band {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 8px;
+  height: var(--foms-floor-band-h, 68px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 6px 8px 6px 16px;
+  border: 2px solid #d97706;
+  border-radius: 12px;
+  background: #ffe7c2;
+  color: #6b3500;
+}
+.foms-prod-page__bar > .foms-floor-band { left: 16px; right: 16px; } /* 띠 옆 끝 = 머리 줄 안쪽 여백(home 20 · sheet 16 · 992 아래 12) */
+@media (max-width: 991.98px) {
+  .foms-prod-home__bar > .foms-floor-band, .foms-prod-page__bar > .foms-floor-band { left: 12px; right: 12px; }
+}
+.foms-floor-band[hidden],
+.foms-floor-band__count[hidden] { display: none; }
+.foms-floor-band__go {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #6b3500;
+  font: inherit;
+  font-size: calc(20px * var(--foms-fs, 1));
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.foms-floor-band__count {
+  flex: 0 0 auto;
+  font-size: calc(18px * var(--foms-fs, 1));
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.foms-floor-band__ok {
+  flex: 0 0 auto;
+  min-width: 96px;
+  min-height: 52px;
+  padding: 0 20px;
+  border: 2px solid #b45a00;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #6b3500;
+  font: inherit;
+  font-size: calc(20px * var(--foms-fs, 1));
+  font-weight: 800;
+  cursor: pointer;
+}
+.foms-floor-band__go:focus-visible,
+.foms-floor-band__ok:focus-visible { outline: 3px solid #6b3500; outline-offset: 2px; }

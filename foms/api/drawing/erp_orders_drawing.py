@@ -65,6 +65,7 @@ from foms.services.orders.drawing_transfer_plan import changed_detail, changed_n
 from foms.services.orders.drawing_key_safety import history_referenced_keys, split_deletable_keys
 from foms.services.orders.drawing_revision_files import is_revision_reference_key
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
+from foms.services.production import floor_alarm
 from foms.services.production.part_steps_sync import (
     TRIGGER_TRANSFER,
     TRIGGER_TRANSFER_CANCEL,
@@ -472,6 +473,8 @@ def perform_drawing_transfer(
     try:
         from foms.services.notifications.production_change import apply_production_change_alert
         if hotfix:
+            # 생산 현장 알람(작업 중인 사람만) — 바뀐 옛 key 는 이 자리만 안다. 보내기는 아래 finalize 가 한다(커밋 뒤).
+            floor_alarm.note(db, "drawing_replaced", order_id, current_user, **floor_alarm.replaced_material(old_files, updated_files, fix_result))
             # 생산팀 전원이 알아야 한다(2026-10-27 결정) — 앞 알림과 합치지 않아 폰 알림이 늘 나간다.
             prod_notif, prod_notif_created = apply_production_change_alert(
                 db, order, "drawing_hotfix",

@@ -6,7 +6,8 @@
 대시보드 캐시만 맡는다.
 
 * 문: 앞문 = 제작 완료와 같은 정책(매니페스트 두 곳 — ``PRODUCTION_EDIT`` · CSRF), 처리기 = 생산 쓰기 사람(관리자 + 생산팀 —
-  :func:`~foms.services.production.write_access.can_write_production`) + 공장 문(서비스 ``can_finish_factory``).
+  :func:`~foms.services.production.write_access.can_write_production`) + 공장 문(서비스 ``can_finish_factory``) + 완료 취소
+  (``done: false``)면 반장 · 관리자 문(서비스 ``can_revert_completed`` — 403 ``LEAD_REQUIRED``, 2026-11-28).
 * 응답 ``{success, data: {factory_done, stage, final, changed}, error}`` · 거절 ``{success: false, data: {code, …}, error: 글}``.
 * API 층은 웹 층을 부르지 않는다(레이어 래칫) — 로그인은 ``g.current_user``, 감사는 옛 제작 완료와 같은 ``_audit_production``.
 """

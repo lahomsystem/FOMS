@@ -11,7 +11,7 @@ action    지금 → 새                     조건
 ========  ==========================  ==============================================
 take      NONE → NEED[나]              [작업 시작]. 서버 줄이 NEED[남…]이면 join 으로 넘김(Q16)
 join      NEED[남…] → NEED[남…, 나]   [같이 작업]. 모두 완료면 409 ``JOIN_DONE``, 그사이 비었으면 take 로(판결 1)
-basic     NONE → BASIC                 재단만(API 가 400 으로 막는다) — 지금 그대로
+basic     NONE → BASIC                 재단 '기본' · 조립 '조립 없음'만(그 밖 파트는 API 가 400 으로 막는다)
 done      내 몫 완료                   모두 완료면 DONE. 반장 · 관리자가 남의 줄 = 남은 사람 몫을 한 번에(Q15)
 undo      내 몫 완료 끔 / BASIC → NONE  남의 몫은 반장 · 관리자만(파트 계정 403 ``UNDO_NOT_MINE`` — Q3)
 release   나 빼기                      [시작 취소]. 완료 누른 뒤 409 ``RELEASE_AFTER_DONE``(Q7), 남은 사람 모두 완료면 DONE(Q6)
@@ -39,6 +39,7 @@ from foms.services.production.part_constants import (
     MARK_STATE_DONE,
     MARK_STATE_NEED,
     MARK_STATE_NONE,
+    basic_word,
 )
 
 ACTION_TAKE = "take"
@@ -83,6 +84,10 @@ TARGET_DONE_MESSAGE = "완료를 누른 사람은 바꿀 수 없어요."
 JOIN_DONE, RELEASE_AFTER_DONE, UNDO_NOT_MINE = "JOIN_DONE", "RELEASE_AFTER_DONE", "UNDO_NOT_MINE"
 REMOVE_FORBIDDEN, RELEASE_NOT_HOLDER = "REMOVE_FORBIDDEN", "RELEASE_NOT_HOLDER"
 TARGET_REQUIRED, TARGET_DONE, TARGET_GONE = "TARGET_REQUIRED", "TARGET_DONE", "TARGET_GONE"
+#: 담당 바꾸기에서 받는 사람을 고를 때의 거절(설계서 2026-11-28 흐름 셋 §1-3) — 남에게 주기는 반장 · 관리자만(403), 받는 사람이
+#: 그사이 꺼짐 · 그 파트 아님 · 그 공장 아님 · 없는 계정(409), 받는 사람이 그사이 그 도면에 들어옴(409).
+GIVE_FORBIDDEN, RECEIVER_NOT_ALLOWED, RECEIVER_ALREADY_IN = "GIVE_FORBIDDEN", "RECEIVER_NOT_ALLOWED", "RECEIVER_ALREADY_IN"
+GIVE_FORBIDDEN_MESSAGE = "다른 사람에게 주는 것은 반장이나 관리자만 할 수 있어요."
 
 #: 표 ``production_part_marks`` 의 쓰는 칸(``id`` 제외) — 쓰기 API 가 표마다 한 번에 INSERT/UPDATE 할 때 쓴다.
 MARK_COLUMNS: tuple[str, ...] = (
@@ -113,6 +118,8 @@ class MarkSnapshot:
     handed_at: Optional[datetime.datetime] = None
     #: 작업하는 사람 목록(:func:`~foms.services.production.mark_crew.crew_of` — 읽기 정규화 뒤).
     crew: tuple[dict[str, Any], ...] = field(default=(), compare=False, hash=False)
+    #: 그 줄의 파트(줄이 없으면 None) — 글의 낱말만 고른다(재단 "기본" · 조립 "조립 없음"), 판정에는 안 쓴다.
+    part: Optional[str] = field(default=None, compare=False, hash=False)
 
     @classmethod
     def from_row(cls, row: Any) -> "MarkSnapshot":
@@ -126,7 +133,7 @@ class MarkSnapshot:
             picked_by_name=row.picked_by_name, done_by_user_id=row.done_by_user_id,
             done_by_name=row.done_by_name, updated_by_user_id=row.updated_by_user_id,
             picked_at=getattr(row, "picked_at", None), handed_from_name=getattr(row, "handed_from_name", None),
-            handed_at=getattr(row, "handed_at", None), crew=tuple(mc.crew_of(row)),
+            handed_at=getattr(row, "handed_at", None), crew=tuple(mc.crew_of(row)), part=getattr(row, "part", None),
         )
 
     @property
@@ -141,6 +148,7 @@ class MarkDecision:
 
     ``action`` = 넘김 뒤 실제로 쓰는 누름, ``crew`` = 쓸 새 목록(apply), ``joined_late`` · ``notice`` = Q16 넘김,
     ``proxied`` = PC [완료 처리]가 대신 완료로 감, ``target_uid`` · ``target_name`` = 바꾸기 · 시작 취소 대상,
+    ``to_uid`` · ``to_name`` = 담당 바꾸기에서 받은 사람(누른 사람이거나 반장 · 관리자가 고른 사람 — 2026-11-28),
     ``code`` · ``status`` = 거절 코드 · 상태.
     """
 
@@ -157,6 +165,8 @@ class MarkDecision:
     proxied: bool = False
     target_uid: Optional[int] = None
     target_name: str = ""
+    to_uid: Optional[int] = None
+    to_name: str = ""
 
 
 def action_target(action: str, seen: str) -> Optional[str]:
@@ -211,6 +221,23 @@ def toward_particle(name: str) -> str:
     return f"{name}으로"
 
 
+def topic_particle(name: str) -> str:
+    """이름 + 은/는 — 받침이 있으면 '은', 없으면 '는'(한글이 아니면 '은'). 빈 이름은 "그 사람은"."""
+    name = (name or "").strip() or "그 사람"
+    last = name[-1]
+    return f"{name}는" if "가" <= last <= "힣" and (ord(last) - ord("가")) % 28 == 0 else f"{name}은"
+
+
+def receiver_not_allowed_message(name: str) -> str:
+    """받는 사람이 그사이 꺼졌거나 · 그 파트 · 그 공장이 아닐 때(409 ``RECEIVER_NOT_ALLOWED``)."""
+    return f"{topic_particle(name)} 지금 이 도면을 받을 수 없어요. [다시 받기]를 눌러 주세요."
+
+
+def receiver_already_in_message(name: str) -> str:
+    """받는 사람이 그사이 그 도면에 들어왔을 때(409 ``RECEIVER_ALREADY_IN``)."""
+    return f"{topic_particle(name)} 이미 이 도면을 작업 중이에요."
+
+
 def crew_line(snapshot: MarkSnapshot) -> str:
     """문장 속 작업하는 사람 이름("이시영 · 김재단 외 1명") — 목록이 비면 한 명짜리 칸. 경합 · 넘김 글이 쓴다."""
     return mc.name_sentence(mc.names(snapshot.crew) or [snapshot.picked_by_name or ""])
@@ -246,7 +273,7 @@ def conflict_message(snapshot: MarkSnapshot, action: str = "") -> str:
     if snapshot.state == MARK_STATE_DONE:
         name, verb = done_line(snapshot), "먼저 완료했어요"
     elif snapshot.state == MARK_STATE_BASIC:
-        name, verb = (snapshot.done_by_name or "").strip(), "먼저 기본으로 했어요"
+        name, verb = (snapshot.done_by_name or "").strip(), f"먼저 {basic_word(snapshot.part)}으로 했어요"
     else:
         return STALE_MESSAGE
     return f"{subject_particle(name)} {verb}" if name else f"다른 사람이 {verb}"
@@ -260,7 +287,7 @@ def new_action_conflict_message(snapshot: MarkSnapshot) -> str:
         return f"그사이 {subject_particle(done_line(snapshot))} 완료했어요. 더 할 일은 없어요."
     name = (snapshot.done_by_name or "").strip()
     if snapshot.state == MARK_STATE_BASIC and name:
-        return f"그사이 {subject_particle(name)} 기본으로 했어요. 더 할 일은 없어요."
+        return f"그사이 {subject_particle(name)} {basic_word(snapshot.part)}으로 했어요. 더 할 일은 없어요."
     return NEW_STALE_MESSAGE
 
 

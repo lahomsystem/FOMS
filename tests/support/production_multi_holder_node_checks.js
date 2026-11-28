@@ -1,13 +1,15 @@
 // 생산 도면 판 — 여러 명이 같이 작업(M2) JS 를 서버가 그린 진짜 판(argv[2]) 위에서 Node 로 돌린다(설계서 2026-11-25 multi-holder §11 M2).
 // tests/domains/test_production_multi_holder_board.py 가 부른다. want = argv[3] {steps: [...], posts: [서버 답…], gets: [서버 답…]}.
-// 판 JS 여섯(viewer → claim → modal → cancel → crew → parts, 받아 오기 sync 는 want.sync 일 때)을 차례로 싣고 steps 를 차례로 한다:
+// 판 JS 일곱(viewer → claim → modal → cancel → crew → give → parts, 받아 오기 sync 는 want.sync 일 때)을 차례로 싣고 steps 를 차례로 한다:
 //   {do:'parity'} 모든 카드의 서버 단추 칸 ↔ JS 가 다시 그린 단추 칸 · {do:'click', key, act} 카드 단추 · {do:'modal'} 창 모습 ·
 //   {do:'notice', key} 넘김 말풍선 누름 ·
 //   {do:'run'} 실행 단추 · {do:'choice', text} 관리자 고르기 · {do:'who', index} 사람 고르기 · {do:'card', key} 카드 모습 · {do:'sync'} 받아 오기 한 번 ·
-//   {do:'timers'} 미뤄 둔 일(창 잠금 풀기 등)을 지금 돌림 · {do:'answer'} 붙잡아 둔 미리 보기 답을 지금 보냄.
+//   {do:'timers'} 미뤄 둔 일(창 잠금 풀기 등)을 지금 돌림 · {do:'answer'} 붙잡아 둔 미리 보기 답을 지금 보냄 ·
+//   {do:'bulk'} 판 머리 일괄 단추([남은 N장 모두 기본] · 조립 [… 모두 조립 없음]) · {do:'head'} 판 머리 글("안 본 도면 3장" · "미정 도면 없어요").
 // [시작 취소] 창 미리 보기(GET …/part-marks/cancel-preview, 2026-11-27)는 쓰기 · 받아 오기 기록(calls)과 따로 previews 에 주소를 적고
 // want.previews 의 답을 차례로 준다(없으면 run_cancelled:false). 답이 '__hang' 이면 안 옴, {__hold: 답} 이면 {do:'answer'} 때 온다.
 // 카드 단추를 누른 step 은 창 모습을 적은 뒤 한 박자 기다린다(사람 손처럼 — 미리 보기 답이 온 뒤 다음 step).
+// "누구에게 줄까요?" 창의 받을 사람 목록(GET …/part-marks/receivers, 2026-11-28)은 다른 GET 처럼 want.gets 의 답을 차례로 받고 calls 에 남는다.
 // 서버 답(posts · gets)은 파이썬이 진짜 API 로 받은 JSON 이다(가짜 글 없음). 결과는 stdout JSON {out: [...], calls: [...]}.
 'use strict';
 const fs = require('fs');
@@ -92,7 +94,7 @@ const ctx = {
 ctx.window = ctx;
 // 텍스트 노드 — appendChild 가 받는 꼴(fake DOM 의 textNode 와 같은 모양)
 vm.createContext(ctx);
-const files = ['viewer', 'claim', 'modal', 'cancel', 'crew', ''].concat(want.sync ? ['sync'] : []);
+const files = ['viewer', 'claim', 'modal', 'cancel', 'crew', 'give', ''].concat(want.sync ? ['sync'] : []);
 files.forEach((n) => {
   const f = path.join(root, 'static/js/production/foms-production-parts' + (n ? '-' + n : '') + '.js');
   vm.runInContext(fs.readFileSync(f, 'utf8'), ctx, { filename: f });
@@ -179,6 +181,14 @@ function counts() {
     } else if (s.do === 'who') {
       click(modal.querySelectorAll('[data-pp-who]')[s.index]);
       out.push({ do: 'who', modal: modalState() });
+    } else if (s.do === 'bulk') {
+      click(body.querySelector('[data-pp-act="bulk"]'));
+      out.push({ do: 'bulk', modal: modalState() });
+    } else if (s.do === 'head') {
+      out.push({ do: 'head', text: text(body.querySelector('[data-pp-unseen-text]')) });
+    } else if (s.do === 'wait') { // 받을 사람 목록 같은 읽기 답이 창에 그려질 때까지 한 박자
+      await tick(); await tick(); await tick();
+      out.push({ do: 'wait', modal: modalState() });
     } else if (s.do === 'card') {
       out.push({ do: 'card', card: cardState(cardOf(s.key)), counts: counts() });
     } else if (s.do === 'apply') { // 받아 오기와 같은 고치기(FomsPartsCards.apply)에 서버 표시 한 장

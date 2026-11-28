@@ -58,7 +58,8 @@ from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     evaluate_policy,
 )
-from foms.services.production.part_access import steps_lock
+from foms.services.production.part_access import REWORK_LEAD_ONLY_MESSAGE, UNCOMPLETE_LEAD_ONLY_MESSAGE, steps_lock
+from foms.api.production.revert_gate import lead_or_admin_required
 from foms.services.production.write_access import (
     PRODUCTION_ACK_DENIED_MESSAGE,
     PRODUCTION_WRITE_DENIED_MESSAGE,
@@ -81,6 +82,8 @@ from foms.services.production.part_progress import complete_block_body, complete
 from foms.services.production.complete_order import clear_factory_marks, complete_production, reopen_after_uncomplete
 from foms.services.production.factory_home import factory_step_fields
 from foms.services.production.factory_scope import order_factory_gate
+from foms.services.production import floor_alarm  # 알람 거는 줄(설계서 2026-11-28 §2-11) — 커밋 전 note · 커밋 바로 뒤 flush
+from foms.services.production.rework_sheets import ReworkRefusal, apply_pick, read_pick
 from foms.services.production.order_write_helpers import (  # noqa: F401  # 옮긴 조각 — 옛 이름 그대로 다시 내보냄(시험 · 다른 생산 API)
     PRODUCTION_HOLD_HISTORY_CAP as _PRODUCTION_HOLD_HISTORY_CAP,
     _append_hold_history,
@@ -179,6 +182,7 @@ def _apply_production_hold_gate(
     user_id: int | None,
     released_by: str | None,
     db: Any,
+    actor: Any = None,
 ) -> tuple[Any, int] | None:
     """생산 전이(start/complete/rework) 전 보류 게이트. 세 엔드포인트가 공유한다.
 
@@ -237,6 +241,7 @@ def _apply_production_hold_gate(
             created_by_user_id=user_id,
         )
     )
+    floor_alarm.note(db, "hold_released", order_id, actor)
     return None
 
 
@@ -413,6 +418,7 @@ def _apply_start_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     if release_hold and hold_was_active:
         _release_hold_in_sd(sd, db, order.id, user_id, "release_on_start",
                             user.name if user else None)
+        floor_alarm.note(db, "hold_released", order.id, user)
     start_run_in_sd(db, order, sd, user, note=START_NOTE)
     _audit_production(order, "PRODUCTION_STARTED", user_id,
                       extra={"hold_released": bool(release_hold and hold_was_active)})
@@ -449,6 +455,7 @@ def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
             _append_hold_history(production, user.name if user else None)
             production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
             hold_released = True
+            floor_alarm.note(db, "hold_released", order.id, user)
     clear_factory_marks(sd)  # 2공장: 공장 완료 표지도 모두 지움(주문 통째 다시 — 설계서 2026-11-23 §4-14 되돌리기)
 
     order.structured_data = sd
@@ -620,6 +627,7 @@ def api_production_start(order_id):
                     route="erp_orders_production.api_production_start", axis="MAIN",
                     from_value="", to_value="")
             db.commit()
+            floor_alarm.flush(db)
             return jsonify({"success": True, "message": "제작이 시작됐어요.",
                             "new_status": "PRODUCTION", "run_started": True})
 
@@ -646,6 +654,7 @@ def api_production_start(order_id):
                 route="erp_orders_production.api_production_start", axis="MAIN",
                 from_value=from_stage, to_value="PRODUCTION")
         db.commit()
+        floor_alarm.flush(db)
         return jsonify({"success": True, "message": "제작이 시작됐어요.", "new_status": "PRODUCTION"})
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
         db.rollback()
@@ -681,6 +690,7 @@ def api_production_complete(order_id):
 @erp_orders_production_bp.route("/<int:order_id>/production/rework", methods=["POST"])
 @login_required
 @_production_steps_edit_required
+@lead_or_admin_required(REWORK_LEAD_ONLY_MESSAGE)
 def api_production_rework(order_id: int):
     """수정 제작 시작 (제작완료 → PRODUCTION 되돌림).
 
@@ -689,9 +699,12 @@ def api_production_rework(order_id: int):
     (완료 시 ``api_production_complete`` 가 active=False 로 해제하며 count 는 보존).
     단계 쓰기 뒤 새 회차 current run 을 발급한다(버킷 = 단계 + run → 제작중).
     가드는 start/complete 와 동일 순서: 404 → INVALID_STAGE(제작완료가 아니면 409) →
-    보류 게이트(HOLD_ACTIVE / release_hold, via="release_on_rework").
+    보류 게이트(HOLD_ACTIVE / release_hold, via="release_on_rework") → 고른 것(2026-11-28 — 400 REWORK_PICK_REQUIRED ·
+    409 DRAWING_NOT_CURRENT · 403 OTHER_FACTORY, :mod:`foms.services.production.rework_sheets`). 고른 도면만 네 파트 미정 · 고른 칸만 끈다.
 
     :param order_id: 대상 주문 id.
+    :param keys: (body) 다시 만들 도면 key 들 — 도면이 1장 이상인 주문은 꼭(한 장 이상).
+    :param steps: (body) 다시 할 공정 key 들 — 도면이 0장인 주문은 꼭(한 칸 이상).
     :param reason: (body) 수정 제작 사유(선택, trim). 빈 값 허용.
     :param release_hold: (body) 보류 해제 후 진행 여부(선택, bool).
     :return: ``{success, message, new_status}`` 또는 오류 JSON(에러 키 = message).
@@ -756,10 +769,19 @@ def api_production_rework(order_id: int):
                 user_id=user_id,
                 released_by=user.name if user else None,
                 db=db,
+                actor=user,
             ),
             "HOLD_ACTIVE", override, punched)
         if hold_gate is not None:
             return hold_gate
+
+        # 고른 도면 · 공정(설계서 2026-11-28 §2-3) — 한 장도(한 칸도) 안 고른 요청 · 값 없는 옛 화면은 여기서 400. 관리자 뚫기 대상이
+        # 아니다. 보류를 풀며 온 요청이면 그 풀기도 같이 되감는다(아무것도 안 바뀜).
+        try:
+            pick = read_pick(user, sd, body)
+        except ReworkRefusal as refusal:
+            db.rollback()
+            return jsonify(refusal.body()), refusal.status
 
         wf = sd.get("workflow") or {}
         wf["stage"] = "PRODUCTION"
@@ -794,8 +816,10 @@ def api_production_rework(order_id: int):
             "count": count,
             "at": now_utc_naive().isoformat(),
             "by_name": user.name if user else None,
+            **pick.record(),
         }
-        clear_factory_marks(sd)  # 2공장: 공장 완료 표지도 모두 지움(주문 통째 다시 — 설계서 2026-11-23 §4-14)
+        # 고른 도면만 네 파트 미정 · 고른 칸만 끔 · 공장 완료 표지는 고른 도면이 있는 공장만 지움(서비스 한 곳 — rework_sheets)
+        apply_pick(db, order, sd, pick, user, count=count)
 
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
@@ -815,20 +839,23 @@ def api_production_rework(order_id: int):
                     "count": count,
                     "domain": "PRODUCTION_DOMAIN",
                     "action": "PRODUCTION_REWORK_STARTED",
+                    **pick.event_extra(),
                 },
                 created_by_user_id=user_id,
             )
         )
         _audit_production(order, "PRODUCTION_REWORK_STARTED", user_id,
-                          note=reason or None, extra={"reason": reason or None, "count": count})
+                          note=reason or None, extra={"reason": reason or None, "count": count, **pick.record()})
         if override is not None and punched:
             record_admin_override_event(
                 db, order, override=override, gates=punched,
                 route="erp_orders_production.api_production_rework", axis="MAIN",
                 from_value=from_stage, to_value="PRODUCTION")
+        floor_alarm.note(db, "rework", order_id, user, **pick.alarm())
         db.commit()
+        floor_alarm.flush(db)
         return jsonify(
-            {"success": True, "message": "수정 제작을 시작했어요.", "new_status": order.status}
+            {"success": True, "message": pick.message(), "new_status": order.status}
         )
     except Exception as exc:
         db.rollback()
@@ -921,6 +948,7 @@ def api_production_cancel(order_id: int):
                 route="erp_orders_production.api_production_cancel", axis="MAIN",
                 from_value="", to_value="")
         db.commit()
+        floor_alarm.flush(db)
         return jsonify({
             "success": True,
             "message": "제작을 취소했어요. (제작 대기 복귀)",
@@ -934,6 +962,7 @@ def api_production_cancel(order_id: int):
 @erp_orders_production_bp.route("/<int:order_id>/production/uncomplete", methods=["POST"])
 @login_required
 @_production_steps_edit_required
+@lead_or_admin_required(UNCOMPLETE_LEAD_ONLY_MESSAGE)
 def api_production_uncomplete(order_id: int):
     """완료 취소 (제작완료 → 제작중/PRODUCTION 되돌림), transition_order(PRODUCTION_UNCOMPLETE) 경유.
 
@@ -1231,6 +1260,7 @@ def api_production_defect(order_id: int):
             )
             captured["defects"] = defects
             captured["entry"] = entry
+            floor_alarm.note(sess, "defect", o.id, user, label=reason)
             return {o.id: []}
 
         try:
@@ -1251,6 +1281,7 @@ def api_production_defect(order_id: int):
         _audit_production(order, "PRODUCTION_DEFECT_REPORTED", user_id,
                           note=reason, extra={"reason": reason})
         db.commit()
+        floor_alarm.flush(db)
         defects = captured["defects"]
         return jsonify(
             {"success": True, "data": {"defects": defects, "latest": captured["entry"], "total": len(defects)}}
@@ -1363,12 +1394,14 @@ def api_production_hold(order_id: int):
             }
         else:
             hold = _mirror_workflow_hold_to_production(order, active, reason, user)
+            floor_alarm.note(db, "hold" if active else "hold_released", order_id, user, reason=reason)
         _audit_production(
             order,
             "PRODUCTION_HOLD_SET" if active else "PRODUCTION_HOLD_RELEASED",
             user_id, note=reason or None, extra={"active": bool(active), "reason": reason or None},
         )
         db.commit()
+        floor_alarm.flush(db)
         return jsonify({"success": True, "data": {"hold": hold}})
     except Exception as exc:
         db.rollback()
