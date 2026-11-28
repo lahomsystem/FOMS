@@ -58,7 +58,8 @@ from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     evaluate_policy,
 )
-from foms.services.production.part_access import steps_lock
+from foms.services.production.part_access import REWORK_LEAD_ONLY_MESSAGE, UNCOMPLETE_LEAD_ONLY_MESSAGE, steps_lock
+from foms.api.production.revert_gate import lead_or_admin_required
 from foms.services.production.write_access import (
     PRODUCTION_ACK_DENIED_MESSAGE,
     PRODUCTION_WRITE_DENIED_MESSAGE,
@@ -681,6 +682,7 @@ def api_production_complete(order_id):
 @erp_orders_production_bp.route("/<int:order_id>/production/rework", methods=["POST"])
 @login_required
 @_production_steps_edit_required
+@lead_or_admin_required(REWORK_LEAD_ONLY_MESSAGE)
 def api_production_rework(order_id: int):
     """수정 제작 시작 (제작완료 → PRODUCTION 되돌림).
 
@@ -934,6 +936,7 @@ def api_production_cancel(order_id: int):
 @erp_orders_production_bp.route("/<int:order_id>/production/uncomplete", methods=["POST"])
 @login_required
 @_production_steps_edit_required
+@lead_or_admin_required(UNCOMPLETE_LEAD_ONLY_MESSAGE)
 def api_production_uncomplete(order_id: int):
     """완료 취소 (제작완료 → 제작중/PRODUCTION 되돌림), transition_order(PRODUCTION_UNCOMPLETE) 경유.
 
