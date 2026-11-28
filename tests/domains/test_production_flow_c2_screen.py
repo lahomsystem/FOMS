@@ -12,7 +12,6 @@
 """
 from __future__ import annotations
 
-import copy
 import re
 from pathlib import Path
 
@@ -273,7 +272,8 @@ def test_direct_link_is_a_small_underlined_text_button_with_44px_target():
 # --------------------------------------------------------------------------- #
 @pytest.fixture
 def order_card(monkeypatch):
-    """판에 '도면 없음' 카드 한 장을 넣는다 — 서버 카드(ⓑ)가 줄 꼴: build_card dict + order_card · key @order · no 0 · of 0."""
+    """'도면 없음' 카드 = 서버(order_card · part_board)가 도면 0장 생산 주문에 주는 진짜 카드(key @order · no 0 · of 0).
+    여기서는 그 주문에 [도면 수정 요청] 고르기만 억지로 넣는다 — 고르기가 있어도 카드에 단추가 없어야 한다(템플릿 문)."""
     import foms.web.production.home as home
 
     real = home.build_part_board
@@ -281,14 +281,8 @@ def order_card(monkeypatch):
 
     def board(*args, **kwargs):
         b = real(*args, **kwargs)
-        for pane in b["panes"].values():
-            if pane["cards"] and made.get("oid"):
-                card = copy.deepcopy(pane["cards"][0])
-                card.update(order_id=made["oid"], customer_name="강단비", key="@order", no=0, of=0, order_card=True, is_image=False,
-                            filename=None, view_url="", note=None, note_old=None, first_card=False, tag=None, has_changes=False,
-                            replaced=None)
-                pane["cards"].append(card)
-                b["req_opts"] = {**(b.get("req_opts") or {}), made["oid"]: [{"no": 0, "label": "도면 없음"}]}  # 있어도 단추 없음
+        if made.get("oid"):
+            b["req_opts"] = {**(b.get("req_opts") or {}), made["oid"]: [{"no": 0, "label": "도면 없음"}]}  # 있어도 단추 없음
         return b
 
     monkeypatch.setattr(home, "build_part_board", board)
@@ -325,6 +319,6 @@ def test_js_mirror_redraws_order_card_and_window_names_it(client, cohort, order_
                                  {"do": "apply", "key": "@order", "mark": held}, {"do": "card", "key": "@order"}]})["out"]
     assert out[0]["cards"] == 3 and out[0]["diffs"] == []  # @order 카드도 서버 칸 = JS 칸
     assert out[1]["modal"]["title"] == "재단 시작할까요?" and out[2]["direct"]["hidden"] is False
-    assert out[2]["list"].startswith("도면 없음강단비 #") and out[2]["list"].count("도면 없음") == 2 and "0/0" not in out[2]["list"]
+    assert out[2]["list"].startswith("도면 없음가짜고객 #") and out[2]["list"].count("도면 없음") == 2 and "0/0" not in out[2]["list"]
     after = out[5]["card"]
     assert after["state"] == "need" and [a["act"] for a in after["act"]] == ["held", "check"]  # 받아 오기로 다시 그려도 안 죽는다
