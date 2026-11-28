@@ -290,7 +290,7 @@ def test_no_pan_word_loading_text_and_replaced_label_say_drawing():
     steps = _read(TPL / "partials" / "home_steps.html")
     assert "var LOAD_TEXT = '받는 중이에요…';" in js and "판을 받는 중" not in js + steps
     assert 'data-foms-step-wait-text>받는 중이에요…</p>' in steps
-    assert "foms-production-home-steppane.js') }}?v=20261126f" in _read(TPL / "partials" / "home_early.html")
+    assert "foms-production-home-steppane.js') }}?v=20261128y" in _read(TPL / "partials" / "home_early.html")
     board = _py_strings(ROOT / "foms" / "services" / "production" / "part_board.py")
     assert "바뀐 도면 · 전 도면 " in board.splitlines() and "전 판" not in board
 

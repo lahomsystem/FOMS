@@ -29,7 +29,9 @@
 {#- 카드 한 장(확정 도면 한 장) — 날짜 판 · '내 공정' · '작업 중'이 같이 쓰는 한 조각(설계서 2026-11-28-production-my-steps-flow §3-4 · §3-6
     "같은 조각 · 같은 키"). 새 흐름 카드(c.part 가 있는 카드 — my_steps · crew_board 재료)만 data-part · data-part-label · data-day 를 더 단다
     (판 JS 가 카드마다 그 파트로 쓰고 · '내 공정' 띠가 거른다 — 날짜 판 카드는 그대로). sfx = 같은 장이 한 화면에 두 번 설 때(같이 작업 두 묶음 ·
-    여러 파트) 말풍선 id 꼬리 — 첫 장은 빈 글(날짜 판 바이트 그대로). -#}
+    여러 파트) 말풍선 id 꼬리 — 첫 장은 빈 글(날짜 판 바이트 그대로).
+    품목 줄(.pp-item) = "치수 · 색 · 품목 이름"(UI 평가 G3, 2026-11-28 — 한 줄 말줄임이 이름 쪽을 자른다, 색 = part_board.card_item_parts). 확인 창
+    알림 줄(parts-modal.js) · 크게 보기 아래 글(parts-viewer.js)은 이 글을 그대로 베낀다. -#}
 {% macro pp_card(c, pb, is_cut, sfx='') -%}
 <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic', 'hand') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}{% if pp_focus and c.order_id == pp_focus %} is-focus{% endif %}"
                data-pp-card data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}"
@@ -56,7 +58,7 @@
         {%- set sheet_no = '도면 없음' if c.order_card else '도면 ' ~ c.no ~ '/' ~ c.of %}
         <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · {{ sheet_no }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">{{ sheet_no }}</span></a>
         <div class="pp-duerow">{{ fph_due(c) }}{% if c.has_changes %}<em class="pp-chg">{{ c.chg_text or '바뀜' }}</em>{% endif %}</div>
-        <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
+        <span class="fph-dr__pr pp-item">{% if c.item_spec %}{{ c.item_spec }} · {% endif %}{% if c.item_color %}{{ c.item_color }} · {% endif %}{{ c.item_label or '품목 없음' }}</span>
         {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
         <span class="fph-dr__by pp-by{% if c.tag %} has-tag{% endif %}">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}{{ pp_tag(c) }}</span>
         {%- set req_opts = (pb.req_opts or {}).get(c.order_id) %}{% if req_opts and not c.order_card and not (c.order_block and c.order_block.kind == 'revise') and req_opts | selectattr('no', 'equalto', c.no) | list %}
@@ -181,7 +183,7 @@
           {% else %}<span class="pp-img pp-file"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></span>{% endif %}
           <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · 도면 {{ c.no }}/{{ c.of }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">도면 {{ c.no }}/{{ c.of }}</span></a>
           <div class="pp-duerow">{{ fph_due(c) }}{% if c.has_changes %}<em class="pp-chg">{{ c.chg_text or '바뀜' }}</em>{% endif %}</div>
-          <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
+          <span class="fph-dr__pr pp-item">{% if c.item_spec %}{{ c.item_spec }} · {% endif %}{% if c.item_color %}{{ c.item_color }} · {% endif %}{{ c.item_label or '품목 없음' }}</span>
           <span class="fph-dr__by pp-by">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}</span>
           <div class="pp-actbox"><p class="pp-why" id="pp-why-{{ c.order_id }}-{{ c.no }}" role="status" hidden></p><button type="button" class="fph-wi pp-act pp-elsewhere-note" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.elsewhere.why }}">{{ c.elsewhere.chip | factory_chips }} <span data-pp-elsewhere-text>{{ c.elsewhere.text }}</span></button></div>
         </article>

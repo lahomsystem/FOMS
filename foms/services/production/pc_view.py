@@ -190,6 +190,21 @@ def _prev_parts(row: dict[str, Any]) -> dict[str, str] | None:
     return {'head': head, 'meta': meta or '기록 없음'}
 
 
+def late_of(row: dict[str, Any], today: datetime.date) -> dict[str, Any]:
+    """늦음 표 ``{level, line, tip}`` — 행의 기준 출고일(``row_due``)로(없으면 모두 빈 값). PC 줄 · 태블릿 · 폰 날짜 줄이 같은 값을 쓴다."""
+    day = row_due(row)
+    return production_late_view(row, today, due=day) if day else {'level': None, 'line': '', 'tip': ''}
+
+
+def attach_late_rows(rows: list[dict[str, Any]], today: datetime.date) -> None:
+    """태블릿 · 폰 날짜 줄의 늦음 글(UI 평가 B1, 2026-11-28) — PC 줄과 같은 값 · 같은 글(``pc_late``)만 단다(쿼리 0, 이미 읽은 행).
+
+    PC 응답은 :func:`attach_pc_rows` 가 같은 값을 단다. 단계 칸 아래 작은 글("늦음 — 내일 시공, 아직 재단", home_date_macros.fph_row).
+    """
+    for row in rows:
+        row['pc_late'] = late_of(row, today)
+
+
 def attach_pc_rows(rows: list[dict[str, Any]], today: datetime.date) -> None:
     """PC 줄 값을 행마다 단다 — ``pc_due`` · ``pc_late`` · ``pc_steps`` · ``pc_status_sub`` · ``pc_status_tip`` · ``pc_prev``.
 
@@ -197,7 +212,7 @@ def attach_pc_rows(rows: list[dict[str, Any]], today: datetime.date) -> None:
     """
     for row in rows:
         due = pc_due(row, today)
-        late = production_late_view(row, today, due=due['day']) if due['day'] else {'level': None, 'line': '', 'tip': ''}
+        late = late_of(row, today)  # 기준 날 = pc_due 의 day(같은 row_due)
         row['pc_due'] = due
         row['pc_late'] = late
         row['pc_steps'] = _step_cells(row)

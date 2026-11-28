@@ -218,7 +218,8 @@ def test_steps_tab_order_card_in_work_shows_left_instead_of_finish(client, cohor
     row = _row(page, working)
     assert CARDS in row and f'data-foms-home-step-done data-order-id="{working}"' not in row
     assert "도면 없음 1장이 미완료예요. 그 장을 완료하면 자동으로 작업 완료 처리돼요." in row  # 까닭 = 공정 API 거절 글 그대로
-    plain_row = _row(page, plain)
+    # 마지막 줄 뒤 판 칸은 뺀다 — 판은 처음에 목록 첫 줄(막힘 칸 줄도, UI 평가 B3 2026-11-28)을 보여 그 칸 글이 판에 있다
+    plain_row = _row(page, plain).split("data-foms-step-panes", 1)[0]
     assert f'data-foms-home-step-done data-order-id="{plain}"' in plain_row and CARDS not in plain_row
 
 

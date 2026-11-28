@@ -34,9 +34,11 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 <span class="fpc-by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% endfor %}</span>
 {%- endmacro %}
 
-{# ② 상태 칸 — 도면 목록 창(2026-11-24)에서 체크한 뒤 API(foms/api/production/part_sheet.py)도 이 매크로로 그 칸만 다시 그린다 #}
+{# ② 상태 칸 — 도면 목록 창(2026-11-24)에서 체크한 뒤 API(foms/api/production/part_sheet.py)도 이 매크로로 그 칸만 다시 그린다.
+   큰 글 = 지금 공정에 담당이 아무도 없으면 "조립 미정"(r.stage_none — 태블릿 · 폰 날짜 줄과 같은 값, UI 평가 B2 2026-11-28), 그 밖은 r.home_stage. #}
 {% macro pc_status(r) -%}
-<span class="fpc-st is-{{ 'w' if r.home_view == 'wait' or r.home_stage == '제작 대기' else ('h' if r.hold_active else ('f' if r.home_view == 'done' or r.home_stage == PRODUCTION_FINISHED_STAGE else 'p')) }}"{% if r.pc_status_tip %} data-tip="{{ r.pc_status_tip }}" tabindex="0" aria-label="{{ r.home_stage }} · {{ r.pc_status_tip }}"{% endif %}><b>{{ r.home_stage }}</b>{% if r.pc_status_sub %}<small>{{ r.pc_status_sub }}</small>{% endif %}</span>
+{%- set _sg = r.stage_none or r.home_stage -%}
+<span class="fpc-st is-{{ 'w' if r.home_view == 'wait' or r.home_stage == '제작 대기' else ('h' if r.hold_active else ('f' if r.home_view == 'done' or r.home_stage == PRODUCTION_FINISHED_STAGE else 'p')) }}"{% if r.pc_status_tip %} data-tip="{{ r.pc_status_tip }}" tabindex="0" aria-label="{{ _sg }} · {{ r.pc_status_tip }}"{% endif %}><b>{{ _sg }}</b>{% if r.pc_status_sub %}<small>{{ r.pc_status_sub }}</small>{% endif %}</span>
 {%- endmacro %}
 
 {# 공정 칸 둘째 줄 = 날짜 줄 칸 아래와 같은 값(설계서 2026-11-23 §8-4 · §4-10, h = part_holders.part_holder). 칸 묶음에 has-hd 를 달면

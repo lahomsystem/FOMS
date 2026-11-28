@@ -121,8 +121,10 @@
       t.classList.toggle('is-on', on);
       t.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    var panes = window.FomsProdStepPanes; // '남은 공정' 판 화면만(steppane.js): 판의 고른 줄이 목록 밖이면 그 줄로 굴린다(UI 평가 B3)
     toArr(root.querySelectorAll('[data-foms-home-stepq]')).forEach(function (q) {
       q.hidden = q.getAttribute('data-foms-home-stepq') !== key;
+      if (!q.hidden && panes && typeof panes.reveal === 'function') { panes.reveal(q); }
     });
     try { window.localStorage.setItem(STEP_TAB_KEY, key); } catch (e) { /* 저장 못 해도 화면은 그대로 */ }
   }

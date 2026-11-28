@@ -1,7 +1,7 @@
 {# 생산 첫 화면 CSS — 전체 페이지(home.html)와 셸 조각(home_fragment.html)이 같이 쓴다(?v= 핀 한 곳).
    parts.css = 도면 카드 판(.pp-modal 확인 창 꼴 포함). '내 공정' 판은 확인 창을 뺐다(2026-11-22 — 두 번 누름 + 되돌리기) — 2026-11-25 부터
    도면 있는 주문만 작업 시트와 같은 확인 창(sheet_step_confirm.html · 겉틀 foms-reason-sheet.css, 판 화면은 몸통이 싣는다 · 본문 한 줄은 home.css). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261128x">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261128y">
 {% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261128x">
 {% if tab in ('mine', 'crew') %}{# '내 공정' · '작업 중' 탭(설계서 2026-11-28-production-my-steps-flow §3-4 · §3-6) — 묶음 머리 · 사람 묶음 · 띠 거르기 #}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/my-steps.css') }}?v=20261128o">
 {% endif %}{% if flag_pen_record %}{# 펜 기록(설계서 2026-11-28-production-pen-record §6 — 도면 보기 머리 줄 · 쓰는 줄 · 카드 딱지, 꺼짐이면 바이트 그대로) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pen-record.css') }}?v=20261128q">

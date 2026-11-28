@@ -55,7 +55,8 @@ def test_날짜_탭_고른_날_큰_줄과_작은_칸에_시공일이_늘_보이�
     assert _dues(row) == [("is-today", _label(0), "")] and _label(0).startswith("오늘 ")
     # 바뀐 줄: 단계 칸에 '바뀜' + 이름 칸에 시공일 — 둘 다
     row = _block(pane, f'data-foms-home-dayrow="{changed.id}">')
-    assert re.search(r'<span class="fph-dr__sg">[^<]+<small>바뀜</small></span>', row)
+    # 맨 뒤 작은 글 = PC 와 같은 늦음 글(UI 평가 B1, 2026-11-28 — 오늘 시공인데 재단 전)
+    assert re.search(r'<span class="fph-dr__sg">[^<]+<small>바뀜</small><small class="is-late">늦음 — 오늘 시공, 아직 재단</small></span>', row)
     assert _dues(row) == [("is-today", _label(0), "")]
     assert row.index("<small>#%d</small>" % changed.id) < row.index("data-foms-home-due")  # 이름 · 번호 뒤
     # 작은 칸(도면·컨펌 기다림 · 제작 완료) — 날이 맨 앞

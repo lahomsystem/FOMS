@@ -96,7 +96,7 @@ def test_5_search_text_is_kept_in_the_url_and_restored_on_open():
     # 글을 칠 때마다 주소를 갱신하고, 열 때 주소 글로 같은 거르기(apply)를 다시 돈다
     assert js.index("keepSearchUrl((search.value") < js.index("searchParams.get('q')")
     scripts = (PARTIALS / "home_scripts.html").read_text(encoding="utf-8")
-    assert "foms-production-home.js') }}?v=20261127x" in scripts
+    assert "foms-production-home.js') }}?v=20261128y" in scripts
 
 
 def test_5_tab_links_do_not_carry_the_search_text(client, cohort):  # noqa: F811

@@ -130,7 +130,8 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     pane = _pane(html, first_key)
     # 제목 작은 글 끝 = 도면 x/n 내려옴(띠와 같은 색 — 내일 시공 도면 주문은 마감이 지나 빨강, 설계서 2026-11-22 §5-2)
     assert '출고 2건 · 만들 것 1 · <span class="fph-dwst is-late">도면 1/2 내려옴</span>' in pane
-    assert "내일엣지" in pane and "엣지 작업 중" in pane and "내일도면" in pane
+    # 엣지에 담당이 아무도 없어 큰 글 "엣지 미정"(UI 평가 B2, 2026-11-28 — 옛 "엣지 작업 중")
+    assert "내일엣지" in pane and '<span class="fph-dr__sg">엣지 미정' in pane and "엣지 작업 중" not in pane and "내일도면" in pane
     assert pane.count("fph-dr__st is-done") == 1 and pane.count("fph-dr__st is-now") == 1  # 재단 끝 · 엣지 지금
     # 순서 = 기다림(안 내려옴) → 만들 것(내려옴) → 제작 완료, 그날 주문만(미리 보기 · 밀린 것 없음)
     assert pane.index(">도면·컨펌 기다림 1 <small>") < pane.index(">만들 것 1</h3>")
@@ -271,8 +272,8 @@ def test_날짜_띠_규칙() -> None:
     thu = by["2026-11-12"]
     assert not thu["is_today"] and thu["label"] == "11/12" and thu["sub"] == "목 · 내일" and thu["title"] == "내일 11/12 (목)"
     assert thu["total"] == 5 and thu["make"] == 3 and len(thu["wait_rows"]) == 1 and len(thu["done_rows"]) == 1
-    # 만들 것 순서: 바뀐 것 → 만드는 중(공정이 많이 간 것) → 제작 대기
-    assert [r["id"] for r in thu["make_rows"]] == [5, 4, 3]
+    # 만들 것 순서: 바뀐 것 → 덜 간 것부터(제작 대기 → 끝난 공정 적은 것, UI 평가 G1 2026-11-28 — 옛 '많이 간 것부터'는 [5, 4, 3])
+    assert [r["id"] for r in thu["make_rows"]] == [5, 3, 4]
     # 막대: 제작 완료 1 · 만드는 중 2 · 제작 대기 1 · 도면 기다림 1 = 20/40/20/20, 이어 붙음
     assert [(s["k"], s["x"], s["w"]) for s in thu["segs"]] == [("f", 0.0, 20.0), ("p", 20.0, 40.0), ("w", 60.0, 20.0), ("x", 80.0, 20.0)]
     # 검수 완료는 만들 것 줄에 남고(제작 완료를 눌러야 함) 막대는 완료 색

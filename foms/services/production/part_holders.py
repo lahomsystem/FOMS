@@ -197,9 +197,24 @@ def stage_miss(row: dict[str, Any], holders: list[dict[str, Any]]) -> str:
     return ""
 
 
+def stage_none(row: dict[str, Any], holders: list[dict[str, Any]]) -> str:
+    """단계 큰 글 대신 쓸 글 — 지금 공정("조립 작업 중")에 담당이 아무도 없으면 "조립 미정", 아니면 빈 글(큰 글 그대로).
+
+    UI 평가 B2(사장님 2026-11-28 "담당 없으면 '조립 미정'"): '작업 중' 은 그 공정 차례라는 뜻이라 아무도 안 잡은 공정을 하는 중으로 읽혔다.
+    담당 판정은 칸 아래 이름(:func:`part_holder` ``kind == 'none'`` — "조립 미정")과 같다. 날짜 줄 · PC 상태 칸이 같은 값을 쓴다(``r.stage_none``).
+    """
+    for step, cell in zip(row.get("home_steps") or [], holders):
+        if step.get("done"):
+            continue
+        if row.get("home_stage") == f"{step['label']} 작업 중" and cell["kind"] == "none":
+            return f"{step['label']} {HOLDER_NONE}"
+        return ""
+    return ""
+
+
 def attach_part_holders(rows: Iterable[dict[str, Any]], marks_by_order: dict[int, list[Any]],
                         today: datetime.date) -> None:
-    """행마다 ``part_holders``(공정 칸 넷과 같은 순서) · ``part_miss`` 를 단다 — 생산 단계 줄만(쿼리 0).
+    """행마다 ``part_holders``(공정 칸 넷과 같은 순서) · ``part_miss`` · ``stage_none`` 을 단다 — 생산 단계 줄만(쿼리 0).
 
     Args:
         rows: 첫 화면 행들(``home_steps`` · ``structured_data`` · ``home_stage``).
@@ -214,6 +229,8 @@ def attach_part_holders(rows: Iterable[dict[str, Any]], marks_by_order: dict[int
         holders = [part_holder(sd, marks, step["key"], step, today) for step in row["home_steps"]]
         row["part_holders"] = holders
         row["part_miss"] = stage_miss(row, holders)
+        row["stage_none"] = stage_none(row, holders)
 
 
-__all__ = ["HOLDER_NONE", "attach_part_holders", "handed_text", "kst_day", "part_holder", "since_text", "stage_miss"]
+__all__ = ["HOLDER_NONE", "attach_part_holders", "handed_text", "kst_day", "part_holder", "since_text", "stage_miss",
+           "stage_none"]

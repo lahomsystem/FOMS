@@ -39,7 +39,7 @@ from foms.services.production.drawing_notes_read import pen_config
 from foms.services.production.part_constants import PART_CUT, production_parts_label
 from foms.services.production.part_marks_query import marks_by_order
 from foms.services.production.part_screen import morning_chip
-from foms.services.production.pc_view import attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
+from foms.services.production.pc_view import attach_late_rows, attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
 from foms.services.production.ship_dates import ship_fields
 from foms.services.production.sync_blocks import DONE_BLOCK
 from foms.services.production_change_alerts import collect_production_tombstones
@@ -344,6 +344,8 @@ def erp_production_home():
     today = get_today_kst()
     if flags['pc_view']:
         attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
+    else:
+        attach_late_rows(rows, today)  # 태블릿 · 폰 날짜 줄 늦음 글(PC 와 같은 값 · 같은 글, UI 평가 B1) — 쿼리 0
     if request.args.get('view') == PANEL_VIEW:
         return _step_panel_response(db, tab, surface, rows, flags, user)  # '내 공정' 판 하나(누른 줄) — 행 읽기 뒤 [끝] 확인 창 자료만 +1
     scene = _factory_scene(user, rows, flags['pc_view'])  # 2공장 칸(켜졌을 때만) — 날짜 묶기 전에 단다

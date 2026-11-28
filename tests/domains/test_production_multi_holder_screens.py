@@ -253,7 +253,8 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
     add_order("가짜빈집둘", 5, pngs=0)  # 판 아래 '끝내면 다음은' 손님(막히지 않은 다음 줄)
     steps_login(client)
     set_cookies(client, TABLET)
-    page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
+    # 판은 처음에 목록 첫 줄(도면 있는 줄도 — UI 평가 B3)을 보인다 — [재단 완료]가 있는 0장 줄을 order= 로 고른다
+    page = get_html(client, HOME + f"?tab=steps&view=fragment&order={bare.id}", SHELL)
     assert "끝내면 다음은 <b>가짜빈집둘</b>" in pane_html(page, bare.id)  # 판 아래 다음 손님 글 그대로
     steps_node(tmp_path, page, {"mode": "panel", "first": bare.id, "sheets": 0, **WORDS,
                                 "done_status": f"{bare.customer_name} 재단 완료"})
@@ -274,7 +275,7 @@ def test_finished_rows_say_inspect_done_and_my_steps_button_says_done(client, co
     row = pc.split(f'data-foms-home-dayrow="{fid}"', 1)[1].split('<div class="fpc-r', 1)[0]
     assert re.search(r'<span class="fpc-st is-f"[^>]*><b>검수 완료</b>', row)  # 완료 색 + 새 글
     other = pc.split(f'data-foms-home-dayrow="{cid}"', 1)[1].split('<div class="fpc-r', 1)[0]
-    assert re.search(r'<span class="fpc-st is-p"[^>]*><b>재단 작업 중</b>', other)  # 대조
+    assert re.search(r'<span class="fpc-st is-p"[^>]*><b>재단 미정</b>', other)  # 대조(재단 담당이 아무도 없어 "재단 미정" — UI 평가 B2)
     _login(client, boss, TABLET)
     tab = client.get(f"{HOME}?day={day}").get_data(as_text=True)
     trow = tab.split(f'data-foms-home-dayrow="{fid}"', 1)[0].rsplit("<a ", 1)[1]

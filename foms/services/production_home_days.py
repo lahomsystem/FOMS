@@ -16,7 +16,7 @@ from foms.services.production.drawing_arrival import (
     drawing_deadline,
     wait_head_for_day,
 )
-from foms.services.production.pc_view import attach_pc_rows
+from foms.services.production.pc_view import attach_late_rows, attach_pc_rows
 from foms.services.production.ship_dates import PANE_PAST, STRIP_DAYS, pane_slots, row_due
 from foms.services.production.steps import PRODUCTION_FINISHED_STAGE
 from foms.services.production_home_read_model import (
@@ -42,10 +42,14 @@ def _row_bar_kind(row: dict[str, Any]) -> str:
     return 'x'
 
 
-def _make_sort_key(row: dict[str, Any]) -> tuple[int, int, int]:
-    """만들 것 줄 순서 — 바뀐 것 먼저, 만드는 중(공정이 많이 간 것부터), 제작 대기."""
+def _make_sort_key(row: dict[str, Any]) -> tuple[int, int]:
+    """만들 것 줄 순서 — 바뀐 것 먼저, 그다음 덜 간 것부터: 제작 대기(손도 안 댐) → 만드는 중(끝난 공정이 적은 것부터) → 검수 완료.
+
+    UI 평가 G1(사장님 2026-11-28 "줄 순서"): 예전 '많이 간 것부터'는 가장 뒤처진 주문(내일 출고인데 재단 3장 남음 · 제작 대기)을 장
+    아래로 보냈다. 같은 자리는 들어온 행 순서 그대로(안정 정렬). PC · 폰 줄과 도면 카드 판 주문 순서(``order_pos``)가 이 순서를 같이 쓴다.
+    """
     done_steps = sum(1 for s in (row.get('home_steps') or []) if s.get('done'))
-    return (0 if row.get('has_changes') else 1, {'p': 0, 'w': 1, 'f': 2}.get(_row_bar_kind(row), 3), -done_steps)
+    return (0 if row.get('has_changes') else 1, -1 if _row_bar_kind(row) == 'w' else done_steps)
 
 
 def _home_bucket(key: str, label: str, sub: str, title: str, rows: list[dict[str, Any]], today: datetime.date,
@@ -102,6 +106,8 @@ def _pane_row(row: dict[str, Any], day: datetime.date | None, today: datetime.da
         copy.update(deadline_fields(drawing_deadline(day), today))
     if 'pc_due' in row:  # PC 응답만 PC 칸이 있다(attach_pc_rows)
         attach_pc_rows([copy], today)
+    elif 'pc_late' in row:  # 태블릿 · 폰 늦음 글(attach_late_rows — UI 평가 B1)도 그 장의 날로
+        attach_late_rows([copy], today)
     return copy
 
 

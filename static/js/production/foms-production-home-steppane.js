@@ -135,5 +135,15 @@
     return { select: select, ensure: ensure, isGone: isGone };
   }
 
-  window.FomsProdStepPanes = { create: create };
+  // 고른 줄이 목록 칸 밖이면 그 줄이 보이게 목록을 굴린다(UI 평가 B3, 2026-11-28 — 판이 보여 주는 주문이 목록에서도 늘 보이게).
+  // foms-production-home.js 가 공정 탭을 보일 때(처음 그릴 때 · 탭을 바꿀 때) 부른다. 판이 안 보이는 화면(세로로 돌림)은 그대로,
+  // 'nearest' 라 이미 보이는 줄이면 움직이지 않는다.
+  function reveal(queue) {
+    var box = queue && queue.querySelector('[data-foms-step-panes]');
+    var on = queue && queue.querySelector('[data-foms-home-qrow].is-on');
+    if (!box || !on || !box.getClientRects().length || typeof on.scrollIntoView !== 'function') { return; }
+    on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  window.FomsProdStepPanes = { create: create, reveal: reveal };
 })();

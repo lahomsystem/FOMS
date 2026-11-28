@@ -228,7 +228,8 @@ def test_my_steps_panel_and_rows_show_the_same_block_as_card_parts(client, cohor
     home_login(client)  # 반장
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")
-    assert f'data-foms-step-pane="{one.id}"' in html and f'data-foms-step-pane="{many.id}"' not in html  # 처음 고른 줄 = 막히지 않은 줄
+    # 처음 고른 줄 = 목록 첫 줄(막힘 칸 줄도 — UI 평가 B3 2026-11-28, 옛 '막히지 않은 줄'은 목록 밖 [재단 완료]를 보였다)
+    assert f'data-foms-step-pane="{many.id}"' in html and f'data-foms-step-pane="{one.id}"' not in html
     href = f"/erp/production/home?tab=parts&amp;part=cut&amp;order={many.id}"
     pane = pane_html(get_html(client, HOME + f"?tab=steps&order={many.id}"), many.id)
     assert "data-foms-step-finish" not in pane and "data-foms-sheet-parts" not in pane
@@ -239,7 +240,7 @@ def test_my_steps_panel_and_rows_show_the_same_block_as_card_parts(client, cohor
     assert "data-foms-home-step-done" not in row
     used_pane = pane_html(get_html(client, HOME + f"?tab=steps&order={used.id}"), used.id)
     assert "<b>재단 1/3 · 2장 미완료</b><span>도면 2장이 미완료예요." in used_pane  # 카드를 쓴 파트 = 지금 글 그대로(먼저)
-    one_pane = pane_html(html, one.id)  # 대조군 — 도면 0장 = [재단 완료](묻지 않음 — 확인 창 자료 없음)
+    one_pane = pane_html(get_html(client, HOME + f"?tab=steps&order={one.id}"), one.id)  # 대조군 — 도면 0장 = [재단 완료](묻지 않음 — 확인 창 자료 없음)
     assert (f'data-foms-step-finish data-order-id="{one.id}" data-step-key="cut" data-step-label="재단"' in one_pane
             and "data-foms-sheet-parts" not in one_pane and ">재단 완료</button>" in one_pane)
     refused = check_step(client, many.id, "cut", True)

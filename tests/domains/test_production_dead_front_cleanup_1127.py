@@ -72,8 +72,9 @@ def test_고친_파일_핀은_싣는_곳마다_같다() -> None:
         assert f"js/production/{name}') }}}}?v={pin}" in sheet, name
     assert "css/contexts/production/sheet.css') }}?v=20261128a" in sheet  # 11-28 a: 수정 제작 고르기 창 줄
     assert scripts.count(f"foms-production-sheet-parts.js') }}}}?v={PARTS_PIN}") == 2
-    for name in ("foms-production-home.js", "foms-production-pc-sheet.js", "foms-production-pc-sheet-write.js"):
+    for name in ("foms-production-pc-sheet.js", "foms-production-pc-sheet-write.js"):
         assert f"js/production/{name}') }}}}?v={PIN}" in scripts, name
+    assert "js/production/foms-production-home.js') }}?v=20261128y" in scripts  # 11-28 y: 남은 공정 고른 줄로 굴리기(UI 평가 B3)
     assert f"foms-production-sheet-page.js') }}}}?v={WORDS_PIN}" in _read("templates/production/partials/home_body.html")
     assert f"foms-production-home-steps.js') }}}}?v={PIN}" in _read("templates/production/partials/home_early.html")
 

@@ -48,7 +48,7 @@ from foms.services.production.drawing_notes_read import card_note
 from foms.services.production.part_card_state import claim_notes, inspect_block, order_block, sort_rank
 from foms.services.production.part_mark_rules import MarkSnapshot, mark_payload
 from foms.services.production.change_tag import change_tag
-from foms.services.production_dashboard_display import _production_spec_display
+from foms.services.production_dashboard_display import _production_material, _production_spec_display
 
 #: 한 장(날짜 하나)에 그리는 카드 상한 — 넘친 수는 ``hidden`` 으로 알린다(§15.6 안전 캡).
 PART_BOARD_CARD_CAP = 200
@@ -137,16 +137,19 @@ def is_part_thumb_image(entry: dict[str, Any]) -> bool:
     return False
 
 
-def card_item_text(sd: dict[str, Any], entry: dict[str, Any], row: dict[str, Any]) -> tuple[str, str]:
-    """카드 품목 글 — ``item_uids``(없으면 마법사 시트)로 이은 품목 이름 + 첫 품목 치수, 못 이으면 지금 큰 줄 글.
+def card_item_parts(sd: dict[str, Any], entry: dict[str, Any], row: dict[str, Any]) -> tuple[str, str, str]:
+    """카드 품목 글 조각 — ``item_uids``(없으면 마법사 시트)로 이은 품목 이름 + 첫 품목 치수 · 색, 못 이으면 지금 큰 줄 글(날짜 줄과 같은 값).
+
+    색 = 날짜 줄 · 작업 시트의 판 색과 같은 규칙(``_production_material`` — 색 · 자재 · 마감 칸 중 처음 찬 것). 카드 줄은 "치수 · 색 · 품목 이름"
+    순서로 그린다(UI 평가 G3, 2026-11-28 — 한 줄 말줄임이 품목 이름 쪽을 자른다).
 
     Args:
         sd: 주문 structured_data.
         entry: 확정 도면 항목.
-        row: 첫 화면 행(``v3_product_label`` · ``v3_spec_display``).
+        row: 첫 화면 행(``v3_product_label`` · ``v3_spec_display`` · ``v3_material``).
 
     Returns:
-        ``(품목 이름, 치수)``.
+        ``(품목 이름, 치수, 색)``.
     """
     items = sd.get("items") if isinstance(sd.get("items"), list) else []
     refs = {item_ref(items, i): it for i, it in enumerate(items) if isinstance(it, dict)}
@@ -154,8 +157,14 @@ def card_item_text(sd: dict[str, Any], entry: dict[str, Any], row: dict[str, Any
     names = [str(it.get("product_name") or it.get("name") or "").strip() for it in linked]
     names = [name for name in names if name]
     if names:
-        return ", ".join(names), _production_spec_display(linked[0])
-    return str(row.get("v3_product_label") or ""), str(row.get("v3_spec_display") or "")
+        return ", ".join(names), _production_spec_display(linked[0]), _production_material(linked[0])
+    return str(row.get("v3_product_label") or ""), str(row.get("v3_spec_display") or ""), str(row.get("v3_material") or "")
+
+
+def card_item_text(sd: dict[str, Any], entry: dict[str, Any], row: dict[str, Any]) -> tuple[str, str]:
+    """카드 품목 글 ``(품목 이름, 치수)`` — :func:`card_item_parts` 의 앞 둘(PC 도면 목록 창이 쓴다)."""
+    name, spec, _color = card_item_parts(sd, entry, row)
+    return name, spec
 
 
 def _prev_name(snap: MarkSnapshot) -> str:
@@ -271,7 +280,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
     order_id, key, part = int(row["id"]), entry["key"], ctx["part"]
     snap = MarkSnapshot.from_row(marks.get((order_id, key, part)))
     extra = _card_state(row, entry, snap, ctx)
-    item_label, item_spec = card_item_text(row.get("structured_data") or {}, entry, row)
+    item_label, item_spec, item_color = card_item_parts(row.get("structured_data") or {}, entry, row)
     return {
         "order_id": order_id, "customer_name": row.get("customer_name") or "-", "has_changes": bool(row.get("has_changes")), "chg_text": change_tag(row.get("home_alerts")),
         # 시공일 표(home_date_macros.fph_due) — 행이 이미 가진 값 그대로(새 읽기 없음, 사용자 11-21 "아주 중요한 정보")
@@ -280,7 +289,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
         "key": key, "filename": entry.get("filename") or "", "view_url": entry.get("view_url") or "",
         "is_image": is_part_thumb_image(entry),
         "sheet_id": entry.get("sheet_id"), "order_pos": position[0], "no": position[1], "of": position[2],
-        "item_label": item_label, "item_spec": item_spec,
+        "item_label": item_label, "item_spec": item_spec, "item_color": item_color,
         "picked_by_name": snap.picked_by_name, "done_by_name": snap.done_by_name, "picked_by_user_id": snap.picked_by_user_id,
         "others": _other_words(order_id, key, part, marks, ctx["hands"][order_id], ctx),
         "replaced": replaced_info(order_id, entry, ctx["current_keys"][order_id], ctx["by_sheet"], part,

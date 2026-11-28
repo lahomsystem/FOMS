@@ -601,6 +601,10 @@
 .fph-hl.is-old { color: var(--fph-old-700); }
 /* 단계 칸 둘째 줄: 카드 부분 완료 "2장 미완료"(§4-2) — 바뀐 줄(.is-chg)의 빨간 작은 글보다 뒤에 와서 이긴다 */
 .fph-dr .fph-dr__sg small.is-miss { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--fph-why); }
+/* 단계 칸 맨 아래 늦음 · 빠듯 글(UI 평가 B1, 2026-11-28) — PC 줄(.is-late > .fpc-st small)과 같은 글 · 같은 색: 늦음 빨강 · 빠듯 갈색.
+   낱말에서만 꺾는다(keep-all). 줄 사이 1.15(단계 칸 큰 글과 같음 — 글자 150% 에서 2~3줄이 되어도 줄 키를 안 늘리게). 바뀐 줄 빨간 작은 글 규칙보다 뒤라 이긴다 */
+.fph-dr .fph-dr__sg small.is-late, .fph-dr .fph-dr__sg small.is-tight { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.15; word-break: keep-all; color: var(--fph-danger); }
+.fph-dr .fph-dr__sg small.is-tight { color: var(--fph-why); }
 .fph-wg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 .fph-wi { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--fph-line); background: var(--fph-raised); color: var(--fph-text2); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; text-decoration: none; white-space: nowrap; overflow: hidden; }
 .fph-wi:hover, .fph-wi:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; outline: none; }
