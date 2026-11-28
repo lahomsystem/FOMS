@@ -82,6 +82,7 @@ from foms.services.orders.drawing_fix_requests import (
 )
 from foms.services.orders.drawing_fix_transfer import can_fix_production_drawing
 from foms.services.orders.revision import RevisionError, execute_single_order_write, lock_order_row
+from foms.services.production import floor_alarm
 from models import Notification, OrderEvent, User
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,7 @@ def _write(db: Any, user: Any, order_id: int, payload: Any, *, starting: bool) -
     execute_single_order_write(db, order_id=order_id, actor_user_id=user.id,
                                policy_id=FIX_START_POLICY_ID if starting else FIX_STOP_POLICY_ID, payload=payload, write=_assign)
     _record(db, order, user, rows, starting=starting)
+    floor_alarm.note(db, "drawing_revising" if starting else "fix_stopped", order_id, user, numbers=[r["no"] for r in rows])
     return {"changed": True, "fixing": fixing_rows(sd), "order": order}
 
 
@@ -160,6 +162,7 @@ def _handle(order_id: int, *, starting: bool):
         result = _write(db, user, order_id, payload, starting=starting)
         if result["changed"]:
             db.commit()
+            floor_alarm.flush(db)  # 생산 현장 알람 — 커밋 뒤(자기 커밋 · 예외 없음)
         else:
             db.rollback()  # 잠금만 풀고 쓰기 · 버전 · 이벤트 0(멱등)
     except FixRefusal as refusal:
@@ -284,6 +287,8 @@ def _request_write(db: Any, user: Any, order_id: int, rid: str, payload: Any, *,
                                policy_id=REJECT_POLICY_ID if rejecting else CHECK_POLICY_ID, payload=payload, write=_assign)
     _record_request(db, order, user, req, numbers, rejecting=rejecting)
     notification = _reject_notification(db, order, user, req, numbers) if rejecting else None
+    if rejecting:  # 반영 완료 체크는 막힘이 그대로라 알람이 없다(설계서 2026-11-28 §1-2 #20)
+        floor_alarm.note(db, "fix_rejected", order_id, user, numbers=numbers, request_user_id=req.get("by_user_id"), reason=note)
     return {"changed": True, "request": req, "order": order, "notification": notification}
 
 
@@ -310,6 +315,7 @@ def _handle_request(order_id: int, rid: str, *, rejecting: bool):
         result = _request_write(db, user, order_id, rid, payload, rejecting=rejecting)
         if result["changed"]:
             db.commit()
+            floor_alarm.flush(db)
         else:
             db.rollback()  # 잠금만 풀고 쓰기 · 버전 · 이벤트 0(멱등)
     except (FixRefusal, RequestRefusal) as refusal:

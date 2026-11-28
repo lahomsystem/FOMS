@@ -373,6 +373,14 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(production_part_marks_bp)
 
+    # --- Lane: 생산 현장 알람 다시 받기(JSON — GET /api/production/alarms/pending, 설계서 2026-11-28-production-floor-alarm §4-4 ·
+    # 약속 7). 로그인한 계정의 안 누른 생산 알람만(긴급 72시간 · 띠 12시간), 스위치 FOMS_PRODUCTION_FLOOR_ALARM 이 꺼지면 빈 목록.
+    # 읽기 전용이라 쓰기 정책 · CSRF 대상이 아니다. 이 모듈이 실릴 때 알람 모듈에 종 숫자 캐시 비우기를 꽂는다(WORKER 도 앱을
+    # 만들 때 같이 실린다). 경로가 고유해 shadowing 이 없다.
+    from foms.api.production import production_alarms_bp
+
+    app.register_blueprint(production_alarms_bp)
+
     # --- Lane: 접목판 승인 대기 — ERP 할 일 제안 JSON(/api/erp-actions/*, 설계서 2026-11-14-foms-graft 3.6). 여는 사람은
     # actions 스위치가 켜진 내부 직원(그 밖 404) · 쓰기 셋은 CSRF · 정책 STAFF_MUTATION(할 일의 정책은 처리기 안에서 다시 본다).
     # 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.

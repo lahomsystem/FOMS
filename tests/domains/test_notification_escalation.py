@@ -240,3 +240,38 @@ def test_role_source_escalates_once_per_admin(db):
     assert total == 3  # N² (9) 가 아니라 N (3)
     for admin in admins:
         assert len(_escalations(admin.id)) == 1
+
+
+@pytest.mark.parametrize("exempt_env", [None, "", "NAVER_ORDER_CLAIMED"])
+def test_production_floor_alarms_never_escalate(db, monkeypatch, exempt_env):
+    """생산 현장 알람(``PRODUCTION_FLOOR_…``)은 5분 · 10분이 지나도 올림 0 — 환경 변수 빼기 목록을 빈 글로 줘도(코드로 뺀다).
+
+    설계서 2026-11-28 생산 현장 알람 §4-2 의 3. 기계 앞이라 못 누른 알람마다 매니저 · 관리자 폰이 울리면 안 된다.
+    대조군: 같은 스윕 · 같은 사람의 다른 긴급 알림은 올라간다.
+    """
+    from foms.services.notifications.escalation import _FLOOR_ALARM_PREFIX
+    from foms.services.production import floor_alarm_text
+
+    assert _FLOOR_ALARM_PREFIX == floor_alarm_text.PREFIX
+    if exempt_env is None:
+        monkeypatch.delenv("FOMS_ESCALATION_EXEMPT_TYPES", raising=False)
+    else:
+        monkeypatch.setenv("FOMS_ESCALATION_EXEMPT_TYPES", exempt_env)
+    admin = _mk_user("esc_floor_admin", "관리자", role="ADMIN")
+    manager = _mk_user("esc_floor_mgr", "생산매니저", role="MANAGER", team="PRODUCTION")
+    worker = _mk_user("esc_floor_worker", "김재단", role="STAFF", team="PRODUCTION")
+    for ntype in floor_alarm_text.URGENT_TYPES:
+        notif = _mk_urgent("멈추세요 — 보류됐어요", "본문", target_user_id=worker.id)
+        notif.notification_type = ntype
+        db_session.flush()
+        _mk_state(notif, worker, created_at=NOW - datetime.timedelta(minutes=6))
+        _mk_state(notif, manager, created_at=NOW - datetime.timedelta(minutes=30),
+                  escalated_at=NOW - datetime.timedelta(minutes=20))  # 둘째 단계(관리자 전원) 조건도 채운 상태
+    control = _mk_urgent("긴급 호출", "본문", target_user_id=worker.id)
+    _mk_state(control, worker, created_at=NOW - datetime.timedelta(minutes=6))
+
+    result = escalate_overdue_urgent(db, now=NOW)
+
+    assert (result["checked"], result["escalated"], result["operator_escalated"]) == (1, 1, 0)
+    assert [n.message for n in _escalations(manager.id)] and all("긴급 호출" in n.message for n in _escalations(manager.id))
+    assert _escalations(admin.id) == []
