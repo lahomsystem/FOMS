@@ -14,7 +14,10 @@
    여러 파트(2026-11-23 §4-12 · §8-1, P2): 파트가 둘 이상인 계정만 판 머리 첫 자리에 내 파트 고르기(.pp-picks — 같은 날, 주소 part).
    파트 하나인 계정은 고르기 없이 지금 그대로. 반장(대신)은 관리자와 같은 판(네 파트 고르기 .pp-parts · 단추).
    조립 없음(설계서 2026-11-28 흐름 셋 §3): 재단 [기본] 자리 · 꼴 그대로 조립 판에 [조립 없음] — 단추 · 칸 · 취소 · 판 머리 일괄 글은 모두
-   pb.basic(part_constants.basic_view — 재단 '기본' · 조립 '조립 없음', 그 처리가 없는 엣지 · 검수는 none)에서 읽는다. #}
+   pb.basic(part_constants.basic_view — 재단 '기본' · 조립 '조립 없음', 그 처리가 없는 엣지 · 검수는 none)에서 읽는다.
+   펜 기록(설계서 2026-11-28-production-pen-record §6-4 · 18번 답 — 스위치 flag_pen_record 켬일 때만): 기록 있는 장(서버 판 카드 c.note) =
+   카드 data-note-v · -by · -at · -url + 그림 칸 왼쪽 아래 딱지 "생산 기록"(그림 칸 위에 얹어 카드 높이 그대로, 작은 그림은 원본).
+   바뀌기 전 기록만 있는 장(c.note_old) = data-note-old. 꺼짐이면 속성 · 딱지 0. #}
 {% from 'production/partials/home_date_macros.html' import home_href, fph_due, fph_chip, fph_wait, fph_wait_head %}
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
@@ -120,9 +123,11 @@
                {%- if c.crew %} data-pp-crew="{{ c.crew | tojson | forceescape }}"{% endif %}
                {%- if c.order_block %} data-pp-block="{{ c.order_block.kind }}" data-pp-block-text="{{ c.order_block.text }}" data-pp-block-why="{{ c.order_block.why }}"{% endif %}
                {%- if c.block and c.block.kind == 'pre' %} data-pp-pre="{{ c.block.text }}" data-pp-pre-why="{{ c.block.why }}"{% endif %}
-               {%- if c.hand %} data-pp-hand="{{ c.hand.text }}" data-pp-hand-why="{{ c.hand.why }}"{% endif %}>
+               {%- if c.hand %} data-pp-hand="{{ c.hand.text }}" data-pp-hand-why="{{ c.hand.why }}"{% endif %}
+               {%- if flag_pen_record and c.note %} data-note-v="{{ c.note.version }}" data-note-by="{{ c.note.by }}" data-note-at="{{ c.note.at }}" data-note-url="{{ c.note.view_url }}"{% endif %}
+               {%- if flag_pen_record and c.note_old %} data-note-old="1"{% endif %}>
         {% if c.is_image %}
-        <button type="button" class="pp-img" data-pp-open aria-label="{{ c.customer_name }} 도면 {{ c.no }}/{{ c.of }} 크게 보기"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt=""></button>
+        <button type="button" class="pp-img" data-pp-open aria-label="{{ c.customer_name }} 도면 {{ c.no }}/{{ c.of }} 크게 보기{% if flag_pen_record and c.note %} · 생산 기록{% endif %}"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt="">{% if flag_pen_record and c.note %}<span class="pp-ptag" data-pp-ptag>생산 기록</span>{% endif %}</button>
         {% else %}
         <a class="pp-img pp-file" href="{{ c.view_url }}" target="_blank" rel="noopener"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></a>
         {% endif %}

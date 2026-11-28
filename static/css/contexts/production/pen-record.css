@@ -1,0 +1,94 @@
+/* 생산 도면 펜 기록 — 설계서 docs/specs/2026-11-28-production-pen-record_SPEC.md §6(치수 · 글), 사장님 9 · 11 · 12 · 18번 답.
+   스위치(flag_pen_record)가 켜졌을 때만 싣는다(생산 첫 화면 home_styles.html · 기록 있는 작업 시트 sheet.html).
+   도면 보기 = 도면 위자드 꼴 머리 줄 한 줄 52px(키 고정) — 그 아래는 전부 도면. 큰 단추 · 옆 도구 줄 · 작은 그림 줄은 만들지 않는다
+   (9번 답 "애들 장난감 같다" 거절). 단추 = 보이는 키 32~34px, 누르는 자리 44px(머리 줄 안에서 위아래로 넓힘 — 모습은 ::before 가 그린다).
+   글 13px · 제목 14px(calc(Npx * var(--foms-fs, 1))), 강조 = 생산 화면 보라 #5a67d8(11번 답). 보는 상태의 아래 줄(.pp-vbot)은 parts.css 그대로(12번 답).
+   카드 딱지는 그림 칸 위에 얹는다(position: absolute) — 카드 높이가 1px 도 안 바뀐다. 인라인 style 없음(쓰는 층 자리만 JS 가 잰다). */
+.foms-prod-home, .foms-prod-page {
+  --pp-pen: #5a67d8;
+  --pp-pen-50: #f3f4ff;
+  --pp-pen-bar: #fbfbfd;
+  --pp-pen-line: #d9d9de;
+  --pp-pen-canvas: #f5f5f7;
+  --pp-pen-track: #e8e8ed;
+  --pp-pen-fg: #1d1d1f;
+  --pp-pen-fg2: #5f5f64;
+  --pp-pen-hair: rgba(0, 0, 0, .14);
+  --pp-pen-danger: #b91c1c;
+  --pp-ink-red: #e11d1d;
+  --pp-ink-blue: #1c62d6;
+  --pp-ink-black: #000000;
+}
+
+/* ── 카드 · 작업 시트 작은 그림 딱지 "생산 기록"(§6-4) ── */
+.pp-ptag { position: absolute; z-index: 1; left: 6px; bottom: 6px; padding: 1px 7px; border-radius: 5px; background: var(--pp-pen); color: #fff; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; font-style: normal; line-height: 1.4; white-space: nowrap; pointer-events: none; }
+.foms-prod-page__th .pp-ptag--th { left: 4px; top: 4px; bottom: auto; }
+
+/* ── 머리 줄 한 줄(§6-1) — 보는 줄 · 쓰는 줄 · 묻는 줄이 같은 자리 ── */
+.pp-view--pen { background: var(--pp-pen-canvas); }
+.pp-pbar { flex: 0 0 52px; height: 52px; box-sizing: border-box; display: flex; align-items: center; padding: 0 10px; background: var(--pp-pen-bar); border-bottom: 1px solid var(--pp-pen-line); color: var(--pp-pen-fg); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.pp-pbar::-webkit-scrollbar { display: none; }
+.pp-pset { flex: 1 1 auto; min-width: 0; height: 44px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pp-pset[hidden] { display: none; }
+.pp-pttl { flex: 0 1 auto; min-width: 2em; margin: 0; overflow: hidden; text-overflow: ellipsis; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.3; color: var(--pp-pen-fg); }
+.pp-psub { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: calc(13px * var(--foms-fs, 1)); color: var(--pp-pen-fg2); }
+.pp-psp { flex: 1 1 8px; min-width: 4px; }
+.pp-pmeta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: calc(13px * var(--foms-fs, 1)); color: var(--pp-pen-fg2); }
+.pp-pmeta[hidden] { display: none; }
+.pp-pmeta.is-old { color: var(--fph-note-700, #7c2d12); font-weight: 700; }
+.pp-pask .pp-pttl { flex: 0 0 auto; }
+
+/* 단추 — 누르는 자리 44px, 보이는 키 34px(::before) */
+.pp-pbar button { font-family: inherit; margin: 0; -webkit-tap-highlight-color: transparent; } /* 글 크기는 단추마다(13px) — font 줄임꼴은 쓰지 않는다 */
+.pp-pb { position: relative; isolation: isolate; flex: 0 0 auto; height: 44px; min-width: 44px; padding: 0 12px; border: 0; background: none; color: var(--pp-pen-fg); font-size: calc(13px * var(--foms-fs, 1)); font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; }
+.pp-pb::before { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 5px; bottom: 5px; border: 1px solid var(--pp-pen-hair); border-radius: 8px; background: #fff; }
+.pp-pb--plain::before { border-color: transparent; background: transparent; }
+.pp-pb--pri { color: #fff; }
+.pp-pb--pri::before { border-color: var(--pp-pen); background: var(--pp-pen); }
+.pp-pb--danger { color: var(--pp-pen-danger); }
+.pp-pb--icon { width: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.pp-pb--icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pp-pb[hidden] { display: none; }
+.pp-pb:disabled { cursor: default; opacity: .4; }
+.pp-pbar button:focus-visible { outline: none; }
+.pp-pbar button:focus-visible::before { box-shadow: 0 0 0 2px var(--pp-pen); }
+
+/* 조각 단추 묶음(§6-1) — 바탕 #e8e8ed 모서리 9px, 고른 것만 흰 바탕 + 옅은 그림자 모서리 7px. 보이는 키 32px · 누르는 자리 44px */
+.pp-seg { position: relative; isolation: isolate; flex: 0 0 auto; display: inline-flex; align-items: center; height: 44px; padding: 0 2px; gap: 2px; }
+.pp-seg::before { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 4px; bottom: 4px; border-radius: 9px; background: var(--pp-pen-track); }
+.pp-seg[hidden] { display: none; }
+.pp-seg button { position: relative; isolation: isolate; flex: 0 0 auto; height: 44px; min-width: 44px; padding: 0 11px; border: 0; background: none; color: var(--pp-pen-fg); font-size: calc(13px * var(--foms-fs, 1)); font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; }
+.pp-seg button::before { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 6px; bottom: 6px; border-radius: 7px; }
+.pp-seg button[aria-pressed="true"] { font-weight: 700; }
+.pp-seg button[aria-pressed="true"]::before { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+/* 장 묶음 — 일곱 장을 넘으면 머리 줄 안에서 옆으로 굴러간다(§6-2) */
+.pp-psheets { flex: 0 1 auto; min-width: 96px; max-width: calc(7 * 64px * var(--foms-fs, 1)); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.pp-psheets::-webkit-scrollbar { display: none; }
+.pp-pdot { display: inline-block; width: 6px; height: 6px; margin-left: 5px; border-radius: 50%; background: var(--pp-pen); vertical-align: 2px; }
+
+/* 색 셋 · 굵기 셋 — 지우개 · 형광펜이면 자리만 비운다(visibility — 다른 단추가 안 움직인다, §6-3) */
+.pp-pkit { flex: 0 0 auto; display: inline-flex; align-items: center; }
+.pp-pkit.is-off { visibility: hidden; }
+.pp-sw, .pp-wd { position: relative; flex: 0 0 auto; width: 40px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; }
+.pp-sw::before { content: ''; position: absolute; left: 5px; top: 7px; width: 30px; height: 30px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; background: var(--pp-sw); box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); }
+.pp-sw[aria-pressed="true"]::before { box-shadow: 0 0 0 2px var(--pp-pen); }
+.pp-sw--red { --pp-sw: var(--pp-ink-red); }
+.pp-sw--blue { --pp-sw: var(--pp-ink-blue); }
+.pp-sw--black { --pp-sw: var(--pp-ink-black); }
+.pp-wd::before { content: ''; position: absolute; left: 3px; right: 3px; top: 5px; bottom: 5px; border: 1px solid transparent; border-radius: 9px; }
+.pp-wd[aria-pressed="true"]::before { border-color: var(--pp-pen); background: var(--pp-pen-50); }
+.pp-wd i { position: relative; display: block; margin: 0 auto; border-radius: 50%; background: var(--pp-pen-fg); }
+.pp-wd--1 i { width: 4px; height: 4px; }
+.pp-wd--2 i { width: 8px; height: 8px; }
+.pp-wd--3 i { width: 13px; height: 13px; }
+
+/* ── 쓰는 상태(§6-3) — 아래 줄은 숨고(JS hidden) 그림 칸이 머리 줄 아래를 다 쓴다. 쓰는 층(SVG)은 그림과 같은 자리 · 같은 확대 ── */
+.pp-view--pen .pp-vimg { position: relative; }
+.pp-view.is-pen-edit .pp-vimg { margin: 0; border: 0; border-radius: 0; background: var(--pp-pen-canvas); cursor: crosshair; }
+.pp-view.is-pen-edit .pp-vbot[hidden] { display: none; }
+.pp-ink { position: absolute; left: 0; top: 0; overflow: visible; transform-origin: center center; pointer-events: none; }
+.foms-prod-home .pp-ink { stroke: none; stroke-width: 0; } /* home.css '.foms-prod-home svg'(아이콘 선)가 글 · 화살촉에 테두리를 물려주지 않게 — 선마다 제 stroke 가 있다 */
+.pp-ptext { position: absolute; z-index: 3; width: 240px; height: 40px; box-sizing: border-box; padding: 4px 8px; border: 2px solid var(--pp-pen); border-radius: 7px; background: #fff; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; }
+.pp-ptext[hidden] { display: none; }
+.pp-ptoast { position: absolute; z-index: 3; left: 50%; top: 62px; transform: translateX(-50%); max-width: calc(100% - 32px); margin: 0; padding: 10px 16px; border-radius: 10px; background: rgba(29, 29, 31, .92); color: #fff; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 600; line-height: 1.4; text-align: center; white-space: normal; word-break: keep-all; pointer-events: none; }
+.pp-ptoast[hidden] { display: none; }

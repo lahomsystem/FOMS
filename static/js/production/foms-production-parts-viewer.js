@@ -5,7 +5,9 @@
  * 날 고르기 · 날 주소('도면 카드' 탭 포함)는 foms-production-home-days.js — 받아 끼운 장도 화면(root) 위임이라 그대로 묶여 있다.
  * 크게 보기의 큰 단추는 카드 단추를 대신 누른다(같은 확인 창 — 쓰기는 foms-production-parts.js 몫, 이 파일엔 fetch 없음).
  * 설정은 data-foms-parts-config(safeJsonParse). 셸 조각 교체로 다시 실행된다(11-14): 화면(root) 리스너는 화면마다 한 번
- * (window.__FOMS_PROD_PARTS_BOUND.viewer = 지금 화면), 문서 리스너는 문서에 한 번(.viewerDoc) 달고 지금 화면의 FomsPartsBoard 를 부른다. */
+ * (window.__FOMS_PROD_PARTS_BOUND.viewer = 지금 화면), 문서 리스너는 문서에 한 번(.viewerDoc) 달고 지금 화면의 FomsPartsBoard 를 부른다.
+ * 펜 기록(설계서 2026-11-28-production-pen-record §6-2 · §6-3, 스위치 켬 = 머리 줄 [data-pp-pbar]): 장 묶음(기록 있으면 점) · [생산 기록 | 원본](그림 주소만,
+ * 처음 쪽 = pen.first) · 쓴 사람 시각 · [기록 쓰기](쓰기 JS 둘을 처음 누를 때 받는다). 쓰는 동안(FomsPen.editing)은 다시 그리지 않는다(30초 받아 오기에도 그대로). */
 (function () {
   'use strict';
 
@@ -91,7 +93,10 @@
   // ── 크게 보기 ──
   var viewer = root.querySelector('[data-pp-viewer]');
   var vImg = viewer && viewer.querySelector('[data-pp-v-img]');
-  var state = { list: [], index: 0, opener: null };
+  var state = { list: [], index: 0, opener: null, show: 'orig' };
+  var pen = cfg.pen || {};
+  var pbar = viewer && viewer.querySelector('[data-pp-pbar]');
+  var OLD_TEXT = "도면이 바뀌었어요 · 앞 기록은 주문 첨부 '생산'에 있어요";
   function cardText(card, sel) {
     var el = card.querySelector(sel);
     return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
@@ -124,9 +129,40 @@
       box.appendChild(copy);
     });
   }
+  function noted(card) { return !!(card && card.hasAttribute('data-note-v')); } // ── 펜 기록 머리 줄(스위치 꺼짐이면 pbar 가 없어 아무 일 없음) ──
+  function viewable(card) { return noted(card) && !!card.getAttribute('data-note-url'); } // 합친 그림만 첨부에서 지워지면 주소가 빈 글 — 원본만
+  function penEditing() { var p = window.FomsPen; return !!(p && p.editing && p.editing(viewer)); }
+  function pickShow() { state.show = pen.first && viewable(state.list[state.index]) ? 'note' : 'orig'; }
+  function srcOf(card) { return card.getAttribute(state.show === 'note' && viewable(card) ? 'data-note-url' : 'data-view-url') || ''; }
+  function make(tag, attrs, text) {
+    var n = document.createElement(tag);
+    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    n.textContent = text || '';
+    return n;
+  }
+  function renderPen(card, isImage) {
+    var box = pbar.querySelector('[data-pp-sheets]');
+    var meta = pbar.querySelector('[data-pp-pmeta]');
+    var write = pbar.querySelector('[data-pp-pen-open]');
+    var note = noted(card);
+    var old = !note && card.getAttribute('data-note-old') === '1'; // 지금 도면엔 기록 없고 바뀌기 전 기록만(§3-4)
+    box.textContent = '';
+    state.list.forEach(function (c, i) {
+      var no = '도면 ' + c.getAttribute('data-no');
+      var b = box.appendChild(make('button', { type: 'button', 'data-pp-sheet': String(i), 'aria-pressed': String(i === state.index),
+        'aria-label': no + (noted(c) ? ' · 생산 기록' : '') }, no));
+      if (noted(c)) { b.appendChild(make('i', { 'class': 'pp-pdot', 'aria-hidden': 'true' })); }
+    });
+    meta.hidden = !note && !old;
+    meta.classList.toggle('is-old', old);
+    meta.textContent = note ? ((card.getAttribute('data-note-by') || '') + ' ' + (card.getAttribute('data-note-at') || '')).trim() : old ? OLD_TEXT : '';
+    pbar.querySelector('[data-pp-pshow]').hidden = !viewable(card);
+    toArr(pbar.querySelectorAll('[data-pp-show]')).forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-pp-show') === state.show)); });
+    if (write) { write.hidden = !isImage; write.textContent = note ? '기록 고치기' : '기록 쓰기'; }
+  }
   function render() {
     var card = state.list[state.index];
-    if (!card || !viewer) { return; }
+    if (!card || !viewer || penEditing()) { return; } // 쓰는 동안 그대로(받아 오기 · 카드 고치기가 불러도 쓰기 화면을 안 닫는다)
     var pane = paneOf(card);
     var head = pane.querySelector('.pp-head .fph-pane__h');
     var day = head && head.firstChild ? head.firstChild.textContent.trim() : '';
@@ -142,13 +178,14 @@
     var isImage = !!card.querySelector('[data-pp-open]');
     clearBroken(vImg);
     vImg.hidden = !isImage;
-    if (isImage) { vImg.src = card.getAttribute('data-view-url') || ''; }
+    if (isImage) { vImg.src = srcOf(card); }
     viewer.querySelector('[data-pp-v-zoom]').setAttribute('aria-label', isImage ? '손가락으로 크게 보기' : '파일 열기');
     toArr(viewer.querySelectorAll('[data-pp-v-step]')).forEach(function (btn) {
       var next = state.index + Number(btn.getAttribute('data-pp-v-step'));
       btn.disabled = next < 0 || next >= state.list.length;
     });
     fillActions(card);
+    if (pbar) { renderPen(card, isImage); }
   }
   // 그림 칸 확대(zoom 파일) — 장을 열 · 넘길 · 닫을 때 1배(reset), 같은 장을 다시 그린 뒤 경계만 다시(refit)
   function zoomCall(name) {
@@ -160,14 +197,16 @@
     state.list = orderCards(card);
     state.index = Math.max(0, state.list.indexOf(card));
     state.opener = opener || null;
+    pickShow();
     viewer.hidden = false;
     zoomCall('reset');
     render();
     var close = viewer.querySelector('[data-pp-v-close]');
     if (close) { close.focus(); }
   }
+  function go(index) { state.index = index; pickShow(); zoomCall('reset'); render(); } // ◀ ▶ · 머리 줄 장 묶음
   function closeViewer() {
-    if (!viewer || viewer.hidden) { return; }
+    if (!viewer || viewer.hidden || penEditing()) { return; }
     viewer.hidden = true;
     zoomCall('reset');
     vImg.removeAttribute('src');
@@ -178,6 +217,25 @@
     var card = state.list[state.index];
     if (!card || card.querySelector('[data-pp-open]')) { return; }
     window.open(card.getAttribute('data-view-url') || '', '_blank', 'noopener');
+  }
+  function addScript(src) { // [기록 쓰기]를 처음 누를 때 쓰기 JS 둘(ink → pen)을 받는다 — 못 받으면 단추를 풀어 다시 누르게, 받은 뒤는 문서에 남는다
+    return new Promise(function (ok, bad) {
+      var tag = make('script', { src: src });
+      tag.addEventListener('load', ok);
+      tag.addEventListener('error', bad);
+      document.head.appendChild(tag);
+    });
+  }
+  function openPen(btn) {
+    var card = state.list[state.index];
+    if (!card || btn.disabled) { return; }
+    btn.disabled = true;
+    bound.penLoad = window.FomsPen ? Promise.resolve() : bound.penLoad || addScript(btn.getAttribute('data-pp-pen-ink')).then(function () { return addScript(btn.getAttribute('data-pp-pen-js')); });
+    bound.penLoad.then(function () {
+      btn.disabled = false;
+      if (!window.FomsPen || viewer.hidden || state.list[state.index] !== card) { return; } // 받는 사이 닫거나 장을 넘김
+      window.FomsPen.start({ viewer: viewer, img: vImg, card: card, done: function (show) { if (show) { state.show = show; } render(); } });
+    }, function () { bound.penLoad = null; btn.disabled = false; });
   }
   function proxy(btn) {
     var card = state.list[state.index];
@@ -194,7 +252,12 @@
     if (open) { openViewer(open.closest('[data-pp-card]'), open); return; }
     if (!viewer || viewer.hidden || !viewer.contains(t)) { return; }
     var step = t.closest('[data-pp-v-step]');
-    if (step && !step.disabled) { state.index += Number(step.getAttribute('data-pp-v-step')); zoomCall('reset'); render(); return; }
+    if (step && !step.disabled) { go(state.index + Number(step.getAttribute('data-pp-v-step'))); return; }
+    var sheet = t.closest('[data-pp-sheet]'); // 펜 기록 머리 줄 — 장 묶음 · [생산 기록 | 원본] · [기록 쓰기]
+    if (sheet) { go(Number(sheet.getAttribute('data-pp-sheet'))); return; }
+    var show = t.closest('[data-pp-show]');
+    if (show) { state.show = show.getAttribute('data-pp-show'); render(); return; }
+    if (t.closest('[data-pp-pen-open]')) { openPen(t.closest('[data-pp-pen-open]')); return; }
     if (t.closest('[data-pp-v-close]')) { closeViewer(); return; }
     if (t.closest('[data-pp-v-zoom]')) { openFile(); return; }
     var px = t.closest('[data-pp-proxy]');
@@ -202,6 +265,7 @@
   });
   function onEscape() {
     var modal = root.querySelector('[data-pp-modal]');
+    if (penEditing()) { window.FomsPen.cancel(); return; } // 쓰는 중이면 [취소]와 같다(쓴 것이 있으면 묻는 줄)
     if (!modal || modal.hidden) { closeViewer(); }
   }
   // 카드 작은 그림 · 크게 보기 원본을 못 받으면 글(카드는 그대로 쓸 수 있다). error 는 거품이 안 올라 잡기 단계로 받는다.

@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261128a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% if pc_view %}
 {# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261127h">{% endif %}{% if order.factory_sheet %}{# 공장 칩(섞인 주문만 — 1공장뿐인 시트는 바이트 그대로) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261127h">{% endif %}{% if order.factory_sheet %}{# 공장 칩(섞인 주문만 — 1공장뿐인 시트는 바이트 그대로) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">{% endif %}{% if flag_pen_record and order.drawing_files | selectattr('note') | list %}{# 펜 기록 딱지(설계서 2026-11-28-production-pen-record §2-2 · §6-4 — 기록 있는 장이 있을 때만, 꺼짐이면 바이트 그대로) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pen-record.css') }}?v=20261128q">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -37,7 +37,9 @@
     <div class="foms-prod-page__body">
       {# ── 왼쪽: 도면 ── 안 내려온 주문(order.dw_wait, 설계서 2026-11-22-production-drawing-arrival-upgrade §5-7)은 '도면이 아직 안
          내려왔어요' · 까닭 · 담당 · 마감 — 확정 그림이 없으면 빈 자리 글을 이것으로, 있으면(영업 확인 · 고객 컨펌 기다림) 그림 위 띠로.
-         '알림 보냄 …' 줄(alert_line)은 도면 마감 알림(§9-6)이 실제로 보냈을 때만 글이 있다(스위치 끔 · 안 보냄이면 안 그린다). 내려온 주문은 그대로. #}
+         '알림 보냄 …' 줄(alert_line)은 도면 마감 알림(§9-6)이 실제로 보냈을 때만 글이 있다(스위치 끔 · 안 보냄이면 안 그린다). 내려온 주문은 그대로.
+         펜 기록(설계서 2026-11-28-production-pen-record §2-2 — 1차는 보기만, 16번 답): 기록 있는 장(f.note)은 작은 그림에 딱지 "생산 기록".
+         '먼저 보기' 사람의 그림 주소는 서버가 바꿔 준다. 스위치 꺼짐이면 딱지 0. #}
       {% macro dw_wait_lines(w) -%}
       <b>도면이 아직 안 내려왔어요</b><span>{% if w.blocker.none %}<em class="is-none">{{ w.blocker.label }}</em>{% else %}{{ w.blocker.label }}{% endif %}{% for p in w.people.parts %} · {{ p }}{% endfor %}</span><span{% if w.deadline.state %} class="is-{{ w.deadline.state }}"{% endif %}>{{ w.deadline.text }}</span>{% if w.alert_line %}<small>{{ w.alert_line }}</small>{% endif %}
       {%- endmacro %}
@@ -67,8 +69,8 @@
                     data-foms-sheet-dwg-th="{{ _k.i }}"
                     data-foms-erp-attachment-view-url="{{ f.view }}"
                     data-foms-erp-attachment-download-url="{{ f.download }}"
-                    data-foms-erp-attachment-label="{{ f.label }}" data-foms-sheet-dwg-title="{{ f.title }}" aria-label="도면 {{ loop.index }} {{ f.title or f.label }}">
-              <img src="{{ f.thumb or f.view }}" alt="" loading="lazy" decoding="async"><span>{{ loop.index }}</span>{% if f.fac %}<span class="fpp-fac">{{ f.fac | factory_chips }}</span>{% endif %}
+                    data-foms-erp-attachment-label="{{ f.label }}" data-foms-sheet-dwg-title="{{ f.title }}" aria-label="도면 {{ loop.index }} {{ f.title or f.label }}{% if flag_pen_record and f.note %} · 생산 기록{% endif %}">
+              <img src="{{ f.thumb or f.view }}" alt="" loading="lazy" decoding="async"><span>{{ loop.index }}</span>{% if f.fac %}<span class="fpp-fac">{{ f.fac | factory_chips }}</span>{% endif %}{% if flag_pen_record and f.note %}<b class="pp-ptag pp-ptag--th">생산 기록</b>{% endif %}
             </button>
             {% set _k.i = _k.i + 1 %}
             {% else %}

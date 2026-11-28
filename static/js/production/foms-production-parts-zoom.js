@@ -6,7 +6,9 @@
  * 경계는 1배 그림 크기(보이는 px)를 재 두고 계산한다 — 두 번 두드리기처럼 크게 뛰어도 그 배율 기준으로 바로 막힌다.
  * 그림 주소는 그대로(카드 data-view-url = /api/files/view 원본, 전역 뷰어가 받던 것과 같은 그림)라 확대해도 원본 화소다.
  * 뷰어(foms-production-parts-viewer.js)가 장을 열 · 넘길 · 닫을 때 reset(), 30초 받아 오기로 다시 그린 뒤 refit() 을 부른다.
- * 셸 조각 교체로 다시 실행된다: 그림 칸 리스너는 화면마다 한 번(__FOMS_PROD_PARTS_BOUND.zoom), 문서 · 창 리스너는 한 번(.zoomDoc). */
+ * 셸 조각 교체로 다시 실행된다: 그림 칸 리스너는 화면마다 한 번(__FOMS_PROD_PARTS_BOUND.zoom), 문서 · 창 리스너는 한 번(.zoomDoc).
+ * 펜 기록 쓰는 상태(설계서 2026-11-28-production-pen-record §6-3): 손가락은 그대로 움직이기 · 키우기, 펜 · 마우스가 닿아 있는 동안(FomsPen.inking —
+ * 손바닥 touch 가 같이 들어와도)은 손짓을 받지 않는다. 쓰는 층(SVG [data-pp-ink])은 그림과 같은 transform 을 따라간다. */
 (function () {
   'use strict';
 
@@ -28,15 +30,18 @@
     var z = typeof window.fomsUiZoom === 'function' ? Number(window.fomsUiZoom()) || 1 : 1;
     return z > 0 ? z : 1;
   }
-  // 원본 그림이 떠 있을 때만(파일 장 · 못 받은 그림 · 닫힌 창은 손짓을 받지 않는다)
+  // 원본 그림이 떠 있을 때만(파일 장 · 못 받은 그림 · 닫힌 창은 손짓을 받지 않는다) · 펜이 쓰는 중이면 받지 않는다
+  function inking() { var p = window.FomsPen; return !!(p && p.inking && p.inking()); }
   function usable() {
-    return !viewer.hidden && !img.hidden && !!img.getAttribute('src') && !stage.classList.contains('is-broken');
+    return !viewer.hidden && !img.hidden && !!img.getAttribute('src') && !stage.classList.contains('is-broken') && !inking();
   }
   function apply(anim) {
     stage.classList.toggle('is-anim', !!anim);
     stage.classList.toggle('is-zoomed', s.scale > 1);
     var z = uiZoom();
     img.style.transform = s.scale > 1 ? 'translate(' + (s.tx / z) + 'px, ' + (s.ty / z) + 'px) scale(' + s.scale + ')' : '';
+    var ink = stage.querySelector('[data-pp-ink]');
+    if (ink && ink.style) { ink.style.transform = img.style.transform; }
   }
   // 1배 그림 크기(보이는 px). 움직이는 중(is-anim)이면 끝 값으로 멈춘 뒤 잰다 — rect 는 transform 이 붙은 크기라 배율로 나눈다.
   function measure() {

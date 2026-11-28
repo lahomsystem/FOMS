@@ -3,8 +3,10 @@
    확인 창 = 진짜 생산 보드 창 꼴(foms-prod-change-modal, 모양 CSS 는 foms-tablet-production-kanban.css 그대로 — 복사 0),
    id 는 옛 보드 창(foms-prod-change-modal)과 달라 tablet-domain-sheets.js 가 건드리지 않는다. 목록 줄은 JS 가 채운다.
    2026-11-23 §8-1: 몸 글(.pp-mbody — 첫 카드 · 제작 완료 물음) · 관리자 고르기(.pp-mchoices) · 진 경합(창에 .is-lost)은
-   foms-production-parts-modal.js 가 채운다. 창이 열린 동안 판 본문은 inert, 초점은 창 안에서만 돈다. #}
-<div class="pp-overlays" data-foms-parts-config="{{ part_config | tojson | forceescape }}" data-pp-since="{{ part_since or '' }}" hidden></div>
+   foms-production-parts-modal.js 가 채운다. 창이 열린 동안 판 본문은 inert, 초점은 창 안에서만 돈다.
+   펜 기록(설계서 2026-11-28-production-pen-record §6 — 스위치 flag_pen_record 켬일 때만): 도면 보기 머리 줄을 한 줄 52px 로 바꾼다(아래).
+   꺼짐이면 새 마크업 0 — 머리 줄 · 아래 줄이 지금과 한 글자도 같다(test_production_pen_record_screen). #}
+{% set pen_w = flag_pen_record and part_config and part_config.pen and part_config.pen.can_write %}<div class="pp-overlays" data-foms-parts-config="{{ part_config | tojson | forceescape }}" data-pp-since="{{ part_since or '' }}" hidden></div>
 {% if part_board.writable %}
 <div id="foms-part-confirm-modal" class="foms-prod-change-modal pp-modal" data-pp-modal role="dialog" aria-modal="true" aria-labelledby="foms-part-confirm-title" hidden>
   <div class="foms-prod-change-modal__dialog">
@@ -54,11 +56,53 @@
   </div>
 </div>
 {% endif %}
-<div class="pp-view" data-pp-viewer role="dialog" aria-modal="true" aria-labelledby="foms-part-view-title" hidden>
+<div class="pp-view{% if flag_pen_record %} pp-view--pen{% endif %}" data-pp-viewer role="dialog" aria-modal="true" aria-labelledby="foms-part-view-title" hidden>
+  {% if flag_pen_record -%}
+  {#- 펜 기록 머리 줄(§6-1 · §6-2 · §6-3) — 한 줄 52px, 보는 줄 · 쓰는 줄 · 묻는 줄이 같은 자리를 바꿔 쓴다(위자드 꼴, 사장님 9번 답).
+      보는 줄: [‹ 닫기] · 고객 #주문 · 품목 · 도면 1 · 2 · 3(기록 있으면 보라 점) · 쓴 사람 시각 · [생산 기록 | 원본] · [기록 쓰기]/[기록 고치기] —
+      장 묶음 · 점 · 시각 · 바꾸기는 foms-production-parts-viewer.js 가 카드 data-note-* 로 그린다(그림 주소만 바꾼다).
+      아래 줄(.pp-vbot — ◀ ▶ · 닫기 · 파트 단추)은 보는 상태에서 그대로(12번 답), 쓰는 상태에서만 숨긴다(foms-production-pen.js).
+      [기록 쓰기] · 쓰는 줄 · 묻는 줄은 쓰기 문을 지난 사람(판 설정 pen.can_write)에게만 — 누르면 쓰기 JS 둘을 그때 받는다(첫 화면 값 0). -#}
+  <header class="pp-pbar" data-pp-pbar>
+    <div class="pp-pset" data-pp-pview>
+      <button type="button" class="pp-pb pp-pb--plain" data-pp-v-close>‹ 닫기</button>
+      <h2 class="pp-pttl" id="foms-part-view-title" data-pp-v-title>도면</h2>
+      <span class="pp-psub" data-pp-v-sub></span>
+      <span class="pp-seg pp-psheets" role="group" aria-label="도면" data-pp-sheets></span>
+      <span class="pp-psp"></span>
+      <span class="pp-pmeta" data-pp-pmeta hidden></span>
+      <span class="pp-seg" role="group" data-pp-pshow hidden><button type="button" data-pp-show="note" aria-pressed="false">생산 기록</button><button type="button" data-pp-show="orig" aria-pressed="true">원본</button></span>
+      {% if pen_w %}<button type="button" class="pp-pb pp-pb--pri" data-pp-pen-open data-pp-pen-ink="{{ url_for('static', filename='js/production/foms-production-pen-ink.js') }}?v=20261128q" data-pp-pen-js="{{ url_for('static', filename='js/production/foms-production-pen.js') }}?v=20261128q" hidden>기록 쓰기</button>{% endif %}
+    </div>
+    {% if pen_w %}
+    <div class="pp-pset" data-pp-pedit hidden>
+      <button type="button" class="pp-pb pp-pb--plain" data-pp-pen="cancel">취소</button>
+      <span class="pp-pttl" data-pp-pen-title></span>
+      <span class="pp-psp"></span>
+      <span class="pp-seg" role="group" data-pp-tools><button type="button" data-pp-tool="pen" aria-pressed="true">펜</button><button type="button" data-pp-tool="marker" aria-pressed="false">형광펜</button><button type="button" data-pp-tool="text" aria-pressed="false">텍스트</button><button type="button" data-pp-tool="arrow" aria-pressed="false">화살표</button><button type="button" data-pp-tool="erase" aria-pressed="false">지우개</button></span>
+      <button type="button" class="pp-pb pp-pb--icon" data-pp-pen="undo" aria-label="되돌리기" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
+      <button type="button" class="pp-pb pp-pb--icon" data-pp-pen="redo" aria-label="다시 하기" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/></svg></button>
+      <span class="pp-pkit" data-pp-colors><button type="button" class="pp-sw pp-sw--red" data-pp-color="#e11d1d" aria-label="빨강" aria-pressed="true"></button><button type="button" class="pp-sw pp-sw--blue" data-pp-color="#1c62d6" aria-label="파랑" aria-pressed="false"></button><button type="button" class="pp-sw pp-sw--black" data-pp-color="#000000" aria-label="검정" aria-pressed="false"></button></span>
+      <span class="pp-pkit" data-pp-widths><button type="button" class="pp-wd pp-wd--1" data-pp-width="3" aria-label="가늘게" aria-pressed="false"><i></i></button><button type="button" class="pp-wd pp-wd--2" data-pp-width="5" aria-label="보통" aria-pressed="true"><i></i></button><button type="button" class="pp-wd pp-wd--3" data-pp-width="9" aria-label="굵게" aria-pressed="false"><i></i></button></span>
+      <span class="pp-psp"></span>
+      <button type="button" class="pp-pb" data-pp-pen="fit">100%</button>
+      <button type="button" class="pp-pb pp-pb--pri" data-pp-pen="save" disabled>저장</button>
+    </div>
+    <div class="pp-pset pp-pask" data-pp-pask hidden>
+      <b class="pp-pttl">쓴 것을 버릴까요?</b>
+      <span class="pp-psub">저장하지 않은 기록이 사라져요.</span>
+      <span class="pp-psp"></span>
+      <button type="button" class="pp-pb" data-pp-pen="keep">계속 쓰기</button>
+      <button type="button" class="pp-pb pp-pb--danger" data-pp-pen="drop">버리기</button>
+    </div>
+    {% endif %}
+  </header>
+  {%- else -%}
   <header class="foms-prod-home__bar pp-vtop">
     <h2 class="foms-prod-home__title" id="foms-part-view-title" data-pp-v-title>도면</h2>
     <span class="foms-prod-home__date" data-pp-v-sub></span>
   </header>
+  {%- endif %}
   <button type="button" class="pp-vimg" data-pp-v-zoom aria-label="손가락으로 크게 보기"><img data-pp-v-img alt=""></button>
   <div class="pp-vbot">
     <button type="button" class="foms-prod-home__btn pp-nav" data-pp-v-step="-1" aria-label="앞 장">◀</button>
@@ -69,4 +113,6 @@
     <button type="button" class="foms-prod-home__btn pp-close" data-pp-v-close>닫기</button>
     <span class="pp-vact" data-pp-v-act></span>
   </div>
-</div>
+{% if pen_w %}  <input type="text" class="pp-ptext" maxlength="40" aria-label="텍스트" data-pp-ptext hidden>
+  <p class="pp-ptoast" data-pp-ptoast role="status" aria-live="polite" hidden></p>
+{% endif %}</div>
