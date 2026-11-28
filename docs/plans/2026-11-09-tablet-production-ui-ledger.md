@@ -2994,6 +2994,23 @@
 - 올리기: `scratchpad/safe_push.sh`(로그 `smoke_push128.log` · `rebase83` · `push83`). 운영은 사장님이 말씀하실 때만(스위치 없는 고침이라 올리면 바로 바뀜).
 - 그다음(B 몫): `build-lead-start-picker`(b5 `3fa1cb598` — 받음 · 확인함, 안 얹음) · `build-ui-review-fixes`(b1 — 도는 중) 얹기 → 같은 길. 같이 고칠 작은 것: 작업 시트 회색 [제작 완료] 누름 글이 '도면 없음' 카드 주문에서 "도면이 없어요 — …"(`foms-production-sheet-parts.js:128`) · 사장님께 여쭐 글 "도면 없음 1장이 미완료예요. …"(일꾼이 지은 글).
 
+### A 몫 스테이징 올라감 (11-28 밤 23)
+
+- `safe_push.sh`: 리베이스 0 · 스캔 다섯 0 · alembic 머리 `prodpen_01_pen_record` 하나 · smoke `22839 passed, 842 skipped` + `171 passed, 27 skipped` · DIRTY 0 BEHIND 0 · push `ea9bb4188..1654f20ce` → deploy.
+- CI(`1654f20c`): FOMS CI · Harness CI · FOMS PostgreSQL Lane · perf-gate(staging) 모두 success. 배포 일치: staging `1654f20c` SUCCESS · production `35d809bb` 그대로.
+- 다음: B 몫(반장 시작 사람 고르기 b5 `3fa1cb598` · UI 평가 다섯 b1 `db8688be6`) 얹기 → 넓은 시험 → 스테이징.
+
+### 36번 답 받음 — UI 평가 다섯 고침 (11-28 밤 22, B 몫 — 아직 안 얹음)
+
+- 일꾼 `build-ui-review-fixes`(b1 `db8688be6`, 바탕 `25f094507`, 29파일 +396 −50). 내가 본 것: `foms/` · `templates/` · `static/` diff 전부 · 사진 둘(`sim/q/shots/A_lead_d1.png` — 줄 큰 글 "조립 미정" · "검수 미정", 단계 칸 아래 빨강 "늦음 — 내일 시공, 아직 재단", 줄 순서 윤봄 → 정하늘 → 서가을 → 강단비 / `A_cut_cards_d1.png` — 카드 품목 줄 "W1560+1480 × D620 × H2307 · 포그그…").
+- B1 늦음: `pc_view.late_of` · `attach_late_rows` — PC 와 같은 값 · 같은 글("늦음 — 내일 시공, 아직 재단" · "빠듯 — 시공 D-3, 아직 재단"), 쿼리 0. **폰 날짜 줄도 같은 매크로라 같이 바뀜.** '지난 7일' 숫자 빨강은 안 함(띠 빨강 = 안 온 도면과 헷갈림 — 일꾼 판단).
+- B2 미정: `part_holders.stage_none` — 지금 공정 담당이 없으면 큰 글 "조립 미정"(칸 아래 이름과 같은 판정, 쿼리 0). **PC 상태 칸 · 폰 줄도 같이 바뀜.** 태블릿 '찾기' 탭은 칸 아래 이름 자료가 없어 "조립 작업 중" 그대로(PC 찾기는 바뀜).
+- B3 굴리기: `steppane.js reveal` — 고른 줄이 목록 밖이면 `scrollIntoView({block:'nearest'})`. 판이 처음 고르는 줄 = 보류 · 도면 고치는 중만 건너뜀(도면 칸 막힘 줄도 고름 — 평가자 둘째 안) → 판이 늘 목록 맨 위 줄. 판 [재단 완료] 바로 저장은 그대로.
+- G1 순서: 바뀐 것 먼저 → 제작 대기 → 끝난 공정 적은 것부터 → 검수 완료(평가자 "부호 하나"보다 넓힘 — 제작 대기를 맨 앞). **PC · 폰 줄 · 카드 판 주문 순서도 같이 바뀜.**
+- G3 품목 줄: "치수 · 색 · 품목 이름"(`part_board.card_item_parts`, 색 = 날짜 줄과 같은 판 색 규칙). 카드 키 · 한 줄 말줄임 그대로. 150% 에서 22장 중 20장은 색이 잘림.
+- 일꾼 보고(다시 안 잼): 줄 키 · 카드 키 전후 같음(150% 폰 두 줄 0.2px) · 가로 넘침 0 · 새 시험 `12 passed`(옛 코드 `12 failed`) · `-k production` `2695 passed` · 하네스 `687 passed`. 핀 home.css · home.js · steppane.js `20261128y`.
+- **사장님께 밝힐 것**: PC 화면도 바뀐다(줄 큰 글 "조립 미정" · 줄 순서). 흐름 고침 때의 "PC 한 글자도 안 바뀜"은 흐름 고침 몫 약속이었다.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
