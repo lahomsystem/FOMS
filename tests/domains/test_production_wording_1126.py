@@ -110,7 +110,7 @@ def test_lead_picker_title_is_one_line_and_short_notices():
     assert "title: heldTitle(card, holder), line: '', run: ''" in modal
     crew = _read(JS / "foms-production-parts-crew.js")
     assert "title: cr.d || !M.heldTitle ? cr.who + ' 작업 중' : M.heldTitle(card, cr.who), line: ''" in crew
-    assert "alert.hidden = !line;" in _read(JS / "foms-production-parts.js")  # 빈 띠를 안 남긴다
+    assert "alert.hidden = !line;" in modal  # 빈 띠를 안 남긴다(창 목록 줄 — 11-28 parts.js 에서 parts-modal.js 로 옮김)
     assert "{{ pp.hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요." in _read(TPL / "partials" / "home_parts.html")
     assert "'detail': '만들던 것은 멈춰 주세요'" in _read(ROOT / "foms" / "services" / "production_home_read_model.py")
 

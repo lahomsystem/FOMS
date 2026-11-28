@@ -4,7 +4,7 @@
  * multi-holder §7-1: 몸에 본 내 몫 seen_me · 고른 사람 target_user_id)는 확인 창(#foms-part-confirm-modal)이 있는 사람(D55)
  * 에게만 묶이고, 요청은 창의 실행 단추(관리자 고르기 셋 포함)에서만 나간다. 성공이면 그 카드와 칸 숫자만 그 자리에서 고친다(다시 읽기
  * 없음). 경합 · 거절(409 · 403)은 창 안에 서버 글 + 서버 모습(.is-lost, [닫기] 하나). 검수 마지막 장이면 같은 창이 "제작 완료할까요?".
- * 창 글 · 창 그리기는 foms-production-parts-modal.js(FomsPartsModal), 새 카드 칸(손 체크 · 막힘 · 내 작업 한 층 · 꼬리)은
+ * 창 글 · 창 그리기 · 창 목록 줄(listItem)은 foms-production-parts-modal.js(FomsPartsModal), 새 카드 칸(손 체크 · 막힘 · 내 작업 한 층 · 꼬리)은
  * foms-production-parts-claim.js(FomsPartsClaim), 여러 명 칸(작업 필요 · 완료 · [같이 작업] · 이름 줄 · 넘김 말풍선)은
  * foms-production-parts-crew.js(FomsPartsCrew), 보기 쪽은 foms-production-parts-viewer.js(FomsPartsBoard). */
 (function () {
@@ -41,27 +41,6 @@
     return node;
   }
 
-  // ── 확인 창 목록 줄(카드 그림 · 이름 · 도면 n/m · 품목 · 바뀔 상태 한 줄) ──
-  function listItem(card, line, tone) {
-    var li = el('li', 'foms-prod-change-modal__item pp-mitem');
-    var pic = el('div', 'pp-mimg');
-    var img = card.querySelector('.pp-thumb');
-    pic.appendChild(img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' }) : img ? el('span', 'pp-broken', '그림을 못 불러왔어요') : el('b', '', (card.querySelector('.pp-file b') || {}).textContent || '파일'));
-    var body = el('div', 'foms-prod-change-modal__item-body');
-    var head = el('div', 'foms-prod-change-modal__item-head');
-    var who = el('span', 'foms-prod-change-modal__item-customer', ((card.querySelector('.fph-dr__nm b') || {}).textContent || '') + ' ');
-    who.appendChild(el('small', '', '#' + attr(card, 'data-order-id')));
-    head.appendChild(who);
-    head.appendChild(el('span', 'foms-prod-change-modal__item-id', '도면 ' + attr(card, 'data-no') + '/' + attr(card, 'data-of')));
-    body.appendChild(head);
-    body.appendChild(el('span', 'foms-prod-change-modal__alert-detail', (card.querySelector('.pp-item') || {}).textContent || ''));
-    var alert = el('div', 'foms-prod-change-modal__alert pp-al--' + tone);
-    alert.appendChild(el('span', 'foms-prod-change-modal__alert-label', line));
-    body.appendChild(alert); alert.hidden = !line; // 줄 글이 없으면(반장 고르기 창) 빈 띠를 안 남긴다
-    li.appendChild(pic);
-    li.appendChild(body);
-    return li;
-  }
   function openModal(action, cards, opener) {
     if (!cards.length) { return; }
     var p = action === 'bulk' ? M.bulkPlan(cards) : M.plan(action, cards[0]);
@@ -69,7 +48,7 @@
     p.note = note;
     p.body = M.firstLine(action, cards);
     pending = { action: action === 'held' ? '' : action, cards: cards, busy: false, run: p.run, locked: !!p.locked, target: p.target };
-    M.open(p, cards.map(function (card) { return listItem(card, p.line, p.tone); }), opener, cards[0]);
+    M.open(p, cards.map(function (card) { return M.listItem(card, p.line, p.tone); }), opener, cards[0]);
     M.cancelLine(pending, p, function (act, target) { return requestFor({ action: act, cards: cards, target: target }).body; }); // 시작 취소 창 한 줄(11-27)
   }
   function closeModal() {

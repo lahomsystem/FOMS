@@ -363,7 +363,7 @@ def test_confirm_list_shows_broken_note_for_missing_picture():
     """일괄 확인 창 줄: 카드 그림을 못 받아 숨긴 경우 숨은 그림을 복사하지 않고 같은 안내 글을 넣는다(로컬 E2E 11-13)."""
     import pathlib
 
-    src = pathlib.Path("static/js/production/foms-production-parts.js").read_text(encoding="utf-8")
+    src = pathlib.Path("static/js/production/foms-production-parts-modal.js").read_text(encoding="utf-8")  # 11-28 창 목록 줄을 옮긴 곳
     assert "img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' })" in src
     assert "el('span', 'pp-broken', '그림을 못 불러왔어요')" in src
 

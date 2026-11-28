@@ -101,6 +101,29 @@
     return first && ['take', 'basic', 'bulk', 'check'].indexOf(action) >= 0 ? '이 주문 첫 도면이라 제작 시작도 같이 돼요.' : ''; // check = 반장 미정 바로 완료(11-27)
   }
 
+  // ── 확인 창 목록 줄(카드 그림 · 이름 · 도면 n/m · 품목 · 바뀔 상태 한 줄 — 2026-11-28 parts.js 에서 옮김, 동작 그대로) ──
+  function el(tag, cls, text) { var n = document.createElement(tag); n.className = cls || ''; n.textContent = text || ''; return n; }
+  function listItem(card, line, tone) {
+    var li = el('li', 'foms-prod-change-modal__item pp-mitem');
+    var pic = el('div', 'pp-mimg');
+    var img = card.querySelector('.pp-thumb');
+    pic.appendChild(img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' }) : img ? el('span', 'pp-broken', '그림을 못 불러왔어요') : el('b', '', (card.querySelector('.pp-file b') || {}).textContent || '파일'));
+    var body = el('div', 'foms-prod-change-modal__item-body');
+    var head = el('div', 'foms-prod-change-modal__item-head');
+    var who = el('span', 'foms-prod-change-modal__item-customer', ((card.querySelector('.fph-dr__nm b') || {}).textContent || '') + ' ');
+    who.appendChild(el('small', '', '#' + attr(card, 'data-order-id')));
+    head.appendChild(who);
+    head.appendChild(el('span', 'foms-prod-change-modal__item-id', '도면 ' + attr(card, 'data-no') + '/' + attr(card, 'data-of')));
+    body.appendChild(head);
+    body.appendChild(el('span', 'foms-prod-change-modal__alert-detail', (card.querySelector('.pp-item') || {}).textContent || ''));
+    var alert = el('div', 'foms-prod-change-modal__alert pp-al--' + tone);
+    alert.appendChild(el('span', 'foms-prod-change-modal__alert-label', line));
+    body.appendChild(alert); alert.hidden = !line; // 줄 글이 없으면(반장 고르기 창) 빈 띠를 안 남긴다
+    li.appendChild(pic);
+    li.appendChild(body);
+    return li;
+  }
+
   // ── 창 그리기 ──
   var opened = null; // {opener, key, act, siblings}
   var turn = 0; // 창 글이 바뀌거나 닫힐 때마다 +1 — 취소 창 미리 안내(parts-cancel.js)가 늦은 답을 버릴 때 본다
@@ -256,7 +279,7 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
-  window.FomsPartsModal = { plan: plan, bulkPlan: bulkPlan, ownerNote: ownerNote, firstLine: firstLine, open: open, close: close,
+  window.FomsPartsModal = { plan: plan, bulkPlan: bulkPlan, ownerNote: ownerNote, firstLine: firstLine, listItem: listItem, open: open, close: close,
     busy: busy, error: error, lost: lost, nowLine: nowLine, complete: complete, pick: pick, heldSince: heldSince, heldTitle: heldTitle, toward: toward,
     turn: function () { return turn; }, runBtn: runBtn, setText: setText }; // 뒤 셋 = parts-cancel.js 가 쓴다(cancelLine · seenCancel · staleCancel 을 여기에 붙인다)
 })();
