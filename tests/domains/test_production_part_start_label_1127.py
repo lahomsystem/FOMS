@@ -50,7 +50,7 @@ def test_lead_and_admin_boards_say_picked_part_start(client, cohort):
     order = make_order(2)
     lead = make_user("박반장", lead=True)
     edge = _act(_card(_page(client, lead, HOME_NONE + "&tab=parts&part=edge"), order.keys[0]))
-    assert 'data-pp-act="take">엣지 시작</button>' in edge and 'data-pp-act="check">엣지 완료</button>' in edge
+    assert 'data-pp-act="take">엣지 시작</button>' in edge and 'data-pp-act="check"' not in edge  # 11-28 흐름: 미정 칸 시작만
     cut = _act(_card(_page(client, make_user("관리", team="CS", role="ADMIN"), HOME_NONE + "&tab=parts&part=cut"), order.keys[0]))
     assert 'data-pp-act="basic">기본</button>' in cut and 'data-pp-act="take">재단 시작</button>' in cut  # [기본]은 그대로
     view = _act(_card(_page(client, make_user("상담", team="CS"), HOME_NONE + "&tab=parts&part=cut"), order.keys[0]))
@@ -82,7 +82,7 @@ def test_source_contract_start_words_and_untouched_words():
     modal = (JS / "foms-production-parts-modal.js").read_text(encoding="utf-8")
     parts = (JS / "foms-production-parts.js").read_text(encoding="utf-8")
     tpl = TPL.read_text(encoding="utf-8")
-    assert tpl.count('data-pp-act="take">{{ pb.part_label }} 시작</button>') == 3 and 'data-pp-act="take">작업 시작<' not in tpl
+    assert tpl.count('data-pp-act="take">{{ pb.part_label }} 시작</button>') == 2 and 'data-pp-act="take">작업 시작<' not in tpl  # 11-28 흐름: 반장 · 파트 엣지 칸이 한 줄로
     assert "LABEL + ' 시작', 'take')" in crew and "'작업 시작', 'take'" not in crew
     assert "title: LABEL + ' 시작할까요?'" in modal and "run: LABEL + ' 시작'" in modal and "작업을 시작할까요" not in modal
     # 알림 = 누른 단추 말 + 했어요("엣지 시작했어요") — 정규식이 '시작'으로 끝나는 단추를 그대로 받는다

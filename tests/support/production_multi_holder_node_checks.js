@@ -178,6 +178,16 @@ function counts() {
       click(btn);
       await tick(); await tick(); await tick();
       out.push({ do: 'choice', sent: calls.length - before, modal: modalState(), status: text(body.querySelector('[data-foms-home-status]')) });
+    } else if (s.do === 'direct') { // 창 안 바로 완료 글 단추(2026-11-28 흐름 §3-7, [data-pp-direct]) 모습 — 없으면 null(파트 계정 창) · 창 목록 줄 글
+      const d = modal.querySelector('[data-pp-direct]');
+      out.push({ do: 'direct', direct: d ? { hidden: d.hidden, text: text(d), disabled: !!d.disabled } : null, list: text(modal.querySelector('[data-pp-modal-list]')) });
+    } else if (s.do === 'press') { // 창 안 단추 하나를 고르개(sel)로 누름 — 바로 완료 글 단추 등(누른 뒤 요청 수 · 창 · 알림)
+      const btn = modal.querySelector(s.sel);
+      if (!btn) { throw new Error('no ' + s.sel); }
+      const before = calls.length;
+      click(btn);
+      await tick(); await tick(); await tick();
+      out.push({ do: 'press', sent: calls.length - before, modal: modalState(), status: text(body.querySelector('[data-foms-home-status]')) });
     } else if (s.do === 'who') {
       click(modal.querySelectorAll('[data-pp-who]')[s.index]);
       out.push({ do: 'who', modal: modalState() });

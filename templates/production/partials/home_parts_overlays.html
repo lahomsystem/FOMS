@@ -23,6 +23,10 @@
       <button type="button" class="foms-prod-change-modal__btn foms-prod-change-modal__btn--close pp-mbtn" data-pp-modal-close>닫기</button>
       <button type="button" class="foms-prod-change-modal__btn pp-mbtn pp-mgo" data-pp-modal-run>확인</button>
     </div>
+    {% if part_board.mode in ('admin', 'sub') %}{#- 바로 완료(설계서 2026-11-28-production-my-steps-flow §3-7 · 사장님 답 8 "작게 숨김" · 14 "시작 확인 창 안에") —
+        반장 · 관리자의 미정 칸 [<파트> 시작] 창에서만 보인다(parts-modal.js). 파트 계정 창에는 이 글이 없다(서버도 check 는 반장 · 관리자만) -#}
+    <button type="button" class="pp-mdirect" data-pp-direct hidden>이미 끝난 작업이면 바로 완료</button>
+    {% endif %}
   </div>
 </div>
 {% endif %}

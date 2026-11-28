@@ -288,7 +288,7 @@ def test_js_cut_undo_window_unseen_cell_and_counts(client, cohort, tmp_path):
     assert out[3]["sent"] == 1 and out[3]["modal"]["hidden"] is True and out[3]["status"] == "재단 완료 취소했어요"
     before, after = out[1], out[4]
     assert (after["card"]["state"], after["card"]["in_done"], after["card"]["in_need"], after["card"]["crew"]) == ("none", "0", "0", {})
-    assert [a["act"] for a in after["card"]["act"][0]["kids"]] == ["basic", "take"] and after["card"]["act"][1]["act"] == "check"
+    assert [a["act"] for a in after["card"]["act"][0]["kids"]] == ["basic", "take"] and len(after["card"]["act"]) == 1  # 11-28 흐름: 시작만
     assert int(after["counts"]["done"][0]) == int(before["counts"]["done"][0]) - 1
     assert int(after["counts"]["unseen"][0]) == int(before["counts"]["unseen"][0]) + 1  # [남은 N장 모두 기본]
     assert after["counts"]["need"] == before["counts"]["need"] and after["counts"]["all"] == before["counts"]["all"]
@@ -339,7 +339,7 @@ def test_js_409_and_synced_mark_redraw_unseen(client, cohort, tmp_path):
     assert out[1]["modal"]["lost"] is True and out[1]["modal"]["err"] == refused["body"]["error"]  # 서버 글 그대로
     for got_card in (out[2]["card"], out[3]["card"]):  # 409 뒤 서버 모습 · 받아 오기 표시로 다시 그려도 미정 칸
         assert got_card["state"] == "none" and [a["act"] for a in got_card["act"][0]["kids"]] == ["basic", "take"]
-        assert got_card["act"][1]["act"] == "check"
+        assert len(got_card["act"]) == 1  # 11-28 흐름: 미정 칸 [재단 완료] 없음(바로 완료는 시작 창 안)
 
 
 def test_inspect_board_after_cut_undo_is_pre(client, cohort):

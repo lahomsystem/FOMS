@@ -1,7 +1,7 @@
 """생산 태블릿 두 가지 작은 고침(사장님 2026-11-27 질문 창 답).
 
 일 1 "재단처럼 진하게": 엣지 · 조립 · 검수 계정 자기 판의 미정 칸 [<파트> 시작]이 재단 계정 [재단 시작]처럼 진한 남색
-  (``foms-prod-home__btn--pri``). 반장 · 관리자 칸은 그대로 옅게(한 칸에 진한 단추 하나 = [<파트> 완료], 비평 C59).
+  (``foms-prod-home__btn--pri``). 반장 · 관리자 칸은 그대로 옅게(비평 C59 — 2026-11-28 흐름부터 미정 칸은 시작만, 바로 완료는 시작 창 안).
   서버(home_parts.html pp_act)와 JS(crew.render) 그림이 같은 클래스 — 크게 보기는 카드 단추를 복사하므로 따라 진해진다.
 일 2 "둘 다 고치기" → "단추는 그대로, 글만 더하기"(사장님 11-27 두 번째 답, 지휘 마무리 고침): 완료된 도면의 카드에 완료 줄
   (글 + [<파트> 완료 취소])이 보이면 크게 보기에도 그 글("재단 완료 · 박재단", 카드 글 칸 그대로)을 단추 앞에 한 번. 단추 목록은 그대로.
@@ -54,7 +54,7 @@ def test_cut_account_and_lead_boards_are_unchanged(client, cohort):
     for part, label in (("cut", "재단"), ("edge", "엣지"), ("assemble", "조립")):
         act = _act(_card(_page(client, lead, HOME_NONE + "&tab=parts&part=" + part), order.keys[0]))
         assert f'data-pp-act="take">{label} 시작</button>' in act and "btn--pri" not in act  # 반장 칸 [<파트> 시작]은 옅게 그대로
-        assert f'data-pp-act="check">{label} 완료</button>' in act  # 진한 것은 [<파트> 완료] 하나
+        assert 'data-pp-act="check"' not in act  # 11-28 흐름: 미정 칸에 [<파트> 완료] 없음(시작 창 안 바로 완료)
     admin = _act(_card(_page(client, make_user("관리", team="CS", role="ADMIN"), HOME_NONE + "&tab=parts&part=edge"),
                        order.keys[0]))
     assert '<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">엣지 시작</button>' in admin
@@ -77,15 +77,15 @@ def test_js_redraw_draws_the_same_strong_start(client, cohort, tmp_path):
     lead.write_text(_page(client, make_user("박반장", lead=True), HOME_NONE + "&tab=parts&part=edge"), encoding="utf-8")
     res = _node(lead, {"posts": [], "steps": [{"do": "parity"}, {"do": "card", "key": order.keys[1]}]})["out"]
     assert res[0]["diffs"] == []
-    kids = res[1]["card"]["act"][0]["kids"]
-    assert [k["cls"] for k in kids] == ["foms-prod-home__btn pp-act", "fph-qr__done pp-act pp-fin is-pair"]  # 반장 = 옅게 그대로
+    assert res[1]["card"]["act"] == [{"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "엣지 시작", "kids": []}]  # 반장 = 옅게 · 시작만
 
 
 def test_source_contract_strong_start_and_viewer_width():
     crew = (JS / "foms-production-parts-crew.js").read_text(encoding="utf-8")
     tpl = TPL.read_text(encoding="utf-8")
     assert "'foms-prod-home__btn' + (o.mine ? ' foms-prod-home__btn--pri' : '') + (o.cut ? '' : ' pp-act'), LABEL + ' 시작', 'take'" in crew
-    assert f'<button type="button" class="{PRI} pp-act" data-pp-act="take">{{{{ pb.part_label }}}} 시작</button>' in tpl
+    assert ('<button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %} pp-act" data-pp-act="take">'
+            '{{ pb.part_label }} 시작</button>') in tpl  # 11-28 흐름: 반장 · 관리자 엣지 칸도 같은 줄(진하게는 파트 계정만)
     assert tpl.count("btn--pri") == 3  # 재단 시작(파트 계정) · 파트 시작(새) · 같이 작업 — 반장 칸에는 없다
     css = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
     assert ".pp-vact .foms-prod-home__btn--pri { min-width: 250px; }" in css  # 크게 보기에서 재단 계정과 같은 꼴(CSS 는 그대로)
@@ -148,7 +148,7 @@ def test_lead_done_drawing_viewer_shows_card_done_line(client, cohort, tmp_path)
     # 그대로인 것 — 기본(완료 아님) · 남이 작업 중(다) · 미정(라)
     assert _acts(out[2]) == [("undo", "기본 취소")]
     assert [p for p, _ in _acts(out[3])] == ["held", "check"] and "오재단" not in _acts(out[3])[0][1]  # 글 칸 안 붙음
-    assert [p for p, _ in _acts(out[4])] == ["basic", "take", "check"]
+    assert [p for p, _ in _acts(out[4])] == ["basic", "take"]  # 11-28 흐름: 미정 = 시작만
 
 
 def test_part_account_viewer_adds_only_own_done_line(client, cohort, tmp_path, monkeypatch):
@@ -182,4 +182,4 @@ def test_source_contract_viewer_copies_card_text_only():
     assert len(viewer.splitlines()) <= 300
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert "foms-production-parts-viewer.js') }}?v=20261127y" in scripts
-    assert "foms-production-parts-crew.js') }}?v=20261128h" in scripts
+    assert "foms-production-parts-crew.js') }}?v=20261128x" in scripts

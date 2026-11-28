@@ -218,9 +218,9 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
     picker = pane.split('class="pp-parts"')[1].split("</nav>")[0]
     assert [p for p in ("재단", "엣지", "조립", "검수") if f">{p}</a>" in picker] == ["재단", "엣지", "조립", "검수"]
     assert re.search(r'class="pp-part is-on"[^>]*tab=parts&amp;part=cut', picker)
-    # 관리자 칸 숫자 = 그 파트 전체(맡은 장 둘 · 끝난 장 둘), 남이 맡은 장 · 안 본 장(11-27 미정 바로 완료)도 [재단 완료](check) = 셋
+    # 관리자 칸 숫자 = 그 파트 전체(맡은 장 둘 · 끝난 장 둘), 남이 맡은 장만 [재단 완료](check) = 둘(11-28 흐름: 안 본 장 바로 완료는 시작 창 안)
     assert 'data-pp-count="need">2<' in pane and 'data-pp-count="done">2<' in pane
-    assert pane.count('data-pp-act="check"') == 3 and pane.count('data-pp-act="undo"') == 2 and 'data-pp-act="done"' not in pane
+    assert pane.count('data-pp-act="check"') == 2 and pane.count('data-pp-act="undo"') == 2 and 'data-pp-act="done"' not in pane
     assert html.count('id="foms-part-confirm-modal"') == 1 and "foms-production-parts.js?v=" in html
 
     html = _get(client, HOME + "?tab=parts&part=assemble")

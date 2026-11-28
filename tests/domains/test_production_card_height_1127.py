@@ -1,8 +1,9 @@
 """도면 카드 키 일괄(사장님 2026-11-27 "도면 카드 높이 일괄로 맞춰") — parts.css 원문 계약 · 판 표시 · 핀.
 
 한 판(전체 도면 · 작업 중 · 완료 칸)의 카드는 모두 같은 키: 판 줄 키 1fr(판 전체 = 가장 큰 카드), 화면 밖 카드 자리표시는 auto 없이
-(기억 키가 1fr 로 판을 붙잡지 않게), 그 판에서 나올 수 있는 가장 큰 꼴만큼 단추 칸 빈 몫(반장 재단 판 = 단추 두 줄, 그 밖 = 한 줄 +
-"내 작업" 꼬리 한 줄). 가로 터치 덩이 안에만 — PC · 세로 · 남의 공장 묶음은 그대로. 실화면 잰 값은 커밋 글.
+(기억 키가 1fr 로 판을 붙잡지 않게), 그 판에서 나올 수 있는 가장 큰 꼴만큼 단추 칸 빈 몫(단추 한 줄 + "내 작업" 꼬리 한 줄 — 2026-11-28
+흐름부터 반장 · 관리자 판도 같다: 미정 칸 [<파트> 완료]가 빠져 두 줄 판 .pp-finrow 가 없어졌다). 가로 터치 덩이 안에만 — PC · 세로 ·
+남의 공장 묶음은 그대로. 실화면 잰 값은 커밋 글.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ CSS = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="ut
 TPL = (ROOT / "templates/production/partials/home_parts.html").read_text(encoding="utf-8")
 STYLES = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 TABLET = "@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {"
-PIN = "20261128h"  # 11-27 [<파트> 같이 작업] 짝 폭으로 한 번 더 · 11-28 g: "누구에게 줄까요?" 사람 칸 굴림
+PIN = "20261128x"  # 11-27 [<파트> 같이 작업] 짝 폭으로 한 번 더 · 11-28 g: "누구에게 줄까요?" 사람 칸 굴림 · x: 반장 카드 키 = 파트 카드 키
 
 
 def _block() -> str:
@@ -45,8 +46,7 @@ def test_가장_큰_꼴_빈_몫() -> None:
     body = _block()
     assert "--pp-tagline: calc(19.5px * var(--foms-fs, 1) + 2px); --pp-act-min: calc(60px + var(--pp-tagline));" in body
     assert ".pp-grid[data-pp-grid]:not(.is-need) .pp-card:has([data-pp-tag]) { --pp-act-min: 60px; }" in body
-    assert ".pp-finrow .pp-grid[data-pp-grid]:not(.is-need) .pp-card { --pp-act-min: 122px; }" in body
-    assert ".pp-finrow .pp-grid[data-pp-grid]:not(.is-need) .pp-card:has([data-pp-tag]) { --pp-act-min: calc(122px - var(--pp-tagline)); }" in body
+    assert ".pp-finrow .pp-grid" not in CSS and "122px" not in body  # 11-28 흐름: 반장 · 관리자 판 두 줄 몫 없음(반장 카드 키 = 파트 카드 키)
     assert ".pp-grid[data-pp-grid]:not(.is-need) .pp-actbox { min-height: var(--pp-act-min); justify-content: flex-end; }" in body
 
 
@@ -60,7 +60,7 @@ def test_수정_요청은_단추_칸_바로_위_말풍선은_막힌_칸_바로_�
 
 
 def test_반장_재단_판_표시와_새_글_없음() -> None:
-    assert '<div class="fph-parts{% if pb.writable and is_cut and not pb.mine %} pp-finrow{% endif %}" data-pp-pane="{{ d.key }}">' in TPL
+    assert '<div class="fph-parts" data-pp-pane="{{ d.key }}">' in TPL and "pp-finrow" not in TPL  # 11-28 흐름: 판 꼴 하나
     body = _block()
     assert "font-size" not in body and "::before" not in body and "::after" not in body
 

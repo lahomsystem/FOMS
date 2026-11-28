@@ -232,7 +232,7 @@ def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path, monkeypatch):
     fresh_order = make_order(1, run=False)
     page = tmp_path / "lead.html"
     page.write_text(_page(client, lead, CUT_ADMIN), encoding="utf-8")
-    res = _node(page, {"steps": [{"do": "click", "key": fresh_order.keys[0], "act": "check"}, {"do": "close"},
+    res = _node(page, {"steps": [{"do": "click", "key": fresh_order.keys[0], "act": "take"}, {"do": "close"},  # 11-28 흐름: 미정 칸 = [재단 시작](바로 완료는 창 안)
                                  {"do": "click", "key": k[2], "act": "check"}, {"do": "close"}]})
     assert res["out"][0]["modal"]["body"] == FIRST_LINE and res["previews"] == []
 

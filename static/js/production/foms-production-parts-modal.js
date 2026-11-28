@@ -25,6 +25,7 @@
   var NAME = cfg.me || '';
   var LOCK_MS = 800;
   var BASIC = cfg.basic || {}; // 재단 '기본' · 조립 '조립 없음' 글 한 벌(서버 part_constants.basic_view — 창 글이 여기서 읽는다)
+  var LEAD = cfg.mode === 'admin' || cfg.mode === 'sub'; // 반장 · 관리자(ownerNote 와 같은 판정 — 서버도 check 는 이 둘만, part_marks.py)
   var claim = window.FomsPartsClaim || {};
   function q(sel) { return modal.querySelector(sel); }
   function attr(card, name) { return card.getAttribute(name) || ''; }
@@ -44,8 +45,8 @@
     var crew = window.FomsPartsCrew;
     var many = crew && card ? crew.plan(action, card) : null;
     if (many) { return many; }
-    if (action === 'take') {
-      return { title: LABEL + ' 시작할까요?', line: '미정 → 작업 중 · ' + NAME, run: LABEL + ' 시작', tone: 'need' }; // 카드 단추 [재단 시작]과 같은 낱말(11-27)
+    if (action === 'take') { // 카드 단추 [재단 시작]과 같은 낱말(11-27) · direct = 반장 · 관리자 미정 칸이면 창 안 "이미 끝난 작업이면 바로 완료"(11-28 흐름 §3-7)
+      return { title: LABEL + ' 시작할까요?', line: '미정 → 작업 중 · ' + NAME, run: LABEL + ' 시작', tone: 'need', direct: LEAD && !!card && attr(card, 'data-state') === 'none' };
     }
     if (action === 'basic') { return { title: BASIC.ask, line: '미정 → ' + BASIC.word + ' · ' + NAME, run: BASIC.word, tone: 'basic' }; } // "기본으로 처리할까요?" · "조립할 것이 없는 도면인가요?"
     if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두 · 미정 도면은 바로 완료 11-27)
@@ -131,6 +132,13 @@
   function setText(sel, text) { var n = q(sel); n.textContent = text || ''; n.hidden = !text; }
   // 아래 단추 줄의 실행 단추 — 고르기 칸의 단추(관리자 고르기도 data-pp-modal-run)를 잘못 집지 않게 아래 줄에서만 찾는다
   function runBtn() { return q('.foms-prod-change-modal__foot [data-pp-modal-run]'); }
+  // 바로 완료(2026-11-28 흐름 §3-7, 답 8 · 14) — 반장 · 관리자 [<파트> 시작] 창 실행 단추 아래 작은 글(home_parts_overlays.html, 파트 계정 창엔 없음).
+  var direct = q('[data-pp-direct]');
+  function setDirect(on) { if (direct) { direct.hidden = !on; } }
+  if (direct) { direct.addEventListener('click', function () { // 숨은 [<파트> 완료] 고르기(check)를 대신 눌러 parts.js 같은 실행 길로 한 번 — 둘째 창 없음 · 알림 "재단 완료했어요" · 검수 마지막 장은 complete 그대로
+    var go = Object.assign(el('button', 'pp-mproxy', LABEL + ' 완료'), { type: 'button', hidden: true });
+    if (!direct.disabled) { go.setAttribute('data-pp-choice', 'check'); go.setAttribute('data-pp-modal-run', ''); direct.parentNode.appendChild(go); go.click(); direct.parentNode.removeChild(go); }
+  }); }
   // 고르기 — 관리자 고르기([action, 글, 색, 고른 사람 id, 다음 창]) 또는 [담당 바꾸기] 사람 고르기(people — 누르면 고름만, 실행은 아래 단추)
   function renderChoices(choices, people) {
     var box = q('[data-pp-modal-choices]');
@@ -178,6 +186,7 @@
     run.hidden = !p.run;
     if (p.locked) { run.setAttribute('aria-disabled', 'true'); } else { run.removeAttribute('aria-disabled'); }
     q('[data-pp-modal-close]').textContent = p.closeText || '닫기'; // 확인 창도 [닫기](사장님 2026-11-26 — '취소'가 둘이던 것)
+    setDirect(!!p.direct);
     renderChoices(p.choices, p.who);
     modal.classList.toggle('is-many', items.length > 1);
   }
@@ -224,7 +233,7 @@
     var run = runBtn();
     run.disabled = on;
     q('[data-pp-modal-close]').disabled = on;
-    [].slice.call(modal.querySelectorAll('[data-pp-choice]')).forEach(function (b) { b.disabled = on; });
+    [].slice.call(modal.querySelectorAll('[data-pp-choice], [data-pp-direct]')).forEach(function (b) { b.disabled = on; });
     run.textContent = on ? '저장하는 중…' : runText;
   }
   function error(text) { var err = q('[data-pp-modal-err]'); err.textContent = text; err.hidden = false; }
@@ -242,6 +251,7 @@
       alertBox.appendChild(label);
     }
     runBtn().hidden = true;
+    setDirect(false);
     renderChoices(null);
     setText('[data-pp-modal-body]', '');
     q('[data-pp-modal-close]').textContent = '닫기';

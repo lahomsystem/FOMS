@@ -53,12 +53,11 @@ def test_assemble_board_is_drawn_like_the_cut_board(client, cohort):  # noqa: F8
     assert '<span>남은 <span data-pp-count="unseen">2</span>장 모두 조립 없음</span>' in mine
     assert _config(mine)["basic"] == {"word": "조립 없음", "short": "없음", "toward": "조립 없음으로", "ask": "조립할 것이 없는 도면인가요?",
                                       "undo": "조립 없음 취소", "undo_ask": "조립 없음을 취소할까요?", "unseen": "미정 도면"}
-    board = _page(client, lead, _board("assemble"))  # 반장 — 그 아래 [조립 완료](재단 판과 같은 두 줄 꼴)
-    assert '<div class="fph-parts pp-finrow" data-pp-pane=' in board
+    board = _page(client, lead, _board("assemble"))  # 반장 — 재단 판과 같은 한 줄 꼴(11-28 흐름: [조립 완료]는 시작 창 안)
+    assert '<div class="fph-parts" data-pp-pane=' in board and "pp-finrow" not in board
     assert _act(_card(board, order.keys[0])).strip() == (
         '<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">조립 없음</button>'
-        '<button type="button" class="foms-prod-home__btn" data-pp-act="take">조립 시작</button></div>'
-        '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">조립 완료</button></div>')
+        '<button type="button" class="foms-prod-home__btn" data-pp-act="take">조립 시작</button></div></div>')
     edge = _page(client, lead, _board("edge"))  # 대조군 — 엣지 · 검수 판에는 없다(사장님 "조립만")
     assert 'data-pp-act="basic"' not in edge and 'data-pp-act="bulk"' not in edge and "pp-finrow" not in edge and _config(edge)["basic"] is None
     assert '<i>조립</i> 없음' in _card(edge, order.keys[2]) and '<i>조립</i> 미정' in _card(edge, order.keys[0])  # 다른 파트 줄 낱말
@@ -132,8 +131,10 @@ def test_js_keeps_no_assemble_words_and_cut_words_come_from_the_same_setting():
     css = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
     assert ".pp-two > .pp-pick-basic { white-space: normal; word-break: keep-all; line-height: 1.05; }" in css
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    for name in ("parts", "parts-modal", "parts-crew", "parts-sync", "drawing-request"):
+    for name in ("parts", "parts-sync", "drawing-request"):
         assert f"foms-production-{name}.js') }}}}?v=20261128h" in scripts, name
+    for name in ("parts-modal", "parts-crew"):  # 11-28 흐름 x: 반장 미정 칸 시작만 · 창 안 바로 완료
+        assert f"foms-production-{name}.js') }}}}?v=20261128x" in scripts, name
 
 
 def test_history_line_words_for_none_and_rework():

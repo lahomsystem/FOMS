@@ -98,23 +98,22 @@ def test_lead_windows_say_mijeong_for_every_part_and_picker_keeps_names(client, 
     cut = tmp_path / "cut.html"
     cut.write_text(_page(client, lead, HOME_NONE + "&tab=parts&part=cut"), encoding="utf-8")
     out = _node(cut, {"steps": [
-        {"do": "click", "key": k[0], "act": "take"}, {"do": "close"},
-        {"do": "click", "key": k[0], "act": "check"}, {"do": "close"},
-        {"do": "click", "key": k[0], "act": "basic"}, {"do": "close"},
+        {"do": "click", "key": k[0], "act": "take"}, {"do": "direct"}, {"do": "close"},
+        {"do": "click", "key": k[0], "act": "basic"}, {"do": "direct"}, {"do": "close"},
         {"do": "click", "key": k[2], "act": "undo"}, {"do": "close"},
-        {"do": "click", "key": k[1], "act": "held"}]})["out"]
+        {"do": "click", "key": k[1], "act": "held"}, {"do": "direct"}]})["out"]
     assert out[0]["modal"]["line"] == "미정 → 작업 중 · 박반장"  # 옛 "안 봄 → 작업 중 · 박반장"
-    assert (out[2]["modal"]["title"], out[2]["modal"]["line"]) == ("재단 완료할까요?", "미정 → 재단 완료 · 박반장")
-    assert out[4]["modal"]["line"] == "미정 → 기본 · 박반장"
+    assert out[1]["direct"]["hidden"] is False  # 11-28 흐름: 미정 칸 [재단 완료]는 카드에 없고 [재단 시작] 창 안 작은 글
+    assert out[3]["modal"]["line"] == "미정 → 기본 · 박반장" and out[4]["direct"]["hidden"] is True  # 다른 창에는 없다
     assert (out[6]["modal"]["title"], out[6]["modal"]["line"], out[6]["modal"]["run"]["text"]) == ("기본을 취소할까요?", "기본 → 미정", "기본 취소")
+    assert out[9]["direct"]["hidden"] is True
     picks = [c["text"] for c in out[8]["modal"]["choices"]]
     assert "김재단 시작 취소" in picks and "같이 작업" in picks  # 대조군 — 고르기 창은 사람 이름 그대로(파트 이름을 덧붙이지 않음)
     edge = tmp_path / "edge.html"
     edge.write_text(_page(client, lead, HOME_NONE + "&tab=parts&part=edge"), encoding="utf-8")
-    out = _node(edge, {"steps": [{"do": "click", "key": k[0], "act": "take"}, {"do": "close"},
-                                 {"do": "click", "key": k[0], "act": "check"}]})["out"]
+    out = _node(edge, {"steps": [{"do": "click", "key": k[0], "act": "take"}, {"do": "direct"}]})["out"]
     assert out[0]["modal"]["line"] == "미정 → 작업 중 · 박반장"  # 엣지도 같은 꼴(옛 앞말 없음)
-    assert out[2]["modal"]["line"] == "미정 → 엣지 완료 · 박반장"
+    assert out[1]["direct"] == {"hidden": False, "text": "이미 끝난 작업이면 바로 완료", "disabled": False}  # 바로 완료는 이 창 안(11-28 흐름 §3-7)
 
 
 def test_source_contract_words_kept_and_changed():
@@ -150,7 +149,7 @@ def test_css_fits_longer_words_without_new_font_sizes_and_pins():
     rule = ".pp-two.is-mine > .pp-release, .pp-two--join > .foms-prod-home__btn { padding: 0 4px; white-space: normal; word-break: keep-all;"
     assert rule in css and "font-size" not in css[css.index(rule):css.index("\n", css.index(rule))]  # 글자 크기는 그대로
     scripts = (TPL / "home_scripts.html").read_text(encoding="utf-8")
-    for name, pin in (("parts", "20261128h"), ("parts-claim", PIN), ("parts-modal", "20261128h")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
+    for name, pin in (("parts", "20261128h"), ("parts-claim", PIN), ("parts-modal", "20261128x")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
         assert f"foms-production-{name}.js') }}}}?v={pin}" in scripts, name
-    assert "foms-production-parts-crew.js') }}?v=20261128h" in scripts  # 11-27 [<파트> 시작] 진하게 · 11-28 [담당 바꾸기 ›] 다음 창으로 한 번씩 더
-    assert "parts.css') }}?v=20261128h" in (TPL / "home_styles.html").read_text(encoding="utf-8")  # 11-28 "누구에게 줄까요?" 사람 칸 굴림
+    assert "foms-production-parts-crew.js') }}?v=20261128x" in scripts  # 11-27 [<파트> 시작] 진하게 · 11-28 [담당 바꾸기 ›] 다음 창 · x 반장 미정 칸 시작만
+    assert "parts.css') }}?v=20261128x" in (TPL / "home_styles.html").read_text(encoding="utf-8")  # 11-28 "누구에게 줄까요?" 사람 칸 굴림 · x 바로 완료 글

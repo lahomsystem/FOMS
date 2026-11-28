@@ -30,9 +30,6 @@
 {% macro pp_held(c, head, note, more='') -%}
 <button type="button" class="fph-wi pp-act pp-st-{{ 'taken' if c.badge == 'taken' else 'need pp-not-need' }}{{ more }} pp-held" data-pp-act="held" aria-label="{{ head }}{% if note %} · {{ note }}{% endif %}"><span class="pp-held__who"><b>{{ head }}</b>{% if note %}<small>{{ note }}</small>{% endif %}</span><span class="pp-held__go" aria-hidden="true">›</span></button>
 {%- endmacro %}
-{% macro pp_fin_now(pb) -%}
-<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="check">{{ pb.part_label }} 완료</button>
-{%- endmacro %}
 {% macro pp_act(c, pb, is_cut) %}
 {#- 이름 줄 = 서버 c.crew(part_card_crew.crew_view — "이시영 · 김재단 외 1"), 반만 완료 = "재단 1/2 완료"(도면 한 장 자리만, Q11) -#}
 {%- set cr = c.crew or {} -%}
@@ -42,17 +39,15 @@
 {%- if c.state == 'hand' -%}
 <button type="button" class="fph-wi pp-act pp-st-done pp-hand" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.hand.why }}"><span>{{ c.hand.text }}</span><small>작업 시트에서 완료</small></button>
 {%- elif c.state == 'none' -%}
-  {#- 반장 · 관리자(파트 계정 아님)는 미정 · 안 본 도면에 [<파트> 완료](= check — 한 장씩 바로 완료, 사장님 2026-11-27 "두 번으로 줄이기"):
-     재단은 [기본][재단 시작] 아래 둘째 줄, 그 밖은 [엣지 시작][엣지 완료] 한 줄. 막힌 칸은 지금 그대로(pp_block).
-     진한 단추는 한 칸에 하나 — 반장 · 관리자 칸은 끝내는 [<파트> 완료]만 진하고 [<파트> 시작]은 옅은 테두리(비평 C59).
-     시작 단추 글 = [<파트> 시작](사장님 2026-11-27 "재단 탭 = 재단 시작, 엣지 탭 = 엣지 시작" — 옛 [작업 시작], 완료 단추와 같은 파트 이름) -#}
+  {#- 미정 · 안 본 도면 = 시작만(설계서 2026-11-28-production-my-steps-flow §3-3, 사장님 답 1 · 8 · 14): 재단 · 조립 [기본][재단 시작] 한 줄,
+     엣지 · 검수 [엣지 시작] 하나 — 반장 · 관리자도 파트 계정과 같은 꼴 · 같은 카드 키. 반장 · 관리자의 바로 완료(check)는 카드가 아니라
+     [<파트> 시작] 확인 창 안 작은 글 "이미 끝난 작업이면 바로 완료"(home_parts_overlays.html · parts-modal.js). 막힌 칸은 지금 그대로(pp_block).
+     진한 [<파트> 시작]은 파트 계정만(사장님 2026-11-27 "재단처럼 진하게"), 반장 · 관리자는 옅은 테두리 그대로(시안 ⑤ 바뀐 뒤) -#}
   {%- if pb.writable and c.block -%}{{ pp_block(c) }}
   {%- elif pb.writable and is_cut -%}
-<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">{{ pb.basic.word }}</button><button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %}" data-pp-act="take">{{ pb.part_label }} 시작</button></div>{% if not pb.mine %}{{ pp_fin_now(pb) }}{% endif %}
-  {%- elif pb.writable and not pb.mine -%}
-<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>{{ pp_fin_now(pb) }}</div>
-  {%- elif pb.writable -%}{#- 파트 계정(엣지 · 조립 · 검수) 자기 판 — 재단 계정처럼 진한 [<파트> 시작](사장님 2026-11-27 "재단처럼 진하게") -#}
-<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>
+<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">{{ pb.basic.word }}</button><button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %}" data-pp-act="take">{{ pb.part_label }} 시작</button></div>
+  {%- elif pb.writable -%}
+<button type="button" class="foms-prod-home__btn{% if pb.mine %} foms-prod-home__btn--pri{% endif %} pp-act" data-pp-act="take">{{ pb.part_label }} 시작</button>
   {%- endif -%}
 {%- elif c.state == 'need' -%}
   {%- if c.mine_row -%}
@@ -79,8 +74,7 @@
 {% macro pp_tag(c) -%}
 {%- if c.tag -%}<span class="pp-tag" data-pp-tag aria-label="{{ c.tag.aria }}">내 작업{% if c.tag.crew %} · {{ c.tag.crew }}{% endif %}{% if c.tag.old %} · <span class="is-old">{{ c.tag.old }}</span>{% endif %}{% if c.tag.chg %} · <span class="is-chg">{{ c.tag.chg }}</span>{% endif %}</span>{%- endif -%}
 {%- endmacro %}
-{#- pp-finrow = 반장 · 관리자 재단 · 조립 판(미정 도면 단추가 두 줄 — [기본][재단 시작] 아래 [재단 완료]). 카드 키를 그 두 줄 꼴에 맞춘다(parts.css 끝, 2026-11-27 "높이 일괄") -#}
-<div class="fph-parts{% if pb.writable and is_cut and not pb.mine %} pp-finrow{% endif %}" data-pp-pane="{{ d.key }}">
+<div class="fph-parts" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
     {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}건</small>{% endif %}</h2>
