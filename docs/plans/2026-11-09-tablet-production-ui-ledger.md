@@ -3011,6 +3011,15 @@
 - 일꾼 보고(다시 안 잼): 줄 키 · 카드 키 전후 같음(150% 폰 두 줄 0.2px) · 가로 넘침 0 · 새 시험 `12 passed`(옛 코드 `12 failed`) · `-k production` `2695 passed` · 하네스 `687 passed`. 핀 home.css · home.js · steppane.js `20261128y`.
 - **사장님께 밝힐 것**: PC 화면도 바뀐다(줄 큰 글 "조립 미정" · 줄 순서). 흐름 고침 때의 "PC 한 글자도 안 바뀜"은 흐름 고침 몫 약속이었다.
 
+### B 몫 얹음 · B3 사장님 답대로 되돌림 (11-28 밤 23)
+
+- cherry-pick: b5 `3fa1cb598` → `e8d35e827`(충돌 0) · b1 `db8688be6` → `ef82da45f`(충돌 0). 핀 parts · parts-give `20261128r`, home.css · home.js · steppane.js `20261128y`.
+- 첫 넓은 시험 6 실패: 5 = 내가 올린 작업 시트 JS 핀(아래) · 1 = `tests/security/test_freelancer_production_home.py::test_write_markers_are_real_for_writers_and_parts_are_closed_for_freelancer` — **b1 일꾼 커밋 자체에서도 실패**(일꾼 보고 `-k production 2695 passed` 는 이 시험을 안 돌렸다).
+- 까닭: B3 평가자 고침 안은 둘(① 고른 줄로 목록 굴리기 ② 판이 [끝] 자리 막힌 첫 줄도 고름). 사장님 답은 "남은 공정: 고른 줄로 굴리기" = ① 만. 일꾼이 ② 까지 넣었다 → 판 첫 줄이 도면 칸 줄이 되어 판의 [재단 완료] 표식이 사라짐.
+- 고침(`e43cd24cb`): ② 를 뺌(`home_step_panel.attach_step_panels` 예전대로 막히지 않은 첫 줄 — `_stopped` 지움), ② 때문에 바꾼 옛 시험 셋 되돌림, 새 시험 B3 는 "판 고르는 줄 그대로 + reveal 굴림"을 박음. **앞 절 "판이 늘 목록 맨 위 줄"은 틀린 기록 — 사장님께 드린 말도 바로잡을 것.**
+- 같은 커밋: 작업 시트 회색 [제작 완료] 누름 글 — '도면 없음' 카드 주문은 `sheets` 0 이지만 장 `@order` 한 장(`total_n` 1)이라 "도면이 없어요 — …" 대신 서버 글 "미완료가 있어요 — 엣지 1장 · …"(`foms-production-sheet-parts.js` why 한 줄, 핀 `20261128e`). 새 시험 `test_production_sheet_why_order_card_1128`(옛 JS 에서 실패 확인 · 음성 대조 = 장 0 자료는 옛 글).
+- 다시 넓은 시험: `20190 passed, 6 skipped` · 하네스 `687 passed`. 짧은 걷기(합친 가지, 가짜 주문): sim/q `walk_fix.py M` — B1 · B2 · G1 · G3 · PC · 폰 값이 일꾼 A 와 모두 같음, B3 만 다름(판 = 7번 줄 라온 [재단 완료], 목록이 그 줄로 굴러 고른 줄 보임 `sel_visible` true · `list_top` 417). sim/r `w_r.py` — 시작 창 사람 고르기 받기 GET 1 · 실행 POST 1(200) · 표시 줄 같음, 다른 것은 시각과 카드 순서(G1 덜 간 것부터 — 맞음)뿐. **사장님께 물을 것**: 판이 목록 밖 줄을 고르면 처음 화면이 그 줄 쪽으로 내려가 1~4번 줄이 위로 숨는다 — 평가자 둘째 안(맨 위 줄 고름)을 더할지.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
