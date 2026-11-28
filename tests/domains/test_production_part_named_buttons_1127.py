@@ -124,16 +124,17 @@ def test_source_contract_words_kept_and_changed():
     code = [ln for ln in modal.splitlines() if not ln.lstrip().startswith(("/*", "*", "//"))]
     assert not any("'안 봄" in ln or "안 봄'" in ln for ln in code)  # 창 글에 '안 봄' 없음
     assert "IS_CUT" not in modal  # 파트마다 앞말이 다르던 갈래 없음
-    assert modal.count("'미정 → 기본 · ' + NAME") == 2 and "line: '기본 → 미정'" in modal  # 하나 · 모두 기본 · 기본 취소
+    assert modal.count("'미정 → ' + BASIC.word + ' · ' + NAME") == 2 and "line: BASIC.word + ' → 미정'" in modal  # 하나 · 모두 기본 · 기본 취소(글은 서버 설정 — 11-28)
     assert "run: LABEL + ' 시작 취소'" in modal and "run: '시작 취소'" not in modal
     assert "LABEL + ' 같이\\u00a0작업', 'join'" in crew and "run: LABEL + ' 같이 작업'" in crew
     assert "c.label + ' 시작\\u00a0취소', 'release'" in claim
     assert "['remove', p.name + ' 시작 취소', 'release', p.uid]" in crew  # 대조군 — 반장 고르기 창 사람 이름 단추
     assert "['join', '같이 작업', 'join', null, true]" in crew
     assert "/ 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요'" in parts
-    assert "'안 본 도면 '" in parts  # 대조군 — '안 본 도면 N장' 글 그대로
+    assert "BASIC.unseen + (look ? ' ' : ' 없어요')" in parts  # 대조군 — '안 본 도면 N장' 글 그대로(글은 서버 설정에서 — 11-28 조립 판은 "미정 도면")
     tpl = (TPL / "home_parts.html").read_text(encoding="utf-8")
-    assert "안 본 도면" in tpl
+    assert "{{ pb.basic.unseen }} <b>{{ pp.counts.unseen }}</b>장" in tpl
+    assert '"unseen": "안 본 도면"' in (ROOT / "foms/services/production/part_constants.py").read_text(encoding="utf-8")
     sheet = (JS / "foms-production-sheet-parts.js").read_text(encoding="utf-8")
     assert "join: '같이 작업'" in sheet and "release: '시작 취소'" in sheet  # 대조군 — 바뀐 기록 낱말(PC · 작업 시트)
     notes = (ROOT / "foms/services/production/part_mark_notes.py").read_text(encoding="utf-8")
@@ -148,7 +149,7 @@ def test_css_fits_longer_words_without_new_font_sizes_and_pins():
     rule = ".pp-two.is-mine > .pp-release, .pp-two--join > .foms-prod-home__btn { padding: 0 4px; white-space: normal; word-break: keep-all;"
     assert rule in css and "font-size" not in css[css.index(rule):css.index("\n", css.index(rule))]  # 글자 크기는 그대로
     scripts = (TPL / "home_scripts.html").read_text(encoding="utf-8")
-    for name, pin in (("parts", "20261128g"), ("parts-claim", PIN), ("parts-modal", "20261128g")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
+    for name, pin in (("parts", "20261128h"), ("parts-claim", PIN), ("parts-modal", "20261128h")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
         assert f"foms-production-{name}.js') }}}}?v={pin}" in scripts, name
-    assert "foms-production-parts-crew.js') }}?v=20261128g" in scripts  # 11-27 [<파트> 시작] 진하게 · 11-28 [담당 바꾸기 ›] 다음 창으로 한 번씩 더
-    assert "parts.css') }}?v=20261128g" in (TPL / "home_styles.html").read_text(encoding="utf-8")  # 11-28 "누구에게 줄까요?" 사람 칸 굴림
+    assert "foms-production-parts-crew.js') }}?v=20261128h" in scripts  # 11-27 [<파트> 시작] 진하게 · 11-28 [담당 바꾸기 ›] 다음 창으로 한 번씩 더
+    assert "parts.css') }}?v=20261128h" in (TPL / "home_styles.html").read_text(encoding="utf-8")  # 11-28 "누구에게 줄까요?" 사람 칸 굴림

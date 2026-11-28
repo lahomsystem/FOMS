@@ -7,7 +7,7 @@
 
 * 카드 = 확정 도면 한 장(:func:`resolve_final_drawing_files` 의 항목, 순서 = 도면 번호).
 * 내 파트 상태 · 작업하는/완료한 사람 이름 줄(여러 명 — 2026-11-25 multi-holder, :mod:`part_card_crew`) · 다른 파트 한 줄 낱말
-  (재단: 완료 · 기본 · 중 · 안 봄, 그 밖: 완료 · 중 · 아직).
+  (재단: 완료 · 기본 · 작업 중 · 미정, 조립: 완료 · 없음 · 작업 중 · 미정, 그 밖: 완료 · 작업 중 · 미정).
 * 칸 숫자: 파트 계정 = 내 것(작업 필요 = 내 몫이 작업 중인 장, 완료 = 내 몫을 완료한 장 — "재단 1/2 완료"도, 재단은 + 기본),
   관리자 · 대신 · 읽기 전용 = 그 파트 전체. 재단의 '안 본 장' 수도 센다. 숫자는 늘 읽은 줄 전부에서 센다(캡과 무관).
 * 여러 파트 계정(2026-11-23 §4-12, P2): 판 머리에서 내 파트 사이를 고른다(``pick`` · 주소 ``?part=``), 다른 파트 한 줄에서
@@ -37,11 +37,7 @@ from foms.services.production.part_access import (
     writable_parts,
 )
 from foms.services.production.part_constants import (
-    MARK_STATE_NONE,
-    PART_CUT,
-    PART_INSPECT,
-    PRODUCTION_PART_KEYS,
-    PRODUCTION_PART_LABELS,
+    BASIC_ALLOWED_PARTS, MARK_STATE_NONE, PART_CUT, PART_INSPECT, PRODUCTION_PART_KEYS, PRODUCTION_PART_LABELS, basic_view, basic_word,
 )
 from foms.services.production import mark_crew as mc
 from foms.services.production.factory_scope import board_factory, elsewhere_head, elsewhere_info, other_factories, scene_on
@@ -65,8 +61,8 @@ PART_THUMB_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 #: (겹친 줄은 화면이 같은 상태면 건너뛴다).
 PART_SYNC_OVERLAP_SECONDS = 15
 
-#: 다른 파트 한 줄 낱말(D51 — 색은 ``tone`` 으로 화면이 고른다). '끝' → '완료'(2026-11-25 multi-holder K4).
-_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "작업 중", "none": "미정"}
+#: 다른 파트 한 줄 낱말(D51 — 색은 ``tone`` 으로 화면이 고른다). '끝' → '완료'(2026-11-25 multi-holder K4). 재단 "기본" · 조립 "없음"
+#: (2026-11-28 조립 없음)은 ``part_constants.basic_word`` 가 준다 — 그 처리가 없는 파트(엣지 · 검수)의 basic 은 "미정"으로 떨어진다.
 _OTHER_WORDS = {"done": "완료", "need": "작업 중", "none": "미정"}
 #: 여러 파트 계정(2026-11-23 §4-12 '더함')의 다른 파트 한 줄 — 그 파트도 내 파트이고 내 몫이 작업 중인 장은 "엣지 내 작업"
 #: (multi-holder §8-2 10). 파트 하나인 계정 · 관리자 · 대신에게는 생기지 않는다(다른 파트가 내 파트가 아니다).
@@ -86,12 +82,12 @@ def other_part_word(part: str, state_key: str, mine: bool = False) -> dict[str, 
         mine: 그 파트가 보는 사람의 파트이고 담당이 보는 사람인지(여러 파트 계정만 — :func:`mine_other` ).
 
     Returns:
-        ``{part, label, word, tone}`` — 재단은 완료 · 기본 · 작업 중 · 미정, 그 밖은 완료 · 작업 중 · 미정(D57: 안 고름 = 미정).
+        ``{part, label, word, tone}`` — 재단은 완료 · 기본 · 작업 중 · 미정, 조립은 완료 · 없음 · …, 그 밖은 완료 · 작업 중 · 미정(D57: 안 고름 = 미정).
         ``mine`` 이고 작업 필요(need)이면 "내 작업"(tone ``mine``).
     """
     if mine and state_key == "need":
         return {"part": part, "label": PRODUCTION_PART_LABELS[part], "word": MINE_WORD, "tone": MINE_TONE}
-    words = _CUT_WORDS if part == PART_CUT else _OTHER_WORDS
+    words = {**_OTHER_WORDS, "basic": basic_word(part, short=True)} if part in BASIC_ALLOWED_PARTS else _OTHER_WORDS
     tone = state_key if state_key in words else "none"
     return {"part": part, "label": PRODUCTION_PART_LABELS[part], "word": words[tone], "tone": tone}
 
@@ -205,13 +201,13 @@ def _prev_name(snap: MarkSnapshot) -> str:
 
 
 def _prev_word(row: Any) -> str:
-    """옛 판 표시 한 줄의 낱말 — '재단 완료(김재단)' · '기본(박재단)' · '재단 중(이시영 · 김재단 외 1)'(칸 글 — multi-holder Q17 · Q20)."""
+    """옛 판 표시 한 줄의 낱말 — '재단 완료(김재단)' · '기본(박재단)'(조립 '조립 없음(최조립)') · '재단 중(이시영 · 김재단 외 1)'(칸 글 — multi-holder Q17 · Q20)."""
     label = PRODUCTION_PART_LABELS.get(str(row.part), "")
     snap = MarkSnapshot.from_row(row)
     if snap.seen_key == "done":
         return f"{label} 완료({_prev_name(snap) or '-'})"
     if snap.seen_key == "basic":
-        return f"기본({row.done_by_name or '-'})"
+        return f"{basic_word(str(row.part))}({row.done_by_name or '-'})"
     return f"{label} 중({_prev_name(snap) or '-'})"
 
 
@@ -482,7 +478,7 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         "mode": mode, "part": board_part, "part_label": PRODUCTION_PART_LABELS[board_part],
         # 고를 파트 · 여러 파트 고르기(파트 계정 둘 이상) · 주소에 실을 파트(파트 하나인 계정의 날짜 탭은 지금처럼 안 실음)
         "parts": parts, "pick": pick, "url_part": board_part if (mode != VIEW_PART or pick) else None,
-        "writable": writable, "mine": ctx["mine"], "cap": PART_BOARD_CARD_CAP,
+        "writable": writable, "mine": ctx["mine"], "cap": PART_BOARD_CARD_CAP, "basic": basic_view(board_part),  # 기본 · 조립 없음 글(없는 파트 None)
         # 2공장(§4-13 · §19 열한째): 보는 공장 · 관리자 판 머리 공장 고르기(2공장 그림이 켜졌을 때만) · 주소에 실을 공장
         "factory": factory, "scene": scene, "factory_pick": scene and mode == VIEW_ADMIN, "req_opts": ctx["req"],
         "can_request": can_request_people(user),  # [도면 수정 요청] 창을 둘 사람(관리자 · 반장 · 파트 계정 — 날 조각 판도 같은 창)

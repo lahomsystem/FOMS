@@ -1,8 +1,8 @@
 """0-둘 이음매 셋 — 동작 그대로(설계서 2026-11-28 흐름 셋 §4-1 "0-둘" · §4-3 약속 3 · 10).
 
 되돌리면 실패: 알람 빈 틀이 쿼리를 내거나 예외를 던지기 · 약속한 함수 이름 · 인자를 바꾸기 · ``parts_in_use`` 가 지금
-``cards_used`` 와 다른 값을 내기 · ``BASIC_ALLOWED_PARTS`` 값이 재단 하나가 아니게 되기(넓히는 일꾼이 이 단언을 같이 고친다).
-대조군: 옛 ``BASIC_ALLOWED_PART`` 는 재단 그대로 · 재단 BASIC 은 완료, 다른 파트 BASIC 은 미완료.
+``cards_used`` 와 다른 값을 내기 · ``BASIC_ALLOWED_PARTS`` 값이 재단 · 조립 둘이 아니게 되기(2026-11-28 조립 없음이 조립을 더했다).
+대조군: 옛 ``BASIC_ALLOWED_PART`` 는 재단 그대로 · 재단 · 조립 BASIC 은 완료, 엣지 · 검수 BASIC 은 미완료.
 """
 from __future__ import annotations
 
@@ -59,9 +59,10 @@ def test_parts_in_use_equals_cards_used_today():
     assert parts_in_use({}, cases[2]) == {"edge", "cut"}  # 대조군 — 빈 값끼리 같은 것이 아니다
 
 
-def test_basic_allowed_parts_is_cut_only_and_mark_finished_reads_it():
-    assert pc.BASIC_ALLOWED_PARTS == ("cut",)
+def test_basic_allowed_parts_is_cut_and_assemble_and_mark_finished_reads_it():
+    assert pc.BASIC_ALLOWED_PARTS == ("cut", "assemble")  # 조립 = '조립 없음'(사장님 2026-11-28 "조립만")
     assert pc.BASIC_ALLOWED_PART == "cut"
-    assert mark_finished("cut", "BASIC") is True and mark_finished("cut", "DONE") is True
-    for part in ("edge", "assemble", "inspect"):
+    for part in ("cut", "assemble"):
+        assert mark_finished(part, "BASIC") is True and mark_finished(part, "DONE") is True
+    for part in ("edge", "inspect"):
         assert mark_finished(part, "BASIC") is False and mark_finished(part, "DONE") is True

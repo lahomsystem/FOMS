@@ -624,8 +624,9 @@ class ProductionPartMark(Base):
         CheckConstraint(
             f'state IN {PRODUCTION_PART_MARK_STATE_CHECK_VALUES_SQL}', name='ck_production_part_marks_state',
         ),
-        # '기본'(이미 잘라 둔 판)은 재단에만 있다(D49).
-        CheckConstraint("state <> 'BASIC' OR part = 'cut'", name='ck_production_part_marks_basic_cut'),
+        # 사람 손 없이 끝낸 줄(BASIC)은 재단('기본' — D49) · 조립('조립 없음' — 사장님 2026-11-28 "조립만")에만 있다.
+        # 글 · 이름은 마이그레이션 ``prodpart_03_basic_parts`` 와 글자 단위로 같다(옛 이름 ``…_basic_cut`` = 재단만).
+        CheckConstraint("state <> 'BASIC' OR part IN ('cut', 'assemble')", name='ck_production_part_marks_basic_part'),
     )
 
 

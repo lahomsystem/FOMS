@@ -14,7 +14,7 @@ CSS = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="ut
 TPL = (ROOT / "templates/production/partials/home_parts.html").read_text(encoding="utf-8")
 STYLES = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 TABLET = "@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {"
-PIN = "20261128g"  # 11-27 [<파트> 같이 작업] 짝 폭으로 한 번 더 · 11-28 g: "누구에게 줄까요?" 사람 칸 굴림
+PIN = "20261128h"  # 11-27 [<파트> 같이 작업] 짝 폭으로 한 번 더 · 11-28 g: "누구에게 줄까요?" 사람 칸 굴림
 
 
 def _block() -> str:

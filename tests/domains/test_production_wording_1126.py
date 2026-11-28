@@ -53,9 +53,11 @@ def test_reload_instruction_is_one_sentence_on_board_refusals():
 
 def test_toast_says_what_was_pressed_and_stays_quiet_for_zero():
     parts = _read(JS / "foms-production-parts.js")
-    assert "/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : / 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요' : (SAID[p.run] || '저장했어요')" in parts
-    assert "var SAID = { '기본': '기본으로 처리했어요', '담당 바꾸기': '담당 바꿨어요' };" in parts  # [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(11-27)
-    assert "var text = changed ? changed + '장 기본으로 했어요' : '';" in parts
+    assert ("/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : / 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요' : "
+            "p.action === 'basic' ? BASIC.toward + ' 처리했어요' : (SAID[p.run] || '저장했어요')") in parts
+    assert "var SAID = { '담당 바꾸기': '담당 바꿨어요' };" in parts  # [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(11-27)
+    assert "var text = changed ? changed + '장 ' + BASIC.toward + ' 했어요' : '';" in parts  # 글은 서버 설정(11-28 — 재단 "기본으로" · 조립 "조립 없음으로")
+    assert '"toward": f"{full}으로"' in _read(ROOT / "foms/services/production/part_constants.py")
 
 
 def test_production_cancel_button_and_dialog_words():
@@ -139,12 +141,13 @@ def test_empty_day_shows_only_none_word():
 def test_undo_button_is_named_after_its_done_button():
     parts = _read(TPL / "partials" / "home_parts.html")
     assert parts.count('data-pp-act="undo">{{ pb.part_label }} 완료 취소</button>') == 2  # 내 몫만 완료 줄(파트 계정 · 반장)
-    assert "data-pp-act=\"undo\">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else '기본 취소' }}</button>" in parts  # 기본 = [기본 취소](11-26 가)
+    assert ("data-pp-act=\"undo\">{{ (pb.part_label ~ ' 완료 취소') if c.state == 'done' else pb.basic.undo if pb.basic else '기본 취소' }}</button>"
+            in parts)  # 기본 = [기본 취소](11-26 가) · 조립 = [조립 없음 취소](11-28 — 글은 서버 basic_view)
     crew = _read(JS / "foms-production-parts-crew.js")
-    assert "st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 3  # 3 = 바로 완료 취소 창(11-27)
+    assert "st === 'basic' ? BASIC.undo : LABEL + ' 완료 취소'" in crew and crew.count("run: LABEL + ' 완료 취소'") == 3  # 3 = 바로 완료 취소 창(11-27)
     modal = _read(JS / "foms-production-parts-modal.js")
     assert "title: LABEL + ' 완료를 취소할까요?'" in modal and "run: LABEL + ' 완료 취소', tone: 'need'" in modal
-    assert "title: '기본을 취소할까요?', line: '기본 → 미정', run: '기본 취소'" in modal  # 11-26 가 · 11-27 안 봄 → 미정
+    assert "title: BASIC.undo_ask, line: BASIC.word + ' → 미정', run: BASIC.undo" in modal  # 11-26 가 · 11-27 안 봄 → 미정
 
 
 def test_hold_reason_reads_the_same_on_every_screen():
@@ -219,13 +222,13 @@ def test_unseen_text_and_bulk_button_count_the_same_cards():
     assert "unseen: bulkable(card) ? 1 : 0, look: bulkable(card) ? 1 : 0" in _read(JS / "foms-production-parts.js")
     req = _read(JS / "foms-production-drawing-request.js")
     assert "var look = Math.max(0, Number(text.getAttribute('data-pp-unseen-text') || 0) - 1);" in req
-    assert "text.textContent = look ? '안 본 도면 ' : '안 본 도면 없어요';" in req
+    assert "text.textContent = (words ? words.unseen : '안 본 도면') + (look ? ' ' : ' 없어요');" in req  # 조립 판 "미정 도면"(11-28)
 
 
 def test_other_part_words_are_mijeong_and_working():
     """사장님 2026-11-26 가 — 도면 칸 아래 다른 파트 줄: 손 안 댄 것은 파트 구분 없이 "미정", 시작한 것은 "작업 중"(완료 · 기본 그대로)."""
     board = _read(ROOT / "foms/services/production/part_board.py")
-    assert '_CUT_WORDS = {"done": "완료", "basic": "기본", "need": "작업 중", "none": "미정"}' in board
+    assert 'words = {**_OTHER_WORDS, "basic": basic_word(part, short=True)} if part in BASIC_ALLOWED_PARTS else _OTHER_WORDS' in board
     assert '_OTHER_WORDS = {"done": "완료", "need": "작업 중", "none": "미정"}' in board
 
 
@@ -306,7 +309,7 @@ def test_factory_request_notice_uses_the_reject_notice_voice_and_numbers():
     assert request_message(5801, "", [2, 3], "높이") == "주문 #5801 공장 도면 수정 요청이 접수됐어요. 대상: 도면 2 · 3. 사유: 높이"
     req = _read(JS / "foms-production-drawing-request.js")
     assert "tooBig: '사진이 너무 커요. 크기를 줄여 올려 주세요.'" in req and "너무 큽니다" not in req
-    assert "foms-production-drawing-request.js') }}?v=20261126f" in _read(TPL / "partials" / "home_scripts.html")
+    assert "foms-production-drawing-request.js') }}?v=20261128h" in _read(TPL / "partials" / "home_scripts.html")
 
 
 def test_pc_step_cell_not_started_says_mijeong():

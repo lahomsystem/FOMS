@@ -160,14 +160,14 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
 
 def test_other_part_has_no_basic_and_no_other_part_buttons(client, cohort):
     me, park = _user("김재단", part="cut"), _user("박재단", part="cut")
-    asm = _user("이조립", part="assemble")
+    asm = _user("이엣지", part="edge")  # 기본이 없는 파트(조립은 11-28 부터 [조립 없음])
     _seed_day(me, park)
     _login(client, asm)
     html = _get(client, HOME)
     block = _parts_block(_first_pane(html))
     assert block.count("data-pp-card ") == 5
-    assert 'data-pp-act="basic"' not in block and 'data-pp-act="bulk"' not in block  # '기본'은 재단에만(D49)
-    assert block.count('data-pp-act="take"') == 5 and 'data-pp-act="take">조립 시작<' in block  # 파트마다 [<파트> 시작](11-27)
+    assert 'data-pp-act="basic"' not in block and 'data-pp-act="bulk"' not in block  # '기본'은 재단 · 조립('조립 없음')에만 — 엣지 · 검수 판에는 없다
+    assert block.count('data-pp-act="take"') == 5 and 'data-pp-act="take">엣지 시작<' in block  # 파트마다 [<파트> 시작](11-27)
     assert "출고 3건 · 도면 나온 2건" in block  # 그 밖 파트 장 머리(시공 = 그날 주문 전부, 도면 나온 집 = 카드가 선 집)
     # 다른 파트 한 줄은 누를 수 없는 글 — 그 안에 단추 0, 재단 낱말(완료 · 기본 · 중 · 안 봄)이 선다
     for line in re.findall(r'<span class="fph-dr__by pp-by">(.*?)</span></span>\s*<div class="pp-actbox"', block, re.S):
@@ -176,7 +176,7 @@ def test_other_part_has_no_basic_and_no_other_part_buttons(client, cohort):
     # 남의 파트 단추 0 — 카드 단추는 내 파트 동작 넷뿐이고 JS 설정의 파트는 내 파트
     acts = set(re.findall(r'data-pp-act="([a-z]+)"', html))
     assert acts <= {"take", "basic", "done", "undo", "bulk"}
-    assert "&#34;part&#34;: &#34;assemble&#34;" in html
+    assert "&#34;part&#34;: &#34;edge&#34;" in html
 
 
 def test_part_account_steps_tab_hidden_and_redirected_on_any_device(client, cohort):
@@ -225,7 +225,7 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
 
     html = _get(client, HOME + "?tab=parts&part=assemble")
     pane = _first_pane(html)
-    assert 'data-pp-act="take">조립 시작<' in pane and 'data-pp-act="basic"' not in pane
+    assert 'data-pp-act="take">조립 시작<' in pane and 'data-pp-act="basic">조립 없음<' in pane  # 조립 판 = 재단 판과 같은 꼴(11-28)
     assert '"part": "assemble"' in html.replace("&#34;", '"')
 
 

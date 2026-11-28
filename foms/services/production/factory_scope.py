@@ -23,7 +23,7 @@ from foms.services.orders.drawing_factory import has_second_factory, present_fac
 from foms.services.production import mark_crew as mc
 from foms.services.production.factory_constants import DEFAULT_FACTORY, FACTORIES, FACTORY_2, factory_label, normalize_factory
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_SUB, can_write_sheet, part_view_mode, user_factory, writable_factories
-from foms.services.production.part_constants import PRODUCTION_PART_LABELS
+from foms.services.production.part_constants import PRODUCTION_PART_LABELS, basic_word
 from foms.services.production.part_mark_gates import Gate
 from foms.services.production.part_mark_rules import ACTION_RELEASE
 
@@ -137,7 +137,7 @@ def elsewhere_head(factory: int, count: int) -> str:
 
 def elsewhere_line(part: str, state: str, *, picked: Optional[str], done: Optional[str],
                    hand: Optional[dict[str, Any]] = None) -> str:
-    """남의 공장 카드의 글 한 줄(색 칸 없이, §4-13) — "최가은 작업 중" · "엣지 완료 · 최가은" · "기본 · 김재단" · "미정".
+    """남의 공장 카드의 글 한 줄(색 칸 없이, §4-13) — "최가은 작업 중" · "엣지 완료 · 최가은" · "기본 · 김재단"(조립 "조립 없음 · 최조립") · "미정".
 
     Args:
         part: 보는 파트.
@@ -150,7 +150,7 @@ def elsewhere_line(part: str, state: str, *, picked: Optional[str], done: Option
     if state == "need":
         return f"{picked} 작업 중" if picked else "작업 중"
     if state in ("done", "basic"):
-        head = f"{PRODUCTION_PART_LABELS[part]} 완료" if state == "done" else "기본"
+        head = f"{PRODUCTION_PART_LABELS[part]} 완료" if state == "done" else basic_word(part)
         return f"{head} · {done}" if done else head
     return "미정"
 

@@ -40,18 +40,26 @@ PRODUCTION_PART_DEFS: tuple[tuple[str, str], ...] = (
 PRODUCTION_PART_KEYS: tuple[str, ...] = tuple(key for key, _ in PRODUCTION_PART_DEFS)
 PRODUCTION_PART_LABELS: dict[str, str] = dict(PRODUCTION_PART_DEFS)
 
-#: 표시 상태 — 안 봄 · 안 고름(되돌림 포함) / 작업 필요 / 기본(재단만) / 끝.
+#: 표시 상태 — 안 봄 · 안 고름(되돌림 포함) / 작업 필요 / 기본(재단 '기본' · 조립 '조립 없음') / 끝.
 MARK_STATE_NONE = "NONE"
 MARK_STATE_NEED = "NEED"
 MARK_STATE_BASIC = "BASIC"
 MARK_STATE_DONE = "DONE"
 PART_MARK_STATES: tuple[str, ...] = (MARK_STATE_NONE, MARK_STATE_NEED, MARK_STATE_BASIC, MARK_STATE_DONE)
 
-#: '기본'(이미 잘라 둔 판)은 재단에만 있다(D49 · D57).
+#: '기본'(이미 잘라 둔 판)은 재단 낱말이다(D49 · D57) — 감사 글의 재단 낱말 갈래("안 봄")가 쓴다.
 BASIC_ALLOWED_PART = PART_CUT
-#: '기본'으로 장을 끝낼 수 있는 파트들 — 지금은 재단 하나(위와 같은 값). ``part_progress.mark_finished`` 가 이것을 읽는다.
-#: 넓히는 자리는 여기 하나다. 위 ``BASIC_ALLOWED_PART`` 는 '재단' 낱말 갈래(감사 글 · 일괄 기본)가 쓰니 그대로 둔다.
-BASIC_ALLOWED_PARTS: tuple[str, ...] = (BASIC_ALLOWED_PART,)
+#: 사람 손 없이 장을 끝낼 수 있는(상태 ``BASIC``) 파트들 — 재단 '기본' + 조립 '조립 없음'(사장님 2026-11-28 "조립 없음" · "조립만",
+#: 설계서 2026-11-28 흐름 셋 §3). ``part_progress.mark_finished`` 가 이것을 읽어 검수 열림 · 제작 완료 · "조립 2/3" · 공정 칸이 같이 맞는다.
+#: 엣지 · 검수에는 없다 — DB 제약 ``ck_production_part_marks_basic_part`` 도 같은 두 파트만 받는다(models.py · prodpart_03_basic_parts).
+BASIC_ALLOWED_PARTS: tuple[str, ...] = (PART_CUT, PART_ASSEMBLE)
+#: 파트마다 그 처리의 글 — 화면 · 감사 · 거절 글 · JS 설정이 모두 여기서 읽는다(JS 에 글을 따로 박지 않는다).
+#: ``full`` = 단추 · 칸 · 문장 속 낱말, ``short`` = 다른 파트 한 줄 낱말("조립 없음" — 앞에 파트 이름이 이미 있다), ``ask`` = 확인 창 제목,
+#: ``unseen`` = 판 머리 "<…> 3장"의 앞 글, ``audit`` = 일괄 감사 글 머리("재단 기본 50장" · "조립 없음 3장").
+BASIC_WORDS: dict[str, dict[str, str]] = {
+    PART_CUT: {"full": "기본", "short": "기본", "ask": "기본으로 처리할까요?", "unseen": "안 본 도면", "audit": "재단 기본"},
+    PART_ASSEMBLE: {"full": "조립 없음", "short": "없음", "ask": "조립할 것이 없는 도면인가요?", "unseen": "미정 도면", "audit": "조립 없음"},
+}
 
 #: 파트를 가질 수 있는 팀(능력 이름 — 별칭 팀도 ``team_has_capability`` 가 같이 판정한다).
 PRODUCTION_PART_TEAMS: tuple[str, ...] = ("PRODUCTION",)
@@ -65,6 +73,32 @@ PART_BADGE_CLASSES: dict[str, str] = {
     "basic": "fph-part-badge--basic",
     "wait": "fph-part-chip--wait",
 }
+
+
+def basic_word(part: Any, short: bool = False) -> str:
+    """그 파트의 '기본' 낱말 — 재단 "기본" · 조립 "조립 없음"(``short`` 면 "없음"). 그 처리가 없는 파트 · 모르는 값은 재단 낱말(지금 글).
+
+    Args:
+        part: 파트 key(None 허용).
+        short: 다른 파트 한 줄 낱말이면 True.
+    """
+    words = BASIC_WORDS.get(part) or BASIC_WORDS[BASIC_ALLOWED_PART]
+    return words["short" if short else "full"]
+
+
+def basic_view(part: Any) -> Optional[dict[str, str]]:
+    """판 · JS 설정에 싣는 그 파트의 '기본' 글 한 벌 — 그 처리가 없는 파트(엣지 · 검수)는 None(단추 · 일괄 머리 없음).
+
+    Returns:
+        ``{word, short, toward, ask, undo, undo_ask, unseen}`` — ``word`` = 단추 · 칸 글, ``toward`` = "기본으로" · "조립 없음으로",
+        ``undo`` = 취소 단추 글, ``undo_ask`` = 취소 창 제목. 두 낱말 모두 받침으로 끝나 토씨는 '으로' · '을'이다.
+    """
+    words = BASIC_WORDS.get(part)
+    if words is None:
+        return None
+    full = words["full"]
+    return {"word": full, "short": words["short"], "toward": f"{full}으로", "ask": words["ask"], "undo": f"{full} 취소",
+            "undo_ask": f"{full}을 취소할까요?", "unseen": words["unseen"]}
 
 
 def normalize_production_part(raw: Any) -> Optional[str]:

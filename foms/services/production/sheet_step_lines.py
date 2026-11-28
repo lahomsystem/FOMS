@@ -28,12 +28,13 @@ from typing import Any, Optional
 from foms.services.production import mark_crew as mc
 from foms.services.production.part_card_state import hand_cell
 from foms.services.production.part_constants import (
-    BASIC_ALLOWED_PART,
+    BASIC_ALLOWED_PARTS,
     MARK_STATE_BASIC,
     MARK_STATE_DONE,
     MARK_STATE_NEED,
     PRODUCTION_PART_KEYS,
     PRODUCTION_PART_LABELS,
+    basic_word,
 )
 from foms.services.production.part_holders import HOLDER_NONE
 from foms.services.production.part_progress import current_keys, marks_by_part, part_progress, per_sheet_only
@@ -100,8 +101,8 @@ def step_line(sd: Any, marks: list[Any], part: str, today: datetime.date) -> dic
     rows = [r for k, r in marks_by_part(marks).get(part, {}).items() if k in set(current_keys(sd))]
     finished = [r for r in rows if str(getattr(r, "state", "")) == MARK_STATE_DONE]
     held = [r for r in rows if str(getattr(r, "state", "")) == MARK_STATE_NEED]
-    basic = sum(1 for r in rows if part == BASIC_ALLOWED_PART and str(getattr(r, "state", "")) == MARK_STATE_BASIC)
-    extra = [f"기본 {basic}장"] if basic else []
+    basic = sum(1 for r in rows if part in BASIC_ALLOWED_PARTS and str(getattr(r, "state", "")) == MARK_STATE_BASIC)
+    extra = [f"{basic_word(part)} {basic}장"] if basic else []  # 재단 "기본 2장" · 조립 "조립 없음 2장"
     handed = sum(1 for r in rows if getattr(r, "handed_from_name", None))
     tail = [f"바뀜 {handed}"] if handed else []  # 담당이 바뀐 장 — 옛 칸 옆 글("… · 바뀜 1")과 같은 꼬리
     if progress["done"]:

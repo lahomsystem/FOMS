@@ -141,6 +141,8 @@
 .pp-act { width: 100%; min-height: 56px; justify-content: center; font-size: calc(17px * var(--foms-fs, 1)); }
 .pp-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; }
 .pp-two .foms-prod-home__btn { min-height: 56px; padding: 0 8px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; }
+/* 조립 [조립 없음](2026-11-28)은 재단 [기본]보다 글이 길다 — 칸이 모자라면(글자 150% · 좁은 카드) 넘치지 않고 낱말에서만 두 줄("조립" / "없음"). [기본]은 한 낱말이라 그대로 한 줄 */
+.pp-two > .pp-pick-basic { white-space: normal; word-break: keep-all; line-height: 1.05; }
 .fph-wi.pp-st-need { background: var(--fph-need-50); border-color: var(--fph-brand); color: var(--fph-need-700); }
 .fph-wi.pp-st-taken { background: var(--fph-taken-50); border-color: var(--fph-taken-300); color: var(--fph-taken-700); }
 .fph-wi.pp-st-done { background: var(--fph-done-50); border-color: var(--fph-done-300); color: var(--fph-done-800); }

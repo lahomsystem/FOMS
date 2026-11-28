@@ -198,7 +198,8 @@
       if (text) {
         var look = Math.max(0, Number(text.getAttribute('data-pp-unseen-text') || 0) - 1);
         text.setAttribute('data-pp-unseen-text', String(look));
-        text.textContent = look ? '안 본 도면 ' : '안 본 도면 없어요';
+        var words = ((window.FomsPartsBoard || {}).cfg || {}).basic; // 재단 "안 본 도면" · 조립 "미정 도면"(서버 설정 글 — parts.js 와 같은 값)
+        text.textContent = (words ? words.unseen : '안 본 도면') + (look ? ' ' : ' 없어요');
         if (look) { text.appendChild(document.createElement('b')).textContent = String(look); text.appendChild(document.createTextNode('장')); }
       }
     });

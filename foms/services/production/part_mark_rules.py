@@ -11,7 +11,7 @@ action    지금 → 새                     조건
 ========  ==========================  ==============================================
 take      NONE → NEED[나]              [작업 시작]. 서버 줄이 NEED[남…]이면 join 으로 넘김(Q16)
 join      NEED[남…] → NEED[남…, 나]   [같이 작업]. 모두 완료면 409 ``JOIN_DONE``, 그사이 비었으면 take 로(판결 1)
-basic     NONE → BASIC                 재단만(API 가 400 으로 막는다) — 지금 그대로
+basic     NONE → BASIC                 재단 '기본' · 조립 '조립 없음'만(그 밖 파트는 API 가 400 으로 막는다)
 done      내 몫 완료                   모두 완료면 DONE. 반장 · 관리자가 남의 줄 = 남은 사람 몫을 한 번에(Q15)
 undo      내 몫 완료 끔 / BASIC → NONE  남의 몫은 반장 · 관리자만(파트 계정 403 ``UNDO_NOT_MINE`` — Q3)
 release   나 빼기                      [시작 취소]. 완료 누른 뒤 409 ``RELEASE_AFTER_DONE``(Q7), 남은 사람 모두 완료면 DONE(Q6)
@@ -39,6 +39,7 @@ from foms.services.production.part_constants import (
     MARK_STATE_DONE,
     MARK_STATE_NEED,
     MARK_STATE_NONE,
+    basic_word,
 )
 
 ACTION_TAKE = "take"
@@ -117,6 +118,8 @@ class MarkSnapshot:
     handed_at: Optional[datetime.datetime] = None
     #: 작업하는 사람 목록(:func:`~foms.services.production.mark_crew.crew_of` — 읽기 정규화 뒤).
     crew: tuple[dict[str, Any], ...] = field(default=(), compare=False, hash=False)
+    #: 그 줄의 파트(줄이 없으면 None) — 글의 낱말만 고른다(재단 "기본" · 조립 "조립 없음"), 판정에는 안 쓴다.
+    part: Optional[str] = field(default=None, compare=False, hash=False)
 
     @classmethod
     def from_row(cls, row: Any) -> "MarkSnapshot":
@@ -130,7 +133,7 @@ class MarkSnapshot:
             picked_by_name=row.picked_by_name, done_by_user_id=row.done_by_user_id,
             done_by_name=row.done_by_name, updated_by_user_id=row.updated_by_user_id,
             picked_at=getattr(row, "picked_at", None), handed_from_name=getattr(row, "handed_from_name", None),
-            handed_at=getattr(row, "handed_at", None), crew=tuple(mc.crew_of(row)),
+            handed_at=getattr(row, "handed_at", None), crew=tuple(mc.crew_of(row)), part=getattr(row, "part", None),
         )
 
     @property
@@ -270,7 +273,7 @@ def conflict_message(snapshot: MarkSnapshot, action: str = "") -> str:
     if snapshot.state == MARK_STATE_DONE:
         name, verb = done_line(snapshot), "먼저 완료했어요"
     elif snapshot.state == MARK_STATE_BASIC:
-        name, verb = (snapshot.done_by_name or "").strip(), "먼저 기본으로 했어요"
+        name, verb = (snapshot.done_by_name or "").strip(), f"먼저 {basic_word(snapshot.part)}으로 했어요"
     else:
         return STALE_MESSAGE
     return f"{subject_particle(name)} {verb}" if name else f"다른 사람이 {verb}"
@@ -284,7 +287,7 @@ def new_action_conflict_message(snapshot: MarkSnapshot) -> str:
         return f"그사이 {subject_particle(done_line(snapshot))} 완료했어요. 더 할 일은 없어요."
     name = (snapshot.done_by_name or "").strip()
     if snapshot.state == MARK_STATE_BASIC and name:
-        return f"그사이 {subject_particle(name)} 기본으로 했어요. 더 할 일은 없어요."
+        return f"그사이 {subject_particle(name)} {basic_word(snapshot.part)}으로 했어요. 더 할 일은 없어요."
     return NEW_STALE_MESSAGE
 
 

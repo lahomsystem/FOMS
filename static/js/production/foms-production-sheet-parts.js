@@ -160,7 +160,7 @@
       return item.target_name + ' ' + KIND[item.kind] + (who ? ' (' + who + ')' : '') + t;
     }
     var holderName = item.holder_name && item.holder_name !== who ? '(' + item.holder_name + ' 대신)' : '';
-    return [who, holderName, KIND[item.kind] || item.kind].filter(Boolean).join(' ') + t;
+    return [who, holderName, item.word || KIND[item.kind] || item.kind].filter(Boolean).join(' ') + t; // word = 서버가 준 낱말(조립 없음 · 조립 없음 취소 · 수정 제작)
   }
   function renderLog(list, items, keys) {
     var groups = {};

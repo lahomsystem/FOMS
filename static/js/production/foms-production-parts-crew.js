@@ -27,15 +27,11 @@
   var NAME = cfg.me || '';
   var ME = String(cfg.me_id);
   var MINE = cfg.mode === 'part';
+  var BASIC = cfg.basic || {}; // 재단 '기본' · 조립 '조립 없음' 글(서버 설정 part_constants.basic_view — 여기서 짓지 않는다)
   var claim = window.FomsPartsClaim || {};
   function attr(card, name) { return card.getAttribute(name) || ''; }
   function safeJsonParse(value, fallback) {
-    try {
-      var text = String(value || '').trim();
-      return text ? JSON.parse(text) : fallback;
-    } catch (e) {
-      return fallback;
-    }
+    try { var text = String(value || '').trim(); return text ? JSON.parse(text) : fallback; } catch (e) { return fallback; }
   }
   function of(card) { return (card && safeJsonParse(card.getAttribute('data-pp-crew'), {})) || {}; }
   function el(tag, cls, text, act) {
@@ -67,7 +63,7 @@
   function undoRow(st, text) {
     var row = el('div', 'fph-wi pp-act pp-undo-row pp-st-' + st + ' pp-only-done');
     row.appendChild(el('span', '', text));
-    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', st === 'basic' ? '기본 취소' : LABEL + ' 완료 취소', 'undo')); // 완료 단추와 짝(사장님 2026-11-26)
+    row.appendChild(el('button', 'foms-prod-home__btn pp-undo', st === 'basic' ? BASIC.undo : LABEL + ' 완료 취소', 'undo')); // 완료 단추와 짝(사장님 2026-11-26)
     return row;
   }
   function render(card, box, o) {
@@ -75,10 +71,10 @@
     var cr = of(card);
     var head = cr.head || (o.mine ? '다른 사람 작업 중' : '작업 중');
     var canUndo = o.writable && (!o.mine || attr(card, 'data-done-me') === '1');
-    if (st === 'none') { // 안 봄 · 미정 — 재단 [기본][재단 시작], 그 밖 [엣지 시작] 등([<파트> 시작], 11-27). 반장 · 관리자는 [<파트> 완료](check — 한 장씩 바로 완료, 사장님 11-27)
+    if (st === 'none') { // 안 봄 · 미정 — 재단 [기본][재단 시작] · 조립 [조립 없음][조립 시작](o.cut = 기본이 되는 파트, 11-28), 그 밖 [엣지 시작] 등. 반장 · 관리자는 [<파트> 완료](check — 한 장씩 바로 완료, 사장님 11-27)
       if (!o.writable) { return true; } // 보기만 = 단추 없음
       var row = o.cut || !o.mine ? el('div', 'pp-two') : box;
-      if (o.cut) { row.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', '기본', 'basic')); }
+      if (o.cut) { row.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', BASIC.word, 'basic')); }
       // 진한 단추는 한 칸에 하나(C59) — 파트 계정 [<파트> 시작]은 진하게(재단처럼, 사장님 11-27), 반장 · 관리자 칸은 [<파트> 완료]가 진하니 옅게
       row.appendChild(el('button', 'foms-prod-home__btn' + (o.mine ? ' foms-prod-home__btn--pri' : '') + (o.cut ? '' : ' pp-act'), LABEL + ' 시작', 'take'));
       if (row !== box) { box.appendChild(row); }
@@ -106,7 +102,7 @@
     }
     if (st !== 'done' && st !== 'basic') { return false; }
     var by = (st === 'done' && cr.done) || attr(card, 'data-done-name');
-    var word = (st === 'done' ? LABEL + ' 완료' : '기본') + (by ? ' · ' + by : '');
+    var word = (st === 'done' ? LABEL + ' 완료' : BASIC.word) + (by ? ' · ' + by : '');
     box.appendChild(el('span', 'fph-wi pp-act pp-st-' + st + (canUndo ? ' pp-not-done' : ''), word));
     if (canUndo) { box.appendChild(undoRow(st, word)); }
     return true;

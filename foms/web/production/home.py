@@ -140,6 +140,7 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
         config = {
             'mode': board['mode'], 'part': board['part'], 'label': board['part_label'], 'writable': board['writable'],
             'verb': '자름' if board['part'] == PART_CUT else board['part_label'], 'me': name,
+            'basic': board['basic'],  # 재단 '기본' · 조립 '조립 없음' 글 한 벌(없는 파트는 None — JS 는 글을 여기서만 읽는다)
             'me_id': getattr(user, 'id', None),
             # 서버 KST 오늘 — 받아 오기로 고친 카드의 "어제부터" 판정(기기 시계 대신, 설계서 2026-11-23 §4-9)
             'today': (today or get_today_kst()).isoformat(),
