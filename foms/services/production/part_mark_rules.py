@@ -83,6 +83,10 @@ TARGET_DONE_MESSAGE = "완료를 누른 사람은 바꿀 수 없어요."
 JOIN_DONE, RELEASE_AFTER_DONE, UNDO_NOT_MINE = "JOIN_DONE", "RELEASE_AFTER_DONE", "UNDO_NOT_MINE"
 REMOVE_FORBIDDEN, RELEASE_NOT_HOLDER = "REMOVE_FORBIDDEN", "RELEASE_NOT_HOLDER"
 TARGET_REQUIRED, TARGET_DONE, TARGET_GONE = "TARGET_REQUIRED", "TARGET_DONE", "TARGET_GONE"
+#: 담당 바꾸기에서 받는 사람을 고를 때의 거절(설계서 2026-11-28 흐름 셋 §1-3) — 남에게 주기는 반장 · 관리자만(403), 받는 사람이
+#: 그사이 꺼짐 · 그 파트 아님 · 그 공장 아님 · 없는 계정(409), 받는 사람이 그사이 그 도면에 들어옴(409).
+GIVE_FORBIDDEN, RECEIVER_NOT_ALLOWED, RECEIVER_ALREADY_IN = "GIVE_FORBIDDEN", "RECEIVER_NOT_ALLOWED", "RECEIVER_ALREADY_IN"
+GIVE_FORBIDDEN_MESSAGE = "다른 사람에게 주는 것은 반장이나 관리자만 할 수 있어요."
 
 #: 표 ``production_part_marks`` 의 쓰는 칸(``id`` 제외) — 쓰기 API 가 표마다 한 번에 INSERT/UPDATE 할 때 쓴다.
 MARK_COLUMNS: tuple[str, ...] = (
@@ -141,6 +145,7 @@ class MarkDecision:
 
     ``action`` = 넘김 뒤 실제로 쓰는 누름, ``crew`` = 쓸 새 목록(apply), ``joined_late`` · ``notice`` = Q16 넘김,
     ``proxied`` = PC [완료 처리]가 대신 완료로 감, ``target_uid`` · ``target_name`` = 바꾸기 · 시작 취소 대상,
+    ``to_uid`` · ``to_name`` = 담당 바꾸기에서 받은 사람(누른 사람이거나 반장 · 관리자가 고른 사람 — 2026-11-28),
     ``code`` · ``status`` = 거절 코드 · 상태.
     """
 
@@ -157,6 +162,8 @@ class MarkDecision:
     proxied: bool = False
     target_uid: Optional[int] = None
     target_name: str = ""
+    to_uid: Optional[int] = None
+    to_name: str = ""
 
 
 def action_target(action: str, seen: str) -> Optional[str]:
@@ -209,6 +216,23 @@ def toward_particle(name: str) -> str:
         final = (ord(last) - ord("가")) % 28
         return f"{name}로" if final in (0, 8) else f"{name}으로"
     return f"{name}으로"
+
+
+def topic_particle(name: str) -> str:
+    """이름 + 은/는 — 받침이 있으면 '은', 없으면 '는'(한글이 아니면 '은'). 빈 이름은 "그 사람은"."""
+    name = (name or "").strip() or "그 사람"
+    last = name[-1]
+    return f"{name}는" if "가" <= last <= "힣" and (ord(last) - ord("가")) % 28 == 0 else f"{name}은"
+
+
+def receiver_not_allowed_message(name: str) -> str:
+    """받는 사람이 그사이 꺼졌거나 · 그 파트 · 그 공장이 아닐 때(409 ``RECEIVER_NOT_ALLOWED``)."""
+    return f"{topic_particle(name)} 지금 이 도면을 받을 수 없어요. [다시 받기]를 눌러 주세요."
+
+
+def receiver_already_in_message(name: str) -> str:
+    """받는 사람이 그사이 그 도면에 들어왔을 때(409 ``RECEIVER_ALREADY_IN``)."""
+    return f"{topic_particle(name)} 이미 이 도면을 작업 중이에요."
 
 
 def crew_line(snapshot: MarkSnapshot) -> str:

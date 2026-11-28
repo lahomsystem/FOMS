@@ -6,8 +6,8 @@
  *     내 몫만 완료 = "재단 1/2 완료 · 김재단 작업 중"('완료' 칸, 되돌리기 줄 "재단 1/2 완료") · 반장 · 관리자 = 이름 칸(둘째 줄 "재단 1/2 완료") +
  *     [재단 완료] · 보기만 = "이시영 · 김재단 작업 중" · 완료 = "재단 완료 · 이시영 · 김재단".
  *   창 글(plan — 창 그리기 foms-production-parts-modal.js 가 먼저 부른다): [같이 작업] 창 · [담당 바꾸기] 누구와(바꿀 수 있는 사람이
- *     둘 이상일 때만 고르기 창, 완료를 누른 사람은 빠짐 — 하나면 지금 동작 그대로) · 반장 고르기([담당 바꾸기(둘 이상이면 ›)] [대신 완료]
- *     [같이 작업](반장 · 관리자가 아직 작업자가 아닐 때, Q22) [{이름} 시작 취소]) · 남은 사람이 있는 [완료] · [시작 취소] · 되돌리기.
+ *     둘 이상일 때만 고르기 창, 완료를 누른 사람은 빠짐 — 파트 계정은 하나면 지금 동작 그대로) · 반장 고르기([담당 바꾸기 ›] = 늘 다음 창
+ *     "누구에게 줄까요?"(-parts-give.js, 11-28 — 바꿀 사람이 둘 이상이면 자리 고르기 · [다음] 먼저) [대신 완료] [같이 작업](Q22) [{이름} 시작 취소]) · 남은 사람이 있는 [완료] · [시작 취소] · 되돌리기.
  *     토씨가 붙는 문장은 서버가 준 완성 조각(who_subj 등 — "이시영 · 김재단 외 2명이")만 쓴다(여기서 토씨를 붙이지 않는다).
  *   넘김 말풍선(notice): 거의 같이 [작업 시작] = 서버 글 "이시영이 먼저 시작했어요."를 그림 칸 아래쪽 안(어느 단추도 안 덮음)에 그대로 —
  *     누르면 바로 닫히고, 6초 뒤 저절로 닫힌다(claim.notice).
@@ -135,14 +135,14 @@
     if (action === 'takeover') { // 창 3 — 누구와 바꿀지(완료를 누른 사람은 빠짐 · 하나면 고르기 없이)
       if (left.length === 1) { return swapPlan(cr, left[0]); }
       if (!left.length) { return null; }
-      return { title: '누구와 담당을 바꿀까요?', note: '완료를 누른 사람은 바꿀 수 없어요.', line: '담당 ' + cr.who, run: '담당 바꾸기',
-        tone: 'taken', locked: true, who: left.map(function (p) {
-          return { uid: p.uid, text: p.name + ' · ' + since(p.day, p.at) + ' 작업 중', line: '담당 ' + cr.who + ' → 담당 ' + p.swap };
+      return { title: '누구와 담당을 바꿀까요?', note: '완료를 누른 사람은 바꿀 수 없어요.', line: '담당 ' + cr.who, run: MINE ? '담당 바꾸기' : '다음',
+        tone: 'taken', locked: true, next: MINE ? null : 'give', who: left.map(function (p) { // 반장 · 관리자는 자리만 고르고 [다음] → "누구에게 줄까요?"
+          return { uid: p.uid, text: p.name + ' · ' + since(p.day, p.at) + ' 작업 중', line: '담당 ' + cr.who + (MINE ? ' → 담당 ' + p.swap : '') };
         }) };
     }
-    if (action === 'held') { // 창 2 — 반장 · 관리자 고르기([담당 바꾸기]는 바꿀 사람이 하나면 지금처럼 바로 · 둘 이상이면 › 고르기 창)
+    if (action === 'held') { // 창 2 — 반장 · 관리자 고르기([담당 바꾸기 ›]는 늘 다음 창 — 바꿀 사람이 하나면 "누구에게 줄까요?", 둘 이상이면 자리 고르기 먼저)
       var M = window.FomsPartsModal || {};
-      var swap = left.length === 1 ? [['takeover', '담당 바꾸기', 'taken', left[0].uid]] : left.length ? [['takeover', '담당 바꾸기 ›', 'taken', null, true]] : [];
+      var swap = left.length === 1 ? [['give', '담당 바꾸기 ›', 'taken', left[0].uid, true]] : left.length ? [['takeover', '담당 바꾸기 ›', 'taken', null, true]] : [];
       var join = cr.me === 'none' ? [['join', '같이 작업', 'join', null, true]] : []; // Q22 — 아직 작업자가 아니면 [같이 작업] 창으로
       // 차례 = 카드 [시작 취소][<파트> 완료]와 같이 되돌리는 쪽 먼저 · 끝내는 [대신 완료] 맨 끝(C59). [대신 완료] = check(자기 몫 포함 남은 사람 모두)
       var choices = left.map(function (p) { return ['remove', p.name + ' 시작 취소', 'release', p.uid]; })

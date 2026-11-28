@@ -149,7 +149,11 @@
     var d = kst(item.at);
     var who = item.by_name || '';
     var t = d ? ' ' + stamp(d, prev) : '';
-    if (item.kind === 'takeover') { return (who ? toward(who) + ' ' : '') + '바뀜' + t; }
+    if (item.kind === 'takeover') { // 받은 사람 이름으로("오재단으로 바뀜"). 반장 · 관리자가 남에게 줬으면 "박반장: 김재단 → 오재단으로 바뀜"(11-28)
+      var to = item.to_name || who;
+      var gave = to !== who && who ? who + ': ' + (item.from_name ? item.from_name + ' → ' : '') : '';
+      return gave + (to ? toward(to) + ' ' : '') + '바뀜' + t;
+    }
     if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료' + t; } // 카드 동기화(사람 이름 없음)
     if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료 — ' + KIND.step_off + ' 처리' + t; }
     if ((item.kind === 'remove' || item.kind === 'release') && item.target_name && item.target_name !== who) { // "김재단 시작 취소 (박반장)"

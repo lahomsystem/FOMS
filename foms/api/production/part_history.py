@@ -123,6 +123,7 @@ def history_item(event: OrderEvent, names: dict[int, str]) -> dict[str, Any]:
 
     ``kind``: 카드 = take · basic · done · undo · release · takeover · join · remove · check, 공정 칸 = ``step_on`` · ``step_off``.
     ``target_name`` = 바꾸기 · 시작 취소 대상, ``joined_late`` = 늦은 [작업 시작]이 같이 작업으로 넘어감(2026-11-25 multi-holder §7-1).
+    ``to_name`` = 담당 바꾸기에서 받은 사람(2026-11-28 — 반장 · 관리자가 남에게 줬으면 ``by_name`` 과 다르다, 옛 이벤트는 None).
     시각은 시간대 붙은 UTC ISO(화면이 KST 로 바꾼다).
     """
     payload = event.payload if isinstance(event.payload, dict) else {}
@@ -144,6 +145,7 @@ def history_item(event: OrderEvent, names: dict[int, str]) -> dict[str, Any]:
         "from_name": payload.get("from_name"),
         "holder_name": payload.get("holder_name"),
         "target_name": payload.get("target_name"),
+        "to_name": payload.get("to_name"),
         "joined_late": bool(payload.get("joined_late")),
         "override": bool(payload.get("override")),
         "via": payload.get("via"),

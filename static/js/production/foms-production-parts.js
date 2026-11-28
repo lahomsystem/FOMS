@@ -6,7 +6,8 @@
  * 없음). 경합 · 거절(409 · 403)은 창 안에 서버 글 + 서버 모습(.is-lost, [닫기] 하나). 검수 마지막 장이면 같은 창이 "제작 완료할까요?".
  * 창 글 · 창 그리기 · 창 목록 줄(listItem)은 foms-production-parts-modal.js(FomsPartsModal), 새 카드 칸(손 체크 · 막힘 · 내 작업 한 층 · 꼬리)은
  * foms-production-parts-claim.js(FomsPartsClaim), 여러 명 칸(작업 필요 · 완료 · [같이 작업] · 이름 줄 · 넘김 말풍선)은
- * foms-production-parts-crew.js(FomsPartsCrew), 보기 쪽은 foms-production-parts-viewer.js(FomsPartsBoard). */
+ * foms-production-parts-crew.js(FomsPartsCrew), 반장 · 관리자의 "누구에게 줄까요?" 창(받는 사람 to_user_id — 2026-11-28)은
+ * foms-production-parts-give.js(FomsPartsGive), 보기 쪽은 foms-production-parts-viewer.js(FomsPartsBoard). */
 (function () {
   'use strict';
 
@@ -26,6 +27,7 @@
   var claim = window.FomsPartsClaim || {};
   var crew = window.FomsPartsCrew || {};
   var M = window.FomsPartsModal || {};
+  var give = window.FomsPartsGive || {};
   var pending = null;
   function toArr(list) { return [].slice.call(list || []); }
   function attr(card, name) { return card.getAttribute(name) || ''; }
@@ -41,14 +43,16 @@
     return node;
   }
 
-  function openModal(action, cards, opener) {
+  function openModal(action, cards, opener, seat) { // give = "누구에게 줄까요?"(seat = 자리를 내줄 사람) — 쓰는 누름은 takeover
     if (!cards.length) { return; }
-    var p = action === 'bulk' ? M.bulkPlan(cards) : M.plan(action, cards[0]);
+    var p = action === 'bulk' ? M.bulkPlan(cards) : action === 'give' ? give.plan(cards[0], seat) : M.plan(action, cards[0]);
     var note = action === 'bulk' || action === 'held' || p.note ? (p.note || '') : M.ownerNote(cards[0]); // 고르기 창은 제목이 이미 말한다
     p.note = note;
     p.body = M.firstLine(action, cards);
-    pending = { action: action === 'held' ? '' : action, cards: cards, busy: false, run: p.run, locked: !!p.locked, target: p.target };
+    pending = { action: action === 'held' ? '' : action === 'give' ? 'takeover' : action, cards: cards, busy: false, run: p.run, locked: !!p.locked,
+      target: p.target, next: p.next };
     M.open(p, cards.map(function (card) { return M.listItem(card, p.line, p.tone); }), opener, cards[0]);
+    if (action === 'give') { give.load(pending, cards[0]); } // 받을 사람 목록(읽기 한 번) — 고르기 전에는 실행이 잠겨 있다
     M.cancelLine(pending, p, function (act, target) { return requestFor({ action: act, cards: cards, target: target }).body; }); // 시작 취소 창 한 줄(11-27)
   }
   function closeModal() {
@@ -173,6 +177,7 @@
       seen: attr(card, 'data-state'), seen_me: (crew.of ? crew.of(card).me : '') || 'none' }; // 본 내 몫까지 견준다(multi-holder §7-1)
     if (body.seen === 'need') { body.seen_by = attr(card, 'data-picked-id') ? Number(attr(card, 'data-picked-id')) : null; } // 본 담당까지 견준다(§4-5)
     if (p.target != null) { body.target_user_id = p.target; } // 담당 바꾸기 · 시작 취소 대상
+    if (p.to != null) { body.to_user_id = p.to; } // 담당 바꾸기에서 받는 사람(반장 · 관리자가 고름 — 안 실으면 누른 사람)
     if (M.seenCancel) { M.seenCancel(p, body); } // 취소 창이 그 단추에 대해 보여 준 것(seen_cancel — 11-27 "창에 보인 대로만 된다", parts-cancel.js)
     return { url: '/api/production/part-marks', body: body };
   }
@@ -203,6 +208,7 @@
       var finished = p.action === 'complete' || (p.action === 'factory' && data.final);
       var done = p.action === 'bulk' ? bulkDone(data) : { text: finished ? '제작 완료했어요 — 시공 대기로 넘어갔어요'
         : (p.action === 'factory' || /(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : / 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요' : (SAID[p.run] || '저장했어요'), bad: false }; // 누른 단추 말 그대로
+      if (data.gave && !data.gave.self) { done.text = data.gave.to.name + '에게 줬어요'; } // 남에게 준 담당 바꾸기(나에게는 "담당 바꿨어요" 그대로)
       if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
       done.text += asks ? '' : started(data);
@@ -238,6 +244,7 @@
   }
   function send() {
     if (!pending || pending.busy || pending.locked || !pending.action) { return; }
+    if (pending.next) { openModal(pending.next, pending.cards, null, pending.target); return; } // [다음] — 자리를 고른 뒤 "누구에게 줄까요?"
     var p = pending;
     var req = requestFor(p);
     setBusy(true);
@@ -255,14 +262,14 @@
     if (t === modal) { closeModal(); return; }
     if (t.closest('[data-pp-modal-close]')) { closeModal(); return; }
     var choice = t.closest('[data-pp-choice]'); // 관리자 고르기 — 누른 것이 곧 실행(같은 실행 길), [담당 바꾸기 ›]는 다음 창
-    if (choice && pending && !pending.busy && choice.hasAttribute('data-pp-next')) { openModal(choice.getAttribute('data-pp-choice'), pending.cards, choice); return; }
+    if (choice && pending && !pending.busy && choice.hasAttribute('data-pp-next')) { openModal(choice.getAttribute('data-pp-choice'), pending.cards, choice, choice.getAttribute('data-pp-target')); return; }
     if (choice && pending && !pending.busy) {
       pending.action = choice.getAttribute('data-pp-choice');
       pending.run = choice.textContent;
       pending.target = choice.hasAttribute('data-pp-target') ? Number(choice.getAttribute('data-pp-target')) : null;
     }
-    var who = t.closest('[data-pp-who]'); // [담당 바꾸기] 누구와 — 고르면 실행 단추가 열린다
-    if (who && pending && !pending.busy) { pending.target = Number(who.getAttribute('data-pp-who')); pending.locked = false; M.pick(who); return; }
+    var who = t.closest('[data-pp-who]'); // [담당 바꾸기] 누구와(target) · 누구에게(to — data-pp-give) — 고르면 실행 단추가 열린다
+    if (who && pending && !pending.busy) { pending[who.hasAttribute('data-pp-give') ? 'to' : 'target'] = Number(who.getAttribute('data-pp-who')); pending.locked = false; M.pick(who); return; }
     if (t.closest('[data-pp-modal-run]')) { send(); return; }
     var btn = t.closest('[data-pp-act]');
     if (!btn || modal.contains(btn)) { return; }

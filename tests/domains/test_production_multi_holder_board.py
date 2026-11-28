@@ -7,7 +7,7 @@
   "재단 완료 · 이시영 · 김재단" · 반장 칸 이름 + 둘째 줄 "재단 1/2 완료" · 보기만 "이시영 · 김재단 작업 중" · 검수 판 "재단 미완료".
 * JS: 서버 칸 ↔ JS 가 다시 그린 칸이 같다(카드 전부) · [같이 작업] 창 · 거의 같이 [작업 시작] 말풍선(서버 글 그대로, 그림 칸 안 · 누르면
   닫힘) · [담당 바꾸기] 사람 고르기(바꿀 사람이 둘 이상일 때만 — 하나면 지금 동작, 완료한 사람 빠짐, 고르기 전 실행 잠금) · 반장 고르기
-  ([담당 바꾸기(둘 이상이면 ›)] · [대신 완료] · [같이 작업](아직 작업자가 아닐 때, Q22) · [{이름} 시작 취소]) · 남은 사람이 있는 [완료] ·
+  ([담당 바꾸기 ›](2026-11-28 — 늘 다음 창 "누구에게 줄까요?") · [대신 완료] · [같이 작업](아직 작업자가 아닐 때, Q22) · [{이름} 시작 취소]) · 남은 사람이 있는 [완료] ·
   [시작 취소] 창 · 30초 받아 오기가 이름 줄을 바꿈 · 토씨가 붙는 문장의 "외 n명"(Q20 — 토씨는 서버가). 서버 답은 진짜 API 응답 JSON 이다.
 되돌리면 실패: 이름 줄을 JS 가 짓기(서버 head · who 대신) · "1/2 완료"를 '작업 필요' 칸에 · [같이 작업] 대신 담당 바꾸기만 · 완료한 사람을 고르기에 ·
 고르기 전 실행 · 넘김 글을 버림. 이름은 모두 지어낸 값이다.
@@ -308,11 +308,11 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
         {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "같이 작업"}, {"do": "close"},
         {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "김재단 시작 취소"}, {"do": "card", "key": k[2]}]})
     out, calls = res["out"], res["calls"]
-    w2 = out[0]["modal"]  # 창 2 — 바꿀 사람이 하나(김재단)면 [담당 바꾸기]는 지금처럼 바로(› 없음) · 반장은 아직 작업자가 아니라 [같이 작업]
+    w2 = out[0]["modal"]  # 창 2 — [담당 바꾸기 ›]는 바꿀 사람이 하나(김재단)여도 다음 창(누구에게 줄까요? — 11-28) · 반장은 아직 작업자가 아니라 [같이 작업]
     assert (w2["title"], w2["note"], w2["line"], w2["close"]) == (
         "이시영 · 김재단 작업 중", "재단 1/2 완료 — 이시영 완료 · 김재단 작업 중", "", "닫기")  # 제목 한 줄(사장님 2026-11-26) — 한 명만 완료한 줄은 남긴다
     assert [(c["text"], c["choice"], c["target"], c["next"]) for c in w2["choices"]] == [
-        ("김재단 시작 취소", "remove", str(p.kim.id), False), ("담당 바꾸기", "takeover", str(p.kim.id), False),
+        ("김재단 시작 취소", "remove", str(p.kim.id), False), ("담당 바꾸기 ›", "give", str(p.kim.id), True),
         ("같이 작업", "join", None, True), ("대신 완료", "check", None, False)]  # 되돌리는 쪽 먼저 · 끝내는 쪽 끝(C59)
     assert w2["choices_cls"] == "pp-mchoices pp-mchoices--two" and "pp-mgo--join" in w2["choices"][2]["cls"]  # 넷 = 2 × 2
     w1 = out[1]["modal"]  # 반장 [같이 작업] = 파트 계정과 같은 확인 창(Q22)
@@ -350,8 +350,9 @@ def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_pa
 
 
 def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_path) -> None:
-    """반장 고르기 창(시안 창 2): [같이 작업]은 반장이 아직 작업자가 아니고 도면이 모두 완료가 아닐 때만(Q22) · [담당 바꾸기]는 바꿀 사람이
-    하나면 › 없이 바로 실행(지금 동작) · 둘 이상이면 › 고르기 창. 남의 공장 도면 · 모두 완료 도면에는 고르기 창 자체가 없다."""
+    """반장 고르기 창(시안 창 2): [같이 작업]은 반장이 아직 작업자가 아니고 도면이 모두 완료가 아닐 때만(Q22) · [담당 바꾸기 ›]는 늘 다음
+    창(2026-11-28 "누구에게 줄지 고르기") — 바꿀 사람이 하나면 "누구에게 줄까요?", 둘 이상이면 자리 고르기 창이 먼저. 남의 공장 도면 · 모두
+    완료 도면에는 고르기 창 자체가 없다. '나'를 고르면 예전에 바로 나가던 것과 같은 결과다(대조군)."""
     p = _seed(client)
     k = p.order.keys
     _press(client, p.kim, p.order, 1, "join", "need")  # 도면 2 = 이시영 · 김재단(둘 다 아직)
@@ -361,21 +362,29 @@ def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_
     html = _page(client, p.lead, CUT_ADMIN)
     page.write_text(html, encoding="utf-8")
     assert 'data-pp-act="held"' not in _act(_card(html, k[3]))  # 모두 완료 = 고르기 창 없음(되돌리기 줄)
-    swap = _body(p.order, 2, "takeover", "need", seen_me="none", seen_by=p.lee.id, target_user_id=p.kim.id)
-    res = _node(page, {"posts": [_post(client, p.lead, swap)], "steps": [
+    swap = _body(p.order, 2, "takeover", "need", seen_me="none", seen_by=p.lee.id, target_user_id=p.kim.id, to_user_id=p.lead.id)
+    login(client, p.lead)
+    people = client.get("/api/production/part-marks/receivers", query_string={
+        "order_id": p.order.id, "drawing_key": k[2], "part": "cut", "target_user_id": p.kim.id}).get_json()
+    res = _node(page, {"posts": [_post(client, p.lead, swap)], "gets": [people], "steps": [
         {"do": "click", "key": k[1], "act": "held"}, {"do": "choice", "text": "담당 바꾸기 ›"}, {"do": "close"},
         {"do": "click", "key": k[5], "act": "held"}, {"do": "close"},
-        {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "담당 바꾸기"},
+        {"do": "click", "key": k[2], "act": "held"}, {"do": "choice", "text": "담당 바꾸기 ›"}, {"do": "run"},
+        {"do": "who", "index": 0}, {"do": "run"},
         {"do": "click", "key": k[3], "act": "undo"}]})
     out, calls = res["out"], res["calls"]
-    undo = out[7]["modal"]  # H — 반장 되돌리기 = 완료한 사람 모두 되돌림, 작업하던 사람은 그대로(누른 반장 이름이 아니다)
+    assert out[6]["sent"] == 1 and calls[0]["method"] == "GET" and "/part-marks/receivers?" in calls[0]["url"]  # 다음 창 — 쓰기는 아직 0
+    assert out[6]["modal"]["title"] == "누구에게 줄까요?" and out[6]["modal"]["run"] == {"text": "담당 바꾸기", "hidden": False, "locked": True}
+    assert out[7]["sent"] == 0  # 고르기 전 실행 = 안 나감('나'를 미리 골라 두지 않는다)
+    assert out[8]["modal"]["choices"][0]["text"] == "나 (박반장)" and out[8]["modal"]["line"] == "담당 이시영 · 김재단 → 담당 이시영 · 박반장"
+    assert out[9]["sent"] == 1 and calls[-1]["body"] == swap and out[9]["status"] == "담당 바꿨어요"  # '나' = 예전에 바로 나가던 몸 + 받는 사람
+    undo = out[10]["modal"]  # H — 반장 되돌리기 = 완료한 사람 모두 되돌림, 작업하던 사람은 그대로(누른 반장 이름이 아니다)
     assert (undo["title"], undo["line"]) == ("재단 완료를 취소할까요?", "재단 완료 → 이시영 · 김재단 작업 중") and "박반장" not in undo["line"]
     two = out[0]["modal"]["choices"]
     assert [(c["text"], c["next"]) for c in two if c["choice"] != "remove"] == [("담당 바꾸기 ›", True), ("같이 작업", True), ("대신 완료", False)]
     assert out[1]["sent"] == 0 and out[1]["modal"]["title"] == "누구와 담당을 바꿀까요?"  # 둘 = 고르기 창
     mine = [c["text"] for c in out[3]["modal"]["choices"]]  # 반장이 이미 작업자(완료) — [같이 작업] 없음
     assert "같이 작업" not in mine and mine[-2:] == ["담당 바꾸기 ›", "대신 완료"]
-    assert out[6]["sent"] == 1 and [c["body"] for c in calls] == [swap]  # 하나 = 고르기 없이 바로(지금 동작)
 
     seed = mixed_order(3, f2=(2,))  # 남의 공장(2공장) 도면 = 누름 칸 · 고르기 창 없음(서버 문 그대로)
     two_lee = factory_user("이시영", factory=2, part="cut")

@@ -427,7 +427,7 @@ def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, t
     pick = out[4]["modal"]  # 반장 고르기 창 — 같은 자리, 어느 단추인지 말하는 글(단추 글 그대로)
     assert pick["title"].startswith("김재단 ") and pick["title"].endswith("작업 중")
     assert pick["body"] == "[김재단 시작 취소]를 누르면 제작 시작도 같이 취소돼요."
-    assert [c["text"] for c in pick["choices"]] == ["김재단 시작 취소", "담당 바꾸기", "같이 작업", "대신 완료"]
+    assert [c["text"] for c in pick["choices"]] == ["김재단 시작 취소", "담당 바꾸기 ›", "같이 작업", "대신 완료"]  # 11-28 [담당 바꾸기 ›] = 다음 창
     assert previews[2] == _as_query(remove) and len(previews) == 3
     assert out[5]["sent"] == 1 and out[5]["status"] == "김재단 시작 취소했어요" + CANCELLED_TAIL
     assert [c["body"] for c in res["calls"]] == [sent]
@@ -463,7 +463,7 @@ def test_source_contract_one_line_one_judge_and_sizes():
     api = (ROOT / "foms/api/production/part_marks.py").read_text(encoding="utf-8")
     assert 'mark_one(db, user, override, req, dry=True)' in api and 'methods=["GET"]' in api
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    for name, pin in (("parts", "20261128e"), ("parts-modal", "20261128e"), ("parts-cancel", "20261128c")):  # 11-28 d: 기본 창 · 완료 창 글
+    for name, pin in (("parts", "20261128g"), ("parts-modal", "20261128g"), ("parts-cancel", "20261128c")):  # 11-28 d: 기본 창 · 완료 창 글 · g: 누구에게 줄까요?
         assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl, name
     order = [tpl.index(f"foms-production-parts{n}.js") for n in ("-modal", "-cancel", "-crew", "")]
     assert order == sorted(order)  # 창 글 → 취소 창 조각(창 글에 붙는다) → 여러 명 칸 → 쓰기

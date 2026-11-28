@@ -45,7 +45,7 @@ from foms.services.production.part_constants import (
 )
 from foms.services.production.part_mark_decide import decide_mark
 from foms.services.production.part_mark_gates import Gate, hand_step_gate, inspect_gate, order_gate
-from foms.services.production.part_mark_notes import actor_name, event_payload, mark_note
+from foms.services.production.part_mark_notes import actor_name, event_payload, gave_body, holders_before, mark_note
 from foms.services.production.part_mark_rules import (
     ACTION_BASIC,
     ACTION_CHECK,
@@ -57,16 +57,19 @@ from foms.services.production.part_mark_rules import (
     DECISION_FORBIDDEN,
     DECISION_INVALID,
     DECISION_SAME,
+    RECEIVER_NOT_ALLOWED,
     SEEN_BY_UNSET,
     TARGET_GONE,
     MarkDecision,
     MarkSnapshot,
     mark_payload,
     next_mark_values,
+    receiver_not_allowed_message,
     target_gone_message,
 )
 from foms.services.production.part_marks_query import order_marks, orders_with_current_run
 from foms.services.production.part_progress import complete_state
+from foms.services.production.part_receivers import can_receive, receiver
 from foms.services.production.part_steps_sync import (
     apply_part_step_changes,
     plan_part_step_changes,
@@ -111,7 +114,8 @@ class MarkRefusal(Exception):
 
 @dataclass(frozen=True)
 class MarkRequest:
-    """한 장 누름 — 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당(안 보냈으면 :data:`SEEN_BY_UNSET`) · 본 내 몫 · 대상."""
+    """한 장 누름 — 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당(안 보냈으면 :data:`SEEN_BY_UNSET`) · 본 내 몫 · 대상(자리를 내주는
+    사람) · 받는 사람(``to_uid`` — 담당 바꾸기만, 없으면 누른 사람 · 2026-11-28)."""
 
     order_id: int
     key: str
@@ -121,6 +125,7 @@ class MarkRequest:
     seen_by: Any = SEEN_BY_UNSET
     seen_me: Optional[str] = None
     target_uid: Optional[int] = None
+    to_uid: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -355,13 +360,18 @@ def _decide(db: Any, req: MarkRequest, order: Order, entry: dict[str, Any], rows
     """전이 표 + 막는 까닭(§4-6 · multi-holder §7-3) — apply · same(멱등) 결정을 돌려주고, 막히면 :class:`MarkRefusal` 로 거절한다.
 
     순서: 잘못된 짝(400) → 멱등(막힘 안 봄) → 넘김(take → join · join → take) → 남의 공장 장(403 ``OTHER_FACTORY``) → 보류 ·
-    도면 고치는 중 · 손 체크 칸(409) → 경합(409, ``JOIN_DONE`` · ``TARGET_GONE``) · 권한(403) · 새 거절 → 검수 순서(409).
+    도면 고치는 중 · 손 체크 칸(409) → 경합(409, ``JOIN_DONE`` · ``TARGET_GONE``) · 받는 사람(409 ``RECEIVER_NOT_ALLOWED`` ·
+    ``RECEIVER_ALREADY_IN``) · 권한(403) · 새 거절 → 검수 순서(409).
     막는 까닭은 넘김 뒤 누름으로 본다(넘어온 join 도 take 와 같은 막힘). 경합 · 막힘 응답에는 서버의 지금 표시(``mark``)를 싣는다.
+    남에게 주는 담당 바꾸기(``to_uid`` — 2026-11-28)만 받는 사람 한 줄을 읽는다(+1, 주문 잠금 아래 — 그 값으로 판정한다).
     """
     sd = order.structured_data
+    giving = req.action == ACTION_TAKEOVER and req.to_uid not in (None, user.id)
+    taker = receiver(db, req.to_uid) if giving else None
     decision = decide_mark(MarkSnapshot.from_row(row), action=req.action, seen=req.seen, actor_id=user.id, admin=admin,
                            seen_by=req.seen_by, seen_me=req.seen_me, target_uid=req.target_uid,
-                           actor_name=actor_name(user), now=now, label=PRODUCTION_PART_LABELS[req.part])
+                           actor_name=actor_name(user), now=now, label=PRODUCTION_PART_LABELS[req.part],
+                           to_uid=req.to_uid if giving else None, to_name=actor_name(taker) if taker is not None else None)
     if decision.kind == DECISION_INVALID:
         raise MarkRefusal(400, "BAD_REQUEST", decision.message)
     if decision.kind == DECISION_SAME:
@@ -372,6 +382,9 @@ def _decide(db: Any, req: MarkRequest, order: Order, entry: dict[str, Any], rows
             or hand_step_gate(sd, rows, req.part))
     if gate is not None:
         raise MarkRefusal.from_gate(gate, server_mark)
+    if giving and decision.kind != DECISION_CONFLICT and not can_receive(taker, req.part, sheet_factory(sd, entry)):
+        name = actor_name(taker) if taker is not None else ""  # 그사이 꺼짐 · 그 파트 · 그 공장 아님 · 없는 계정
+        raise MarkRefusal(409, RECEIVER_NOT_ALLOWED, receiver_not_allowed_message(name or ""), server_mark)
     if decision.kind != DECISION_APPLY:
         raise _refusal(db, decision, server_mark)
     gate = inspect_gate(sd, rows, req.key, req.part, action, undo_basic=req.seen == "basic")
@@ -385,6 +398,7 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest, *, dry: bool = F
 
     Returns:
         ``{mark, order_step, changed, run_started, run_cancelled, order_ready, factory_ready, joined_late, notice, proxied}``
+        (+ 바뀐 때만 ``holders_before`` = 누르기 전 사람 목록 · 담당 바꾸기면 ``gave`` — 2026-11-28 흐름 셋 §4-3 약속 1 · 2, 알람이 읽는다)
         — 바뀐 게 없으면(멱등) ``changed`` False. 섞인 주문(2공장)은 ``order_ready`` 대신 ``factory_ready``(그 장 공장의 마지막 검수 장일 때 —
         줄이 DONE 이 된 누름만, 검수 1/2 완료면 안 묻는다). ``joined_late`` · ``notice`` = 늦은 [작업 시작]이 같이 작업으로 넘어감(Q16
         "{이름}이 먼저 시작했어요."), ``proxied`` = PC [완료 처리]가 대신 완료로 감(판결 2), ``run_cancelled`` = 제작 시작도 되돌림(11-27).
@@ -421,6 +435,9 @@ def mark_one(db: Any, user: Any, admin: bool, req: MarkRequest, *, dry: bool = F
                 {"key": req.key, "part": req.part, "action": action, "from": write.before.state,
                  "to": decision.target, "override": decision.override, "order_steps": steps, "run_started": bool(started),
                  "run_cancelled": bool(closing), "joined_late": decision.joined_late}, order=order)
+    if action == ACTION_TAKEOVER:  # 누가(by) 누구 자리(from)를 누구에게(to) — 화면 알림 "오재단에게 줬어요" · 알람 받는 사람
+        extra["gave"] = gave_body(req.order_id, req.key, req.part, user, decision)
+    extra["holders_before"] = holders_before(write.before)
     return {"mark": mark_body(write.view, req.order_id, req.key, req.part), "order_step": steps[0] if steps else None,
             "changed": True, "run_started": bool(started), "run_cancelled": bool(closing),
             "order_ready": order_ready(order, views.get(req.order_id, []), user, req, decision.target),

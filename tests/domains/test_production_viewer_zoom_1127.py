@@ -224,4 +224,4 @@ def test_핀() -> None:
     assert viewer_tag in scripts and zoom_tag in scripts
     assert scripts.index(viewer_tag) < scripts.index(zoom_tag) < scripts.index("foms-production-parts-claim.js")
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
-    assert f"css/contexts/production/parts.css') }}}}?v=20261127w" in styles  # 비평 시안 · 카드 키 일괄 · [<파트> 같이 작업] 짝 폭으로 올림
+    assert f"css/contexts/production/parts.css') }}}}?v=20261128g" in styles  # 비평 시안 · 카드 키 일괄 · [<파트> 같이 작업] 짝 폭으로 올림
