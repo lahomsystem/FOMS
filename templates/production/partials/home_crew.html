@@ -1,9 +1,45 @@
-{# 탭 "작업 중"(?tab=crew) — 반장 · 관리자 · 읽기 전용 · 태블릿(도면 카드 기기 문 + 폰 아님)만(설계서 2026-11-28-production-my-steps-flow
-   §3-6, 사장님 답 30 "가 · 탭을 따로 둠" — '남은 공정'(tab=steps)은 그대로). 빈 틀(읽기 일꾼 ⓐ) — 화면 글 · 마크업은 화면 일꾼(ⓒ)이 채운다.
-   서버 재료(foms/services/production/crew_board.py · home_flow.py):
-   - crew.part = 'all' 또는 파트 key(주소 ?part=), crew.parts = [{key, label, href}] — 첫 칸 {key: 'all', label: '전체'}.
-   - crew.people = [{name, part, part_label, cards: [카드]}] — 그 파트에서 자기 몫이 작업 중인 사람마다(파트 순서 → 이름순),
-     같이 작업 카드는 아직인 사람 모두의 묶음에 같은 카드. crew.hidden = 200장 캡에 밀린 장 수.
-   - crew.none = {counts: {파트 key: 미정 장수}, cards: [카드](파트를 고르면 — 시공일 순 · 200장 캡) 또는 None('전체'), hidden}.
-   - 카드 = part_board.build_card 그 dict(반장 · 관리자 판과 같은 조각) + part · part_label · day_key.
-   - 판 머리 part_board · 판 설정 part_config(flow = {tab: 'crew', mine_href}) · counts.crew 는 '도면 카드' 화면과 같다. #}
+{# 탭 "작업 중"(?tab=crew) — 반장 · 관리자 · 읽기 전용 · 태블릿(도면 카드 기기 문 + 폰 아님)만(설계서 2026-11-28-production-my-steps-flow §3-6,
+   사장님 답 7 · 13 · 18 · 30 "가 · 탭을 따로 둠" · 32 — '남은 공정'(tab=steps)은 그대로). 시안 이전 · 바뀐 후 ④ '가'.
+   home_parts.html 이 부른다(카드 조각 pp_card · pp_act — 날짜 탭 반장 카드와 같은 조각 · 같은 키, 읽기 전용은 단추 없이).
+   위 = 파트 칩 전체 · 재단 · 엣지 · 조립 · 검수(진짜 링크 ?part=), 2공장 그림이 켜진 관리자는 공장 고르기(도면 카드 화면과 같은 꼴).
+   사람 묶음 "김재단 · 재단 2장"(같이 작업 카드는 두 사람 묶음에 모두 — 두 번째부터 말풍선 id 꼬리), 카드 한 장 묶음은 세 칸 가운데 한 칸.
+   맨 아래 미정: '전체'면 단추 넷 "재단 미정 2장 ›"(그 파트 칩 주소), 파트를 고르면 미정 카드 펼침 + 머리 "미정 · 엣지 2장".
+   카드마다 data-part(= card.part) — 파트가 섞여도 판 JS 가 카드 파트로 쓴다(foms-production-parts.js · -sync.js · flow.js).
+   서버 재료(foms/services/production/crew_board.py · home_flow.py): crew.part · parts · people · hidden · none{counts, cards, hidden}. #}
+{% set cw = crew %}
+{% set ns = namespace(seen=[]) %}
+{% if cw %}
+<div class="fph-parts fpf-flow fpf-crew" data-flow-screen="crew" data-pp-pane="crew">
+  <div class="pp-head pp-head--switch">
+    <nav class="pp-parts" aria-label="파트 고르기">{% for p in cw.parts %}<a class="pp-part{% if p.key == cw.part %} is-on{% endif %}" href="{{ p.href }}"{% if p.key == cw.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
+    {% if cw.factories %}<nav class="pp-parts pp-parts--fac" aria-label="공장 고르기">{% for f in cw.factories %}<a class="pp-part{% if f.key == pb.factory %} is-on{% endif %}" href="{{ f.href }}"{% if f.key == pb.factory %} aria-current="page"{% endif %}>{{ (f.key ~ '공장') | factory_chips }}</a>{% endfor %}</nav>
+    {% endif %}
+  </div>
+  <div class="fpf-crew__groups">
+    {% for g in cw.people %}
+    <section class="fpf-who{% if g.cards | length > 1 %} is-full{% endif %}">
+      <h3 class="fpf-g">{{ g.name }} <small>· {{ g.part_label }} {{ g.cards | length }}장</small></h3>
+      <div class="pp-grid" data-pp-grid>
+        {% for c in g.cards %}{{ pp_flow_card(c, ns) }}{% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+    {% if not cw.people %}<p class="pp-empty is-full">지금 작업 중인 도면이 없어요.</p>{% endif %}
+    {% if cw.hidden %}<p class="pp-cap is-full">{{ cw.hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요.</p>{% endif %}
+    <section class="fpf-none is-full">
+      {% if cw.none.cards is none %}
+      <h3 class="fpf-g">미정</h3>
+      <div class="fpf-none__btns">{% for p in cw.parts if p.key != 'all' %}<a class="foms-prod-home__btn fpf-none__btn" href="{{ p.href }}">{{ p.label }} 미정 {{ cw.none.counts[p.key] }}장 ›</a>{% endfor %}</div>
+      {% else %}
+      {% set picked = cw.parts | selectattr('key', 'equalto', cw.part) | first %}
+      <h3 class="fpf-g">미정 <small>· {{ picked.label }} {{ cw.none.counts[cw.part] }}장</small></h3>
+      <div class="pp-grid" data-pp-grid>
+        {% for c in cw.none.cards %}{{ pp_flow_card(c, ns) }}{% endfor %}
+      </div>
+      {% if cw.none.hidden %}<p class="pp-cap">{{ cw.none.hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요.</p>{% endif %}
+      {% endif %}
+    </section>
+  </div>
+</div>
+<p class="pp-rotate">도면은 태블릿을 가로로 두면 보여요.</p>
+{% endif %}

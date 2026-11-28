@@ -18,7 +18,7 @@ import pytest
 
 from tests.domains.test_production_multi_holder_board import _act, _card, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_factory_seed import HOME_NONE
-from tests.support.production_part_claim_seed import keep_mine_on_date_board, login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import HOME_MINE, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
 JS = ROOT / "static/js/production"
@@ -36,13 +36,12 @@ def _press(client, who, order, j, part, action, seen, **extra):
 
 
 @pytest.mark.parametrize("part,label", PARTS)
-def test_part_account_card_buttons_say_part_name(client, cohort, part, label, monkeypatch):
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_part_account_card_buttons_say_part_name(client, cohort, part, label):
     order = make_order(3, steps_done=("cut", "edge", "assemble") if part == "inspect" else ())
     me, other = make_user(f"김{label}", part=part), make_user(f"최{label}", part=part)
     _press(client, me, order, 0, part, "take", "none")  # 도면 1 = 내 작업 한 층
     _press(client, other, order, 1, part, "take", "none")  # 도면 2 = 남이 작업 중
-    html = _page(client, me)
+    html = _page(client, me) + _page(client, me, HOME_MINE)  # 내 작업 카드는 '내 공정' 탭(2026-11-28 흐름) — 같은 조각
     mine, theirs = _act(_card(html, order.keys[0])), _act(_card(html, order.keys[1]))
     assert f'data-pp-act="release">{label} 시작&nbsp;취소</button>' in mine
     assert f'data-pp-act="done">{label} 완료</button>' in mine  # 짝 [<파트> 완료]는 그대로
@@ -149,7 +148,7 @@ def test_css_fits_longer_words_without_new_font_sizes_and_pins():
     rule = ".pp-two.is-mine > .pp-release, .pp-two--join > .foms-prod-home__btn { padding: 0 4px; white-space: normal; word-break: keep-all;"
     assert rule in css and "font-size" not in css[css.index(rule):css.index("\n", css.index(rule))]  # 글자 크기는 그대로
     scripts = (TPL / "home_scripts.html").read_text(encoding="utf-8")
-    for name, pin in (("parts", "20261128h"), ("parts-claim", PIN), ("parts-modal", "20261128x")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
+    for name, pin in (("parts", "20261128n"), ("parts-claim", PIN), ("parts-modal", "20261128x")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
         assert f"foms-production-{name}.js') }}}}?v={pin}" in scripts, name
     assert "foms-production-parts-crew.js') }}?v=20261128x" in scripts  # 11-27 [<파트> 시작] 진하게 · 11-28 [담당 바꾸기 ›] 다음 창 · x 반장 미정 칸 시작만
     assert "parts.css') }}?v=20261128x" in (TPL / "home_styles.html").read_text(encoding="utf-8")  # 11-28 "누구에게 줄까요?" 사람 칸 굴림 · x 바로 완료 글

@@ -35,10 +35,10 @@ from tests.domains.test_production_cancel_notice_1127 import (
 from tests.domains.test_production_lead_direct_done_1127 import _admin, _check, _lead
 from tests.domains.test_production_multi_holder_board import CUT_ADMIN, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_part_claim_seed import (
+    HOME_MINE,
     BULK,
     current_runs,
     finish,
-    keep_mine_on_date_board,
     login,
     make_order,
     mark,
@@ -209,9 +209,8 @@ def test_js_basic_undo_dialog_and_part_account_done_undo(client, cohort, tmp_pat
     assert [c["body"] for c in res["calls"]] == [sent]
 
 
-def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path, monkeypatch):
+def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path):
     """[시작] · [기본] · [완료] · [같이 작업] · [담당 바꾸기] · 반장 [완료] · [남은 N장 모두 기본] 창은 미리 보기 요청 0."""
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     kim, oh, lead = _kim(), _oh(), _lead()
     order = make_order(4, run=False)
     login(client, kim)
@@ -219,16 +218,19 @@ def test_js_other_dialogs_ask_nothing(client, cohort, tmp_path, monkeypatch):
     login(client, oh)
     mark(client, order, 2, "cut", "take", "none")
     k = order.keys
-    page = tmp_path / "kim.html"
-    page.write_text(_page(client, kim), encoding="utf-8")
-    steps = []
-    for key, act in ((k[0], "take"), (k[0], "basic"), (k[1], "done"), (k[2], "join"), (k[2], "held")):
-        steps += [{"do": "click", "key": key, "act": act}, {"do": "close"}]
-    res = _node(page, {"steps": steps})
-    titles = [o["modal"]["title"] for o in res["out"] if o["do"] == "click"]
-    assert titles == ["재단 시작할까요?", "기본으로 처리할까요?", "재단 완료할까요?", "재단 같이 작업할까요?", "담당을 오재단에서 김재단으로 바꿀까요?"]
-    assert res["previews"] == [] and res["calls"] == []
-    assert all(o["modal"]["run"]["locked"] is False for o in res["out"] if o["do"] == "click")
+    titles = []
+    # 도면 2(내 작업)는 '내 공정' 탭, 나머지는 날짜 판(2026-11-28 흐름) — 창 · 규칙은 같은 스크립트
+    for url, pairs in ((None, ((k[0], "take"), (k[0], "basic"), (k[2], "join"), (k[2], "held"))), (HOME_MINE, ((k[1], "done"),))):
+        page = tmp_path / "kim.html"
+        page.write_text(_page(client, kim, url) if url else _page(client, kim), encoding="utf-8")
+        steps = []
+        for key, act in pairs:
+            steps += [{"do": "click", "key": key, "act": act}, {"do": "close"}]
+        res = _node(page, {"steps": steps})
+        titles += [o["modal"]["title"] for o in res["out"] if o["do"] == "click"]
+        assert res["previews"] == [] and res["calls"] == []
+        assert all(o["modal"]["run"]["locked"] is False for o in res["out"] if o["do"] == "click")
+    assert titles == ["재단 시작할까요?", "기본으로 처리할까요?", "재단 같이 작업할까요?", "담당을 오재단에서 김재단으로 바꿀까요?", "재단 완료할까요?"]
     fresh_order = make_order(1, run=False)
     page = tmp_path / "lead.html"
     page.write_text(_page(client, lead, CUT_ADMIN), encoding="utf-8")

@@ -381,7 +381,8 @@ def _old_claim(order, key: str, part: str, me: User) -> None:
 
 
 def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client, cohort):
-    """재단을 보는 중인데 엣지에 밤 넘긴 담당이 있어도 칩이 뜬다(칩 숫자 = 내 파트 전부). 줄마다 파트 이름 · [보기]는 그 파트 판."""
+    """재단을 보는 중인데 엣지에 밤 넘긴 담당이 있어도 칩이 뜬다(칩 숫자 = 내 파트 전부). 줄마다 파트 이름. [보기]는 '내 공정' 탭
+    (2026-11-28 흐름 §3-2 — 내 카드는 날짜 판에서 빠져 그 파트 판 #pp-mine 자리가 비었다; '내 공정'은 파트를 섞어 다 보인다)."""
     me = _db_user("김두파", parts=["cut", "edge"])
     order = _order("아침집", _files("mm", 3))
     _old_claim(order, "mm/d0.png", "edge", me)
@@ -392,7 +393,7 @@ def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client,
     assert 'aria-controls="pp-mpop">어제부터 내 작업 3장 <span aria-hidden="true">›</span>' in html
     lines = re.findall(r'<p>(출고 [^<]*?) (\d)장 <a href="([^"]*)" aria-label="([^"]*)">보기</a></p>', html)
     assert [(t.rsplit(" ", 1)[1], n) for t, n, _h, _a in lines] == [("재단", "1"), ("엣지", "2")]
-    assert "part=cut" in lines[0][2] and "part=edge" in lines[1][2] and all(f"day={_first_day()}" in h for _t, _n, h, _a in lines)
+    assert all(h == "/erp/production/home?tab=mine" for _t, _n, h, _a in lines)
     assert lines[1][3].endswith(" 엣지 보기")
     other = _db_user("이엣재", parts=["cut", "edge"])
     _old_claim(order, "mm/d1.png", "cut", other)  # 엣지를 보는 중에도 재단에 밤 넘긴 담당이 있으면 칩이 뜨고 [보기]는 재단 판
@@ -400,7 +401,7 @@ def test_morning_chip_counts_all_my_parts_and_each_line_goes_to_its_part(client,
     html = _get(client, HOME + "?part=edge")
     assert 'aria-controls="pp-mpop">어제부터 내 작업 1장' in html
     only = re.findall(r'<p>(출고 [^<]*?) 1장 <a href="([^"]*)"', html)
-    assert len(only) == 1 and only[0][0].endswith(" 재단") and "part=cut" in only[0][1]
+    assert len(only) == 1 and only[0][0].endswith(" 재단") and only[0][1] == "/erp/production/home?tab=mine"
 
 
 def _nav(html: str) -> dict[str, str]:

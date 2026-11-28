@@ -27,7 +27,7 @@ import pytest
 from foms.services.production import mark_crew as mc, part_card_crew
 from foms.services.production.part_card_crew import NBSP, crew_view, with_particle
 from tests.support.production_factory_seed import HOME_NONE, TABLET, factory_user, mixed_order, set_cookies
-from tests.support.production_part_claim_seed import ONE, keep_mine_on_date_board, login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import HOME_MINE, ONE, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECK = ROOT / "tests/support/production_multi_holder_node_checks.js"
@@ -151,11 +151,12 @@ def test_crew_view_lines_for_each_viewer() -> None:
 # --------------------------------------------------------------------------- #
 # 서버가 그린 판(시안 01 A ~ I)
 # --------------------------------------------------------------------------- #
-def test_board_cards_follow_the_mockup(client, cohort, monkeypatch) -> None:
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_board_cards_follow_the_mockup(client, cohort) -> None:
     p = _seed(client)
     k = p.order.keys
     kim = _page(client, p.kim)
+    kim_mine = _page(client, p.kim, HOME_MINE)  # 내 작업 카드(E2 · 도면 6)는 '내 공정' 탭 — 같은 조각(2026-11-28 흐름)
+    assert f'data-key="{k[2]}"' not in kim and f'data-key="{k[5]}"' not in kim
     a = _act(_card(kim, k[0]))  # A — [기본][작업 시작]
     assert ('data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" '
             'data-pp-act="take">재단 시작</button></div>') in a
@@ -163,14 +164,14 @@ def test_board_cards_follow_the_mockup(client, cohort, monkeypatch) -> None:
     assert 'class="pp-card is-other"' in b and '<div class="pp-two pp-two--join">' in _act(b)
     assert f"<b>이시영 작업{NBSP}중</b>" in _act(b) and 'data-pp-act="join">재단 같이&nbsp;작업</button></div>' in _act(b)
     assert 'data-in-need="0" data-in-done="0"' in b and _crew(b)["join"] == "이시영 · 김재단"
-    e2 = _card(kim, k[2])  # E2 — 내 작업(이시영은 완료)
+    e2 = _card(kim_mine, k[2])  # E2 — 내 작업(이시영은 완료)
     assert 'class="pp-card is-mine"' in e2 and '<span class="pp-tag" data-pp-tag aria-label="내 작업 · 이시영 완료">내 작업 · 이시영 완료</span>' in e2
     assert 'data-pp-act="release">재단 시작&nbsp;취소</button>' in _act(e2) and 'data-pp-act="done">재단 완료</button></div>' in _act(e2)
     f = _act(_card(kim, k[3]))  # F — 모두 완료
     assert '<span class="fph-wi pp-act pp-st-done pp-not-done">재단 완료 · 이시영 · 김재단</span>' in f and 'data-pp-act="undo"' in f
-    mine3 = _card(kim, k[5])
+    mine3 = _card(kim_mine, k[5])
     assert "내 작업 · 이시영 · 최재단과 같이" in mine3
-    assert 'data-pp-count="need">2<' in kim and 'data-pp-count="done">1<' in kim
+    assert 'data-pp-view="need"' not in kim and 'data-pp-count="done">1<' in kim  # 파트 계정 칸 = 전체 도면 · 완료 둘(답 10)
 
     lee = _page(client, p.lee)
     e1 = _card(lee, k[2])  # E1 — 내 몫만 완료 = '완료' 칸
@@ -178,7 +179,7 @@ def test_board_cards_follow_the_mockup(client, cohort, monkeypatch) -> None:
     assert '<span class="fph-wi pp-act pp-st-need pp-not-done">재단 1/2 완료 · 김재단 작업 중</span>' in _act(e1)
     assert ('<div class="fph-wi pp-act pp-undo-row pp-st-done pp-only-done"><span>재단 1/2 완료</span><button type="button" '
             'class="foms-prod-home__btn pp-undo" data-pp-act="undo">재단 완료 취소</button></div>') in _act(e1)
-    assert 'data-pp-count="need">2<' in lee and 'data-pp-count="done">2<' in lee  # 1/2 완료도 내 '완료' 칸(Q12)
+    assert 'data-pp-view="need"' not in lee and 'data-pp-count="done">2<' in lee  # 1/2 완료도 내 '완료' 칸(Q12)
 
     park = _page(client, p.park)
     assert f"<b>이시영 · 김재단 작업{NBSP}중</b>" in _act(_card(park, k[2]))  # D — 남의 화면 · 이름 둘
@@ -196,7 +197,7 @@ def test_board_cards_follow_the_mockup(client, cohort, monkeypatch) -> None:
     assert ">재단 미완료</button>" in _act(insp) and "<i>재단</i> 작업 중" in insp and "<i>엣지</i> 완료" in insp and "<i>조립</i> 완료" in insp
 
     _press(client, p.kim, p.order, 1, "join", "need")  # C — 내 화면 · 둘이 작업
-    c = _card(_page(client, p.kim), k[1])
+    c = _card(_page(client, p.kim, HOME_MINE), k[1])
     assert 'class="pp-card is-mine"' in c and "내 작업 · 이시영과 같이" in c and 'data-pp-act="release">재단 시작&nbsp;취소</button>' in c
     assert f"<b>이시영 · 김재단 작업{NBSP}중</b>" in _act(_card(_page(client, p.park), k[1]))  # D
 
@@ -231,20 +232,29 @@ def test_write_sync_and_refusal_carry_the_viewers_crew(client, cohort) -> None:
 # --------------------------------------------------------------------------- #
 # JS — 서버가 그린 판 위에서
 # --------------------------------------------------------------------------- #
-def test_js_redraws_every_card_like_the_server(client, cohort, tmp_path, monkeypatch) -> None:
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_js_redraws_every_card_like_the_server(client, cohort, tmp_path) -> None:
     p = _seed(client)
     _press(client, p.kim, p.order, 1, "join", "need")
-    for who, url in ((p.kim, HOME_NONE), (p.lee, HOME_NONE), (p.park, HOME_NONE), (p.insp, HOME_NONE), (p.lead, CUT_ADMIN),
-                     (p.cs, CUT_ADMIN)):
+    for who, url in ((p.lead, CUT_ADMIN), (p.cs, CUT_ADMIN)):
         page = tmp_path / f"board_{who.id}.html"
         page.write_text(_page(client, who, url), encoding="utf-8")
         out = _node(page, {"steps": [{"do": "parity"}]})["out"][0]
         assert out["cards"] == 6 and out["diffs"] == [], (who.name, out["diffs"])
+    # 파트 계정 = 날짜 판 + '내 공정' 탭(내 작업 카드 · 오늘 끝낸 것 — 2026-11-28 흐름). 끝낸 것은 쓰기 없이 그린다(서버 · JS 같게)
+    for who in (p.kim, p.lee, p.park, p.insp):
+        shown = 0
+        for url in (HOME_NONE, HOME_MINE):
+            html = _page(client, who, url)
+            page = tmp_path / f"board_{who.id}.html"
+            page.write_text(html, encoding="utf-8")
+            out = _node(page, {"steps": [{"do": "parity"}]})["out"][0]
+            assert out["diffs"] == [] and out["cards"] == html.count("data-pp-card "), (who.name, url, out["diffs"])
+            done = html.split("data-flow-done", 1)[1].count("data-pp-card ") if url == HOME_MINE else 0
+            shown += out["cards"] - done
+        assert shown == 6, who.name  # 날짜 판 + 내 작업 = 도면 6장
 
 
-def test_js_join_window_and_late_start_notice(client, cohort, tmp_path, monkeypatch) -> None:
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_js_join_window_and_late_start_notice(client, cohort, tmp_path) -> None:
     p = _seed(client)
     k = p.order.keys
     page = tmp_path / "kim.html"
@@ -255,10 +265,12 @@ def test_js_join_window_and_late_start_notice(client, cohort, tmp_path, monkeypa
     replies = [_post(client, p.kim, join), _post(client, p.kim, took)]
     res = _node(page, {"posts": replies, "steps": [
         {"do": "click", "key": k[1], "act": "join"}, {"do": "run"}, {"do": "card", "key": k[1]},
-        {"do": "click", "key": k[4], "act": "take"}, {"do": "run"}, {"do": "card", "key": k[4]}, {"do": "notice", "key": k[4]},
-        {"do": "click", "key": k[5], "act": "done"}, {"do": "close"},
-        {"do": "click", "key": k[5], "act": "release"}, {"do": "close"}]})
+        {"do": "click", "key": k[4], "act": "take"}, {"do": "run"}, {"do": "card", "key": k[4]}, {"do": "notice", "key": k[4]}]})
     out, calls = res["out"], res["calls"]
+    mine = tmp_path / "kim_mine.html"  # 도면 6(김재단 같이 작업) = 내 작업 → '내 공정' 탭(2026-11-28 흐름)
+    mine.write_text(_page(client, p.kim, HOME_MINE), encoding="utf-8")
+    out += _node(mine, {"steps": [{"do": "click", "key": k[5], "act": "done"}, {"do": "close"},
+                                  {"do": "click", "key": k[5], "act": "release"}, {"do": "close"}]})["out"]
     w1 = out[0]["modal"]  # 창 1
     assert (w1["title"], w1["line"], w1["run"]["text"]) == ("재단 같이 작업할까요?", "이시영 작업 중 → 이시영 · 김재단 작업 중", "재단 같이 작업")
     assert re.fullmatch(r"이시영이 \d\d:\d\d부터 작업 중인 도면이에요\. 같이 작업하면 두 사람 모두 \[재단 완료\]를 눌러야 완료돼요\.", w1["note"])
@@ -327,20 +339,20 @@ def test_js_takeover_picks_who_and_lead_choices(client, cohort, tmp_path) -> Non
     assert after["state"] == "done" and after["act"][0]["text"] == "재단 완료 · 이시영" and out[4]["status"] == "김재단 시작 취소했어요"
 
 
-def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_path, monkeypatch) -> None:
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_js_sync_changes_the_name_line_and_e1_undo_window(client, cohort, tmp_path) -> None:
     p = _seed(client)
     k = p.order.keys
     page = tmp_path / "kim.html"
     page.write_text(_page(client, p.kim), encoding="utf-8")
+    mine = tmp_path / "kim_mine.html"  # 도면 3(E2 — 내 작업)은 '내 공정' 탭(2026-11-28 흐름)
+    mine.write_text(_page(client, p.kim, HOME_MINE), encoding="utf-8")
     _press(client, p.park, p.order, 1, "join", "need")  # 그사이 박재단이 도면 2 에 같이 작업
     login(client, p.kim)
     synced = client.get(f"/api/production/part-marks?order_ids={p.order.id}&since=2000-01-01T00:00:00").get_json()
     res = _node(page, {"sync": True, "gets": [synced], "steps": [{"do": "sync"}, {"do": "card", "key": k[1]},
-                                                              {"do": "click", "key": k[2], "act": "release"}, {"do": "close"},
                                                               {"do": "click", "key": k[3], "act": "undo"}]})
-    assert res["out"][4]["modal"]["line"] == "재단 완료 → 작업 중 · 김재단"  # 파트 계정 본인 몫 되돌리기 = 지금 꼴(H 대조군)
-    rel = res["out"][2]["modal"]  # 내 [시작 취소] — 남은 이시영이 완료 = 저절로 완료(Q6), 바뀐 뒤는 완료 칸 글
+    assert res["out"][2]["modal"]["line"] == "재단 완료 → 작업 중 · 김재단"  # 파트 계정 본인 몫 되돌리기 = 지금 꼴(H 대조군)
+    rel = _node(mine, {"steps": [{"do": "click", "key": k[2], "act": "release"}]})["out"][0]["modal"]  # 내 [시작 취소] — 남은 이시영이 완료 = 저절로 완료(Q6), 바뀐 뒤는 완료 칸 글
     assert (rel["title"], rel["line"], rel["note"]) == ("재단 시작을 취소할까요?", "이시영 · 김재단 작업 중 → 재단 완료 · 이시영",
                                                         "남은 사람이 모두 완료라 도면이 완료돼요.")
     card = res["out"][1]["card"]
@@ -399,10 +411,9 @@ def test_lead_window_join_and_swap_follow_who_can_be_picked(client, cohort, tmp_
     assert "data-pp-act" not in other and "같이 작업" not in other and "이시영 작업 중" in other
 
 
-def test_sentences_say_n_people_and_js_adds_no_particles(client, cohort, tmp_path, monkeypatch) -> None:
+def test_sentences_say_n_people_and_js_adds_no_particles(client, cohort, tmp_path) -> None:
     """이름 줄이 "외 n"으로 끝나는 문장은 "외 n명"(Q20) — [같이 작업] 창 안내 · 내 [재단 완료] 창 안내 · 내 작업 꼬리. 토씨는 서버가 붙인
     완성 조각만 쓴다(JS 가 이름 줄에 토씨를 붙이지 않는다)."""
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     p = _seed(client)
     k = p.order.keys
     _press(client, p.park, p.order, 5, "join", "need")  # 도면 6 = 이시영 · 김재단 · 최재단 · 박재단
@@ -411,7 +422,7 @@ def test_sentences_say_n_people_and_js_adds_no_particles(client, cohort, tmp_pat
     page.write_text(_page(client, oh), encoding="utf-8")
     note = _node(page, {"steps": [{"do": "click", "key": k[5], "act": "join"}]})["out"][0]["modal"]["note"]
     assert re.fullmatch(r"이시영 · 김재단 외 2명이 \d\d:\d\d부터 작업 중인 도면이에요\. 같이 작업하면 모두 \[재단 완료\]를 눌러야 완료돼요\.", note)
-    html = _page(client, p.kim)
+    html = _page(client, p.kim, HOME_MINE)  # 도면 6 = 내 작업 → '내 공정' 탭(2026-11-28 흐름)
     assert "내 작업 · 이시영 · 최재단 외 1명과 같이" in _card(html, k[5])
     page.write_text(html, encoding="utf-8")
     res = _node(page, {"steps": [{"do": "click", "key": k[5], "act": "done"}, {"do": "card", "key": k[5]}]})["out"]

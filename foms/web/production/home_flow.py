@@ -144,7 +144,12 @@ def flow_tab(db: Any, user: Any, tab: str, rows: list[dict[str, Any]], marks: Op
     def href(key: str) -> str:
         return url_for(_HOME_ENDPOINT, tab=FLOW_CREW, part=None if key == CREW_ALL else key, factory=head['url_factory'])
 
-    return head, {'my_steps': None, 'crew': build_crew(user, cards, ctx, part=asked, today=today, href=href)}
+    crew = build_crew(user, cards, ctx, part=asked, today=today, href=href)
+    # 2공장 그림이 켜진 관리자의 공장 고르기(도면 카드 화면과 같은 꼴) — 주소는 여기서 한 번 짓는다(템플릿은 주소를 안 짓는다)
+    picked_part = None if crew['part'] == CREW_ALL else crew['part']
+    crew['factories'] = [{'key': f, 'href': url_for(_HOME_ENDPOINT, tab=FLOW_CREW, part=picked_part, factory=f)}
+                         for f in (1, 2)] if head['factory_pick'] else []
+    return head, {'my_steps': None, 'crew': crew}
 
 
 __all__ = ['COUNTED_TABS', 'FLOW_CREW', 'FLOW_MINE', 'FLOW_TABS', 'HOME_TABS', 'PARTS_TAB_MODES', 'counts_view_flow', 'flow_counts',

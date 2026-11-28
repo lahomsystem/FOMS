@@ -34,10 +34,10 @@ from tests.domains.test_production_home_query_count import _count_queries
 from tests.domains.test_production_lead_direct_done_1127 import _admin, _lead
 from tests.domains.test_production_multi_holder_board import CUT_ADMIN, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_part_claim_seed import (
+    HOME_MINE,
     current_runs,
     events,
     fresh,
-    keep_mine_on_date_board,
     login,
     make_order,
     make_user,
@@ -368,12 +368,11 @@ def test_js_release_dialog_shows_the_line_only_when_the_server_says_so(client, c
     assert [_query(u) for u in previews] == [_as_query(b) for b in (rel0, rel0, rel1, rel0)]  # 묻는 칸 = 그 창이 보낼 몸(본 것 칸만 빼고)
 
 
-def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, cohort, tmp_path, monkeypatch):
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, cohort, tmp_path):
     kim = _kim()
     order = _took(client, kim, 2)
     page = tmp_path / "kim.html"
-    page.write_text(_page(client, kim), encoding="utf-8")
+    page.write_text(_page(client, kim, HOME_MINE), encoding="utf-8")  # 내 작업 카드 = '내 공정' 탭(2026-11-28 흐름)
     k = order.keys
     rel0 = _body(order, seen_by=kim.id)
     yes = _answer(client, kim, rel0)
@@ -386,15 +385,15 @@ def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, 
         {"do": "click", "key": k[0], "act": "release"}, {"do": "run"},    # 0 1  답이 안 옴 — 눌러도 안 나간다
         {"do": "timers"}, {"do": "modal"}, {"do": "close"},               # 2 3 4  3초 뒤 — 줄 없이 열린다
         {"do": "click", "key": k[0], "act": "release"}, {"do": "close"},  # 5 6  답이 오기 전에 닫음
-        {"do": "click", "key": k[1], "act": "take"}, {"do": "answer"},    # 7 8  다른 창([재단 시작])에 늦은 답 — 버린다
+        {"do": "click", "key": k[0], "act": "done"}, {"do": "answer"},    # 7 8  다른 창([재단 완료])에 늦은 답 — 버린다
         {"do": "close"},                                                  # 9
         {"do": "click", "key": k[0], "act": "release"}, {"do": "modal"}, {"do": "run"},   # 10 11 12  서버 오류 — 줄 없이 열린다 · 누르면 멈춤
         {"do": "run"}]})                                                  # 13  다시 물어 줄이 뜬 뒤 한 번 더 — 같이 취소
     out = res["out"]
     assert out[0]["modal"]["run"]["locked"] is True and out[1]["sent"] == 0 and out[1]["modal"]["hidden"] is False
     assert out[3]["modal"]["body"] == "" and out[3]["modal"]["run"]["locked"] is False
-    assert out[7]["modal"]["title"] == "재단 시작할까요?" and out[7]["modal"]["run"]["locked"] is False
-    assert out[8]["modal"]["body"] == "" and out[8]["modal"]["title"] == "재단 시작할까요?"
+    assert out[7]["modal"]["title"] == "재단 완료할까요?" and out[7]["modal"]["run"]["locked"] is False
+    assert out[8]["modal"]["body"] == "" and out[8]["modal"]["title"] == "재단 완료할까요?"
     assert out[11]["modal"]["body"] == "" and out[11]["modal"]["run"]["locked"] is False
     # 못 물은 창도 같은 규칙(사장님 11-27 "줄 없이 열린 창도 … 같이 취소될 차례면 멈추고 다시 확인") — 창 그대로 · 서버 글 · 줄이 나타남
     stop = out[12]["modal"]
@@ -404,8 +403,7 @@ def test_js_run_is_locked_until_the_answer_and_a_late_answer_is_dropped(client, 
     assert len(res["previews"]) == 4 and [c["body"].get("seen_cancel") for c in res["calls"]] == [False, True]
 
 
-def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, tmp_path, monkeypatch):
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, tmp_path):
     kim, oh, lead = _kim(), _oh(), _lead()
     solo = _took(client, kim)  # 김재단 혼자 시작한 한 장짜리 주문
     both = _took(client, kim)  # 김재단 · 오재단이 같이 작업
@@ -436,7 +434,7 @@ def test_js_lead_choice_dialog_names_the_button_and_co_working(client, cohort, t
     assert [c["body"] for c in res["calls"]] == [sent]
 
     mine = tmp_path / "kim.html"  # 같이 작업 중 내 몫 [재단 시작 취소] — 묻지만 답이 거짓이라 줄이 없다
-    mine.write_text(_page(client, kim), encoding="utf-8")
+    mine.write_text(_page(client, kim, HOME_MINE), encoding="utf-8")  # 내 작업 카드 = '내 공정' 탭(2026-11-28 흐름)
     rel = _body(both, seen_by=kim.id)
     no = _answer(client, kim, rel)
     assert no["data"]["run_cancelled"] is False
@@ -466,7 +464,7 @@ def test_source_contract_one_line_one_judge_and_sizes():
     api = (ROOT / "foms/api/production/part_marks.py").read_text(encoding="utf-8")
     assert 'mark_one(db, user, override, req, dry=True)' in api and 'methods=["GET"]' in api
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    for name, pin in (("parts", "20261128h"), ("parts-modal", "20261128x"), ("parts-cancel", "20261128c")):  # 11-28 d: 기본 창 · 완료 창 글 · g: 누구에게 줄까요?
+    for name, pin in (("parts", "20261128n"), ("parts-modal", "20261128x"), ("parts-cancel", "20261128c")):  # 11-28 d: 기본 창 · 완료 창 글 · g: 누구에게 줄까요?
         assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl, name
     order = [tpl.index(f"foms-production-parts{n}.js") for n in ("-modal", "-cancel", "-crew", "")]
     assert order == sorted(order)  # 창 글 → 취소 창 조각(창 글에 붙는다) → 여러 명 칸 → 쓰기

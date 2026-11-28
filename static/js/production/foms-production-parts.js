@@ -43,6 +43,13 @@
     if (act) { node.type = 'button'; node.setAttribute('data-pp-act', act); }
     return node;
   }
+  // 파트가 섞인 화면('내 공정' · '작업 중', 2026-11-28 흐름)의 카드는 그 카드 파트로 — claim · give 는 cfg.part 를 그때그때 읽는다(날짜 판 카드는 data-part 없음 = 그대로)
+  function asPart(card, fn) {
+    var part = card ? attr(card, 'data-part') : '', keep = cfg.part;
+    if (!part || part === keep) { return fn(); }
+    cfg.part = part;
+    try { return fn(); } finally { cfg.part = keep; }
+  }
 
   function openModal(action, cards, opener, seat) { // give = "누구에게 줄까요?"(seat = 자리를 내줄 사람) — 쓰는 누름은 takeover
     if (!cards.length) { return; }
@@ -53,7 +60,7 @@
     pending = { action: action === 'held' ? '' : action === 'give' ? 'takeover' : action, cards: cards, busy: false, run: p.run, locked: !!p.locked,
       target: p.target, next: p.next };
     M.open(p, cards.map(function (card) { return M.listItem(card, p.line, p.tone); }), opener, cards[0]);
-    if (action === 'give') { give.load(pending, cards[0]); } // 받을 사람 목록(읽기 한 번) — 고르기 전에는 실행이 잠겨 있다
+    if (action === 'give') { asPart(cards[0], function () { give.load(pending, cards[0]); }); } // 받을 사람 목록(읽기 한 번) — 고르기 전에는 실행이 잠겨 있다
     M.cancelLine(pending, p, function (act, target) { return requestFor({ action: act, cards: cards, target: target }).body; }); // 시작 취소 창 한 줄(11-27)
   }
   function closeModal() {
@@ -68,7 +75,8 @@
 
   // ── 카드 · 칸 숫자 고치기(그 자리에서) ──
   // unseen = [남은 N장 모두 기본] 숫자(막힌 안 본 장은 뺀다 — 창 목록 bulkCards 와 같은 기준), look = '안 본 도면 N장' 글(같은 기준, 11-26)
-  function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block'); }
+  // 주문 카드('도면 없음', data-order-card — 2026-11-28 흐름 §3-5)는 일괄 기본 밖(서버 bulk_count 와 같은 기준)
+  function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block') && attr(card, 'data-order-card') !== '1'; }
   function membership(card) {
     var st = attr(card, 'data-state');
     return { need: attr(card, 'data-in-need') === '1' ? 1 : 0, done: attr(card, 'data-in-done') === '1' ? 1 : 0,
@@ -98,11 +106,13 @@
   // crew(여러 명 — 이름 줄은 서버 글, 안 봄 = [기본][작업 시작] + 반장 · 관리자 [<파트> 완료] 11-27)가 그린다.
   function renderAct(card) {
     var box = card.querySelector('[data-pp-actbox]');
-    var opts = { writable: WRITABLE, mine: MINE, label: cfg.label || '', cut: IS_CUT };
+    // '내 공정' 오늘 끝낸 것(data-flow-done)은 쓰기 없이 — 파트 직원에게 [완료 취소] 없음(2026-11-28 흐름 §3-4, 서버 조각과 같다)
+    var opts = { writable: WRITABLE && !card.closest('[data-flow-done]'), mine: MINE, label: attr(card, 'data-part-label') || cfg.label || '', cut: IS_CUT };
     toArr(box.children).forEach(function (n) { if (!n.classList.contains('pp-why')) { box.removeChild(n); } });
-    if (claim.renderTag) { claim.renderTag(card, WRITABLE); }
-    if (claim.special && claim.special(card, box, opts)) { return; }
-    if (crew.render) { crew.render(card, box, opts); }
+    asPart(card, function () {
+      if (claim.renderTag) { claim.renderTag(card, opts.writable); }
+      if (!(claim.special && claim.special(card, box, opts)) && crew.render) { crew.render(card, box, opts); }
+    });
   }
   // 받은 표시 → 카드. 내 몫(작업 중 · 완료)은 서버가 준 mark.crew.me — 내 몫만 완료("재단 1/2 완료")는 파트 계정 '완료' 칸(Q12)
   function applyMark(card, mark) {
@@ -174,7 +184,7 @@
     var base = '/api/orders/' + encodeURIComponent(attr(card, 'data-order-id'));
     if (p.action === 'complete') { return { url: base + '/production/complete', body: {} }; }
     if (p.action === 'factory') { return { url: base + '/production/factory-done', body: { factory: p.factory, done: true } }; } // 2공장(§4-14)
-    var body = { order_id: Number(attr(card, 'data-order-id')), drawing_key: attr(card, 'data-key'), part: cfg.part, action: p.action,
+    var body = { order_id: Number(attr(card, 'data-order-id')), drawing_key: attr(card, 'data-key'), part: attr(card, 'data-part') || cfg.part, action: p.action,
       seen: attr(card, 'data-state'), seen_me: (crew.of ? crew.of(card).me : '') || 'none' }; // 본 내 몫까지 견준다(multi-holder §7-1)
     if (body.seen === 'need') { body.seen_by = attr(card, 'data-picked-id') ? Number(attr(card, 'data-picked-id')) : null; } // 본 담당까지 견준다(§4-5)
     if (p.target != null) { body.target_user_id = p.target; } // 담당 바꾸기 · 시작 취소 대상
@@ -212,7 +222,7 @@
       if (data.gave && !data.gave.self) { done.text = data.gave.to.name + '에게 줬어요'; } // 남에게 준 담당 바꾸기(나에게는 "담당 바꿨어요" 그대로)
       if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }
-      done.text += asks ? '' : started(data);
+      done.text += asks ? '' : (bound.flowWrote ? bound.flowWrote(p.action, p.cards, data) : '') + started(data); // ' · 내 공정에 담았어요'(flow.js — 담은 카드는 판에서 빠진다)
       document.dispatchEvent(new CustomEvent('foms:prod-parts-written', { detail: { action: p.action, data: data } })); // 위 탭 숫자 · 탭 사본(parts-fresh)
       setBusy(false);
       var fac = data.factory_ready;
@@ -222,7 +232,7 @@
         p.action = fac ? 'factory' : 'complete';
         p.factory = fac ? fac.factory : null;
         p.run = fac ? fac.label + ' 제작 완료' : '제작 완료';
-        if (fac) { M.complete(p.cards[0], fac, p); } else { M.complete(p.cards[0], findCard(attr(p.cards[0], 'data-order-id')).length || attr(p.cards[0], 'data-of'), p); }
+        if (fac) { M.complete(p.cards[0], fac, p); } else { M.complete(p.cards[0], (attr(p.cards[0], 'data-part') ? 0 : findCard(attr(p.cards[0], 'data-order-id')).length) || attr(p.cards[0], 'data-of'), p); }
         setStatus(done.text, false);
         return;
       }

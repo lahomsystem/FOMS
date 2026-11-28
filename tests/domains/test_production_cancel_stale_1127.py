@@ -44,10 +44,10 @@ from tests.domains.test_production_home_query_count import _count_queries
 from tests.domains.test_production_lead_direct_done_1127 import _check, _lead
 from tests.domains.test_production_multi_holder_board import CUT_ADMIN, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_part_claim_seed import (
+    HOME_MINE,
     code,
     current_runs,
     fresh,
-    keep_mine_on_date_board,
     login,
     make_order,
     make_user,
@@ -295,13 +295,12 @@ def _sync(client, who, order) -> dict:
     return client.get(SYNC.format(order.id)).get_json()
 
 
-def test_js_release_window_stops_reasks_and_resends_both_ways(client, cohort, tmp_path, monkeypatch):
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_js_release_window_stops_reasks_and_resends_both_ways(client, cohort, tmp_path):
     kim, oh = _kim(), _oh()
     order = _took(client, kim, 2)
     k = order.keys
     page = tmp_path / "kim.html"
-    page.write_text(_page(client, kim), encoding="utf-8")
+    page.write_text(_page(client, kim, HOME_MINE), encoding="utf-8")  # 내 작업 카드 = '내 공정' 탭(2026-11-28 흐름)
     rel0, rel_oh = _body(order, seen_by=kim.id), _body(order, 1, seen_by=oh.id)
     yes = _answer(client, kim, rel0)  # 김재단 창 — 줄이 뜬다
     login(client, oh)
@@ -318,7 +317,7 @@ def test_js_release_window_stops_reasks_and_resends_both_ways(client, cohort, tm
     res = _node(page, {"sync": True, "gets": [got1, got2], "posts": [stop1, stop2, done], "previews": [yes, {"__hold": no}, yes2], "steps": [
         {"do": "click", "key": k[0], "act": "release"}, {"do": "modal"},  # 0 1  줄이 뜬 창
         {"do": "run"}, {"do": "run"}, {"do": "answer"},                   # 2 3 4  멈춤 · 다시 묻는 동안 잠금 · 새 답
-        {"do": "card", "key": k[0]}, {"do": "card", "key": k[1]},        # 5 6
+        {"do": "card", "key": k[0]}, {"do": "modal"},                     # 5 6  ('내 공정' 탭에는 남의 카드가 없다 — 그 주문 다시 받기는 calls 로 본다)
         {"do": "run"}, {"do": "run"}]})                                   # 7 8  또 멈춤(줄이 나타남) · 한 번 더 = 같이 취소
     out, calls = res["out"], res["calls"]
     assert out[1]["modal"]["body"] == CANCEL_LINE and out[1]["modal"]["run"]["locked"] is False
@@ -328,9 +327,8 @@ def test_js_release_window_stops_reasks_and_resends_both_ways(client, cohort, tm
     assert out[3]["sent"] == 0 and out[3]["modal"]["body"] == CANCEL_LINE  # 잠긴 동안은 안 나간다 · 줄은 답이 와야 바뀐다
     asked = out[4]["modal"]
     assert (asked["body"], asked["run"]["locked"], asked["err"], asked["hidden"]) == ("", False, MESSAGE, False)  # 줄이 사라짐
-    mine, other = out[5]["card"], out[6]["card"]  # 카드: 내 것은 그대로(내 작업) · 그 주문의 다른 카드는 다시 받아 오재단 작업 중
+    mine = out[5]["card"]  # 카드: 내 것은 그대로(내 작업). 그 주문의 다른 카드(오재단 작업 중)는 날짜 판에 있어 이 화면에 없다
     assert (mine["state"], mine["picked_me"], mine["in_need"]) == ("need", "1", "1")
-    assert (other["state"], other["picked_me"], other["crew"]["who"]) == ("need", "0", "오재단")
     again = out[7]["modal"]
     assert (again["hidden"], again["lost"], again["err"], again["body"]) == (False, False, MESSAGE, CANCEL_LINE)  # 줄이 나타남
     assert again["run"]["locked"] is False and out[7]["status"] == ""
@@ -438,13 +436,12 @@ def test_js_undo_window_stops_and_reasks(client, cohort, tmp_path):
     assert [c["body"].get("seen_cancel") for c in res["calls"]] == [True, False] and len(res["previews"]) == 2
 
 
-def test_js_window_that_got_no_answer_in_time_sends_false(client, cohort, tmp_path, monkeypatch):
+def test_js_window_that_got_no_answer_in_time_sends_false(client, cohort, tmp_path):
     """3초 안에 답을 못 받아 줄 없이 열린 창도 같은 규칙 — 안 보였다(false)로 나가고, 같이 취소될 차례면 멈춘 뒤 다시 물어 줄이 나타난다."""
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     kim = _kim()
     order = _took(client, kim, 2)
     page = tmp_path / "kim.html"
-    page.write_text(_page(client, kim), encoding="utf-8")
+    page.write_text(_page(client, kim, HOME_MINE), encoding="utf-8")  # 내 작업 카드 = '내 공정' 탭(2026-11-28 흐름)
     rel0 = _body(order, seen_by=kim.id)
     yes = _answer(client, kim, rel0)
     stop = _post(client, kim, {**rel0, "seen_cancel": False})

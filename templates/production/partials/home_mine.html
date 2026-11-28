@@ -1,9 +1,53 @@
-{# 탭 "내 공정"(?tab=mine) — 파트 계정 · 태블릿(도면 카드 기기 문 + 폰 아님)만(설계서 2026-11-28-production-my-steps-flow §3-4).
-   빈 틀(읽기 일꾼 ⓐ) — 화면 글 · 마크업은 화면 일꾼(ⓒ)이 채운다. 서버 재료(foms/services/production/my_steps.py · home_flow.py):
-   - my_steps.strip = [{key, label, sub, count}] — strip[0] = {key: 'all', label: '전체', sub: '모든 날', count: 안 끝낸 전체 장수}, 그 뒤는
-     날짜 탭 띠와 같은 줄(recent · 날 줄 'YYYY-MM-DD' · later). count = 그 줄 카드 가운데 안 끝낸 장수.
-   - my_steps.days = [{key('YYYY-MM-DD' · 'none'), title("12/1 (화)" — 날짜 탭 장 제목과 같은 함수), day_key, count,
-     orders: [{id, name, count, cards: [카드]}]}] — 가까운 날 먼저 · 지난 날이 맨 위 · 출고일 없음 맨 뒤.
-   - my_steps.done = [카드] — 오늘(KST) 내가 끝낸 것(늦게 끝낸 것부터). my_steps.hidden · done_hidden = 200장 캡에 밀린 수.
-   - 카드 = part_board.build_card 그 dict(날짜 판과 같은 조각) + part · part_label(여러 파트 계정은 섞인다) + day_key(띠 줄 열쇠, 띠 밖은 '').
-   - 판 머리 part_board(확인 창 · 스크립트) · 판 설정 part_config(flow = {tab: 'mine', mine_href}) · counts.mine 은 날짜 탭과 같다. #}
+{# 탭 "내 공정"(?tab=mine) — 파트 계정 · 태블릿(도면 카드 기기 문 + 폰 아님)만(설계서 2026-11-28-production-my-steps-flow §3-4, 사장님 답 3 · 9 · 24 · 29 ·
+   시안 이전 · 바뀐 후 ③). home_parts.html 이 부른다(카드 조각 pp_card · pp_act — 날짜 판과 같은 조각 · 같은 키 · 같은 스크립트).
+   왼쪽 = 날짜 탭과 같은 띠 꼴(fph-stripbox · fph-strip · fph-sd — 같은 줄 높이 규칙, home.css 컨테이너 fph-strip). 맨 위 '전체 · 모든 날' 줄이 처음 골라짐,
+   줄 숫자 "2장" = 그 줄 카드 가운데 내가 담아 놓고 안 끝낸 장, 0 인 줄은 흐리게(is-zero). 막대 · 도면 글 · 아래 단추 둘은 없다.
+   줄은 단추(요청 없음) — 누르면 카드 data-day 로 오른쪽 묶음 · 카드 · '오늘 끝낸 것'을 거른다(foms-production-flow.js, 고른 줄 aria-pressed).
+   오른쪽 = 시공일 날짜 묶음 "12/1 (화) 시공 · 2장"(출고일 없음 묶음은 "출고일 없음 · 2장") → 주문 묶음 "정하늘 #2101 · 2장" → 카드,
+   맨 아래 "오늘 끝낸 것 N"(늘 펼침 — 끝낸 카드는 쓰기 없이: 파트 직원에게 [완료 취소] 없음).
+   서버 재료(foms/services/production/my_steps.py · home_flow.py): my_steps.strip · days · done · hidden · done_hidden — 카드 = build_card dict + part ·
+   part_label · day_key. data-pp-orders = 화면 생산 주문 전부(30초 받아 오기가 같이 물어 반장이 담당을 나에게 준 장을 본다).
+   세로로 든 태블릿은 카드 판처럼 숨기고 "가로로 두면" 글(parts.css pp-rotate). 인라인 style · script 없음, 모양은 my-steps.css. #}
+{% set ms = my_steps %}
+{% set ns = namespace(seen=[]) %}
+<div class="fph-date fpf-flow fpf-mine" data-flow-screen="mine" data-flow-parts="{{ (pb.parts | map(attribute='key') | join(' ')) if pb else '' }}">
+  <div class="fph-stripbox">
+  <aside class="fph-strip" aria-label="출고일 2주">
+    <div class="fph-strip__h">출고일 2주<small>내가 담은 도면</small></div>
+    {% for s in (ms.strip if ms else []) %}
+    <button type="button" class="fph-sd{% if loop.first %} is-on{% endif %}{% if not s.count %} is-zero{% endif %}" data-flow-day="{{ s.key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
+      <span class="fph-sd__d"><b>{{ s.label }}</b><small>{{ s.sub }}</small></span>
+      <span class="fph-sd__mid"></span>
+      <span class="fph-sd__n">{% if s.count %}<b>{{ s.count }}</b><small>장</small>{% endif %}</span>
+    </button>
+    {% endfor %}
+  </aside>
+  </div>
+  <div class="fph-panes">
+  <div class="fph-parts fpf-pane" data-pp-pane="mine" data-pp-orders="{{ rows | selectattr('home_view', 'equalto', 'prod') | map(attribute='id') | join(' ') }}">
+    {% for day in (ms.days if ms else []) %}
+    <section class="fpf-day" data-flow-group="day">
+      <h3 class="fpf-g">{{ day.title }}{% if day.key != 'none' %} 시공{% endif %} <small>· {{ day.count }}장</small></h3>
+      {% for o in day.orders %}
+      <section class="fpf-order" data-flow-group="order">
+        <h4 class="fpf-o">{{ o.name }} #{{ o.id }} <small>· {{ o.count }}장</small></h4>
+        <div class="pp-grid" data-pp-grid>
+          {% for c in o.cards %}{{ pp_flow_card(c, ns) }}{% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </section>
+    {% endfor %}
+    <p class="pp-empty" data-flow-empty{% if ms and ms.days %} hidden{% endif %}>담은 도면이 없어요. 날짜 탭에서 [{{ pb.part_label if pb else '' }} 시작]을 누르면 여기에 모여요.</p>
+    {% if ms and ms.hidden %}<p class="pp-cap">{{ ms.hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요.</p>{% endif %}
+    <section class="fpf-done" data-flow-group="done">
+      <h3 class="fpf-g">오늘 끝낸 것 <small data-flow-done-n>{{ (ms.done | length) if ms else 0 }}</small></h3>
+      <div class="pp-grid" data-pp-grid data-flow-done>
+        {% for c in (ms.done if ms else []) %}{{ pp_flow_card(c, ns, true) }}{% endfor %}
+      </div>
+      {% if ms and ms.done_hidden %}<p class="pp-cap">{{ ms.done_hidden }}장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요.</p>{% endif %}
+    </section>
+  </div>
+  </div>
+</div>
+<p class="pp-rotate">도면은 태블릿을 가로로 두면 보여요.</p>

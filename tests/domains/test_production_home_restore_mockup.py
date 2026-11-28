@@ -55,14 +55,16 @@ def _tablet_rules(css: str) -> str:
 # ② 위 탭
 # --------------------------------------------------------------------------- #
 def test_태블릿_위_탭은_넷이고_도면_카드_보드가_없다_파트_계정은_셋(client, cohort):
+    """태블릿 위 탭(2026-11-28 흐름 §3-1 · 답 30): 관리자 · 반장 · 읽기 전용 = 날짜 · 작업 중 · 남은 공정 · 바뀐 것 · 찾기(다섯),
+    파트 계정 = 날짜 · 내 공정 · 바뀐 것 · 찾기(넷 — '남은 공정'은 원래 없다, D50). 도면 카드 보드 탭은 여전히 없다."""
     _order("한빛", _files("oa", 2))
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     for url in (HOME, HOME + "?tab=steps", HOME + "?tab=changes", HOME + "?tab=all"):
         html = _get(client, url)
-        assert _tabs(html) == ["날짜", "남은 공정", "바뀐 것", "찾기"], url
+        assert _tabs(html) == ["날짜", "작업 중", "남은 공정", "바뀐 것", "찾기"], url
         assert "data-foms-home-partstab" not in html and "data-foms-home-board" not in html and f'href="{BOARD}"' not in _nav(html)
-    _login(client, _user("김재단", part="cut"))  # 파트 계정은 '내 공정' 이 원래 없다(D50) — 셋
-    assert _tabs(_get(client, HOME)) == ["날짜", "바뀐 것", "찾기"]
+    _login(client, _user("김재단", part="cut"))
+    assert _tabs(_get(client, HOME)) == ["날짜", "내 공정", "바뀐 것", "찾기"]
 
 
 def test_도면_카드_화면은_주소로_그대로_열리고_날짜_탭이_켜진다(client, cohort):

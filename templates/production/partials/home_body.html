@@ -18,7 +18,11 @@
            옛 보드(칸반)로 가는 [보드 →] 는 없다 — 옛 보드를 없앴다(2026-11-27 사장님 "legacy 보드 없애").
            PC 응답만 ERP 둘째 줄 메뉴 · 보기 전용 표 · [고치기] 를 더 그린다. #}
         <a class="foms-prod-home__navtab{% if tab in ('date', 'parts') %} is-on{% endif %}" href="{{ home_href(None, nav_part) }}"{% if tab in ('date', 'parts') %} aria-current="page"{% endif %}>날짜</a>
-        {% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>남은 공정 <small>{{ counts.making }}</small></a>
+        {% if flow %}{#- 새 흐름(2026-11-28 설계서 §3-1 · 답 30, 태블릿 문 안만 — 문 밖 PC · 폰은 flow 가 None 이라 이 줄이 한 글자도 없다): 파트 계정 '내 공정 N',
+           반장 · 관리자 · 읽기 전용 '작업 중 N'(뒤에 '남은 공정' 그대로). 숫자가 None 인 탭(남은 공정 · 바뀐 것 · 찾기)은 숫자 칸을 숨겨 두고
+           foms-production-flow.js 가 ?view=counts 로 채운다 -#}
+        {%- set ft = flow.tab %}{% set fn = counts[ft] if counts and ft in counts else none %}<a class="foms-prod-home__navtab{% if tab == ft %} is-on{% endif %}" href="{{ flow.mine_href }}" data-flow-tab="{{ ft }}"{% if tab == ft %} aria-current="page"{% endif %}>{{ '내 공정' if ft == 'mine' else '작업 중' }} <small data-flow-count="{{ ft }}"{% if fn is none %} hidden{% endif %}>{{ fn if fn is not none else '' }}</small></a>
+        {% endif %}{% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ home_href('steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>남은 공정 <small>{{ counts.making }}</small></a>
 {% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ home_href('changes', nav_part) }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
         <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ home_href('all', nav_part) }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>
       </nav>
@@ -28,7 +32,7 @@
         {% set foms_prod_bell_ns = 'foms-prod-home' %}{% include 'production/partials/notif_bell.html' %}
         {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
         {% include 'partials/shared/foms_font_scale_control.html' %}
-        <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ home_href(tab, part_board.url_part if part_board else nav_part, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
+        <a class="foms-prod-home__btn" data-foms-home-reload data-foms-erp-no-shell="1" href="{{ (flow.mine_href if tab == 'mine' else (crew.parts | selectattr('key', 'equalto', crew.part) | first).href) if tab in ('mine', 'crew') and (tab == 'mine' or crew) else home_href(tab, part_board.url_part if part_board else nav_part, days.selected if days and not days.auto else None, order=step_order) }}"><svg class="foms-prod-home__btn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></svg>다시 받기</a>
       </div>
     </header>{% if edit_on %}{% include 'production/partials/home_pc_band.html' %}{% endif %}
     <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 <span data-foms-home-sync-at></span>에 받은 것이에요.</p>
@@ -40,10 +44,9 @@
       {% include 'production/partials/home_changes.html' %}
     {% elif tab == 'all' %}
       {% include ('production/partials/home_pc_all.html' if pc_view else 'production/partials/home_all.html') %}
-    {% elif tab == 'mine' %}{# '내 공정' · '작업 중'(태블릿 문 안만 — home_flow.resolve_home_tab, 2026-11-28 흐름) #}
-      {% include 'production/partials/home_mine.html' %}
-    {% elif tab == 'crew' %}
-      {% include 'production/partials/home_crew.html' %}
+    {% elif tab in ('mine', 'crew') %}{# '내 공정' · '작업 중'(태블릿 문 안만 — home_flow.resolve_home_tab, 2026-11-28 흐름) — 카드 조각(pp_card · pp_act)이
+       home_parts.html 에 있어 그 파일이 home_mine.html · home_crew.html 을 부른다(같은 조각 · 같은 키) #}
+      {% include 'production/partials/home_parts.html' %}
     {% else %}
       {% include 'production/partials/home_date.html' %}
     {% endif %}

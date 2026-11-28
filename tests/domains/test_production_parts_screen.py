@@ -130,10 +130,8 @@ def test_cut_account_sees_cards_view_buttons_bulk_and_one_modal(client, cohort):
     block = _parts_block(pane)
 
     assert block.count("data-pp-card ") == 4 and 'data-key="oa/d0.png"' not in block  # 3 + 2 장 — 내가 담은 d0 은 '내 공정' 탭(11-28)
-    for view in ("all", "need", "done"):
-        assert f'data-pp-view="{view}"' in block
-    # 칸 숫자 = 내 것(뺀 뒤 — 작업 필요 0, 완료 = 내가 끝낸 장)
-    assert 'data-pp-count="all">4<' in block and 'data-pp-count="need">0<' in block and 'data-pp-count="done">1<' in block
+    assert all(f'data-pp-view="{view}"' in block for view in ("all", "done"))  # 칸 = 전체 도면 · 완료 둘('내 작업'만 없앰 — 11-28 답 10)
+    assert 'data-pp-count="all">4<' in block and 'data-pp-view="need"' not in block and 'data-pp-count="done">1<' in block  # 칸 숫자 = 뺀 뒤
     assert 'data-pp-act="bulk"' in block and "<span>남은 <span data-pp-count=\"unseen\">1</span>장 모두 기본</span>" in block
     assert block.count('data-pp-act="basic"') == 1 and block.count('data-pp-act="take"') == 1  # 안 본 장 하나
     assert "<b>박재단 작업\u00a0중</b>" in block and "pp-st-taken" in block and 'data-pp-act="join">재단 같이&nbsp;작업</button>' in block
@@ -278,7 +276,9 @@ def test_date_tab_html_equals_before_except_parts_link(client, cohort, monkeypat
     # 파트 규칙을 끈 화면 = P15-5 전 화면(판 · 탭 · '내 공정' 숨김 모두 없음)
     monkeypatch.setattr("foms.web.production.home.part_view_mode", lambda user: "none")
     before = _normalize(_get(client, HOME))
-    assert now.replace(tab_line.group(0), "") == before
+    flow = re.findall(r'<a class="foms-prod-home__navtab" href="/erp/production/home\?tab=crew" data-flow-tab="crew">작업 중 <small data-flow-count="crew">\d+</small></a>\n|'
+                      r'<script src="/static/js/production/foms-production-flow\.js\?v=[^"]+" defer></script>\n', now)  # 2026-11-28 흐름 탭 · 스크립트도 뺀다
+    assert len(flow) == 2 and re.sub("|".join(map(re.escape, [tab_line.group(0), *flow])), "", now) == before
     assert ">남은 공정 <small>" in now and "fph-pane__now" not in now and "parts.css" not in now
 
 

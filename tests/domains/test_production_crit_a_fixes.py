@@ -29,10 +29,10 @@ from foms.services.production.sync_blocks import DONE_WHY
 from models import ProductionPartMark
 from tests.support.production_factory_seed import HOME_NONE, PC, TABLET, factory_user, mixed_order, put_mark, set_cookies
 from tests.support.production_part_claim_seed import (
+    HOME_MINE,
     check_step,
     code,
     fresh,
-    keep_mine_on_date_board,
     login,
     make_order,
     make_user,
@@ -311,15 +311,14 @@ def test_head_line_receive_time_follows_every_sync():
 # --------------------------------------------------------------------------- #
 # C09 — 제작 완료 뒤 그 주문 카드
 # --------------------------------------------------------------------------- #
-def test_js_complete_from_the_last_inspect_card_drops_undo_for_that_order(client, cohort, tmp_path, monkeypatch):
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_js_complete_from_the_last_inspect_card_drops_undo_for_that_order(client, cohort, tmp_path):
     order = make_order(2, steps_done=("cut", "edge", "assemble"))
     kang = make_user("강검수", part="inspect")
     login(client, kang)
     for j in (0, 1):
         assert mark(client, order, j, "inspect", "take", "none").status_code == 200
     assert mark(client, order, 0, "inspect", "done", "need").status_code == 200
-    html = _page(client, HOME_NONE)
+    html = _page(client, HOME_MINE)  # 도면 2(내 작업) · 도면 1(오늘 끝낸 것) = '내 공정' 탭(2026-11-28 흐름)
     cfg = json.loads(unescape(re.search(r'data-foms-parts-config="([^"]+)"', html).group(1)))
     assert cfg["done_block"] == {"kind": "done", "text": "제작 완료", "why": DONE_WHY, "code": "NOT_IN_PRODUCTION"}
     page = tmp_path / "kang.html"
@@ -335,7 +334,8 @@ def test_js_complete_from_the_last_inspect_card_drops_undo_for_that_order(client
                                  {"do": "card", "key": order.keys[0]}, {"do": "card", "key": order.keys[1]}]})
     assert res["out"][1]["modal"]["title"] == "제작 완료할까요?" and res["out"][3]["sent"] == 1
     assert res["out"][3]["status"] == "제작 완료했어요 — 시공 대기로 넘어갔어요" and res["out"][3]["modal"]["hidden"]
-    for out in res["out"][4:]:  # 두 장 모두 [되돌리기] 대신 '제작 완료'(받아 오기의 생산 단계 아님 칸과 같은 값)
-        assert out["card"]["act"] == [{"tag": "button", "cls": "fph-wi pp-act pp-st-done", "act": None, "text": "제작 완료", "kids": []}]
+    # 누른 카드 = [되돌리기] 대신 '제작 완료'(받아 오기의 생산 단계 아님 칸과 같은 값). 오늘 끝낸 것은 원래 쓰기 없음(파트 직원 — 완료 취소 없음)
+    assert res["out"][5]["card"]["act"] == [{"tag": "button", "cls": "fph-wi pp-act pp-st-done", "act": None, "text": "제작 완료", "kids": []}]
+    assert all(a["act"] is None for a in res["out"][4]["card"]["act"]) and "undo" not in str(res["out"][4]["card"]["act"])
     login(client, kang)
     assert _synced(client, order.id)["data"]["blocks"][str(order.id)]["all"]["text"] == "제작 완료"

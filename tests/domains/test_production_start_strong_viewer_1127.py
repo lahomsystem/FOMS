@@ -19,7 +19,7 @@ import pytest
 
 from tests.domains.test_production_multi_holder_board import _act, _card, _node, _page, _post, cohort  # noqa: F401
 from tests.support.production_factory_seed import HOME_NONE
-from tests.support.production_part_claim_seed import keep_mine_on_date_board, login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import HOME_MINE, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
 JS = ROOT / "static/js/production"
@@ -151,16 +151,16 @@ def test_lead_done_drawing_viewer_shows_card_done_line(client, cohort, tmp_path)
     assert [p for p, _ in _acts(out[4])] == ["basic", "take"]  # 11-28 흐름: 미정 = 시작만
 
 
-def test_part_account_viewer_adds_only_own_done_line(client, cohort, tmp_path, monkeypatch):
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_part_account_viewer_adds_only_own_done_line(client, cohort, tmp_path):
     park, _oh, _lead, order = _seed(client)
     html = _page(client, park)
-    out = _viewer(html, tmp_path, [{"do": "open", "no": n} for n in (1, 2, 4, 5, 7)])
+    out = _viewer(html, tmp_path, [{"do": "open", "no": n} for n in (1, 2, 5, 7)])
     assert _acts(out[0]) == [("", "재단 완료 · 박재단"), ("undo", "재단 완료 취소")]  # 내 완료 — 지휘 11-27 이 한 가지만 바뀜
     assert _acts(out[1]) == [("", "재단 완료 · 오재단")]  # 남의 완료 글 칸 = 그대로(단추 없음)
-    assert [p for p, _ in _acts(out[2])] == ["release", "done"]  # 내 작업 [재단 시작 취소][재단 완료] = 그대로
-    assert [p for p, _ in _acts(out[3])] == ["basic", "take"]
-    assert _acts(out[4]) == [("undo", "재단 완료 취소")]  # 내 몫만 완료 = 고치기 전 그대로(글 칸 안 붙음)
+    assert [p for p, _ in _acts(out[2])] == ["basic", "take"]
+    assert _acts(out[3]) == [("undo", "재단 완료 취소")]  # 내 몫만 완료 = 고치기 전 그대로(글 칸 안 붙음)
+    mine = _viewer(_page(client, park, HOME_MINE), tmp_path, [{"do": "open", "no": 4}])  # 내 작업은 '내 공정' 탭(2026-11-28 흐름)
+    assert [p for p, _ in _acts(mine[0])] == ["release", "done"]  # 내 작업 [재단 시작 취소][재단 완료] = 그대로
 
 
 def test_need_view_hides_done_line_so_viewer_adds_nothing(client, cohort, tmp_path):

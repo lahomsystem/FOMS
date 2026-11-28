@@ -24,7 +24,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from models import Order, ProductionPartMark, ProductionRun, User
-from tests.support.production_part_claim_seed import keep_mine_on_date_board
+from tests.support.production_part_claim_seed import HOME_MINE
 
 ROOT = Path(__file__).resolve().parents[2]
 HOME = "/erp/production/home"
@@ -102,8 +102,7 @@ def _card(html: str, name: str, j: int) -> str:
 # --------------------------------------------------------------------------- #
 # 파트 계정 카드
 # --------------------------------------------------------------------------- #
-def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘은_까닭(client, cohort, monkeypatch) -> None:
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
+def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘은_까닭(client, cohort) -> None:
     me, park = _user("김민준", "edge"), _user("박엣지", "edge")
     order = _order("한빛", 4)
     held = _order("보류집", 1, hold=True)
@@ -113,7 +112,8 @@ def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘�
     me_id, held_id, order_id = me.id, held.id, order.id
     _login(client, me)
     html = _get(client, HOME)
-    mine = _card(html, "한빛", 0)
+    assert 'data-key="한빛/d0.png"' not in html  # 내 작업 카드는 날짜 판에서 빠지고 '내 공정' 탭에 같은 조각(2026-11-28 흐름)
+    mine = _card(_get(client, HOME_MINE), "한빛", 0)
     assert '<div class="pp-two is-mine"><button type="button" class="foms-prod-home__btn pp-release" data-pp-act="release">엣지 시작&nbsp;취소</button>' in mine
     assert '<button type="button" class="fph-qr__done pp-act pp-fin is-pair" data-pp-act="done">엣지 완료</button></div>' in mine
     assert '<span class="pp-tag" data-pp-tag aria-label="내 작업 · 어제부터">내 작업 · <span class="is-old">어제부터</span></span>' in mine
@@ -131,7 +131,7 @@ def test_내_담당은_한_층_맡기_취소_남의_담당은_누름_칸_막힘�
     # 이름 줄 = 작업 시트 링크 · 시공 줄 감싸개 · 판 순서(미정 → 담당 → 완료)
     assert f'<a class="pp-ln pp-sheetlink" href="/erp/production/sheet/{order_id}"' in mine and '<div class="pp-duerow">' in mine
     keys = re.findall(r'data-key="한빛/d(\d)\.png"', html)
-    assert keys == ["0", "3", "1", "2"]  # 파트 계정 화면: 내 작업(d0)이 맨 앞, 그다음 미정 → 담당 → 완료(11-27)
+    assert keys == ["3", "1", "2"]  # 파트 계정 날짜 판: 미정 → 담당 → 완료(11-27) — 내 작업(d0)은 '내 공정' 탭
     # 아침 칩(밤 넘긴 내 작업 1장) · 창 몸 글 · 고르기 · 거절 글 자리
     assert 'data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 1장' in html
     assert '<p class="pp-mbody" data-pp-modal-body hidden></p>' in html and "data-pp-modal-choices" in html
@@ -153,17 +153,16 @@ def test_손_체크한_파트_카드는_완료_칸이고_단추가_없다(client
     assert 'data-pp-act="' not in card and "안 본 도면 없어요" in html  # 미정 수 · 일괄 기본에서 빠짐
 
 
-def test_보류_주문은_완료_기본_카드에도_막힘을_싣고_되돌린_뒤_그림_규칙이_서버와_같다(client, cohort, monkeypatch) -> None:
+def test_보류_주문은_완료_기본_카드에도_막힘을_싣고_되돌린_뒤_그림_규칙이_서버와_같다(client, cohort) -> None:
     """완료 · 기본 카드에도 data-pp-block — 되돌리면(완료 → 담당 · 기본 → 안 봄) JS 가 그 값으로 그린다. 서버는 같은 상태를
     [시작 취소][보류 칸] · 보류 칸으로 그린다. JS 규칙(claim.special 은 상태와 상관없이 카드의 data-pp-block 을 읽음)은 아래 정적 단언."""
-    keep_mine_on_date_board(monkeypatch)  # 내 카드 조각 · JS 규칙만 본다 — 그 카드는 이제 '내 공정' 탭(2026-11-28 흐름)
     me = _user("김재단", "cut")
     held = _order("보류집", 4, hold=True)
     _mark(held, 0, "cut", "DONE", me)
     _mark(held, 1, "cut", "BASIC", me)
     _mark(held, 2, "cut", "NEED", me)  # = 완료 카드를 되돌린 뒤 상태(내 작업)
     _login(client, me)
-    html = _get(client, HOME)
+    html = _get(client, HOME) + _get(client, HOME_MINE)  # 담당(d2) = 내 작업 → '내 공정' 탭(2026-11-28 흐름, 같은 조각)
     for j in range(4):  # 완료 · 기본 · 담당 · 안 본 장 모두 같은 막힘 값
         card = _card(html, "보류집", j)
         assert 'data-pp-block="hold" data-pp-block-text="보류 · 자재 기다림"' in card, j
@@ -194,7 +193,7 @@ def test_남은_N장_모두_기본은_막힌_안_본_장을_빼고_창_목록과
     bulk = re.search(r'<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"[^>]*>', html).group(0)
     assert "hidden" not in bulk
     parts = (JS / "foms-production-parts.js").read_text(encoding="utf-8")
-    assert "function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block'); }" in parts
+    assert "function bulkable(card) { return attr(card, 'data-state') === 'none' && !attr(card, 'data-pp-block') && attr(card, 'data-order-card') !== '1'; }" in parts  # 주문 카드 뺌(11-28)
     assert "unseen: bulkable(card) ? 1 : 0, look: bulkable(card) ? 1 : 0" in parts  # 단추 숫자 · 글 숫자 같은 기준
     assert "openModal('bulk', board.cardsOf(pane).filter(bulkable), btn);" in parts  # 창 목록 = 단추 숫자 기준
 
@@ -306,8 +305,8 @@ def test_새_JS_는_화면마다_한_번_싣는_차례() -> None:
     assert order == sorted(order)
     # 여러 명 같이 작업 M2(2026-11-25 multi-holder)가 claim · modal · crew(새) · parts · sync 를 함께 올렸다 — 검토 고침(11-25 [대신 완료] =
     # check · 반장 자기 몫 되돌리기 줄)이 modal · crew · parts 를 한 번 더 · 비평 C06 · C09(11-26 주문 막힘 칸)가 claim · parts · sync 를, 검토 고침(걸린 카드 건너뛰기)이 parts · sync 를 한 번 더
-    for name, pin in (("parts", "20261128h"), ("parts-claim", "20261127w"), ("parts-modal", "20261128x"),
-                      ("parts-crew", "20261128x"), ("parts-sync", "20261128h")):  # 11-27 반장 미정 바로 완료가 넷을 한 번 더 · 바로 완료 취소 한 번에 미정이 crew 를 한 번 더
+    for name, pin in (("parts", "20261128n"), ("parts-claim", "20261127w"), ("parts-modal", "20261128x"),
+                      ("parts-crew", "20261128x"), ("parts-sync", "20261128n")):  # 11-28 흐름: 카드 파트 · 담으면 빼기(parts · sync n) · 반장 미정 칸 시작만(modal · crew x)
         assert len(re.findall(rf"foms-production-{name}\.js'\) \}}\}}\?v={pin}\" defer", tpl)) == 1, name
 
 

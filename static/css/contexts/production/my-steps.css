@@ -1,0 +1,49 @@
+/* 생산 새 흐름 — '내 공정'(?tab=mine) · '작업 중'(?tab=crew) 탭(설계서 docs/specs/2026-11-28-production-my-steps-flow_SPEC.md §3-4 · §3-6,
+   시안 이전 · 바뀐 후 ③ · ④ '가'). home_styles.html 이 그 두 탭에서만 싣는다.
+   카드 · 단추 · 판 머리 · 파트 칩 꼴은 parts.css, 왼쪽 띠 줄은 home.css(fph-stripbox · fph-strip · fph-sd — 날짜 탭과 같은 줄 높이 규칙)를
+   그대로 쓴다. 여기에는 묶음 머리 · 사람 묶음 칸 · 미정 단추 · 띠 거르기만. 글자는 calc(Npx * var(--foms-fs, 1)), 새 색 없음(토큰만). */
+
+/* ── 문: 카드 판과 같다 — 태블릿 가로(터치)에서만. 그 밖(세로로 든 태블릿)은 "가로로 두면" 글(parts.css .pp-rotate) ── */
+.fpf-mine { display: none; }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .fpf-mine { display: grid; }
+}
+
+/* ── '내 공정' 왼쪽 띠: 날짜 탭 줄(.fph-sd)을 단추로 — 고른 줄 = .is-on(날짜 탭 고른 날과 같은 꼴, home.css) + aria-pressed ── */
+.fpf-mine .fph-sd__n small { margin-left: 1px; }
+
+/* ── 묶음 머리 — 날짜 "12/1 (화) 시공 · 2장" · 주문 "정하늘 #2101 · 2장" · "오늘 끝낸 것 3" · 사람 "김재단 · 재단 2장" · "미정" ── */
+.fpf-pane { padding-top: 4px; }
+.fpf-day, .fpf-order, .fpf-done, .fpf-who, .fpf-none { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.fpf-g { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; font-size: calc(18px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-text); }
+.fpf-g small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fpf-o { margin: 0; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-text2); }
+.fpf-o small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+.fpf-done { margin-top: 10px; padding-top: 4px; border-top: 1px solid var(--fph-line); }
+/* 띠 거르기(화면만 — 요청 없음): 고른 날 밖 카드. 칸 단추 거르기(hidden)와 따로라 서로 덮지 않는다 */
+.fph-parts .pp-card.fpf-off { display: none; }
+
+/* ── '작업 중': 세 칸 — 카드 한 장 묶음은 한 칸, 둘 이상 · 미정 · 빈 글은 한 줄 전체(시안 ④ '가') ── */
+.fpf-crew { padding: 4px 16px 24px 12px; }
+.fpf-crew__groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; align-items: start; }
+.fpf-crew__groups > .is-full { grid-column: 1 / -1; }
+.fpf-who:not(.is-full) .pp-grid { grid-template-columns: minmax(0, 1fr); }
+/* 작업 중 카드 = 이름 칸 [김재단 작업 중 ›] + [재단 완료] 둘 다(시안 ④ '가' · 설계서 §3-6). 날짜 탭 반장 판은 칸 단추로 둘을 나눠 보인다
+   (parts.css pp-only-need · pp-not-need) — 이 탭은 칸 단추가 없어 둘 다 보이고, 한 줄 두 칸(짝 키 56px — 파트 직원 카드 [시작 취소][완료]와 같은 키) */
+.fpf-crew .pp-grid .pp-only-need { display: inline-flex; }
+.fpf-crew .pp-actbox:has(> .pp-held + .pp-only-need) { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.fpf-crew .pp-actbox:has(> .pp-held + .pp-only-need) > .pp-undo-row { grid-column: 1 / -1; }
+.foms-prod-home .fpf-crew .pp-actbox > .pp-fin.fph-qr__done { min-height: 56px; font-size: calc(18px * var(--foms-fs, 1)); }
+.fpf-none__btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.fpf-none__btn { min-height: 48px; padding: 0 16px; font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+/* 글자를 키운 판(parts.css 끝과 같은 문턱 38rem): 한 줄에 둘 — 작업 중 판은 날짜 장 칸(.fph-panes) 밖이라 제 칸을 잰다 */
+@media (min-width: 992px) {
+  .fpf-crew { container: fph-pane / inline-size; }
+  @container fph-pane (max-width: calc(38rem - 0.02px)) {
+    .fpf-crew__groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+}
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .fpf-none__btn { min-height: max(48px, calc(44px / var(--foms-ui-zoom, 1))); }
+  .fpf-none__btns { gap: max(8px, calc(8px / var(--foms-ui-zoom, 1))); }
+}

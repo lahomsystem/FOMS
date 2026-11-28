@@ -12,7 +12,10 @@
  * 2026-11-26(비평 C06): 응답의 주문마다 지금 막힘(data.blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 서버 sync_blocks)으로 그 주문 카드를
  * 이미 있는 막힘 칸으로 다시 그린다(그 장만 막힘이 먼저 · 풀리면 단추가 돌아온다 — FomsPartsCards.block). 받을 때마다 'foms:prod-parts-synced'
  * 를 쏴 머리 줄 받은 때 글 · 점(foms-production-home.js)을 새로 한다. 거절(409 보류 · 고치는 중 · 생산 단계 아님)이면 parts.js 가 바로 부른다
- * (syncTick(true) — 그때는 확인 창에 걸린 카드도 막힘으로, 30초 받아 오기는 표시 줄처럼 건너뛴다). */
+ * (syncTick(true) — 그때는 확인 창에 걸린 카드도 막힘으로, 30초 받아 오기는 표시 줄처럼 건너뛴다).
+ * 2026-11-28 흐름(설계서 production-my-steps-flow §3-2 · §3-4): 카드 파트는 카드 data-part(파트가 섞인 '내 공정' · '작업 중' — 없으면 판 파트) —
+ * 다른 파트 줄의 변화가 이 카드를 덮지 않게 장(key) + 파트로 맞춘다. data-pp-orders(내 카드가 빠진 날짜 판 · '내 공정')의 주문도 같이 묻고,
+ * 고친 카드 · 화면에 카드가 없는 줄은 flow.js(bound.flowSynced · flowOrphan)에 알린다 — "내 것이 됐다 / 아니게 됐다"면 그 화면을 다시 받는다. */
 (function () {
   'use strict';
 
@@ -46,10 +49,9 @@
   function orderIds() {
     var seen = {};
     var ids = [];
-    toArr(root.querySelectorAll('[data-pp-card], [data-pp-elsewhere]')).forEach(function (card) {
-      var id = card.getAttribute('data-order-id');
-      if (id && !seen[id]) { seen[id] = true; ids.push(id); }
-    });
+    function add(id) { if (id && !seen[id]) { seen[id] = true; ids.push(id); } }
+    toArr(root.querySelectorAll('[data-pp-card], [data-pp-elsewhere]')).forEach(function (card) { add(card.getAttribute('data-order-id')); });
+    toArr(root.querySelectorAll('[data-pp-orders]')).forEach(function (n) { (n.getAttribute('data-pp-orders') || '').split(' ').forEach(add); });
     return ids;
   }
   function chunks(ids) {
@@ -119,16 +121,18 @@
     var complete = true;
     marks.forEach(function (mark) {
       applyElsewhere(mark);
-      cards.find(mark.order_id, mark.drawing_key).forEach(function (card) {
+      var found = cards.find(mark.order_id, mark.drawing_key);
+      if (!found.length && bound.flowOrphan) { bound.flowOrphan(mark); }
+      found.forEach(function (card) {
         if (cards.held(card)) { complete = false; return; }
-        if (mark.part !== cfg.part) {
+        if (mark.part !== (card.getAttribute('data-part') || cfg.part)) {
           if (setOther(card, mark)) {
             if (window.FomsPartsClaim) { window.FomsPartsClaim.recheck(card); } // 검수 판: 앞 파트가 다 완료되면 저절로 열림(§4-6)
             document.dispatchEvent(new CustomEvent('foms:part-card-updated', { detail: { key: mark.drawing_key } }));
           }
           return;
         }
-        if (!sameMark(card, mark)) { cards.apply(card, mark); }
+        if (!sameMark(card, mark)) { cards.apply(card, mark); if (bound.flowSynced) { bound.flowSynced(card, mark); } }
       });
     });
     return complete;

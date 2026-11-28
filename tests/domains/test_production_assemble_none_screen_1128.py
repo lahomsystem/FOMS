@@ -131,10 +131,11 @@ def test_js_keeps_no_assemble_words_and_cut_words_come_from_the_same_setting():
     css = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
     assert ".pp-two > .pp-pick-basic { white-space: normal; word-break: keep-all; line-height: 1.05; }" in css
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
-    for name in ("parts", "parts-sync", "drawing-request"):
-        assert f"foms-production-{name}.js') }}}}?v=20261128h" in scripts, name
+    assert "foms-production-drawing-request.js') }}?v=20261128h" in scripts
     for name in ("parts-modal", "parts-crew"):  # 11-28 흐름 x: 반장 미정 칸 시작만 · 창 안 바로 완료
         assert f"foms-production-{name}.js') }}}}?v=20261128x" in scripts, name
+    for name in ("parts", "parts-sync"):  # 2026-11-28 흐름(카드 파트 data-part · 담으면 빼기 · 받아 오기 다시 받기)이 한 번 더
+        assert f"foms-production-{name}.js') }}}}?v=20261128n" in scripts, name
 
 
 def test_history_line_words_for_none_and_rework():

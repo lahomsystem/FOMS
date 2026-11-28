@@ -149,7 +149,8 @@ def test_order_arg_marks_elsewhere_cards_too(client, cohort):
 
 def test_focus_css_reuses_focus_token_and_morning_link_carries_hash():
     assert _rule(".pp-card.is-focus").strip() == "outline: 3px solid var(--fph-brand); outline-offset: 2px;"
-    assert "{{ home_href(None, dd.part or pb.url_part, dd.key) }}#pp-mine" in TPL
+    # 태블릿 문 안(2026-11-28 흐름 §3-2)은 [보기] = '내 공정' 탭 — 내 카드가 날짜 판에서 빠져 #pp-mine 자리가 비었다. 문 밖은 그대로
+    assert "{{ flow.mine_href if flow else home_href(None, dd.part or pb.url_part, dd.key) ~ '#pp-mine' }}" in TPL
 
 
 def test_claim_js_scrolls_to_focus_and_morning_view_in_place():

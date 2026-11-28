@@ -20,10 +20,64 @@
    바뀌기 전 기록만 있는 장(c.note_old) = data-note-old. 꺼짐이면 속성 · 딱지 0. #}
 {% from 'production/partials/home_date_macros.html' import home_href, fph_due, fph_chip, fph_wait, fph_wait_head %}
 {% set pb = part_board %}
-{% set pp = pb.panes[d.key] %}
+{#- '내 공정' · '작업 중' 탭(2026-11-28 흐름)은 이 파일의 카드 조각(pp_card · pp_act)을 빌려 home_mine.html · home_crew.html 을 그린다 — 날짜 장 판 없음 -#}
+{% set flow_screen = tab is defined and tab in ('mine', 'crew') %}
+{% set pp = none if flow_screen else pb.panes[d.key] %}
 {% set is_cut = pb.basic is not none %}{#- 이름은 옛 것 — 뜻은 "기본이 되는 파트"(재단 '기본' · 조립 '조립 없음', 2026-11-28) -#}
 {#- 알림 · 검색 바로가기로 연 주문(주소 order= · 옛 focus_order=, 2026-11-26 결정 C69) — 그 주문 도면 칸에 is-focus 테두리, 첫 칸으로 굴림(parts-claim.js) -#}
 {% set pp_focus = (request.args.get('order') or request.args.get('focus_order') or '0') | int(0) %}
+{#- 카드 한 장(확정 도면 한 장) — 날짜 판 · '내 공정' · '작업 중'이 같이 쓰는 한 조각(설계서 2026-11-28-production-my-steps-flow §3-4 · §3-6
+    "같은 조각 · 같은 키"). 새 흐름 카드(c.part 가 있는 카드 — my_steps · crew_board 재료)만 data-part · data-part-label · data-day 를 더 단다
+    (판 JS 가 카드마다 그 파트로 쓰고 · '내 공정' 띠가 거른다 — 날짜 판 카드는 그대로). sfx = 같은 장이 한 화면에 두 번 설 때(같이 작업 두 묶음 ·
+    여러 파트) 말풍선 id 꼬리 — 첫 장은 빈 글(날짜 판 바이트 그대로). -#}
+{% macro pp_card(c, pb, is_cut, sfx='') -%}
+<article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic', 'hand') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}{% if pp_focus and c.order_id == pp_focus %} is-focus{% endif %}"
+               data-pp-card data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}"
+               data-state="{{ c.state }}" data-picked-me="{{ '1' if c.picked_by_me else '0' }}" data-done-me="{{ '1' if c.done_by_me else '0' }}"
+               data-picked-name="{{ c.picked_by_name or '' }}" data-done-name="{{ c.done_by_name or '' }}"
+               data-in-need="{{ '1' if c.in_need else '0' }}" data-in-done="{{ '1' if c.in_done else '0' }}" data-view-url="{{ c.view_url }}"
+               data-picked-id="{{ c.picked_by_user_id if c.picked_by_user_id is not none else '' }}" data-picked-day="{{ c.picked_day or '' }}" data-picked-at="{{ c.picked_at or '' }}"
+               data-handed-from="{{ c.handed_from_name or '' }}" data-handed-at="{{ c.handed_at or '' }}" data-pp-hands="{{ c.hand_parts | join(' ') }}"{% if c.first_card %} data-pp-first="1"{% endif %}
+               {%- if c.crew %} data-pp-crew="{{ c.crew | tojson | forceescape }}"{% endif %}
+               {%- if c.order_block %} data-pp-block="{{ c.order_block.kind }}" data-pp-block-text="{{ c.order_block.text }}" data-pp-block-why="{{ c.order_block.why }}"{% endif %}
+               {%- if c.block and c.block.kind == 'pre' %} data-pp-pre="{{ c.block.text }}" data-pp-pre-why="{{ c.block.why }}"{% endif %}
+               {%- if c.hand %} data-pp-hand="{{ c.hand.text }}" data-pp-hand-why="{{ c.hand.why }}"{% endif %}
+               {%- if flag_pen_record and c.note %} data-note-v="{{ c.note.version }}" data-note-by="{{ c.note.by }}" data-note-at="{{ c.note.at }}" data-note-url="{{ c.note.view_url }}"{% endif %}
+               {%- if flag_pen_record and c.note_old %} data-note-old="1"{% endif %}
+               {%- if c.part is defined %} data-part="{{ c.part }}" data-part-label="{{ c.part_label }}" data-day="{{ c.day_key }}"{% endif %}{% if c.order_card %} data-order-card="1"{% endif %}>
+        {#- '도면 없음' 카드(도면이 0장인 주문 한 장, key @order — 설계서 2026-11-28 흐름 §3-5): 그림 칸 · 번호 칸 = "도면 없음"(누를 것 없음),
+            크게 보기 · 펜 기록 · [도면 수정 요청] 없음, 나머지 줄 · 단추 · 카드 키는 보통 카드와 같다 #}
+        {% if c.order_card %}<span class="pp-img pp-none">도면 없음</span>
+        {% elif c.is_image %}
+        <button type="button" class="pp-img" data-pp-open aria-label="{{ c.customer_name }} 도면 {{ c.no }}/{{ c.of }} 크게 보기{% if flag_pen_record and c.note %} · 생산 기록{% endif %}"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt="">{% if flag_pen_record and c.note %}<span class="pp-ptag" data-pp-ptag>생산 기록</span>{% endif %}</button>
+        {% else %}
+        <a class="pp-img pp-file" href="{{ c.view_url }}" target="_blank" rel="noopener"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></a>
+        {% endif %}
+        {%- set sheet_no = '도면 없음' if c.order_card else '도면 ' ~ c.no ~ '/' ~ c.of %}
+        <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · {{ sheet_no }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">{{ sheet_no }}</span></a>
+        <div class="pp-duerow">{{ fph_due(c) }}{% if c.has_changes %}<em class="pp-chg">{{ c.chg_text or '바뀜' }}</em>{% endif %}</div>
+        <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
+        {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
+        <span class="fph-dr__by pp-by{% if c.tag %} has-tag{% endif %}">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}{{ pp_tag(c) }}</span>
+        {%- set req_opts = (pb.req_opts or {}).get(c.order_id) %}{% if req_opts and not c.order_card and not (c.order_block and c.order_block.kind == 'revise') and req_opts | selectattr('no', 'equalto', c.no) | list %}
+        {#- [도면 수정 요청](설계서 2026-11-25 §2-4 · N3) — 그 공장 도면 위, 막히지 않은 장에만(막히면 '도면 고치는 중' 칸이 대신). 창 고르기 = 이 사람이
+           요청할 수 있는 그 주문 장(관리자 · 반장 모든 장, 파트 계정 자기 공장 장). 카드 단추 칸(data-pp-actbox) 밖이라 카드 고치기가 안 지운다. #}
+        <button type="button" class="foms-prod-home__btn pp-req" data-pp-req data-pp-req-opts="{{ req_opts | tojson | forceescape }}">도면 수정 요청</button>
+        {%- endif %}
+        <div class="pp-actbox" data-pp-actbox><p class="pp-why" id="pp-why-{{ c.order_id }}-{{ c.no }}{{ sfx }}" role="status" hidden></p>{% if sfx %}{{ pp_act(c, pb, is_cut) | replace('pp-why-' ~ c.order_id ~ '-' ~ c.no, 'pp-why-' ~ c.order_id ~ '-' ~ c.no ~ sfx) }}{% else %}{{ pp_act(c, pb, is_cut) }}{% endif %}</div>
+      </article>
+{%- endmacro %}
+{#- 새 흐름 카드 한 장 — 카드 파트의 판 머리(단추 글 · 기본 글), 끝낸 것(ro)은 쓰기 없이(파트 직원 '오늘 끝낸 것'에 [완료 취소] 없음 — §3-4),
+    같은 장이 두 번째로 서면 말풍선 id 꼬리(ns.seen — 화면 하나에 namespace 하나). 기본 글은 머리 파트 것만 있다 — 섞인 화면(작업 중 '전체' ·
+    여러 파트 계정)의 카드는 작업 중 · 완료 칸이라 기본 글을 안 쓴다. -#}
+{% macro pp_flow_card(c, ns, ro=false) -%}
+{%- set cpb = dict(part_board, part=c.part, part_label=c.part_label, basic=(part_board.basic if c.part == part_board.part else none)) -%}
+{%- set cpb = dict(cpb, writable=false) if ro else cpb -%}
+{%- set seen = c.order_id ~ '-' ~ c.no -%}
+{%- set sfx = ('-' ~ (ns.seen | length)) if seen in ns.seen else '' -%}
+{%- if ns.seen.append(seen) %}{% endif -%}
+{{ pp_card(c, cpb, cpb.basic is not none, sfx) }}
+{%- endmacro %}
 {% macro pp_block(c) -%}
 <button type="button" class="fph-wi pp-act pp-st-{{ c.block.kind }}" aria-disabled="true" aria-describedby="pp-why-{{ c.order_id }}-{{ c.no }}" data-pp-why="{{ c.block.why }}">{{ c.block.text }}</button>
 {%- endmacro %}
@@ -74,13 +128,14 @@
 {% macro pp_tag(c) -%}
 {%- if c.tag -%}<span class="pp-tag" data-pp-tag aria-label="{{ c.tag.aria }}">내 작업{% if c.tag.crew %} · {{ c.tag.crew }}{% endif %}{% if c.tag.old %} · <span class="is-old">{{ c.tag.old }}</span>{% endif %}{% if c.tag.chg %} · <span class="is-chg">{{ c.tag.chg }}</span>{% endif %}</span>{%- endif -%}
 {%- endmacro %}
+{% if flow_screen %}{% include 'production/partials/home_' ~ tab ~ '.html' %}{% else %}
 <div class="fph-parts" data-pp-pane="{{ d.key }}">
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     {% if pb.pick %}<nav class="pp-picks" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-pick{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('date', p.key, d.key) }}" data-pp-pick="{{ p.key }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
     {% endif %}<h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>출고 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}건</small>{% endif %}</h2>
     {% if part_morning %}{# 아침 칩(설계서 2026-11-23 §4-9) — 밤 넘긴 내 작업(multi-holder §8-2 11). 누르면 시공일마다 [보기](그 날 장).
        여러 파트 계정은 내 파트 전부를 세고 줄마다 파트 이름 · [보기]는 그 파트 판(§4-12) #}
-    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 작업" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ home_href(None, dd.part or pb.url_part, dd.key) }}#pp-mine" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
+    <span class="pp-mwrap" data-pp-morning><button type="button" class="pp-mchip" data-pp-mchip aria-expanded="false" aria-controls="pp-mpop">어제부터 내 작업 {{ part_morning.count }}장 <span aria-hidden="true">›</span></button><span class="pp-mpop" id="pp-mpop" role="dialog" aria-label="어제부터 내 작업" data-pp-mpop hidden>{% for dd in part_morning.days %}<p>{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} {{ dd.count }}장 <a href="{{ flow.mine_href if flow else home_href(None, dd.part or pb.url_part, dd.key) ~ '#pp-mine' }}" aria-label="{{ dd.label }}{% if dd.part_label %} {{ dd.part_label }}{% endif %} 보기">보기</a></p>{% endfor %}</span></span>
     {% endif %}
     {% if pb.mode != 'part' %}
     <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('parts', p.key, d.key, factory=pb.url_factory) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
@@ -96,7 +151,9 @@
     {% endif %}
     <div class="foms-prod-home__tabs pp-tabs" role="group" aria-label="칸">
       <button type="button" class="foms-prod-home__tab is-on" data-pp-view="all" aria-pressed="true">전체 도면 <small data-pp-count="all">{{ pp.counts.all }}</small></button>
+      {% if not (flow and pb.mine) %}{#- 파트 계정 태블릿은 '내 작업' 칸이 없다 — 내 카드는 '내 공정' 탭에(2026-11-28 흐름 답 10) -#}
       <button type="button" class="foms-prod-home__tab" data-pp-view="need" aria-pressed="false">{{ '내 작업' if pb.mine else '작업 중' }} <small data-pp-count="need">{{ pp.counts.need }}</small></button>
+      {% endif %}
       <button type="button" class="foms-prod-home__tab" data-pp-view="done" aria-pressed="false">완료 <small data-pp-count="done">{{ pp.counts.done }}</small></button>
     </div>
   </div>
@@ -105,42 +162,10 @@
     <h3 class="fph-pane__g pp-wait-g">도면·컨펌 기다림 {{ pp.wait_count }} <small>{% if pp.wait_rows %}{{ fph_wait_head(d.wait_head) }}{% endif %}도면이 오면 여기 나와요</small></h3>
     <div class="fph-wg">{% for r in pp.wait_rows %}{{ fph_wait(r, d.show_day, 'pp-wait') }}{% endfor %}{% for r in pp.no_drawing_rows %}{{ fph_chip(r, false, 'pp-wait', '도면 없음') }}{% endfor %}</div>
     {% endif %}
-    <div class="pp-grid" data-pp-grid>
+    {#- data-pp-orders = 내 카드가 빠진 판(파트 계정 — pane.mine_out)의 그 날 주문 — 30초 받아 오기가 같이 물어 "내 것이 아니게 됐다"를 본다(parts-sync · flow.js) -#}
+    <div class="pp-grid" data-pp-grid{% if flow and pp.mine_out %} data-pp-orders="{{ d.make_rows | map(attribute='id') | join(' ') }}"{% endif %}>
       {% for c in pp.cards %}
-      <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic', 'hand') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}{% if pp_focus and c.order_id == pp_focus %} is-focus{% endif %}"
-               data-pp-card data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}"
-               data-state="{{ c.state }}" data-picked-me="{{ '1' if c.picked_by_me else '0' }}" data-done-me="{{ '1' if c.done_by_me else '0' }}"
-               data-picked-name="{{ c.picked_by_name or '' }}" data-done-name="{{ c.done_by_name or '' }}"
-               data-in-need="{{ '1' if c.in_need else '0' }}" data-in-done="{{ '1' if c.in_done else '0' }}" data-view-url="{{ c.view_url }}"
-               data-picked-id="{{ c.picked_by_user_id if c.picked_by_user_id is not none else '' }}" data-picked-day="{{ c.picked_day or '' }}" data-picked-at="{{ c.picked_at or '' }}"
-               data-handed-from="{{ c.handed_from_name or '' }}" data-handed-at="{{ c.handed_at or '' }}" data-pp-hands="{{ c.hand_parts | join(' ') }}"{% if c.first_card %} data-pp-first="1"{% endif %}
-               {%- if c.crew %} data-pp-crew="{{ c.crew | tojson | forceescape }}"{% endif %}
-               {%- if c.order_block %} data-pp-block="{{ c.order_block.kind }}" data-pp-block-text="{{ c.order_block.text }}" data-pp-block-why="{{ c.order_block.why }}"{% endif %}
-               {%- if c.block and c.block.kind == 'pre' %} data-pp-pre="{{ c.block.text }}" data-pp-pre-why="{{ c.block.why }}"{% endif %}
-               {%- if c.hand %} data-pp-hand="{{ c.hand.text }}" data-pp-hand-why="{{ c.hand.why }}"{% endif %}
-               {%- if flag_pen_record and c.note %} data-note-v="{{ c.note.version }}" data-note-by="{{ c.note.by }}" data-note-at="{{ c.note.at }}" data-note-url="{{ c.note.view_url }}"{% endif %}
-               {%- if flag_pen_record and c.note_old %} data-note-old="1"{% endif %}{% if c.order_card %} data-order-card="1"{% endif %}>
-        {#- '도면 없음' 카드(도면이 0장인 주문 한 장, key @order — 설계서 2026-11-28 흐름 §3-5): 그림 칸 · 번호 칸 = "도면 없음"(누를 것 없음),
-            크게 보기 · 펜 기록 · [도면 수정 요청] 없음, 나머지 줄 · 단추 · 카드 키는 보통 카드와 같다 #}
-        {% if c.order_card %}<span class="pp-img pp-none">도면 없음</span>
-        {% elif c.is_image %}
-        <button type="button" class="pp-img" data-pp-open aria-label="{{ c.customer_name }} 도면 {{ c.no }}/{{ c.of }} 크게 보기{% if flag_pen_record and c.note %} · 생산 기록{% endif %}"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt="">{% if flag_pen_record and c.note %}<span class="pp-ptag" data-pp-ptag>생산 기록</span>{% endif %}</button>
-        {% else %}
-        <a class="pp-img pp-file" href="{{ c.view_url }}" target="_blank" rel="noopener"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></a>
-        {% endif %}
-        {%- set sheet_no = '도면 없음' if c.order_card else '도면 ' ~ c.no ~ '/' ~ c.of %}
-        <a class="pp-ln pp-sheetlink" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=c.order_id) }}" aria-label="{{ c.customer_name }} #{{ c.order_id }} 작업 시트 열기 · {{ sheet_no }}"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small><span class="pp-go" aria-hidden="true">›</span></span><span class="pp-no">{{ sheet_no }}</span></a>
-        <div class="pp-duerow">{{ fph_due(c) }}{% if c.has_changes %}<em class="pp-chg">{{ c.chg_text or '바뀜' }}</em>{% endif %}</div>
-        <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
-        {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
-        <span class="fph-dr__by pp-by{% if c.tag %} has-tag{% endif %}">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}{{ pp_tag(c) }}</span>
-        {%- set req_opts = (pb.req_opts or {}).get(c.order_id) %}{% if req_opts and not c.order_card and not (c.order_block and c.order_block.kind == 'revise') and req_opts | selectattr('no', 'equalto', c.no) | list %}
-        {#- [도면 수정 요청](설계서 2026-11-25 §2-4 · N3) — 그 공장 도면 위, 막히지 않은 장에만(막히면 '도면 고치는 중' 칸이 대신). 창 고르기 = 이 사람이
-           요청할 수 있는 그 주문 장(관리자 · 반장 모든 장, 파트 계정 자기 공장 장). 카드 단추 칸(data-pp-actbox) 밖이라 카드 고치기가 안 지운다. #}
-        <button type="button" class="foms-prod-home__btn pp-req" data-pp-req data-pp-req-opts="{{ req_opts | tojson | forceescape }}">도면 수정 요청</button>
-        {%- endif %}
-        <div class="pp-actbox" data-pp-actbox><p class="pp-why" id="pp-why-{{ c.order_id }}-{{ c.no }}" role="status" hidden></p>{{ pp_act(c, pb, is_cut) }}</div>
-      </article>
+      {{ pp_card(c, pb, is_cut) }}
       {% endfor %}
     </div>
     <p class="pp-empty" data-pp-empty{% if pp.cards %} hidden{% endif %}>{% if pp.no_drawing_rows or pp.wait_count %}아직 확정 도면이 없어요.{% else %}이 날은 만들 도면이 없어요.{% endif %}</p>
@@ -171,4 +196,4 @@
     {% endif %}
   </div>
 </div>
-{% if part_board %}<p class="pp-rotate">도면은 태블릿을 가로로 두면 보여요.</p>{% endif %}
+{% if part_board %}<p class="pp-rotate">도면은 태블릿을 가로로 두면 보여요.</p>{% endif %}{% endif %}
