@@ -2974,6 +2974,26 @@
 - 일꾼 보고(다시 안 잼): 새 시험 `test_production_lead_start_picker_1128.py` `9 passed`(전이 칸 · API 문을 빼면 실패) · `-k production` `2692 passed` · 하네스 `687 passed` · 스캔 다섯 0(audit 인벤토리 줄 번호 고침) · 글자 150% 에서 사람 칸 둘째 줄이 60px 중 48px 보임(지금 "누구에게 줄까요?" 창과 같은 CSS — 나빠지지 않음).
 - 확인 못 한 것: 현장 알람 실제 발송(스위치 꺼짐) · PG.
 
+### ⓑ 결함 고침 얹음 · A 몫 다 모임 (11-28 밤 22 — 압축 뒤 이 절부터)
+
+**일꾼 `fix-flow-ordercard`**(b2 `67087d917` → 세션 `58a956e72`, 24파일 +482 −113). 내가 본 것: 단계 쓰기 · 옮기기 · 전달 diff 전부(`drawing_fix_marks.py` · `drawing_fix_transfer.py` · `order_card.py` · `order_card_carry.py`).
+- 결함 1(시공 단계 첫 도면): `first_arrival` 을 `is_drawing_hotfix_stage`(생산 · 시공)로. 손 체크 풀어 쓰기 갈래는 생산만 그대로.
+- 결함 2(39번 답 "고침"): (가) 생산으로 **들어가는** 쓰기 — `drawing_fix_marks.release_on_stage_exit` 안에서 새 목록 `STAGE_WRITE_HOOKS` 를 먼저 부르고, `order_card_carry` 가 import 때 `carry_on_production_entry` 를 스스로 건다(직접 import 는 앱 시작 때 돌고 돌아 깨지고, 함수 안 import 는 레이어 래칫이 막아서 — 일꾼 판단). 그 함수를 부르는 곳 = `transition_order`(고객컨펌 승인 · 제작 시작 · 완료 취소 · 시공 되돌림) · 강제 단계 변경 한 건 · 일괄 · `update_order_status` · `update_order_field`. 안 타는 곳: 수정 제작(시공 → 생산 — 다음 전달에서 (나)가 옮김) · 휴지통 복원. (나) 생산 · 시공 단계 전달은 "0 → n 이거나 남은 `@order` 줄 있음"(`leftover_order_card`)으로 넓힘.
+  - **남는 위험(내가 적음)**: 걸어 두기가 import 순서에 기댄다 — 앱을 만들지 않고 단계를 생산으로 바꾸는 프로세스가 생기면 옮기기를 안 탄다(지금 아는 것 없음, 시험이 앱에서 걸린 것을 박음).
+- 결함 3(n → 0장): 도면 0장이면 `parts_in_use` = 미정 아닌 `@order` 줄의 파트만. 옮기기 손 체크 고르기 = 칸 켜짐 + `@order` · 쓰기 전 도면 어디에도 미정 아닌 줄 없음. **판정 바뀜**: 옛 판 줄만 남은 0장 주문은 이제 카드 안 쓴 주문 규칙 — 칸을 하나도 안 켰으면 [제작 완료] 막힘 글이 "도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요." → "검수까지 끝나야 제작 완료할 수 있어요. (남은 공정: 엣지 · 조립 · 검수)"(있는 글).
+- 결함 4(2공장): 작업 중은 1공장 장에만, 완료 · 기본은 모든 장. 1공장 장이 없으면 작업 중은 안 옮기고 `@order` 줄만 미정.
+- 결함 6(기록): 미정 돌리기 기록 줄을 기록 API 에서 뺌 · 0장 + `@order` 면 작업 시트 기록 머리 "재단 옛 도면" → "재단 도면 없음"(sheet-parts.js 한 줄, 핀 `20261128d`).
+- 결함 7: `db.expire` 가 필요한 길(라우트가 표시 줄을 쥔 전달)을 시험이 증명(빼면 실패).
+- 덧붙임: `uses_order_card` 지움 · 설계서 §5 쿼리 글 고침.
+- 일꾼 보고(다시 안 잼): 새 · 바꾼 시험 14 — 옛 코드에서 다 실패 · 닿는 시험 126파일 `2686 passed` · `-k "production or rework or drawing or alarm or part_mark"` `4909 passed` · 하네스 `687 passed` · 레이어 래칫 `3 passed` · 스캔 다섯 0.
+- 찾았지만 안 고친 것(원래 있던 어긋남): '도면 없음' 카드 주문의 작업 시트 회색 [제작 완료] 누름 글은 JS 가 "도면이 없어요 — …"(`foms-production-sheet-parts.js:128`, `final_sheet_count = 0`), 서버 글은 "미완료가 있어요 — 엣지 1장 …".
+
+### A 몫 넓은 시험 통과 → 스테이징 올림 시작 (11-28 밤 22)
+
+- 세션 가지(ⓐ · ⓑ · ⓒ1 · ⓒ2 · 화면 다듬기 · 37번 '오늘 끝낸 것' · ⓑ 결함 고침) 내가 돌린 것: 넓은 시험 `tests/domains tests/security tests/contracts` → `20167 passed, 6 skipped, 450 warnings in 256.65s` · `tests/harness` → `687 passed in 60.29s` · `APP_OK` · `node --check` 생산 JS 전부 통과 · `refresh_inventories` "인벤토리 최신" · 스캔 다섯 종료 0.
+- 올리기: `scratchpad/safe_push.sh`(로그 `smoke_push128.log` · `rebase83` · `push83`). 운영은 사장님이 말씀하실 때만(스위치 없는 고침이라 올리면 바로 바뀜).
+- 그다음(B 몫): `build-lead-start-picker`(b5 `3fa1cb598` — 받음 · 확인함, 안 얹음) · `build-ui-review-fixes`(b1 — 도는 중) 얹기 → 같은 길. 같이 고칠 작은 것: 작업 시트 회색 [제작 완료] 누름 글이 '도면 없음' 카드 주문에서 "도면이 없어요 — …"(`foms-production-sheet-parts.js:128`) · 사장님께 여쭐 글 "도면 없음 1장이 미완료예요. …"(일꾼이 지은 글).
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
