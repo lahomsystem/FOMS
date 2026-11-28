@@ -48,6 +48,9 @@ MARK_STATE_NEED = "NEED"
 MARK_STATE_BASIC = "BASIC"
 MARK_STATE_DONE = "DONE"
 PART_MARK_STATES: tuple[str, ...] = (MARK_STATE_NONE, MARK_STATE_NEED, MARK_STATE_BASIC, MARK_STATE_DONE)
+#: '도면 없음' 주문 카드의 약속 key(설계서 2026-11-28-production-my-steps-flow §3-5 · 답 11) — 확정 도면이 0장인 생산 단계 주문의 표시 줄
+#: 한 장(파트마다). 저장소 key(``orders/…``)는 ``@`` 로 시작하지 않아 겹치지 않는다. 규칙 · 도우미는 :mod:`.order_card`.
+ORDER_CARD_KEY = "@order"
 
 #: '기본'(이미 잘라 둔 판)은 재단 낱말이다(D49 · D57) — 감사 글의 재단 낱말 갈래("안 봄")가 쓴다.
 BASIC_ALLOWED_PART = PART_CUT

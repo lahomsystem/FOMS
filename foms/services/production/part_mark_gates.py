@@ -65,6 +65,10 @@ REVISING_MESSAGE = "도면 수정 중이라 지금은 못 눌러요. 새 도면�
 #: 카드를 쓴 파트의 공정 칸 체크(승인 때 고친 것 2 — 글자 그대로, 숫자 = 남은 장).
 PART_USES_CARDS_MESSAGE = "도면 {left}장이 미완료예요. 남은 도면을 완료하면 자동으로 작업 완료 처리돼요."
 STEP_SET_BY_CARDS_MESSAGE = "도면을 모두 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면에서 [{label} 완료 취소]를 눌러 주세요."
+#: 같은 두 거절의 주문 카드('도면 없음' 한 장 — 설계서 2026-11-28-production-my-steps-flow §3-5) 글 — 위 글의 "도면 n장" · "도면" 자리만
+#: 카드 글 "도면 없음"으로 바꿨다(새 낱말 없음). 장 수는 늘 1이다("재단 0/1 · 1장 미완료" 와 같은 셈).
+ORDER_CARD_LEFT_MESSAGE = "도면 없음 1장이 미완료예요. 그 장을 완료하면 자동으로 작업 완료 처리돼요."
+ORDER_CARD_DONE_MESSAGE = "도면 없음 장을 완료해서 작업 완료된 공정이에요. 취소하려면 그 파트 도면 없음 장에서 [{label} 완료 취소]를 눌러 주세요."
 
 #: 보류 · 도면 고치는 중에도 되는 누름(§4-6 '되는 것' — 시작 취소 · 완료 취소 · 반장의 남의 시작 취소, multi-holder §7-3 5).
 ALLOWED_WHILE_BLOCKED: tuple[str, ...] = (ACTION_RELEASE, ACTION_UNDO, ACTION_REMOVE)
@@ -239,6 +243,8 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
       것은 사람이 공정 칸을 직접 켜는 쓰기뿐이다.
     * 끌 때: 카드를 쓴 파트의 지금 장이 모두 카드로 완료면 409 ``STEP_SET_BY_CARDS``(완료 취소는 카드에서). 손으로 켜 둔 옛 칸 끄기는 된다.
     * 그 밖(카드를 안 쓴 파트의 끄기 · 도면 0장 주문의 켜기)은 지금 그대로.
+    * 주문 카드('도면 없음' 한 장 ``@order``, 도면 0장 주문): 그 파트 ``@order`` 가 작업 중이면 켜기 ``PART_USES_CARDS``, 완료면 끄기
+      ``STEP_SET_BY_CARDS``(코드 그대로, 글만 :data:`ORDER_CARD_LEFT_MESSAGE` · :data:`ORDER_CARD_DONE_MESSAGE`). ``@order`` 를 안 쓴 파트는 지금 그대로.
 
     Args:
         sd: 잠근 주문의 ``structured_data``.
@@ -253,16 +259,19 @@ def step_cell_gate(sd: Any, marks: Iterable[Any], part: str, done: bool) -> Opti
         return Gate(409, HOLD_ACTIVE, HOLD_MESSAGE, {"part": part})
     if done and drawing_revision_in_progress(sd):
         return Gate(409, DRAWING_REVISING, REVISING_MESSAGE, {"part": part})
+    marks = list(marks)
     progress = part_progress(sd, marks, part)
     cards = bool(progress["uses_cards"] and progress["total_n"])
     left = len(progress["left_keys"])
+    order_card = cards and not per_sheet_only(sd)  # 확정 도면 0장인데 카드 = 주문 카드 '도면 없음' 한 장(글만 가른다)
     if done and cards and left:
-        return Gate(409, PART_USES_CARDS, PART_USES_CARDS_MESSAGE.format(left=left),
-                    {"part": part, "left": left, "total": progress["total_n"]})
+        message = ORDER_CARD_LEFT_MESSAGE if order_card else PART_USES_CARDS_MESSAGE.format(left=left)
+        return Gate(409, PART_USES_CARDS, message, {"part": part, "left": left, "total": progress["total_n"]})
     if done and per_sheet_only(sd):
         return Gate(409, STEP_PER_SHEET, STEP_PER_SHEET_MESSAGE, {"part": part, "left": left, "total": progress["total_n"]})
     if not done and cards and not left:
-        return Gate(409, STEP_SET_BY_CARDS, STEP_SET_BY_CARDS_MESSAGE.format(label=PRODUCTION_PART_LABELS[part]), {"part": part})
+        text = ORDER_CARD_DONE_MESSAGE if order_card else STEP_SET_BY_CARDS_MESSAGE
+        return Gate(409, STEP_SET_BY_CARDS, text.format(label=PRODUCTION_PART_LABELS[part]), {"part": part})
     return None
 
 

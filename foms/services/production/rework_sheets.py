@@ -16,7 +16,8 @@
 풀어 적는다** — 그 파트도 이제 도면으로 보므로(``part_progress.parts_in_use``) 안 풀면 안 고른 도면까지 미정이 된다.
 
 도면이 없는 주문: **고른 칸만** 끈다. 안 고른 칸 가운데 꺼져 있던 것은 켠다(``via: 'rework'`` · 이름 없음 — 제작 완료된 주문이라 안 고른
-공정은 끝난 것이다. 안 채우면 고른 칸 하나를 켜는 순간 "한 칸이라도 켜면 넷 다" 규칙이 안 고른 칸까지 요구한다).
+공정은 끝난 것이다. 안 채우면 고른 칸 하나를 켜는 순간 "한 칸이라도 켜면 넷 다" 규칙이 안 고른 칸까지 요구한다). 고른 공정을 '도면 없음'
+카드(``@order``)로 끝냈으면 그 줄도 미정으로 돌린다(2026-11-28 흐름 §3-5 — 안 돌리면 칸이 꺼져도 카드 완료 줄이 그 공정을 완료로 읽힌다).
 
 ``rework`` 는 기록용 낱말이다 — 도면 쓰기 API(``/api/production/part-marks``)가 받는 누름이 아니다.
 """
@@ -36,8 +37,9 @@ from foms.services.production import mark_crew as mc
 from foms.services.production.factory_constants import DEFAULT_FACTORY
 from foms.services.production.factory_marks import clear_factory_marks
 from foms.services.production.factory_scope import OTHER_FACTORY, other_factory_message
+from foms.services.production.order_card import order_entry
 from foms.services.production.part_access import can_write_sheet
-from foms.services.production.part_constants import MARK_STATE_NONE, PRODUCTION_PART_KEYS
+from foms.services.production.part_constants import MARK_STATE_NONE, ORDER_CARD_KEY, PRODUCTION_PART_KEYS
 from foms.services.production.part_mark_notes import actor_name
 from foms.services.production.part_mark_write import MarkWrite, after_views, plan_write
 from foms.services.production.part_marks_query import order_marks
@@ -178,7 +180,7 @@ def apply_pick(db: Any, order: Any, sd: dict[str, Any], pick: ReworkPick, user: 
     if pick.entries:
         _apply_drawings(db, order, sd, pick, user, count)
     else:
-        _apply_steps(db, order, sd, pick, user)
+        _apply_steps(db, order, sd, pick, user, count)
 
 
 def _apply_drawings(db: Any, order: Any, sd: dict[str, Any], pick: ReworkPick, user: Any, count: int) -> None:
@@ -244,12 +246,30 @@ def _people_before(before: Any) -> list[dict[str, Any]]:
     return [{"uid": before.done_by_user_id, "name": before.done_by_name, "done": True}]
 
 
-def _apply_steps(db: Any, order: Any, sd: dict[str, Any], pick: ReworkPick, user: Any) -> None:
+def _undo_order_cards(db: Any, order: Any, pick: ReworkPick, user: Any, now: datetime.datetime, count: int) -> list[MarkWrite]:
+    """고른 공정의 '도면 없음' 카드(``@order``) 줄을 미정으로(2026-11-28 흐름 §3-5 — 칸만 끄고 완료 줄이 남으면 그 공정이 곧바로 완료로
+    읽힌다). 도면 수정 제작과 같은 이벤트 꼴(``action: 'rework'``). 주문 카드를 안 쓴 주문은 쓸 것이 없다(표시 줄 읽기 +1 — 수정 제작 한 번)."""
+    by_part = marks_by_part(order_marks(db, order.id))
+    undone: list[MarkWrite] = []
+    for part in pick.steps:
+        row = by_part.get(part, {}).get(ORDER_CARD_KEY)
+        if row is None or str(row.state or MARK_STATE_NONE) == MARK_STATE_NONE:
+            continue
+        write = plan_write(order, order_entry(), row, part=part, target=MARK_STATE_NONE, user=user, action=ACTION_REWORK,
+                           override=False, now=now)
+        write.event["payload"].update(holders_before=_people_before(write.before), rework_count=count)
+        undone.append(write)
+    if undone:
+        db.execute(update(ProductionPartMark), [{"id": w.row_id, **w.values} for w in undone])
+    return undone
+
+
+def _apply_steps(db: Any, order: Any, sd: dict[str, Any], pick: ReworkPick, user: Any, count: int = 0) -> None:
     now = now_utc_naive()
     at_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     was = step_done_map(sd)
     name = actor_name(user)
-    events: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = [w.event for w in _undo_order_cards(db, order, pick, user, now, count)]
     for key, _label in PRODUCTION_STEP_DEFS:
         done = key not in pick.steps  # 고른 칸 = 끔 · 안 고른 칸 = 켜 둠(꺼져 있던 것은 이름 없이 채운다)
         if was.get(key, False) == done:

@@ -3,7 +3,8 @@
 API(``foms/api/production/part_marks.py``)는 로그인 · 파트 문 · 몸 읽기 · tx 만 하고 여기를 부른다(500줄 래칫).
 
 한 장 순서(한 tx): 주문 행 잠금(``FOR UPDATE`` — 같은 주문 표시 쓰기 · 공정 칸 API · 제작 완료를 줄 세운다) → 살아 있는 ERP
-주문 · 생산 단계(아니면 409 ``NOT_IN_PRODUCTION``) → 지금 확정 도면 안의 key(아니면 409 ``DRAWING_NOT_CURRENT``) → 그 주문
+주문 · 생산 단계(아니면 409 ``NOT_IN_PRODUCTION``) → 지금 확정 도면 안의 key(아니면 409 ``DRAWING_NOT_CURRENT`` — 확정 도면이 0장이면
+주문 카드 ``@order``, :mod:`~foms.services.production.order_card`) → 그 주문
 **네 파트** 표시 줄 읽기(쿼리 1 — 검수 순서 · 손 체크 판정 · 완료 물음이 같은 줄을 쓴다) → 전이 표
 (:mod:`~foms.services.production.part_mark_rules`) · 막는 까닭(:mod:`~foms.services.production.part_mark_gates`) → 줄 쓰기 +
 이벤트 ``PRODUCTION_PART_MARKED`` → 주문 쓰기 한 번(누른 파트 공정 칸 동기화 + 첫 카드면 제작 시작) → 감사 한 줄.
@@ -35,6 +36,7 @@ from foms.services.orders.state_axes import read_main_stage
 from foms.services.orders.drawing_factory import factory_done_entry, has_second_factory, present_factories, sheet_factory
 from foms.services.production.factory_home import factory_ready
 from foms.services.production.factory_scope import factory_gate
+from foms.services.production.order_card import is_order_key, order_entry
 from foms.services.production.part_access import is_part_admin
 from foms.services.production.part_constants import (
     MARK_STATE_BASIC,
@@ -152,9 +154,13 @@ def check_order(order: Optional[Order]) -> Order:
     return order
 
 
-def current_entry(order: Order, key: str) -> dict[str, Any]:
-    """지금 확정 도면 안의 그 장(없으면 409 — 교체된 옛 key 거나 빠진 장)."""
-    entry = next((e for e in resolve_final_drawing_files(order.structured_data) if e["key"] == key), None)
+def current_entry(order: Order, key: str, *, order_card: bool = True) -> dict[str, Any]:
+    """지금 확정 도면 안의 그 장(없으면 409 — 교체된 옛 key 거나 빠진 장). 확정 도면이 **0장**인 주문(생산 단계는 ``check_order`` 가 이미
+    봤다)은 주문 카드 key ``@order`` 를 가짜 항목으로 받는다(``order_card`` 거짓 = 일괄 기본 — 받지 않는다). 1장 이상이면 ``@order`` 도 409."""
+    files = resolve_final_drawing_files(order.structured_data)
+    entry = next((e for e in files if e["key"] == key), None)
+    if entry is None and order_card and not files and is_order_key(key):
+        return order_entry()
     if entry is None:
         raise MarkRefusal(409, "DRAWING_NOT_CURRENT", NOT_CURRENT_MESSAGE)
     return entry

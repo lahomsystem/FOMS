@@ -48,7 +48,7 @@ def _bulk_one(user: Any, admin: bool, order: Optional[Order], key: str, row: Any
         MarkRefusal: 이 장만 건너뛸 까닭(``reason`` = 코드).
     """
     order = check_order(order)
-    entry = current_entry(order, key)
+    entry = current_entry(order, key, order_card=False)  # 주문 카드(@order)는 일괄 대상이 아니다 — 409 DRAWING_NOT_CURRENT 로 건너뜀
     decision = decide_mark(MarkSnapshot.from_row(row), action=ACTION_BASIC, seen="none", actor_id=user.id, admin=admin,
                            actor_name=actor_name(user))
     if decision.kind not in (DECISION_APPLY, DECISION_CONFLICT):

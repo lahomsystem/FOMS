@@ -2,7 +2,8 @@
 
 규칙: 한 주문 · 한 파트에서 지금 확정 도면(:func:`resolve_final_drawing_files`)의 **모든 장**이 끝이면 그 공정 칸을
 켜고, 하나라도 끝이 아니면(되돌리기 · 새 도면 · 아무도 안 고른 장 — D57 '아직') 끈다. 끝 = 재단은 DONE 또는 BASIC,
-그 밖 파트는 DONE. 확정 도면이 0장이면 건드리지 않는다. **카드를 쓴 파트만** — 그 주문 · 그 파트에 상태가 NONE 이
+그 밖 파트는 DONE. 확정 도면이 0장이면 건드리지 않는다 — 다만 주문 카드(key ``@order``) 줄이 있으면 그 한 장을 따른다(설계서
+2026-11-28-production-my-steps-flow §3-5). **카드를 쓴 파트만** — 그 주문 · 그 파트에 상태가 NONE 이
 아닌 표시 줄이 하나라도 있을 때(옛 key 포함)만 맞춘다(설계서 2026-11-23 §4-2 B5′ — 2026-11-13 판은 NONE 줄만 있어도
 맞춰서 맡기만 해도 손으로 켠 칸이 꺼졌다). 카드를 안 쓴 파트는 손으로 켠 값을 그대로 둔다. 켤 때 칸 ``via`` =
 ``'part_marks'``.
@@ -27,8 +28,8 @@ from sqlalchemy import insert
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
-from foms.services.production.part_constants import PRODUCTION_PART_KEYS
-from foms.services.production.part_progress import mark_finished, marks_by_part, parts_in_use
+from foms.services.production.part_constants import ORDER_CARD_KEY, PRODUCTION_PART_KEYS
+from foms.services.production.part_progress import mark_finished, marks_by_part, parts_in_use, sheet_keys
 from foms.services.production.steps import STEP_VIA_PART_MARKS, set_production_step, step_done_map
 from models import OrderEvent, ProductionPartMark
 
@@ -62,12 +63,13 @@ def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str
             파트로 보고 칸을 맞춘다(안 맞추면 켜진 칸이 남아 손 체크 칸으로 잠긴다).
 
     Returns:
-        ``{파트 key: done}`` — 카드를 쓴 파트만. 확정 도면이 0장이면 빈 dict(건드리지 않음).
+        ``{파트 key: done}`` — 카드를 쓴 파트만. 확정 도면이 0장이면 빈 dict(건드리지 않음) — 다만 ``@order`` 줄이 있으면 그 한 장을
+        따른다(주문 카드, :func:`~foms.services.production.part_progress.sheet_keys` — 끝내면 켜짐, 완료 · 시작 취소로 미정이면 꺼짐).
     """
-    keys = [entry["key"] for entry in resolve_final_drawing_files(sd)]
+    marks = list(marks)
+    keys = sheet_keys(sd, marks)
     if not keys:
         return {}
-    marks = list(marks)
     used = parts_in_use(sd, marks) | set(cleared)
     wanted = set(PRODUCTION_PART_KEYS if parts is None else parts)
     by_part = marks_by_part(marks)
@@ -78,8 +80,8 @@ def part_steps_after(sd: Any, marks: Iterable[Any], parts: Optional[Iterable[str
 
 
 def _last_finisher(sd: Any, marks: dict[str, Any]) -> Optional[str]:
-    """지금 확정 도면 장들 중 마지막으로 끝낸 사람 이름(``done_at`` 가장 늦은 줄)."""
-    keys = [entry["key"] for entry in resolve_final_drawing_files(sd)]
+    """지금 확정 도면 장들 중 마지막으로 끝낸 사람 이름(``done_at`` 가장 늦은 줄). 0장이면 주문 카드 ``@order`` 줄(:func:`sheet_keys` 와 같은 꼴)."""
+    keys = [entry["key"] for entry in resolve_final_drawing_files(sd)] or [ORDER_CARD_KEY]
     rows = [marks[k] for k in keys if k in marks and getattr(marks[k], "done_by_name", None)]
     if not rows:
         return None

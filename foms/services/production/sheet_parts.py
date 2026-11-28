@@ -29,9 +29,9 @@ def step_note(sd: Any, marks: list[Any], part: str) -> dict[str, str] | None:
     화면 글에는 '카드'를 쓰지 않는다(판 거르개가 '전체 도면' — 사람이 보는 낱말은 도면).
     """
     progress = part_progress(sd, marks, part)
-    if not progress["uses_cards"] or not progress["total_n"]:
-        return None
     keys = [e["key"] for e in resolve_final_drawing_files(sd if isinstance(sd, dict) else {})]
+    if not progress["uses_cards"] or not progress["total_n"] or not keys:  # 도면 0장 주문('도면 없음' 카드 포함)은 지금 칸 글 그대로
+        return None
     rows = [r for k, r in marks_by_part(marks).get(part, {}).items() if k in keys]
     handed = sum(1 for r in rows if getattr(r, "handed_from_name", None))
     tail = f" · 바뀜 {handed}" if handed else ""

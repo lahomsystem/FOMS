@@ -12,6 +12,12 @@
 * **파트가 실제로 완료됐다** = 카드를 쓴 파트면 지금 확정 도면 장이 모두 완료, 카드를 안 쓴 파트면 그 파트 공정 칸이
   체크됨. 지금 장이 0장이면 카드를 썼어도 칸이 기준이다(§4-3 끝).
 
+**'도면 없음' 주문 카드**(설계서 2026-11-28-production-my-steps-flow §3-5 · 답 11): 확정 도면이 0장인 주문에 key
+:data:`~foms.services.production.part_constants.ORDER_CARD_KEY` 줄이 하나라도 있으면(상태 무관 — 완료 취소로 미정이 된 줄도) 그 주문의
+장 목록은 ``['@order']`` 한 장이다(:func:`sheet_keys`). 그때 '카드를 쓴 파트'는 미정이 아닌 ``@order`` 줄이 있는 파트뿐이다
+(:func:`parts_in_use` — ``@order`` 를 안 쓴 파트는 지금처럼 공정 칸이 기준, 옛 판 key 줄은 세지 않는다). :func:`current_keys` ·
+:func:`per_sheet_only` 는 그대로 진짜 확정 도면만 본다(``@order`` 를 넣으면 반장 손 체크가 ``STEP_PER_SHEET`` 로 막힌다).
+
 ``factory``(3단계 2공장, §4-14): 공장을 주면 **그 공장 장만** 센다 — 장의 공장은
 :func:`foms.services.orders.drawing_factory.current_factories` 한 곳(쿼리 0). '카드를 쓴 파트'는 주문 단위 그대로(공정 칸이
 주문에 하나 — C8)라, 카드를 안 쓴 파트는 주문 칸 체크가 두 공장 모두에 통한다. 공장을 안 주면(None) 지금 그대로 주문 전체다.
@@ -23,12 +29,14 @@ from typing import Any, Iterable, Optional
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production import mark_crew as _mark_crew
+from foms.services.production.factory_constants import DEFAULT_FACTORY
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PARTS,
     MARK_STATE_BASIC,
     MARK_STATE_DONE,
     MARK_STATE_NEED,
     MARK_STATE_NONE,
+    ORDER_CARD_KEY,
     PART_ASSEMBLE,
     PART_CUT,
     PART_EDGE,
@@ -104,6 +112,11 @@ def parts_in_use(sd: Any, marks: Iterable[Any]) -> set[str]:
     """
     if rework_pick(sd, REWORK_KEYS):
         return set(PRODUCTION_PART_KEYS)
+    marks = list(marks)
+    if order_card_mode(sd, marks):  # 주문 카드 주문 — 미정이 아닌 @order 줄이 있는 파트만(그 밖 파트는 공정 칸이 기준)
+        return {str(m.part) for m in marks if getattr(m, "drawing_key", None) == ORDER_CARD_KEY
+                and getattr(m, "part", None) in PRODUCTION_PART_KEYS
+                and str(getattr(m, "state", None) or MARK_STATE_NONE) != MARK_STATE_NONE}
     return cards_used(marks)
 
 
@@ -121,6 +134,27 @@ def current_keys(sd: Any, *, factory: Optional[int] = None) -> list[str]:
     if factory is None:
         return [entry["key"] for entry in resolve_final_drawing_files(sd)]
     return [entry["key"] for entry, f in _drawing_factory.current_factories(sd) if f == factory]
+
+
+def order_card_mode(sd: Any, marks: Iterable[Any]) -> bool:
+    """주문 카드로 보는 주문인지 — 확정 도면이 0장이고 ``@order`` 줄이 하나라도 있다(상태 무관, 쿼리 0)."""
+    sd = sd if isinstance(sd, dict) else {}
+    return not resolve_final_drawing_files(sd) and any(getattr(m, "drawing_key", None) == ORDER_CARD_KEY for m in marks)
+
+
+def sheet_keys(sd: Any, marks: Iterable[Any], *, factory: Optional[int] = None) -> list[str]:
+    """진행 · 공정 칸 맞추기 · 칸 아래 이름이 세는 장 key — 지금 확정 도면 key(:func:`current_keys`), 확정 도면이 0장이고 ``@order`` 줄이
+    있으면 ``['@order']``(주문 카드 한 장 — 1공장 장이다, 2공장을 고르면 빈 목록).
+
+    Args:
+        sd: 주문 ``structured_data``(읽기만).
+        marks: 그 주문 표시 줄들.
+        factory: 1 · 2 또는 None(주문 전체).
+    """
+    marks = list(marks)
+    if not order_card_mode(sd, marks):
+        return current_keys(sd, factory=factory)
+    return [ORDER_CARD_KEY] if factory in (None, DEFAULT_FACTORY) else []
 
 
 def per_sheet_only(sd: Any) -> bool:
@@ -159,10 +193,11 @@ def part_progress(sd: Any, marks: Iterable[Any], part: str, *, factory: Optional
 
     Returns:
         ``{uses_cards, done, done_n, total_n, left_keys, via}`` — ``via`` 는 저장된 공정 칸의 표지
-        (``'sheet'`` · ``'part_marks'`` · 옛 칸이면 None). 카드를 안 쓴 파트는 칸이 체크됐으면 모든 장이 완료다.
+        (``'sheet'`` · ``'part_marks'`` · 옛 칸이면 None). 카드를 안 쓴 파트는 칸이 체크됐으면 모든 장이 완료다. 주문 카드 주문은
+        장이 ``@order`` 한 장(:func:`sheet_keys` — "재단 0/1").
     """
     marks = list(marks)
-    keys = current_keys(sd, factory=factory)
+    keys = sheet_keys(sd, marks, factory=factory)
     uses = part in parts_in_use(sd, marks)
     step_on = step_done_map(sd).get(part, False)
     via = _stored_step(sd, part).get("via") if step_on else None
@@ -198,7 +233,7 @@ def complete_state(sd: Any, marks: Iterable[Any], *, factory: Optional[int] = No
         ``{ready, left: {part: 남은 장 수}, missing_steps: [{key, label}], uses_cards, sheets}``.
     """
     marks = list(marks)
-    sheets = len(current_keys(sd, factory=factory))
+    sheets = len(sheet_keys(sd, marks, factory=factory))  # 주문 카드 주문은 1(막힘 글이 "도면이 없어요" 대신 "재단 1장")
     if not parts_in_use(sd, marks):
         missing = production_steps_missing(sd)
         return {"ready": not missing, "left": {m["key"]: sheets for m in missing}, "missing_steps": missing,
@@ -222,7 +257,8 @@ def complete_block_body(sd: Any, marks: Iterable[Any]) -> Optional[dict[str, Any
 
     카드를 안 쓴 주문은 지금 글 · 꼴 그대로(:func:`~foms.services.production.steps.production_complete_block_body` 를
     부른다 — "검수까지 끝나야 … (남은 공정: …)"). 카드를 쓴 주문은 같은 꼴 ``{success, code, message, missing_steps}`` 에
-    ``left`` 를 더하고 글은 "미완료가 있어요 — 재단 1장 · 검수 3장", 확정 도면이 0장이면 "도면이 없어요 — …".
+    ``left`` 를 더하고 글은 "미완료가 있어요 — 재단 1장 · 검수 3장", 확정 도면이 0장이면 "도면이 없어요 — …"(주문 카드 주문은 장이
+    ``@order`` 한 장이라 앞 꼴 "미완료가 있어요 — 엣지 1장").
 
     Args:
         sd: 주문 ``structured_data``(읽기만).
