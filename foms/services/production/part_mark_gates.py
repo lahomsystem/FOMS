@@ -44,10 +44,10 @@ from foms.services.production.part_mark_rules import (
 from foms.services.production.part_progress import (
     INSPECT_PREREQ_PARTS,
     STEP_PER_SHEET_MESSAGE,
-    cards_used,
     inspect_left,
     marks_by_part,
     part_progress,
+    parts_in_use,
     per_sheet_only,
 )
 
@@ -151,7 +151,7 @@ def hand_step_gate(sd: Any, marks: Iterable[Any], part: str) -> Optional[Gate]:
         막히면 :class:`Gate`(``checked_by`` 를 싣는다), 아니면 None.
     """
     step = _step(sd, part)
-    if not step.get("done") or part in cards_used(marks):
+    if not step.get("done") or part in parts_in_use(sd, marks):
         return None
     name = str(step.get("by_name") or "").strip()
     label = PRODUCTION_PART_LABELS[part]
