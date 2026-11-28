@@ -134,8 +134,8 @@ def test_js_keeps_no_assemble_words_and_cut_words_come_from_the_same_setting():
     assert "foms-production-drawing-request.js') }}?v=20261128h" in scripts
     for name, pin in (("parts-modal", "20261128y"), ("parts-crew", "20261128x")):  # 11-28 흐름 x: 반장 미정 칸 시작만 · 창 안 바로 완료 · y: 도면 없음 제작 완료 창 글
         assert f"foms-production-{name}.js') }}}}?v={pin}" in scripts, name
-    for name in ("parts", "parts-sync"):  # 2026-11-28 흐름(카드 파트 data-part · 담으면 빼기 · 받아 오기 다시 받기)이 한 번 더
-        assert f"foms-production-{name}.js') }}}}?v=20261128n" in scripts, name
+    for name, pin in (("parts", "20261128r"), ("parts-sync", "20261128n")):  # 2026-11-28 흐름(카드 파트 data-part · 담으면 빼기 · 받아 오기 다시 받기) · r: 반장 시작 창 사람 고르기
+        assert f"foms-production-{name}.js') }}}}?v={pin}" in scripts, name
 
 
 def test_history_line_words_for_none_and_rework():

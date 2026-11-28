@@ -282,7 +282,7 @@ def _decide_takeover(snap: MarkSnapshot, p: _Press) -> MarkDecision:
     to = {"to_uid": uid, "to_name": str(name or "")}
     if mc.find(crew, uid) is not None:
         return _refuse(RECEIVER_ALREADY_IN, receiver_already_in_message(to["to_name"]))
-    if not crew:  # 담당 없는 작업 필요 줄 — 지금처럼 받는 사람으로
+    if not crew:  # 담당 없는 작업 필요 줄 · 미정 줄(반장 · 관리자 시작 창에서 고름 — 11-28) — 받는 사람으로
         return _applied(mc.join([], uid, name, p.now), ACTION_TAKEOVER, **to)
     item, gone = _pick_target(crew, p.target_uid)
     if gone:

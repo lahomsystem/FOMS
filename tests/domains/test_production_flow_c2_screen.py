@@ -148,7 +148,7 @@ def test_direct_link_on_last_inspect_drawing_asks_to_complete(client, cohort, tm
     res = _node(page, {"posts": [reply], "steps": [
         {"do": "click", "key": order.keys[0], "act": "take"}, {"do": "press", "sel": "[data-pp-direct]"}, {"do": "direct"}]})
     out, calls = res["out"], res["calls"]
-    assert [c["body"]["action"] for c in calls] == ["check"]
+    assert [c["body"]["action"] for c in calls if c["method"] == "POST"] == ["check"]  # GET = 시작 창 받을 사람 읽기(11-28)
     w = out[1]["modal"]
     assert w["hidden"] is False and w["title"] == "제작 완료할까요?" and w["close"] == "나중에" and w["run"]["text"] == "제작 완료"
     assert out[1]["status"] == "검수 완료했어요" and out[2]["direct"]["hidden"] is True
@@ -170,7 +170,7 @@ def test_order_card_last_inspect_asks_to_complete_without_sheet_count(client, co
     res = _node(page, {"posts": [reply], "steps": [
         {"do": "click", "key": "@order", "act": "take"}, {"do": "press", "sel": "[data-pp-direct]"}]})
     w = res["out"][1]["modal"]
-    assert [c["body"]["action"] for c in res["calls"]] == ["check"] and w["title"] == "제작 완료할까요?"
+    assert [c["body"]["action"] for c in res["calls"] if c["method"] == "POST"] == ["check"] and w["title"] == "제작 완료할까요?"
     assert w["body"] == f"가짜고객 #{plain.id} · 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요."
 
 

@@ -17,6 +17,7 @@ undo      내 몫 완료 끔 / BASIC → NONE  남의 몫은 반장 · 관리자
 release   나 빼기                      [시작 취소]. 완료 누른 뒤 409 ``RELEASE_AFTER_DONE``(Q7), 남은 사람 모두 완료면 DONE(Q6)
 remove    고른 사람 빼기                [{이름} 시작 취소] — 반장 · 관리자만(Q5)
 takeover  고른 한 사람 → 나            [담당 바꾸기] — 완료 누른 사람은 못 고름(``TARGET_DONE``)
+          NONE → NEED[받는 사람]       반장 · 관리자 미정 카드 [<파트> 시작] 창에서 사람을 고름(11-28) — API 가 반장 · 관리자만(403)
 check     NONE → DONE[나] / 대신 완료  PC [완료 처리] 한 요청(판결 2) — 반장 · 관리자만(API 가 403)
 ========  ==========================  ==============================================
 
@@ -190,6 +191,7 @@ def action_target(action: str, seen: str) -> Optional[str]:
         (ACTION_UNDO, "basic"): MARK_STATE_NONE,
         (ACTION_RELEASE, "need"): MARK_STATE_NONE,
         (ACTION_TAKEOVER, "need"): MARK_STATE_NEED,
+        (ACTION_TAKEOVER, "none"): MARK_STATE_NEED,  # 미정 카드를 고른 사람에게(사장님 11-28 "시작 창에 사람 고르기 붙임")
         (ACTION_JOIN, "need"): MARK_STATE_NEED,
         (ACTION_REMOVE, "need"): MARK_STATE_NEED,
         (ACTION_CHECK, "none"): MARK_STATE_DONE,

@@ -131,7 +131,7 @@ def test_give_modal_words_and_wiring():
     assert "['give', '담당 바꾸기 ›', 'taken', null, true]" in modal
     parts = _read("static/js/production/foms-production-parts.js")
     for piece in ("action === 'give' ? give.plan(cards[0], seat)", "action === 'give' ? 'takeover' : action",
-                  "if (p.to != null) { body.to_user_id = p.to; }", "data.gave.to.name + '에게 줬어요'", "'담당 바꾸기': '담당 바꿨어요'",
+                  "if (p.to != null && body.action === 'takeover') { body.to_user_id = p.to; }", "data.gave.to.name + '에게 줬어요'", "'담당 바꾸기': '담당 바꿨어요'",
                   "who.hasAttribute('data-pp-give') ? 'to' : 'target'", "if (pending.next) { openModal(pending.next"):
         assert piece in parts, piece
     sheet = _read("static/js/production/foms-production-sheet-parts.js")

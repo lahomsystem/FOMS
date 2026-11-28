@@ -253,8 +253,8 @@ def test_give_keeps_todays_gates(client):
     login(client, lead)
     assert code(mark(client, order, 0, "cut", "takeover", "need", seen_by=kim.id, to_user_id=oh.id)) == "HOLD_ACTIVE"
     patch_sd(order.id, hold={"active": False})
-    stale = mark(client, order, 0, "cut", "takeover", "none", to_user_id=oh.id)
-    assert (stale.status_code, code(stale)) == (400, "BAD_REQUEST")  # 미정 도면을 처음부터 주는 길은 없다
+    stale = mark(client, order, 0, "cut", "takeover", "none", seen_by=None, to_user_id=oh.id)
+    assert (stale.status_code, code(stale)) == (409, "MARK_CONFLICT")  # 미정으로 본 낡은 화면(그사이 김재단 작업 중) — 미정 주기는 11-28 부터 있다
     far_lead = make_user("이반장", lead=True)
     db_session.query(User).filter_by(id=far_lead.id).update({"production_factory": 2})
     db_session.commit()

@@ -6,7 +6,7 @@
  * 없음). 경합 · 거절(409 · 403)은 창 안에 서버 글 + 서버 모습(.is-lost, [닫기] 하나). 검수 마지막 장이면 같은 창이 "제작 완료할까요?".
  * 창 글 · 창 그리기 · 창 목록 줄(listItem)은 foms-production-parts-modal.js(FomsPartsModal), 새 카드 칸(손 체크 · 막힘 · 내 작업 한 층 · 꼬리)은
  * foms-production-parts-claim.js(FomsPartsClaim), 여러 명 칸(작업 필요 · 완료 · [같이 작업] · 이름 줄 · 넘김 말풍선)은
- * foms-production-parts-crew.js(FomsPartsCrew), 반장 · 관리자의 "누구에게 줄까요?" 창(받는 사람 to_user_id — 2026-11-28)은
+ * foms-production-parts-crew.js(FomsPartsCrew), 반장 · 관리자의 "누구에게 줄까요?" 창 · 미정 카드 시작 창 사람 고르기(받는 사람 to_user_id — 11-28)는
  * foms-production-parts-give.js(FomsPartsGive), 보기 쪽은 foms-production-parts-viewer.js(FomsPartsBoard). */
 (function () {
   'use strict';
@@ -60,7 +60,7 @@
     pending = { action: action === 'held' ? '' : action === 'give' ? 'takeover' : action, cards: cards, busy: false, run: p.run, locked: !!p.locked,
       target: p.target, next: p.next };
     M.open(p, cards.map(function (card) { return M.listItem(card, p.line, p.tone); }), opener, cards[0]);
-    if (action === 'give') { asPart(cards[0], function () { give.load(pending, cards[0]); }); } // 받을 사람 목록(읽기 한 번) — 고르기 전에는 실행이 잠겨 있다
+    if (give.load && (action === 'give' || p.direct)) { asPart(cards[0], function () { give.load(pending, cards[0], !!p.direct); }); } // 받을 사람 목록(읽기 한 번) — give 는 고르기 전 실행 잠김, 반장 시작 창(direct)은 안 골라도 실행(11-28)
     M.cancelLine(pending, p, function (act, target) { return requestFor({ action: act, cards: cards, target: target }).body; }); // 시작 취소 창 한 줄(11-27)
   }
   function closeModal() {
@@ -184,11 +184,12 @@
     var base = '/api/orders/' + encodeURIComponent(attr(card, 'data-order-id'));
     if (p.action === 'complete') { return { url: base + '/production/complete', body: {} }; }
     if (p.action === 'factory') { return { url: base + '/production/factory-done', body: { factory: p.factory, done: true } }; } // 2공장(§4-14)
-    var body = { order_id: Number(attr(card, 'data-order-id')), drawing_key: attr(card, 'data-key'), part: attr(card, 'data-part') || cfg.part, action: p.action,
+    var hand = p.action === 'take' && p.to != null && String(p.to) !== String(cfg.me_id); // 반장 시작 창에서 남을 고름 = 미정 → 그 사람(takeover, 11-28)
+    var body = { order_id: Number(attr(card, 'data-order-id')), drawing_key: attr(card, 'data-key'), part: attr(card, 'data-part') || cfg.part, action: hand ? 'takeover' : p.action,
       seen: attr(card, 'data-state'), seen_me: (crew.of ? crew.of(card).me : '') || 'none' }; // 본 내 몫까지 견준다(multi-holder §7-1)
-    if (body.seen === 'need') { body.seen_by = attr(card, 'data-picked-id') ? Number(attr(card, 'data-picked-id')) : null; } // 본 담당까지 견준다(§4-5)
+    if (body.seen === 'need' || hand) { body.seen_by = attr(card, 'data-picked-id') ? Number(attr(card, 'data-picked-id')) : null; } // 본 담당까지 견준다(§4-5 — 미정은 null)
     if (p.target != null) { body.target_user_id = p.target; } // 담당 바꾸기 · 시작 취소 대상
-    if (p.to != null) { body.to_user_id = p.to; } // 담당 바꾸기에서 받는 사람(반장 · 관리자가 고름 — 안 실으면 누른 사람)
+    if (p.to != null && body.action === 'takeover') { body.to_user_id = p.to; } // 담당 바꾸기에서 받는 사람(반장 · 관리자가 고름 — 안 실으면 누른 사람)
     if (M.seenCancel) { M.seenCancel(p, body); } // 취소 창이 그 단추에 대해 보여 준 것(seen_cancel — 11-27 "창에 보인 대로만 된다", parts-cancel.js)
     return { url: '/api/production/part-marks', body: body };
   }

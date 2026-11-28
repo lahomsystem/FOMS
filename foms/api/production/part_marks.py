@@ -7,6 +7,8 @@
   ``seen_me`` = 새 화면이 본 내 몫(none · held · done — 안 보내면 견주지 않음), ``target_user_id`` = 바꾸기 · 시작 취소 대상(자리를 내주는 사람).
   ``to_user_id``(담당 바꾸기만 · 2026-11-28 흐름 셋 §1-3) = 받는 사람 — 안 보내면 누른 사람(지금 동작). 남에게 주기는 반장 · 관리자만
   (403 ``GIVE_FORBIDDEN``). 담당이 바뀐 응답에는 ``gave``(누가 · 누구 자리를 · 누구에게 · ``self``), 바뀐 응답마다 ``holders_before``.
+  미정 카드(``seen:'none'``)의 ``takeover`` + ``to_user_id`` = 반장 · 관리자 [<파트> 시작] 창에서 고른 사람이 작업 중이 된다(사장님
+  2026-11-28 "시작 창에 사람 고르기 붙임" — 같은 막는 문 · 이벤트 · 감사 · 알람, ``gave.from`` 은 null). 파트 계정은 403 ``GIVE_FORBIDDEN``.
 * ``GET /api/production/part-marks/receivers`` — 반장 · 관리자의 [담당 바꾸기 ›] 창 "누구에게 줄까요?"를 열 때 한 번. 질의 ``order_id`` ·
   ``drawing_key`` · ``part``[· ``target_user_id`` = 자리를 내줄 사람]. 답 ``{people: [{user_id, name, me, line}]}`` — 맨 앞 '나', 읽기 전용.
   ``check`` = PC [완료 처리](시작 + 완료를 한 요청 — 반장 · 관리자만, 판결 2).
@@ -244,8 +246,8 @@ def api_part_mark():
             raise MarkRefusal(400, BASIC_NOT_ALLOWED, BASIC_NOT_ALLOWED_MESSAGE)
         if req.action == ACTION_CHECK and not override:
             raise MarkRefusal(403, "PART_FORBIDDEN", CHECK_FORBIDDEN_MESSAGE)
-        if req.action == ACTION_TAKEOVER and req.to_uid not in (None, user.id) and not override:
-            raise MarkRefusal(403, GIVE_FORBIDDEN, GIVE_FORBIDDEN_MESSAGE)  # 남에게 주기는 반장 · 관리자만(사장님 2026-11-28)
+        if req.action == ACTION_TAKEOVER and (req.to_uid not in (None, user.id) or req.seen == "none") and not override:
+            raise MarkRefusal(403, GIVE_FORBIDDEN, GIVE_FORBIDDEN_MESSAGE)  # 남에게 주기 · 미정 카드 주기는 반장 · 관리자만(11-28)
         data = mark_one(db, user, override, req, seen_cancel=shown)
         floor_alarm.note_mark(db, user, req, data)  # 커밋 전 — 세션 주머니에 적기만(약속 3)
         return _with_crew(data, user)

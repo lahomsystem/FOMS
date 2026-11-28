@@ -291,8 +291,10 @@ def test_js_cut_direct_done_window_counts_and_first_drawing(client, cohort, tmp_
     assert (w["title"], w["line"], w["run"]["text"], w["note"], w["body"]) == (
         "재단 시작할까요?", "미정 → 작업 중 · 박반장", "재단 시작", "", "이 주문 첫 도면이라 제작 시작도 같이 돼요.")
     assert out[2]["direct"] == {"hidden": False, "text": DIRECT, "disabled": False}
-    assert len(calls) == 1 and calls[0]["body"] == {"order_id": order.id, "drawing_key": k[0], "part": "cut", "action": "check",
-                                                     "seen": "none", "seen_me": "none"}  # 지금 동작 check 그대로 한 번(두 번째 창 없음)
+    writes = [c for c in calls if c["method"] == "POST"]  # 11-28 시작 창 사람 고르기 — 창을 열 때 받을 사람 읽기 한 번(GET)
+    assert [c["url"].split("?")[0] for c in calls if c["method"] == "GET"] == ["/api/production/part-marks/receivers"]
+    assert len(writes) == 1 and writes[0]["body"] == {"order_id": order.id, "drawing_key": k[0], "part": "cut", "action": "check",
+                                                      "seen": "none", "seen_me": "none"}  # 지금 동작 check 그대로 한 번(두 번째 창 없음)
     assert out[3]["sent"] == 1 and out[3]["modal"]["hidden"] is True
     assert out[3]["status"] == "재단 완료했어요 · 제작 시작도 같이 됐어요"  # 알림 = 지금 글
     before, after = out[0], out[4]
@@ -328,7 +330,7 @@ def test_js_edge_window_409_redraw_and_synced_mark(client, cohort, tmp_path):
     out, calls = res["out"], res["calls"]
     w = out[0]["modal"]
     assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("엣지 시작할까요?", "미정 → 작업 중 · 관리", "엣지 시작", "")
-    assert [c["body"]["action"] for c in calls] == ["check"]
+    assert [c["body"]["action"] for c in calls if c["method"] == "POST"] == ["check"]  # GET 은 시작 창 받을 사람 읽기(11-28)
     assert out[1]["modal"]["lost"] is True and out[1]["modal"]["err"] == refused["body"]["error"]  # 서버 글 그대로
     assert out[2]["direct"]["hidden"] is True  # 진 경합 창([닫기] 하나)에는 바로 완료 글도 없다
     one = [{"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "엣지 시작", "kids": []}]
@@ -359,7 +361,7 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name,pin", [("parts", "20261128n"), ("parts-claim", "20261127w"), ("parts-modal", "20261128y"),
+@pytest.mark.parametrize("name,pin", [("parts", "20261128r"), ("parts-claim", "20261127w"), ("parts-modal", "20261128y"),
                                       ("parts-crew", "20261128x")])  # modal · crew = 11-28 흐름 x: 반장 미정 칸 시작만 · 창 안 바로 완료
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
