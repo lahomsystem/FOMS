@@ -36,6 +36,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from models import Notification, Order
+from foms.services.production import floor_alarm
 from foms.services.production_change_alerts import PROD_STAGES
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,9 @@ _KIND_LABEL = {
     # 확정 뒤 품목 하나 취소(F-13, 2026-11-09) — 이미 자른 판을 버리지 않게 생산도 알아야 한다. merge=False 로 보낸다.
     "item_cancel": "품목 취소",
 }
+#: 생산 현장 알람(작업 중인 사람 · 반장만 — 설계서 2026-11-28 §6-3)에 적을 사건. 바로 반영(``drawing_hotfix``)은 옛 key 를 아는 전달 API 가 적는다.
+_FLOOR_KIND = {"construction_date": "date_changed", "drawing": "drawing_revising", "cancelled": "cancelled",
+               "item_cancel": "item_cancelled"}
 
 
 def _customer_name(order: Order) -> str:
@@ -138,6 +142,8 @@ def apply_production_change_alert(
     if (getattr(order, "erp_stage_code", None) or "") not in PROD_STAGES:
         return [], False
 
+    if kind in _FLOOR_KIND:  # 커밋 전 — 세션 주머니에 적기만(쿼리 0 · 스위치 꺼짐이면 바로 돌아옴)
+        floor_alarm.note(db, _FLOOR_KIND[kind], order.id, {"id": actor_user_id, "name": actor_name}, detail=message_detail)
     label = _KIND_LABEL.get(kind, "주문 변경")
     title = f"{_title_prefix(label)}{_customer_name(order)}"
     detail = (message_detail or "").strip()
@@ -193,6 +199,7 @@ def finalize_production_change_alert(
             받아 준다(구 호출 계약 잔존 방어).
         created_new: 하나라도 신규 row 였는지.
     """
+    floor_alarm.flush(db)  # 생산 현장 알람 — 팀 알림 줄이 없어도 적어 둔 것은 보낸다(그래서 아래 돌아옴보다 앞)
     if not notifications:
         return
     if isinstance(notifications, Notification):  # 구 계약 방어(단일 객체)

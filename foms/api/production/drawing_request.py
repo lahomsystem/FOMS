@@ -78,6 +78,7 @@ from foms.services.orders.drawing_gate_followups import invalidate_after_drawing
 from foms.services.orders.drawing_revision_files import normalize_revision_files
 from foms.services.orders.revision import RevisionError, execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.production import floor_alarm
 from foms.services.production.part_card_state import order_block
 from foms.services.storage import get_storage
 from models import Notification, Order, OrderEvent
@@ -196,6 +197,7 @@ def _write(db: Any, user: Any, order_id: int, body: Any, idem: Optional[str]) ->
         if replayed is None:  # 영수증은 있는데 요청 줄이 없다(손으로 지운 자료 등) — 빈 요청 대신 "다시 열어 주세요"
             raise RequestRefusal(409, REQUEST_CLOSED)
         return {"order": order, "request": replayed, "picked": picked, "notification": None}
+    floor_alarm.note(db, "drawing_revising", order_id, user, drawing_keys=[entry["key"] for entry in entries])  # 같이 작업하던 사람에게 멈춤
     return {"order": order, "request": made["request"], "picked": picked,
             "notification": _record(db, order, user, made["request"])}
 
@@ -240,6 +242,7 @@ def api_production_drawing_request(order_id: int):
     try:
         result = _write(db, user, order_id, request.get_json(silent=True), idem)
         db.commit()
+        floor_alarm.flush(db)  # 생산 현장 알람 — 커밋 뒤(자기 커밋 · 예외 없음)
     except (RequestRefusal, FixRefusal) as refusal:
         db.rollback()
         return _fail(refusal.status, refusal.code, refusal.message)

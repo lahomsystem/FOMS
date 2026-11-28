@@ -45,6 +45,7 @@ from foms.api.notifications import invalidate_badge_cache_for_user_ids  # noqa: 
 from foms.services.notifications import draft_send_reminder  # noqa: E402
 from foms.services.notifications import drawing_deadline_alert  # noqa: E402
 from foms.services.partners import statement_reminder  # noqa: E402
+from foms.services.production import floor_alarm_timed  # noqa: E402
 from foms.services.notifications.push_sender import enqueue_push_for_notification  # noqa: E402
 from foms.services.notifications.realtime_notifications import (  # noqa: E402
     emit_erp_notification_to_users,
@@ -104,6 +105,7 @@ def _sweep_once(dry_run: bool) -> dict:
         result["draft_idle_reminder"] = _idle_draft_reminder_once(db)
         result["partner_statement_reminder"] = _partner_statement_reminder_once(db)
         result["drawing_deadline_alert"] = _drawing_deadline_alert_once(db)
+        result["floor_alarm_due"] = _floor_alarm_due_once(db)
         return result
     except Exception:
         db.rollback()
@@ -229,6 +231,24 @@ def _drawing_deadline_alert_once(db) -> dict:
     return {"slot": alert["slot"], "checked": alert["checked"], "due": alert["due"], "sent": alert["sent"],
             "notifications": alert["notifications"], "skipped": alert["skipped"],
             "missed_slot": alert["missed_slot"], "pushed": pushed}
+
+
+def _floor_alarm_due_once(db) -> dict:
+    """생산 현장 알람 #21 "오늘 나가는 주문이 아직 안 끝났어요"(한국 시각 9시 · 13시 칸마다 한 번, 공장 반장 띠) — 같은 루프, 실패는
+    그 단계만 되돌리고 기록.
+
+    설계서 docs/specs/2026-11-28-production-floor-alarm_SPEC.md §4-6. 스위치 ``FOMS_PRODUCTION_FLOOR_ALARM`` 이 꺼져 있으면(기본)
+    쿼리 0 · 안 보냄. 이 루프(``FOMS_ESCALATION_LOOP_ENABLED=1``)가 켜진 WORKER 에서만 울린다.
+    """
+    try:
+        due = floor_alarm_timed.run(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _LOGGER.exception("[floor-alarm-due] sweep failed")
+        return {"error": "sweep_failed"}
+    floor_alarm_timed.deliver(db, due)  # 커밋 뒤 — 종 숫자 · 실시간(띠라 폰 알림 없음, 실패는 안에서 기록만)
+    return {"slot": due["slot"], "orders": due["orders"], "notifications": due["notifications"]}
 
 
 def _print_result(result: dict, as_json: bool) -> None:
