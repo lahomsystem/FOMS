@@ -14,6 +14,8 @@ from __future__ import annotations
 import datetime
 from typing import Any, Iterable, Optional
 
+from sqlalchemy import or_, select
+
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.drawing_factory import sheet_factory
 from foms.services.orders.drawing_fix import blocked
@@ -32,20 +34,30 @@ MarkIndex = dict[tuple[int, str, str], Any]
 SheetIndex = dict[tuple[int, str], list[Any]]
 
 
-def fetch_part_marks(db: Any, order_ids: Iterable[int]) -> list[Any]:
+def fetch_part_marks(db: Any, order_ids: Iterable[int], *, touched: Iterable[int] = (),
+                     since: Optional[datetime.datetime] = None) -> list[Any]:
     """그날들 생산 주문의 표시 줄 전부 — 쿼리 한 번(주문이 없으면 0번).
 
     Args:
         db: 세션.
         order_ids: 주문 id 들.
+        touched: 같은 한 번에 더 읽을 주문 id 들 — 그 가운데 ``since`` 뒤 손댄 줄이 하나라도 있는 주문만, 그 주문 줄 전부(하위 질의 —
+            '내 공정' 탭이 제작 완료로 넘어간 주문의 오늘 끝낸 장을 보는 데 쓴다, 2026-11-28 "제작 완료돼도 남김"). ``since`` 가 없으면 무시.
+        since: 손댄 때 아래 끝(UTC naive — ``updated_at`` 과 견준다).
 
     Returns:
         ``ProductionPartMark`` 줄 목록(네 파트 모두 — 다른 파트 한 줄에 쓴다).
     """
     ids = sorted({int(i) for i in order_ids})
-    if not ids:
+    late = sorted({int(i) for i in touched} - set(ids)) if since is not None else []
+    if not ids and not late:
         return []
-    return db.query(ProductionPartMark).filter(ProductionPartMark.order_id.in_(ids)).all()
+    found = [ProductionPartMark.order_id.in_(ids)] if ids else []
+    if late:  # 같은 문장 하나 — 손댄 줄이 있는 주문 id 를 하위 질의로 고른다(쿼리 수 그대로)
+        recent = select(ProductionPartMark.order_id).where(ProductionPartMark.order_id.in_(late),
+                                                           ProductionPartMark.updated_at >= since)
+        found.append(ProductionPartMark.order_id.in_(recent))
+    return db.query(ProductionPartMark).filter(or_(*found)).all()
 
 
 def index_marks(marks: Iterable[Any]) -> tuple[MarkIndex, SheetIndex]:
@@ -81,7 +93,7 @@ def board_ctx(db: Any, user: Any, rows: list[dict[str, Any]], *, mode: str, part
     Args:
         db: 세션.
         user: 보는 사람.
-        rows: 카드를 만들 첫 화면 행(생산 단계 주문).
+        rows: 카드를 만들 첫 화면 행(생산 단계 주문 — '내 공정'은 오늘 손댄 제작 완료 주문도, ``my_steps.finished_rows``).
         mode: 보기 모드(:func:`~foms.services.production.part_access.part_view_mode`).
         part: 볼 파트 key.
         marks: 이미 읽은 그 주문들 표시 줄(넘기면 다시 읽지 않는다 — 쿼리 0).

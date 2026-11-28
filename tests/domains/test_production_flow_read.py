@@ -400,9 +400,9 @@ def test_other_factory_card_i_hold_stays_in_the_other_factory_group(client, coho
     assert page["counts"]["mine"] == 0 and _cards(_ctx(client, kim, HOME + "?tab=mine")["my_steps"]) == []
 
 
-def test_finished_order_leaves_today_done_production_order_stays(client, cohort):
-    """제작 완료(시공 단계로 넘어감)한 주문의 오늘 끝낸 카드는 '오늘 끝낸 것'에서 빠진다 — 카드는 생산 단계 줄에서만 만든다
-    (날짜 판과 같은 줄). 생산 단계에 있는 동안(검수 완료 · 제작 완료 누르기 전)은 남는다."""
+def test_finished_order_stays_in_today_done_like_production_order(client, cohort):
+    """제작 완료(시공 단계로 넘어감)한 주문의 오늘 끝낸 카드도 '오늘 끝낸 것'에 남는다(사장님 2026-11-28 "제작 완료돼도 남김") —
+    생산 단계에 있는 주문과 같이. 더 본 것은 test_production_flow_done_today.py."""
     kim = make_user("김재단", part="cut")
     gone, stays = _order("정하늘", 1), _order("윤봄", 1)
     for order in (gone, stays):
@@ -415,7 +415,7 @@ def test_finished_order_leaves_today_done_production_order_stays(client, cohort)
     flag_modified(moved, "structured_data")
     db_session.commit()
     done = _ctx(client, kim, HOME + "?tab=mine")["my_steps"]["done"]
-    assert [c["order_id"] for c in done] == [stays.id]
+    assert sorted(c["order_id"] for c in done) == sorted([gone.id, stays.id])
 
 
 def test_read_model_helper_matches_the_screen(client, cohort):

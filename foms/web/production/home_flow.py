@@ -10,6 +10,8 @@
 
 쿼리: 새 쿼리 없음 — 문 안 전체 페이지의 날짜 · '도면 카드' · '내 공정' · '작업 중' 탭은 이미 하던 표시 줄 읽기 **한 번**을 화면 생산
 주문 전체로 넓혀(``order_id IN``) 탭 숫자 · 새 탭 재료를 같이 만든다. 날 조각(``view=day``)은 그 날 장만 읽는다(지금 그대로).
+'내 공정' 탭만 같은 한 번에 제작 완료(시공 대기) 줄 가운데 오늘(KST) 손댄 표시 줄이 있는 주문을 하위 질의로 더 읽는다('오늘 끝낸 것' —
+사장님 답 "제작 완료돼도 남김", 문장 수 그대로).
 '남은 공정' · '바뀐 것' · '찾기' 탭은 표시 줄을 안 읽으므로 숫자가 None 이다(쿼리를 더하지 않는다 — 화면이 ``?view=counts`` 로 받는다).
 """
 
@@ -20,6 +22,7 @@ from typing import Any, Optional
 
 from flask import request, url_for
 
+from foms.services.datetime_kst import to_utc_naive
 from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
@@ -28,7 +31,7 @@ from foms.services.feature_flags import (
 )
 from foms.services.production.crew_board import CREW_ALL, build_crew, crew_part
 from foms.services.production.factory_scope import board_factory, scene_on
-from foms.services.production.my_steps import build_my_steps
+from foms.services.production.my_steps import build_my_steps, finished_rows
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, VIEW_SUB
 from foms.services.production.part_board import board_head, resolve_board_part
 from foms.services.production.part_board_ctx import board_ctx, card_rows, fetch_part_marks, held_counts
@@ -95,7 +98,15 @@ def screen_marks(db: Any, tab: str, pane: Optional[dict[str, Any]], rows: list[d
         return read_screen_marks(db, [*(pane.get('make_rows') or []), *(pane.get('elsewhere_rows') or [])], today, more=flow)
     if tab == 'all' and pc_view:
         read_screen_marks(db, rows, today)
+    if wide and tab == FLOW_MINE:  # '오늘 끝낸 것' — 제작 완료 줄 중 오늘 손댄 줄이 있는 주문도 같은 한 번에(하위 질의, 쿼리 +0)
+        return fetch_part_marks(db, drawn_order_ids(flow), touched=(r['id'] for r in finished_rows(rows)),
+                                since=kst_midnight_utc(today))
     return fetch_part_marks(db, drawn_order_ids(flow)) if wide else None
+
+
+def kst_midnight_utc(today: datetime.date) -> datetime.datetime:
+    """KST 오늘 0시를 UTC naive 로 — 표시 줄 ``updated_at`` 과 견줄 '오늘' 아래 끝(아침 칩과 같은 꼴)."""
+    return to_utc_naive(datetime.datetime.combine(today, datetime.time(0, 0)), assume_utc_if_naive=False)
 
 
 def flow_view(door: Optional[str]) -> Optional[dict[str, str]]:
@@ -134,12 +145,15 @@ def flow_tab(db: Any, user: Any, tab: str, rows: list[dict[str, Any]], marks: Op
     if part is None:
         return None, {'my_steps': None, 'crew': None}
     cards = card_rows(rows)
-    ctx = board_ctx(db, user, cards, mode=mode, part=part, marks=marks, today=today, factory=request.args.get('factory'),
-                    scene_rows=rows)
+    # 제작 완료 줄 — 오늘 끝낸 장만 '오늘 끝낸 것'에(답 "제작 완료돼도 남김"). 오늘 손댄 표시 줄을 읽어 온 주문만 맥락에 넣는다(계산을 아낀다)
+    marked = {int(m.order_id) for m in marks or []}
+    finished = [r for r in finished_rows(rows) if int(r['id']) in marked] if tab == FLOW_MINE else []
+    ctx = board_ctx(db, user, [*cards, *finished], mode=mode, part=part, marks=marks, today=today,
+                    factory=request.args.get('factory'), scene_rows=rows)
     head = board_head(user, mode, part, ctx)
     if tab == FLOW_MINE:
         strip = production_home_days(rows, today)['strip']
-        return head, {'my_steps': build_my_steps(user, cards, ctx, strip, today=today), 'crew': None}
+        return head, {'my_steps': build_my_steps(user, cards, ctx, strip, today=today, finished=finished), 'crew': None}
 
     def href(key: str) -> str:
         return url_for(_HOME_ENDPOINT, tab=FLOW_CREW, part=None if key == CREW_ALL else key, factory=head['url_factory'])
