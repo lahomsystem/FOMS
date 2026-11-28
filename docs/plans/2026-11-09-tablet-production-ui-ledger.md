@@ -2859,6 +2859,17 @@
 - 일꾼 `review-prod-ui`(opus xhigh, 읽기 · 실행만): 코드 `c:/tmp/foms-w-b5` `228735212`(스테이징과 같은 모습 — 펜 기록까지, 새 흐름 전), 준비물 `scratchpad/sim/m/` 포트 5687, 태블릿 1280×720 · PC 1440×900 · 폰 390×844. 산출물 `scratchpad/ui_review/report.html` + `shots/`(가짜 이름 준비물 사진 12장 안쪽). 이미 바꾸기로 한 것(`flow_build/COMMON.md` §1)과 새로 찾은 것을 갈라 적게 함. 받으면 사진과 근거 몇 줄을 직접 확인한 뒤 게시.
 - 그사이 일꾼 물음 둘에 답함: ⓒ1 — 여러 파트가 섞인 화면('작업 중' 전체)에서 쓰기 요청의 `part` 가 카드의 파트로 나가는지 확인 · 시험하게 함 / ⓑ — '남은 공정' 탭의 "표시 줄 읽기 0" 계약은 (나) "생산 줄이 있으면 +1"로 고침(0장 줄만 있는 화면에서도 `@order` 작업 중이면 [재단 완료] 대신 "재단 0/1 · 1장 미완료"). 거절 글 "도면 없음 1장이 미완료예요. 그 장을 완료하면 자동으로 작업 완료 처리돼요."
 
+### 지금 상태 (11-28 밤 16, CTX-GATE 55% — 압축 뒤 여기부터)
+
+- **운영** = #934 `e05904cf7` 위에 다른 창 것(`35d809bb`). **스테이징** = `ea9bb4188`(펜 기록까지, 스위치 꺼짐 · CI 넷 성공). **세션 머리** = 이 커밋(바로 앞 `d26bfc935`) — ⓐ 읽기 모델(`999528a79` · `7de2b88e2`)이 들어 있어 **반쯤 된 상태 · 올리지 말 것**.
+- **도는 일꾼 넷**(모두 opus xhigh): `build-flow-ordercard`(ⓑ `c:/tmp/foms-w-b2` `work/flow-b`) · `build-flow-screen`(ⓒ1 `b3` `work/flow-c1`, 로컬 `sim/j/` 5685) · `build-flow-lead`(ⓒ2 `b4` `work/flow-c2`, 로컬 `sim/k/` 5686) · `review-prod-ui`(생산 탭 UI 전체 평가 — 코드 `b5` `228735212`, 준비물 `sim/m/` 5687, 산출물 `scratchpad/ui_review/report.html` · `shots/` · `findings.json`). 공통 문서 `scratchpad/flow_build/COMMON.md` · 조사 전문 `scratchpad/flow_build/scout_order_card.md`.
+- ⓑ 가 알려 온 것(멈추지 않고 진행): '남은 공정'은 생산 줄이 있으면 표시 줄 읽기 +1(시험 넷으로 고정 — 태블릿 · 폰 · PC [고치기], PC 보기만 0) · 날짜 탭도 그 장에 0장 생산 줄만 있으면 0 → +1(도면 있는 줄이 있으면 +0) · `test_production_home_changes.py::test_바뀐_것_탭과_찾기_탭_쿼리는_사람_읽기_한_번만_더한다` 는 날짜 탭 쿼리에서 표시 줄 읽기 수를 빼고 견주게 고침(얹을 때 그 고침이 뜻을 흐리지 않는지 직접 볼 것).
+- ⓒ1 이 알려 온 것: `home_parts.html` 의 카드 article 을 매크로 `pp_card` 로 옮김 → ⓒ2 의 '도면 없음' 카드 갈래 몇 줄을 합칠 때 그 매크로 안으로 손으로 옮겨야 함 · 판 JS(claim · crew · modal · give)가 `cfg.part` · `cfg.label` 을 상수로 잡아 파트가 섞인 화면에서 글이 머리 파트로 나옴 → `flow.js` 덧댐. **쓰기 요청의 `part` 도 머리 파트로 나가는지 확인 · 시험하라고 시킴(답 아직).**
+- **받으면 할 순서**: 각 일꾼 diff · 시험 직접 확인 → ⓑ → ⓒ2 → ⓒ1 순으로 cherry-pick(`home_parts.html` · `home_scripts.html` · `home_styles.html` 겹침은 손으로) → 넓은 시험(`tests/domains tests/security tests/contracts` + 하네스 + 스캔 다섯 + `APP_OK` + `node --check`) → ⓑ 검토 일꾼 따로 → 로컬 여섯 사람 걷기(김재단 · 박엣지 · 최조립 · 한검수 · 박반장 · 관리자, 1280×720 + PC · 폰이 안 바뀐 것) → 스테이징(`safe_push.sh` 의 로그 이름을 `smoke_push128` 로) → 운영은 사장님이 말씀하실 때만(스위치 없이 한 번에 바뀌는 고침).
+- UI 평가를 받으면: 사진 전부와 근거 몇 줄을 직접 확인 → Artifact 게시(`report.html` + `files` 로 `shots/`) → 사장님께 막힘 · 걸림 요약. 평가는 지금 스테이징 모습 기준이고 새 흐름과 겹치는 지적은 "바뀔 예정"으로 갈라 적게 했다.
+- 사장님 답은 설계서 `docs/specs/2026-11-28-production-my-steps-flow_SPEC.md` §0 에 1~35번 글자 그대로. 시안: 눌러 보기 https://claude.ai/artifact/A95ePxbBDrJnZeK1YWuyoP · 이전/바뀐 후 https://claude.ai/artifact/JQAQnbr6Lsh9Pyq6f6HosW.
+- 남은 알릴 것(펜 기록): 공장 태블릿 펜이 브라우저에 `pen` 으로 잡히는지는 기기에서만 — 스테이징에서 스위치를 켤지는 사장님 승인 뒤. 알람 쪽 옛 물음(영업 수정 요청 취소 때 알람 닫기 등)은 '운영 올림 #934' 절에.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
