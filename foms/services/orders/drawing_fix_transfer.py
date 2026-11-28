@@ -40,6 +40,7 @@ from foms.services.orders.drawing_transfer_plan import (
 )
 from foms.services.orders.erp_policy_permissions import can_set_sheet_factory
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.production.order_card_carry import carry_order_card, first_arrival
 from foms.services.production.part_mark_write import actor_name
 from foms.services.production.part_steps_sync import (
     TRIGGER_TRANSFER,
@@ -213,24 +214,31 @@ def apply_fix_writes(db: Any, order: Any, sd: dict[str, Any], *, plan: FilePlan,
     * 건드린 열쇠(:func:`~foms.services.orders.drawing_transfer_plan.touched_idents`)의 고치는 중 표시를 지우고, 그 열쇠를 가리키는
       열린 공장 요청을 ``done`` 으로 닫는다 — 안 건드린 도면 · 요청은 그대로(막힘 그대로).
     * 파일로 올린 도면이 고른 도면의 공장 · '바뀐 도면' 짝을 이어받는다(``file_successor``).
-    * 생산 단계: 손 처리 파트 풀어 쓰기(:func:`expand_hand_parts`).
+    * 생산 단계: 손 처리 파트 풀어 쓰기(:func:`expand_hand_parts`). 확정 도면이 0장 → n장이면 대신 '도면 없음' 카드 옮기기
+      (:func:`~foms.services.production.order_card_carry.carry_order_card` — 카드 줄 · 손 체크 파트를 새 도면 줄로, 2026-11-28 흐름 §3-5).
     * 건드린 열쇠의 공장 꼴 패킹 줄 체크를 푼다(출발 보고 뒤는 그대로 — ``release_packing_checks``).
 
     Returns:
-        ``{released_numbers, closed_requests, packing_released, expanded_parts}``(이벤트 · 감사에 싣는다).
+        ``{released_numbers, closed_requests, packing_released, expanded_parts, order_card_parts}``(이벤트 · 감사에 싣는다).
     """
     touched = touched_idents(old_files, plan.updated_files)
     released = release_fixing_on_transfer(sd, touched, by_name=by_name, at=at_iso)
     closed = close_requests_on_transfer(sd, touched, by_name=by_name, at=at_iso)
     inherit_file_successors(sd, {new: old for new, old in plan.pairs.items() if picks.get(new) == old}, old_files)
     expanded: list[str] = []
+    carried: list[str] = []
     old_keys = {str((f or {}).get("key") or "") for f in old_files if isinstance(f, dict)}
     new_keys = {str(f.get("key") or "") for f in plan.updated_files if str(f.get("key") or "") not in old_keys}
-    if read_main_stage(order) == STAGE_PRODUCTION and new_keys and any(step_done_map(sd).values()):
+    if read_main_stage(order) == STAGE_PRODUCTION and new_keys and first_arrival(order, sd):
+        # 0장 → n장(2026-11-28 흐름 §3-5 · 답 27 · 33 · 35): '도면 없음' 카드 줄 · 손 체크 파트를 새 도면 줄로 한 번 옮긴다(풀어 쓰기 대신 —
+        # 모든 장이 새 장이라 풀어 쓰기는 손 체크 칸을 끈다)
+        carried = carry_order_card(db, order, sd, marks if marks is not None else load_marks(db, order.id), user=user)
+    elif read_main_stage(order) == STAGE_PRODUCTION and new_keys and any(step_done_map(sd).values()):
         expanded = expand_hand_parts(db, order, sd, marks if marks is not None else load_marks(db, order.id),
                                      new_keys=new_keys, user=user)
     packing = release_packing_checks(sd, touched)
-    return {"released_numbers": released, "closed_requests": closed, "packing_released": packing, "expanded_parts": expanded}
+    return {"released_numbers": released, "closed_requests": closed, "packing_released": packing, "expanded_parts": expanded,
+            "order_card_parts": carried}
 
 
 __all__ = [
