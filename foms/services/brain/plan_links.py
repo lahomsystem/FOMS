@@ -188,7 +188,7 @@ def reason(head: str, decisions: Iterable[str]) -> str:
 LINK_REASONS: dict[str, str] = {
     "copy_in": "다른 곳에도 같은 값이 적혀 있다고 표시해요", "value_from": "금액을 가져오는 곳을 이어요",
     "at_step": "어느 단계에서 쓰는 지식인지 이어요", "decided_by": "어느 사장님 결정에서 왔는지 이어요",
-    "about": "어느 지식에 대한 것인지 이어요", "applies_to": "이 규칙이 걸리는 제품 · 옵션을 이어요",
+    "about": "어느 지식에 대한 것인지 이어요", "applies_to": "이 규칙이 관련 제품 · 옵션을 이어요",
     "requires": "꼭 같이 있어야 하는 제품 · 옵션 · 규격을 이어요", "excludes": "같이 할 수 없는 제품 · 옵션 · 규격을 이어요",
 }
 
