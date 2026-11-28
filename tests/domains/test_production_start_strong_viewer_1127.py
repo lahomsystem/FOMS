@@ -38,7 +38,7 @@ def _press(client, who, order, j, action, seen, part="cut"):
 # --------------------------------------------------------------------------- #
 # 일 1 — [<파트> 시작] 진하게
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("part,label", (("edge", "엣지"), ("assemble", "조립"), ("inspect", "검수")))
+@pytest.mark.parametrize("part,label", (("edge", "엣지"), ("inspect", "검수")))  # 조립은 11-28 부터 재단 꼴([조립 없음][조립 시작])
 def test_part_account_start_is_strong_like_cut(client, cohort, part, label):
     order = make_order(2, steps_done=("cut", "edge", "assemble") if part == "inspect" else ())
     act = _act(_card(_page(client, make_user(f"가짜{label}", part=part)), order.keys[0]))
@@ -181,4 +181,4 @@ def test_source_contract_viewer_copies_card_text_only():
     assert len(viewer.splitlines()) <= 300
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert "foms-production-parts-viewer.js') }}?v=20261127y" in scripts
-    assert "foms-production-parts-crew.js') }}?v=20261128g" in scripts
+    assert "foms-production-parts-crew.js') }}?v=20261128h" in scripts

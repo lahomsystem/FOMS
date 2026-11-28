@@ -24,6 +24,7 @@
   var LABEL = cfg.label || '';
   var NAME = cfg.me || '';
   var LOCK_MS = 800;
+  var BASIC = cfg.basic || {}; // 재단 '기본' · 조립 '조립 없음' 글 한 벌(서버 part_constants.basic_view — 창 글이 여기서 읽는다)
   var claim = window.FomsPartsClaim || {};
   function q(sel) { return modal.querySelector(sel); }
   function attr(card, name) { return card.getAttribute(name) || ''; }
@@ -46,17 +47,17 @@
     if (action === 'take') {
       return { title: LABEL + ' 시작할까요?', line: '미정 → 작업 중 · ' + NAME, run: LABEL + ' 시작', tone: 'need' }; // 카드 단추 [재단 시작]과 같은 낱말(11-27)
     }
-    if (action === 'basic') { return { title: '기본으로 처리할까요?', line: '미정 → 기본 · ' + NAME, run: '기본', tone: 'basic' }; }
+    if (action === 'basic') { return { title: BASIC.ask, line: '미정 → ' + BASIC.word + ' · ' + NAME, run: BASIC.word, tone: 'basic' }; } // "기본으로 처리할까요?" · "조립할 것이 없는 도면인가요?"
     if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두 · 미정 도면은 바로 완료 11-27)
       var from = card && attr(card, 'data-state') === 'none' ? '미정 ' : '작업 중 '; // 미정 = [<파트> 시작] 창처럼 네 파트 모두 "미정"(사장님 11-27)
       return { title: LABEL + ' 완료할까요?', line: from + '→ ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
-    if (card && attr(card, 'data-state') === 'basic') { return { title: '기본을 취소할까요?', line: '기본 → 미정', run: '기본 취소', tone: 'unbasic' }; }
+    if (card && attr(card, 'data-state') === 'basic') { return { title: BASIC.undo_ask, line: BASIC.word + ' → 미정', run: BASIC.undo, tone: 'unbasic' }; }
     return { title: LABEL + ' 완료를 취소할까요?', line: LABEL + ' 완료 → 작업 중 · ' + NAME, run: LABEL + ' 완료 취소', tone: 'need' };
   }
   function bulkPlan(cards) {
-    return { title: cards.length + '장을 기본으로 할까요?', line: '미정 → 기본 · ' + NAME, run: cards.length + '장 기본으로', tone: 'basic' };
+    return { title: cards.length + '장을 ' + BASIC.toward + ' 할까요?', line: '미정 → ' + BASIC.word + ' · ' + NAME, run: cards.length + '장 ' + BASIC.toward, tone: 'basic' };
   }
   // ── 새 누름 문구(§9 — 미정 · 작업 중 · 시작 취소 · 담당 바꾸기, multi-holder §8-2 4 · 5 · 12 · 13) ──
   function heldSince(card, subject, iso) {
@@ -92,7 +93,7 @@
     var done = (st === 'done' && crewOf(card).done_subj) || (name ? josa(name) : '');
     if (st === 'need' && picked && attr(card, 'data-picked-me') !== '1') { return picked + ' 작업 중인 도면이에요'; }
     if ((st === 'done' || st === 'basic') && done && attr(card, 'data-done-me') !== '1') {
-      return done + (st === 'basic' ? ' 기본으로 한 도면이에요' : ' 완료한 도면이에요');
+      return done + (st === 'basic' ? ' ' + BASIC.toward + ' 한 도면이에요' : ' 완료한 도면이에요');
     }
     return '';
   }
@@ -252,7 +253,7 @@
     if (mark.state === 'need') { return '지금: ' + (cr.who || mark.picked_by_name || '다른 사람') + ' 작업 중'; }
     var done = cr.done || mark.done_by_name;
     if (mark.state === 'done') { return '지금: ' + LABEL + ' 완료' + (done ? ' · ' + done : ''); }
-    if (mark.state === 'basic') { return '지금: 기본' + (mark.done_by_name ? ' · ' + mark.done_by_name : ''); }
+    if (mark.state === 'basic') { return '지금: ' + BASIC.word + (mark.done_by_name ? ' · ' + mark.done_by_name : ''); }
     return '지금: 담당 미정';
   }
   // 검수 마지막 장 완료 뒤 같은 창이 이어서 묻는다(§4-4) — 실행 단추 0.8초 잠금, 초점은 [나중에].

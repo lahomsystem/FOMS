@@ -4,7 +4,8 @@
 //   {do:'parity'} 모든 카드의 서버 단추 칸 ↔ JS 가 다시 그린 단추 칸 · {do:'click', key, act} 카드 단추 · {do:'modal'} 창 모습 ·
 //   {do:'notice', key} 넘김 말풍선 누름 ·
 //   {do:'run'} 실행 단추 · {do:'choice', text} 관리자 고르기 · {do:'who', index} 사람 고르기 · {do:'card', key} 카드 모습 · {do:'sync'} 받아 오기 한 번 ·
-//   {do:'timers'} 미뤄 둔 일(창 잠금 풀기 등)을 지금 돌림 · {do:'answer'} 붙잡아 둔 미리 보기 답을 지금 보냄.
+//   {do:'timers'} 미뤄 둔 일(창 잠금 풀기 등)을 지금 돌림 · {do:'answer'} 붙잡아 둔 미리 보기 답을 지금 보냄 ·
+//   {do:'bulk'} 판 머리 일괄 단추([남은 N장 모두 기본] · 조립 [… 모두 조립 없음]) · {do:'head'} 판 머리 글("안 본 도면 3장" · "미정 도면 없어요").
 // [시작 취소] 창 미리 보기(GET …/part-marks/cancel-preview, 2026-11-27)는 쓰기 · 받아 오기 기록(calls)과 따로 previews 에 주소를 적고
 // want.previews 의 답을 차례로 준다(없으면 run_cancelled:false). 답이 '__hang' 이면 안 옴, {__hold: 답} 이면 {do:'answer'} 때 온다.
 // 카드 단추를 누른 step 은 창 모습을 적은 뒤 한 박자 기다린다(사람 손처럼 — 미리 보기 답이 온 뒤 다음 step).
@@ -180,6 +181,11 @@ function counts() {
     } else if (s.do === 'who') {
       click(modal.querySelectorAll('[data-pp-who]')[s.index]);
       out.push({ do: 'who', modal: modalState() });
+    } else if (s.do === 'bulk') {
+      click(body.querySelector('[data-pp-act="bulk"]'));
+      out.push({ do: 'bulk', modal: modalState() });
+    } else if (s.do === 'head') {
+      out.push({ do: 'head', text: text(body.querySelector('[data-pp-unseen-text]')) });
     } else if (s.do === 'wait') { // 받을 사람 목록 같은 읽기 답이 창에 그려질 때까지 한 박자
       await tick(); await tick(); await tick();
       out.push({ do: 'wait', modal: modalState() });

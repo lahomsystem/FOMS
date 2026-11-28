@@ -21,7 +21,8 @@
 
   var cfg = board.cfg || {};
   var OFFLINE = '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.';
-  var IS_CUT = cfg.part === 'cut';
+  var BASIC = cfg.basic || {}; // 재단 '기본' · 조립 '조립 없음' 글 한 벌(서버 part_constants.basic_view — 그 처리가 없는 파트는 없음)
+  var IS_CUT = !!cfg.basic; // 이름은 옛 것 — 뜻은 "기본이 되는 파트"(재단 · 조립, 2026-11-28)
   var MINE = cfg.mode === 'part';
   var WRITABLE = !!(modal && cfg.writable); // 읽기 전용(D55) = 배지만, 단추 없음
   var claim = window.FomsPartsClaim || {};
@@ -87,7 +88,7 @@
     if (text) {
       var look = Math.max(0, Number(text.getAttribute('data-pp-unseen-text') || 0) + after.look - before.look);
       text.setAttribute('data-pp-unseen-text', String(look));
-      text.textContent = look ? '안 본 도면 ' : '안 본 도면 없어요';
+      text.textContent = BASIC.unseen + (look ? ' ' : ' 없어요'); // 재단 "안 본 도면" · 조립 "미정 도면"
       if (look) { text.appendChild(el('b', '', String(look))); text.appendChild(document.createTextNode('장')); }
     }
     var bulk = pane.querySelector('[data-pp-act="bulk"]');
@@ -139,7 +140,7 @@
   }
   // 주문 막힘 칸(서버 sync_blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 글은 서버 글) → 카드 단추 칸 · 칸 숫자. 받아 오기 · 제작 완료 응답(C06 · C09)
   var BLOCK_ATTR = { kind: 'data-pp-block', text: 'data-pp-block-text', why: 'data-pp-block-why', code: 'data-pp-block-code' };
-  var SAID = { '기본': '기본으로 처리했어요', '담당 바꾸기': '담당 바꿨어요' }; // [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(아래 handle, 11-27)
+  var SAID = { '담당 바꾸기': '담당 바꿨어요' }; // [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(아래 handle, 11-27) · [기본] · [조립 없음] = "<글>으로 처리했어요"
   var STOP_CODES = ['HOLD_ACTIVE', 'DRAWING_REVISING', 'NOT_IN_PRODUCTION', 'CANCEL_NOTICE_STALE']; // 이 거절이면 그 주문 카드를 바로 다시 받는다
   function setBlock(card, b) {
     var keys = Object.keys(BLOCK_ATTR);
@@ -189,7 +190,7 @@
     });
     var skipped = data.skipped || [];
     skipped.forEach(function (s) { findCard(s.order_id, s.drawing_key).forEach(function (c) { applyMark(c, s.mark); }); });
-    var text = changed ? changed + '장 기본으로 했어요' : ''; // 0장이면 안 띄운다(사장님 2026-11-26)
+    var text = changed ? changed + '장 ' + BASIC.toward + ' 했어요' : ''; // "3장 기본으로 했어요" · "3장 조립 없음으로 했어요" — 0장이면 안 띄운다(사장님 2026-11-26)
     if (skipped.length === 1) { text += (text ? ' · ' : '') + '1장은 ' + (skipped[0].error || '그사이 다른 사람이 바꿨어요'); }
     if (skipped.length > 1) { text += (text ? ' · ' : '') + skipped.length + '장은 그사이 다른 사람이 바꿨어요'; }
     return { text: text, bad: skipped.length > 0 };
@@ -207,7 +208,7 @@
     if (result.ok && body.success === true) {
       var finished = p.action === 'complete' || (p.action === 'factory' && data.final);
       var done = p.action === 'bulk' ? bulkDone(data) : { text: finished ? '제작 완료했어요 — 시공 대기로 넘어갔어요'
-        : (p.action === 'factory' || /(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : / 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요' : (SAID[p.run] || '저장했어요'), bad: false }; // 누른 단추 말 그대로
+        : (p.action === 'factory' || /(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : / 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요' : p.action === 'basic' ? BASIC.toward + ' 처리했어요' : (SAID[p.run] || '저장했어요'), bad: false }; // 누른 단추 말 그대로
       if (data.gave && !data.gave.self) { done.text = data.gave.to.name + '에게 줬어요'; } // 남에게 준 담당 바꾸기(나에게는 "담당 바꿨어요" 그대로)
       if (finished) { findCard(attr(p.cards[0], 'data-order-id')).forEach(function (c) { setBlock(c, cfg.done_block); }); } // [되돌리기] 대신 '제작 완료'(C09)
       if (p.action !== 'bulk' && !asks) { p.cards.forEach(function (c) { applyMark(c, data.mark); }); }

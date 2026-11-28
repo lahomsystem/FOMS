@@ -12,8 +12,9 @@
   ``check`` = PC [완료 처리](시작 + 완료를 한 요청 — 반장 · 관리자만, 판결 2).
   ``seen_cancel``(안 보내도 됨 · true/false) = 취소 창이 그 단추에 대해 보여 준 것 — "제작 시작도 같이 취소돼요" 줄이 보였으면 true.
   실은 누름만 견준다: 실제 되돌림 판정과 다르면 409 ``CANCEL_NOTICE_STALE``(아무것도 안 바뀜 — 사장님 2026-11-27 "창에 보인 대로만 된다").
-* ``POST /api/production/part-marks/basic`` — 재단 [남은 N장 모두 기본]. 몸 ``{part:'cut', seen:'none', items:[{order_id,
-  drawing_key}…]}``(최대 200). **화면이 보낸 목록만** 바꾼다(서버가 '남은 전부'를 고르지 않는다) · 일부 성공.
+* ``POST /api/production/part-marks/basic`` — 재단 [남은 N장 모두 기본] · 조립 [남은 N장 모두 조립 없음](2026-11-28 흐름 셋 §3). 몸
+  ``{part:'cut'|'assemble', seen:'none', items:[{order_id, drawing_key}…]}``(최대 200). **화면이 보낸 목록만** 바꾼다(서버가 '남은 전부'를
+  고르지 않는다) · 일부 성공. 한 장 ``basic`` 도 같은 두 파트만 — 엣지 · 검수는 400 ``BASIC_NOT_ALLOWED``(사장님 "조립만").
 * ``GET /api/production/part-marks/cancel-preview`` — [<파트> 시작 취소] · [<파트> 완료 취소] · [기본 취소] 창을 열 때(사장님 2026-11-27
   "창에도 미리 알리기" · "여기도 미리 알리기"). 질의 = 한 장 쓰기 몸과 같은 칸(``action`` 은 release · remove · undo 만). 답
   ``{run_cancelled}`` = 지금 그 취소를 누르면 제작 시작도 같이 취소되는지. 읽기 전용이고, 문(로그인 · 파트 문)과 판정은 쓰기와 같은 함수다(``mark_one(dry=True)`` — 쓰기 직전까지 같은 길).
@@ -40,7 +41,7 @@ from foms.services.orders.revision import RevisionError
 from foms.services.production import floor_alarm
 from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_SUB, part_account_parts, part_view_mode
-from foms.services.production.part_constants import BASIC_ALLOWED_PART, PRODUCTION_PART_KEYS
+from foms.services.production.part_constants import BASIC_ALLOWED_PARTS, PRODUCTION_PART_KEYS, basic_word
 from foms.services.production.mark_crew import SHARE_VALUES
 from foms.services.production.part_card_crew import attach_crew
 from foms.services.production.part_mark_rules import (
@@ -66,6 +67,8 @@ production_part_marks_bp = Blueprint("production_part_marks", __name__, url_pref
 #: 일괄 기본 한 번의 장 수 상한(화면 한 장 카드 캡과 같다).
 BULK_MAX_ITEMS = 200
 _SAVE_FAILED = "저장하지 못했어요. 잠시 뒤 다시 해 주세요."
+#: '기본'(재단) · '조립 없음'(조립)이 없는 파트에 그 누름이 오면(엣지 · 검수 — 화면에는 단추가 없다). 옛 코드 이름 ``BASIC_CUT_ONLY``.
+BASIC_NOT_ALLOWED, BASIC_NOT_ALLOWED_MESSAGE = "BASIC_NOT_ALLOWED", "이 파트에는 없는 처리예요."
 #: PC [완료 처리](``check``)는 감독 단추 — 반장 · 관리자만(판결 2, 지금 대신 처리 문과 같다).
 CHECK_FORBIDDEN_MESSAGE = "[완료 처리]는 반장이나 관리자만 할 수 있어요."
 #: 미리 보기가 받는 누름 — 표시 줄을 미정으로 돌릴 수 있는 취소 셋(내 시작 취소 · 반장이 남의 시작 취소 · 완료 취소/기본 취소).
@@ -237,8 +240,8 @@ def api_part_mark():
         body = request.get_json(silent=True) or {}
         req, shown = _parse_one(body), _seen_cancel(body)  # 몸 검사(400)는 지금처럼 파트 문(403)보다 먼저
         override = _gate_part(user, req.part)
-        if req.action == ACTION_BASIC and req.part != BASIC_ALLOWED_PART:
-            raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
+        if req.action == ACTION_BASIC and req.part not in BASIC_ALLOWED_PARTS:
+            raise MarkRefusal(400, BASIC_NOT_ALLOWED, BASIC_NOT_ALLOWED_MESSAGE)
         if req.action == ACTION_CHECK and not override:
             raise MarkRefusal(403, "PART_FORBIDDEN", CHECK_FORBIDDEN_MESSAGE)
         if req.action == ACTION_TAKEOVER and req.to_uid not in (None, user.id) and not override:
@@ -253,11 +256,12 @@ def api_part_mark():
 def _parse_bulk(body: dict[str, Any]) -> tuple[str, list[tuple[int, str]]]:
     """일괄 몸 → (파트, 보낸 순서의 (주문, 장) 목록 · 겹침 제거)."""
     part = _choice(body.get("part"), PRODUCTION_PART_KEYS, "파트")
+    word = basic_word(part)  # 재단 "기본" · 조립 "조립 없음"(둘 다 받침으로 끝나 '으로')
     if _choice(body.get("seen"), SEEN_VALUES, "본 상태") != "none":
-        raise MarkRefusal(400, "BAD_REQUEST", "안 본 도면만 한 번에 기본으로 할 수 있어요.")
+        raise MarkRefusal(400, "BAD_REQUEST", f"안 본 도면만 한 번에 {word}으로 할 수 있어요.")
     items = body.get("items")
     if not isinstance(items, list) or not items:
-        raise MarkRefusal(400, "BAD_REQUEST", "기본으로 할 도면을 골라 주세요.")
+        raise MarkRefusal(400, "BAD_REQUEST", f"{word}으로 할 도면을 골라 주세요.")
     if len(items) > BULK_MAX_ITEMS:
         raise MarkRefusal(400, "TOO_MANY", f"한 번에 {BULK_MAX_ITEMS}장까지만 할 수 있어요.")
     pairs: list[tuple[int, str]] = []
@@ -271,15 +275,15 @@ def _parse_bulk(body: dict[str, Any]) -> tuple[str, list[tuple[int, str]]]:
 
 @production_part_marks_bp.route("/part-marks/basic", methods=["POST"])
 def api_part_marks_basic():
-    """재단 [남은 N장 모두 기본] — 화면이 보낸 목록만 기본으로. 맞는 장만 바꾸고 나머지는 ``skipped`` 로(전부 실패해도 200)."""
+    """재단 [남은 N장 모두 기본] · 조립 [남은 N장 모두 조립 없음] — 화면이 보낸 목록만. 맞는 장만 바꾸고 나머지는 ``skipped`` 로(전부 실패해도 200)."""
 
     def _handle(db: Any) -> dict[str, Any]:
         user = _actor()
         part, pairs = _parse_bulk(request.get_json(silent=True) or {})
         override = _gate_part(user, part)
-        if part != BASIC_ALLOWED_PART:
-            raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
-        return _with_crew(bulk_basic(db, user, override, pairs), user)
+        if part not in BASIC_ALLOWED_PARTS:
+            raise MarkRefusal(400, BASIC_NOT_ALLOWED, BASIC_NOT_ALLOWED_MESSAGE)
+        return _with_crew(bulk_basic(db, user, override, pairs, part), user)
 
     return _run(_handle)
 

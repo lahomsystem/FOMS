@@ -27,7 +27,7 @@ from foms.api.production.part_marks import production_part_marks_bp
 from foms.services.datetime_kst import parse_datetime_utc
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.production.home_access import can_view_production_home
-from foms.services.production.part_constants import PRODUCTION_PART_KEYS
+from foms.services.production.part_constants import BASIC_ALLOWED_PART, BASIC_ALLOWED_PARTS, PRODUCTION_PART_KEYS, basic_word
 from foms.services.production.step_expand import UNKNOWN_FINISHER
 from models import Order, OrderEvent, User
 
@@ -118,10 +118,30 @@ def _iso(value: Any) -> Optional[str]:
     return aware.isoformat() if aware is not None else None
 
 
+#: 수정 제작이 고른 도면을 미정으로 돌린 기록 줄 글(설계서 2026-11-28 흐름 셋 §2-2 · §4-3 약속 9 — 이벤트 ``action: 'rework'``).
+REWORK_WORD = "수정 제작 — 미정으로"
+
+
+def history_word(payload: dict[str, Any]) -> Optional[str]:
+    """기록 줄에 서버가 실어 주는 낱말 — 화면은 이 글이 있으면 제 낱말 표 대신 그대로 쓴다. 없으면 None(화면 낱말 표 — 재단 글은 그대로).
+
+    조립 '조립 없음'(``basic``) · '조립 없음 취소'(``undo`` — 기본에서 미정으로) · 수정 제작(``rework``).
+    """
+    action, part = payload.get("action"), payload.get("part")
+    if action == "rework":
+        return REWORK_WORD
+    if part == BASIC_ALLOWED_PART or part not in BASIC_ALLOWED_PARTS:
+        return None
+    if action == "basic":
+        return basic_word(part)
+    return f"{basic_word(part)} 취소" if action == "undo" and payload.get("from") == "BASIC" else None
+
+
 def history_item(event: OrderEvent, names: dict[int, str]) -> dict[str, Any]:
     """기록 한 줄 — 화면이 "박엣지 맡음 11/23 09:10 → 김민준으로 바뀜 14:20 → 김민준 완료 15:02" 를 그린다.
 
-    ``kind``: 카드 = take · basic · done · undo · release · takeover · join · remove · check, 공정 칸 = ``step_on`` · ``step_off``.
+    ``kind``: 카드 = take · basic · done · undo · release · takeover · join · remove · check · rework(수정 제작이 미정으로 돌림), 공정 칸 =
+    ``step_on`` · ``step_off``. ``word`` = 서버가 정한 낱말(:func:`history_word` — 조립 없음 · 조립 없음 취소 · 수정 제작, 그 밖 None).
     ``target_name`` = 바꾸기 · 시작 취소 대상, ``joined_late`` = 늦은 [작업 시작]이 같이 작업으로 넘어감(2026-11-25 multi-holder §7-1).
     ``to_name`` = 담당 바꾸기에서 받은 사람(2026-11-28 — 반장 · 관리자가 남에게 줬으면 ``by_name`` 과 다르다, 옛 이벤트는 None).
     시각은 시간대 붙은 UTC ISO(화면이 KST 로 바꾼다).
@@ -136,6 +156,7 @@ def history_item(event: OrderEvent, names: dict[int, str]) -> dict[str, Any]:
     return {
         "at": _iso(event.created_at),
         "kind": payload.get("action") if is_mark else ("step_on" if payload.get("done") else "step_off"),
+        "word": history_word(payload) if is_mark else None,
         "part": payload.get("part") if is_mark else payload.get("key"),
         "drawing_key": payload.get("key") if is_mark else None,
         "sheet_id": payload.get("sheet_id") if is_mark else None,

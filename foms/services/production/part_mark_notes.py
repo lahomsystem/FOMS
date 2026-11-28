@@ -3,7 +3,7 @@
 ``part_mark_write`` 가 500줄 래칫에 닿아 글 만드는 곳을 여기로 옮겼다(뜻은 그대로). 알림 · '바뀐 것' 줄은 만들지 않는다(Q19 —
 기록 · 감사만).
 
-* 감사 상태 낱말: 안 봄(재단) · 안 고름 · 작업 필요 · 기본 · "재단 1/2 완료"(같이 작업 중 일부 완료) · "재단 완료".
+* 감사 상태 낱말: 안 봄(재단) · 안 고름 · 작업 필요 · 기본(조립은 "조립 없음" — 2026-11-28) · "재단 1/2 완료"(같이 작업 중 일부 완료) · "재단 완료".
 * 감사 글: 같이 작업 "재단 같이 작업 (이시영 → 이시영 · 김재단)" · 넘김 "재단 같이 작업 (먼저 시작: 이시영)" · 시작 취소
   "재단 시작 취소 (이시영)" · 반장이 남의 시작 취소 "재단 시작 취소 (김재단, 박반장)" · 담당 바꾸기 "재단 담당 바꿈 (박엣지 → 김민준)"
   (K1 그대로) · 반장 · 관리자가 남에게 준 담당 바꾸기 "재단 담당 바꿈 (김재단 → 오재단, 박반장)"(2026-11-28 흐름 셋 §1-5).
@@ -18,7 +18,13 @@ from __future__ import annotations
 from typing import Any, Iterable, Optional
 
 from foms.services.production import mark_crew as mc
-from foms.services.production.part_constants import BASIC_ALLOWED_PART, MARK_STATE_BASIC, MARK_STATE_DONE, PRODUCTION_PART_LABELS
+from foms.services.production.part_constants import (
+    BASIC_ALLOWED_PART,
+    MARK_STATE_BASIC,
+    MARK_STATE_DONE,
+    PRODUCTION_PART_LABELS,
+    basic_word,
+)
 from foms.services.production.part_mark_rules import (
     ACTION_JOIN,
     ACTION_RELEASE,
@@ -38,7 +44,7 @@ def actor_name(user: Any) -> Optional[str]:
 
 
 def state_words(part: str, state: str, crew: Iterable[dict[str, Any]] = ()) -> str:
-    """감사 글의 상태 낱말 — 안 봄(재단) · 안 고름 · 작업 필요 · 기본 · "<파트> 1/2 완료" · "<파트> 완료".
+    """감사 글의 상태 낱말 — 안 봄(재단) · 안 고름 · 작업 필요 · 기본(조립 "조립 없음") · "<파트> 1/2 완료" · "<파트> 완료".
 
     Args:
         part: 파트 key.
@@ -50,7 +56,7 @@ def state_words(part: str, state: str, crew: Iterable[dict[str, Any]] = ()) -> s
     if state == "NEED":
         done_n = sum(1 for m in crew if mc.is_done(m))
         return f"{label} {done_n}/{len(crew)} 완료" if 0 < done_n < len(crew) else "작업 필요"
-    return {"BASIC": "기본", "DONE": f"{label} 완료"}.get(state, "안 봄" if part == BASIC_ALLOWED_PART else "안 고름")
+    return {"BASIC": basic_word(part), "DONE": f"{label} 완료"}.get(state, "안 봄" if part == BASIC_ALLOWED_PART else "안 고름")
 
 
 def _brief(crew: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
