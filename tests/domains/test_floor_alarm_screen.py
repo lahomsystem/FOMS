@@ -17,7 +17,10 @@ ROOT = Path(__file__).resolve().parents[2]
 BELL = "production/partials/notif_bell.html"
 PART = "production/partials/floor_alarm.html"
 INCLUDE = "{% include 'production/partials/floor_alarm.html' %}"
-PIN = "20261128a"
+PIN = "20261128b"  # floor-alarm.css · foms-floor-alarm.js — 11-28 b: 띠가 머리 줄 아래 한 줄 · 서버가 닫은 알람 바로 빼기 · 판 받아 오기
+#: 긴급 창 공용 자산 핀 — 11-28 b: foms-urgent-alert.js dismiss(서버가 닫은 생산 알람을 같은 창에서 바로 뺌), 나머지 둘은 그대로
+URGENT_PINS = {"css/components/foms-urgent-alert.css": "20261128a", "js/foms/urgent-sound.js": "20261128a",
+               "js/foms/foms-urgent-alert.js": "20261128b"}
 
 
 def _env() -> Environment:
@@ -71,5 +74,5 @@ def test_긴급_창_자산_핀_네_곳이_같이_올라갔다() -> None:
                       ("measurement/map_view.html", assets), ("brain/ds/layout.html", assets[:1])):
         html = (ROOT / "templates" / rel).read_text(encoding="utf-8")
         for asset in want:
-            assert re.search(re.escape(asset) + rf"'\) \}}\}}\?v={PIN}", html), (rel, asset)
+            assert re.search(re.escape(asset) + rf"'\) \}}\}}\?v={URGENT_PINS[asset]}", html), (rel, asset)
         assert "foms-urgent-alert.css') }}?v=20261016a" not in html

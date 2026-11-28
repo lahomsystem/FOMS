@@ -141,7 +141,7 @@ def given(scene: Scene) -> tuple[str, str]:
     """#1 받은 사람 — "박반장이 재단 담당을 당신으로 변경했어요"(여러 장이면 "— 도면 3장")."""
     title = _sheets_tail(f"{_who(scene.actor)} {_part(scene)} 담당을 당신으로 변경했어요", scene)
     body = _where(scene)
-    return title, body if len(set(scene.numbers)) > 1 else f"{body}\n[확인]을 누르면 그 도면이 열려요."
+    return title, body if len(set(scene.numbers)) > 1 else f"{body}\n[확인]을 누르면 그 주문 도면 칸으로 가요."
 
 
 def taken(scene: Scene, *, to_name: str, self_take: bool) -> tuple[str, str]:

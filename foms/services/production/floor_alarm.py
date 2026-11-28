@@ -232,13 +232,15 @@ def deliver(db: Any, out: Outbox) -> None:
     steps: list[Callable[[], Any]] = []
     if people and _badge_hook is not None:
         steps.append(lambda: _badge_hook(people))
+    # 닫기 먼저 — 보류 풀기처럼 멈춤 창을 닫으며 띠를 보낼 때, 화면이 멈춤 소리를 먼저 그쳐야 띠 소리가 난다(띠 소리는 다른 소리가
+    # 울리는 중이면 건너뛴다 — urgent-sound.js play). 11-28 실측: 띠 먼저 보내면 안 누른 멈춤 창 뒤 띠 소리 0회.
+    for uid, ids in out.closed.items():
+        steps.append(lambda uid=uid, ids=ids: emit_erp_notification_to_users(
+            [uid], {"urgent": False, "floor_closed": True, "notification_ids": ids}))
     for uid, body, new in out.sent:
         steps.append(lambda uid=uid, body=body: emit_erp_notification_to_users([uid], body))
         if new and body["urgent"]:  # 띠는 폰 알림을 걸지 않는다(§4-1)
             steps.append(lambda body=body: enqueue_push_for_notification(body["notification_id"], db=db))
-    for uid, ids in out.closed.items():
-        steps.append(lambda uid=uid, ids=ids: emit_erp_notification_to_users(
-            [uid], {"urgent": False, "floor_closed": True, "notification_ids": ids}))
     for step in steps:
         try:
             step()

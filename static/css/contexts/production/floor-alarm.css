@@ -20,10 +20,21 @@
   .foms-floor-sound { display: inline-flex; }
 }
 
-/* 띠 — 머리 줄 안 맨 끝에서 한 줄 전체(머리 줄과 같이 위에 붙어 있다). 높이 64 · 글 20 이상, 넘치면 본문부터 줄임. */
+/* 띠 — 머리 줄 아래 한 줄 전체(머리 줄과 같이 위에 붙어 있다). 높이 64 · 글 20 이상, 넘치면 본문부터 줄임.
+ * 머리 줄은 992px 이상에서 한 줄로 막혀 있어(nowrap — home.css · sheet.css) 띠가 그 줄에 서면 옆으로 밀려 화면 밖으로 나간다
+ * (11-28 실측 1280 폭: 첫 화면 758px · 작업 시트 614px 넘침, [확인] 단추가 화면 밖). 그래서 띠는 머리 줄의 줄 배치 밖에 서고
+ * (position: absolute — 머리 줄이 sticky 라 그 안에 붙는다), 띠가 보일 때만 머리 줄 아래 여백(띠 높이 + 줄 틈)으로 자리를 비운다.
+ * 띠가 숨으면 머리 줄은 띠가 없던 때와 같다. 높이 68 = 단추 52 + 위아래 6 · 6 + 선 2 · 2(글자 150% 에서도 같다 — 한 줄 말줄임). */
+.foms-prod-home__bar, .foms-prod-page__bar { --foms-floor-band-h: 68px; }
+.foms-prod-home__bar:has(> .foms-floor-band:not([hidden])) { padding-bottom: calc(8px + var(--foms-floor-band-h) + 10px); }
+.foms-prod-page__bar:has(> .foms-floor-band:not([hidden])) { padding-bottom: calc(8px + var(--foms-floor-band-h) + 8px); }
 .foms-floor-band {
-  flex: 1 0 100%;
-  order: 99;
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 8px;
+  height: var(--foms-floor-band-h, 68px);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -33,6 +44,10 @@
   border-radius: 12px;
   background: #ffe7c2;
   color: #6b3500;
+}
+.foms-prod-page__bar > .foms-floor-band { left: 16px; right: 16px; } /* 띠 옆 끝 = 머리 줄 안쪽 여백(home 20 · sheet 16 · 992 아래 12) */
+@media (max-width: 991.98px) {
+  .foms-prod-home__bar > .foms-floor-band, .foms-prod-page__bar > .foms-floor-band { left: 12px; right: 12px; }
 }
 .foms-floor-band[hidden],
 .foms-floor-band__count[hidden] { display: none; }

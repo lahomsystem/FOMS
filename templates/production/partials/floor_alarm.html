@@ -4,5 +4,5 @@
     단추 누름은 urgent-sound.js 가 받는다(data-foms-urgent-sound-toggle — 켜기 + 시험 소리 / 끄기), 글 · 색은 foms-floor-alarm.js 가 맞춘다.
     스크립트는 문서당 한 번(data-foms-run-once — 셸 조각 교체 때 다시 안 돈다). 쓰는 값: foms_prod_bell_ns(그 화면 단추 꼴). -#}
 {%- if flag_floor_alarm -%}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/floor-alarm.css') }}?v=20261128a"><button type="button" class="{{ foms_prod_bell_ns }}__btn foms-floor-sound is-locked" data-foms-floor-sound data-foms-urgent-sound-toggle aria-pressed="false"><i class="fas fa-volume-up" aria-hidden="true"></i><span data-foms-floor-sound-label>소리 켜기</span></button><script src="{{ url_for('static', filename='js/foms/foms-floor-alarm.js') }}?v=20261128a" defer data-foms-run-once="floor-alarm"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/floor-alarm.css') }}?v=20261128b"><button type="button" class="{{ foms_prod_bell_ns }}__btn foms-floor-sound is-locked" data-foms-floor-sound data-foms-urgent-sound-toggle aria-pressed="false"><i class="fas fa-volume-up" aria-hidden="true"></i><span data-foms-floor-sound-label>소리 켜기</span></button><script src="{{ url_for('static', filename='js/foms/foms-floor-alarm.js') }}?v=20261128b" defer data-foms-run-once="floor-alarm"></script>
 {%- endif -%}

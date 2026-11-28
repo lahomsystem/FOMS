@@ -85,7 +85,7 @@
     parent.appendChild(node);
     return node;
   }
-  function bandEl() { // 머리 줄(header) 안 맨 끝 — 머리 줄과 같이 위에 붙어 있고, 넘치면 다음 줄 전체를 쓴다(CSS)
+  function bandEl() { // 머리 줄(header) 안 맨 끝 — 머리 줄과 같이 위에 붙어 있고, 머리 줄 아래 한 줄 전체에 선다(CSS)
     var host = home();
     if (!host) return null;
     if (band && band.isConnected !== false) return band;
@@ -150,13 +150,12 @@
       .then(function () { bandBusy = false; });
   }
 
-  // ── 서버가 닫은 알람 치우기(약속 6 floor_closed) ──────────────────
+  // ── 서버가 닫은 알람 치우기(약속 6 floor_closed) — 이 창의 긴급 창은 바로 뺀다(멈춤 소리가 뒤따라 오는 띠 소리보다 먼저 그치게) ──
   function close(ids) {
     (Array.isArray(ids) ? ids : []).forEach(function (n) {
-      var id = String(n);
-      gone[id] = true;
-      dropBand(id);
-      try { // 긴급 창은 탭 사이 통로의 ack 로 그 건을 뺀다(같은 창 안의 다른 통로 객체에도 간다)
+      var id = String(n), A = window.FOMSUrgentAlert;
+      gone[id] = true; dropBand(id); if (A && typeof A.dismiss === 'function') A.dismiss(id);
+      try { // 다른 탭의 긴급 창은 탭 사이 통로의 ack 로 그 건을 뺀다
         if (!channel && typeof window.BroadcastChannel === 'function') channel = new window.BroadcastChannel('foms-urgent');
         if (channel) channel.postMessage({ type: 'ack', notification_id: id });
       } catch (e) { console.warn('[floor-alarm] 닫기 전달 실패:', e); }
@@ -167,6 +166,8 @@
     if (data.floor_closed === true) close(data.notification_ids);
     else if (data.urgent === true) { if (isFloor(data)) urgent([data]); }
     else if (data.floor_notice === true) addBands([data], true);
+    var B = window.__FOMS_PROD_PARTS_BOUND; // 도면 판이면 받아 오기 한 번 — 보류 풀림 · 막힘이 카드에 30초를 안 기다리고 닿게
+    if ((data.floor_closed === true || isFloor(data)) && B && typeof B.syncTick === 'function') B.syncTick();
   }
 
   // ── 다시 받기(약속 7) — 생산 화면을 열 때 · 다시 보일 때 · 소켓이 붙을 때 · [확인]으로 줄이 비었을 때 ──
