@@ -246,7 +246,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261128b" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261128c" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261127z" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-swipe.js') }}?v=20261127m" defer></script>{% if can_act and order.can_revert %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-rework.js') }}?v=20261128a" defer></script>{% endif %}{% if can_act and order.factory_sheet %}
