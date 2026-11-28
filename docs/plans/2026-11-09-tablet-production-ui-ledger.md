@@ -2514,6 +2514,13 @@
   - 남은 여쭐 것 넷: ① 원래 담당 글 ② 스스로 가져간 때도 원래 담당에게 전체 화면인지 ③ 색 · 소리를 둘이 다르게 ④ "오늘 나가는 주문이 아직 안 끝났어요" 띠 시각(안 오전 10시).
 - 지금 도는 일꾼: fix-alert-flake(b1 · fable high) · build-seam(b2 · fable medium — 0-둘 이음매). 다음: 이음매 합친 뒤 ⓑ ⓒ ⓓ ⓔ 같이. 스테이징에는 아직 아무것도 안 올림(세션 가지가 origin/deploy 보다 앞섬). 다음 올리기 로그 `smoke_push125`.
 
+### 알람 답 2차 넷 · 만들기 일꾼 넷 띄움 (11-28 낮)
+
+- 사장님 답(글자 그대로): 원래 담당 글 **"이 글로 (Recommended)"**("박반장이 재단 담당을 오재단으로 변경했어요" + "… 하던 작업은 멈춰 주세요.") · 스스로 가져간 때 **"전체 화면 (Recommended)"**("박반장이 재단 담당을 가져갔어요") · 색 · 소리 **"둘 다 같게"**(받은 사람 · 원래 담당 모두 파랑 + 올라가는 두 음) · 오늘 미완 띠 **"오전 9시 · 오후 1시 두 번"**. 두 설계서 §0 에 "사장님 답 2차"로 넣음(`fbc2fad16` — 본문과 다르면 그 절이 이김).
+- 이음매 합침(build-seam `2dfd0bb27` cherry-pick): `floor_alarm.py` 빈 틀 · `BASIC_ALLOWED_PARTS` · `parts_in_use`(부르는 다섯 곳). 일꾼이 남긴 물음: `cards_used` 직접 부르는 곳 둘 더(`drawing_factory.py:168` · `start_rollback.py:136`) — ⓒ 가 판정.
+- 도는 일꾼 다섯(모두 세션 HEAD `fbc2fad16` 에서 — b1 만 `de0820758`): fix-alert-flake(b1 · fable high — `test_drawing_fix_stage_exit` 가끔 실패 원인) · build-flow-ab(b2 · fable high — 담당 고르기 → 조립 없음 + 마이그레이션 `prodpart_03_basic_parts`) · build-flow-c(b3 · fable high — 수정 제작 도면 · 칸 고르기 + `orders.py` 알람 거는 줄) · build-alarm-srv(b4 · fable high — 알람 서버 전부) · build-alarm-ui(b5 · opus high — 소리 · 전체 화면 · 띠 · 소리 단추).
+- 합칠 때 볼 것: 약속 열 개(§4-3)가 넷 사이에 맞는지 · `sheet-parts.js` 기록 낱말 표(ⓑ · ⓒ 둘 다 한 줄 더할 수 있음) · 핀 겹침(parts · parts-modal · tablet-domain-sheets · shipment-entry) · 인벤토리 줄 번호 · 실화면(박반장 · 김재단 · 오재단 세 화면, 1280×720) · 소리. 알람은 스위치 꺼진 채 올림.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
