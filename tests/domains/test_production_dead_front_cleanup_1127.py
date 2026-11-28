@@ -26,7 +26,7 @@ PC_WRITE = "static/js/production/foms-production-pc-sheet-write.js"
 CSS = "static/css/contexts/production/sheet.css"
 PIN = "20261127x"
 WORDS_PIN = "20261127z"
-PARTS_PIN = "20261128a"  # 11-28 a: 도면 없는 주문 안내 글(test_production_wording_1127_z1)
+PARTS_PIN = "20261128b"  # 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글(test_production_wording_1127_z1)
 
 
 def _read(rel: str) -> str:

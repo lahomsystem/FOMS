@@ -156,7 +156,7 @@
   }
   // 주문 막힘 칸(서버 sync_blocks — 보류 · 도면 고치는 중 · 생산 단계 아님, 글은 서버 글) → 카드 단추 칸 · 칸 숫자. 받아 오기 · 제작 완료 응답(C06 · C09)
   var BLOCK_ATTR = { kind: 'data-pp-block', text: 'data-pp-block-text', why: 'data-pp-block-why', code: 'data-pp-block-code' };
-  var SAID = { '기본으로': '기본으로 했어요', '담당 바꾸기': '담당 바꿨어요' }; // [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(아래 handle, 11-27)
+  var SAID = { '기본': '기본으로 처리했어요', '담당 바꾸기': '담당 바꿨어요' }; // [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(아래 handle, 11-27)
   var STOP_CODES = ['HOLD_ACTIVE', 'DRAWING_REVISING', 'NOT_IN_PRODUCTION', 'CANCEL_NOTICE_STALE']; // 이 거절이면 그 주문 카드를 바로 다시 받는다
   function setBlock(card, b) {
     var keys = Object.keys(BLOCK_ATTR);

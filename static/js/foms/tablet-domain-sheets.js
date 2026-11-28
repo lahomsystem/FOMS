@@ -232,9 +232,9 @@
   // HOLD_ACTIVE 재시도는 submitTransition 이 body(reason)를 유지한 채 처리한다.
   function productionRework(orderId, btn) {
     openReasonSheetAndSubmit(orderId, "/production/rework", {
-      title: "수정 제작으로 되돌리기",
+      title: "수정 제작으로 되돌릴까요?",
       actionLabel: "수정 제작",
-      detailLabel: "수정 제작 사유 (선택)",
+      detailLabel: "수정 제작 사유(안 적어도 돼요)",
     }, btn);
   }
 
@@ -276,10 +276,10 @@
         return;
       }
       window.FomsReasonSheet.open({
-        title: "생산 보류",
+        title: "제작을 보류할까요?",
         actionLabel: "보류",
         reasons: null,
-        detailLabel: "보류 사유 (선택)",
+        detailLabel: "보류 사유(안 적어도 돼요)",
         onSubmit: function (_reason, detail) {
           submitProductionHold(orderId, true, detail);
         },

@@ -150,7 +150,7 @@
     var who = item.by_name || '';
     var t = d ? ' ' + stamp(d, prev) : '';
     if (item.kind === 'takeover') { return (who ? toward(who) + ' ' : '') + '바뀜' + t; }
-    if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료 — ' + KIND.step_on + ' 처리' + t; } // 카드 동기화(사람 이름 없음)
+    if (item.kind === 'step_on' && item.via === 'part_marks') { return '도면 모두 완료' + t; } // 카드 동기화(사람 이름 없음)
     if (item.kind === 'step_off' && item.via === 'part_marks') { return '도면 미완료 — ' + KIND.step_off + ' 처리' + t; }
     if ((item.kind === 'remove' || item.kind === 'release') && item.target_name && item.target_name !== who) { // "김재단 시작 취소 (박반장)"
       return item.target_name + ' ' + KIND[item.kind] + (who ? ' (' + who + ')' : '') + t;

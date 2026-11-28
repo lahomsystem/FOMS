@@ -54,7 +54,7 @@ def test_reload_instruction_is_one_sentence_on_board_refusals():
 def test_toast_says_what_was_pressed_and_stays_quiet_for_zero():
     parts = _read(JS / "foms-production-parts.js")
     assert "/(완료|시작|취소)$/.test(p.run || '')) ? p.run + '했어요' : / 같이 작업$/.test(p.run || '') ? p.run + ' 시작했어요' : (SAID[p.run] || '저장했어요')" in parts
-    assert "var SAID = { '기본으로': '기본으로 했어요', '담당 바꾸기': '담당 바꿨어요' };" in parts  # [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(11-27)
+    assert "var SAID = { '기본': '기본으로 처리했어요', '담당 바꾸기': '담당 바꿨어요' };" in parts  # [<파트> 같이 작업] = "엣지 같이 작업 시작했어요"(11-27)
     assert "var text = changed ? changed + '장 기본으로 했어요' : '';" in parts
 
 
@@ -249,7 +249,7 @@ def test_big_button_default_dialog_texts_match_production_buttons():
     assert "시작하시겠습니까" not in js and "완료하시겠습니까" not in js and "불러오지 못했습니다" not in js
     assert 'window.alert("오류: " + (data.message || "저장 실패"));' in js  # 출고 저장 글은 그대로
     entry = _read(ROOT / "static/js/shipment/shipment-entry.js")
-    assert "tablet-domain-sheets.js?v=20261128a" in entry
+    assert "tablet-domain-sheets.js?v=20261128b" in entry
 
 
 def _py_strings(path: Path) -> str:

@@ -285,7 +285,7 @@ def test_js_cut_direct_done_window_counts_and_first_drawing(client, cohort, tmp_
     out, calls = res["out"], res["calls"]
     w = out[1]["modal"]
     assert (w["title"], w["line"], w["run"]["text"], w["note"], w["body"]) == (
-        "재단 완료로 바꿀까요?", "미정 → 재단 완료 · 박반장", "재단 완료", "", "이 주문 첫 도면이라 제작 시작도 같이 돼요.")  # 11-27 안 봄 → 미정
+        "재단 완료할까요?", "미정 → 재단 완료 · 박반장", "재단 완료", "", "이 주문 첫 도면이라 제작 시작도 같이 돼요.")  # 11-27 안 봄 → 미정
     assert calls[0]["body"] == {"order_id": order.id, "drawing_key": k[0], "part": "cut", "action": "check", "seen": "none",
                                 "seen_me": "none"}
     assert out[2]["sent"] == 1 and out[2]["modal"]["hidden"] is True
@@ -322,7 +322,7 @@ def test_js_edge_window_409_redraw_and_synced_mark(client, cohort, tmp_path):
         {"do": "apply", "key": k[2], "mark": synced}]})
     out = res["out"]
     w = out[0]["modal"]
-    assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("엣지 완료로 바꿀까요?", "미정 → 엣지 완료 · 관리", "엣지 완료", "")
+    assert (w["title"], w["line"], w["run"]["text"], w["body"]) == ("엣지 완료할까요?", "미정 → 엣지 완료 · 관리", "엣지 완료", "")
     assert out[1]["modal"]["lost"] is True and out[1]["modal"]["err"] == refused["body"]["error"]  # 서버 글 그대로
     two = [{"tag": "div", "cls": "pp-two", "act": None, "text": "엣지 시작엣지 완료", "kids": [
         {"tag": "button", "cls": "foms-prod-home__btn pp-act", "act": "take", "text": "엣지 시작", "kids": []},
@@ -351,8 +351,8 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name,pin", [("parts", "20261128c"), ("parts-claim", "20261127w"), ("parts-modal", "20261128c"),
-                                      ("parts-crew", "20261127y")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
+@pytest.mark.parametrize("name,pin", [("parts", "20261128d"), ("parts-claim", "20261127w"), ("parts-modal", "20261128d"),
+                                      ("parts-crew", "20261127z")])  # modal · crew = 바로 완료 취소 한 번에 미정 + 단추 무게 · 차례 맞춤(비평 C59) + [<파트> 시작] 글을 합쳐 r
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert f"foms-production-{name}.js') }}}}?v={pin}\" defer" in tpl
