@@ -89,8 +89,8 @@ def test_수정_제작_보류_불량이_알람을_건다(client, people, alarm) 
     assert client.post(f"/api/orders/{seed.id}/production/defect", json={"reason": "파손"}).status_code == 200
     assert [(c[1], c[4]) if c[0] == "note" else "flush" for c in alarm] == [("defect", {"label": "파손"}), "flush"]
 
-    del alarm[:]
     plain = _no_drawing_done(client, steps_done=PARTS)
+    del alarm[:]  # 준비물의 [제작 완료]도 커밋 뒤 flush 를 부른다(complete_order) — 그 뒤부터 센다
     assert _rework(client, plain.id, steps=["cut"]).status_code == 200
     assert alarm[0][1:5] == ("rework", plain.id, "정관리", {"steps": ["cut"], "factories": [1]}) and _kinds(alarm) == ["rework", "flush"]
 
