@@ -217,6 +217,16 @@ def stage_exit_event(order_id: int, rows: list[dict[str, Any]], *, by_user_id: O
                                "via": VIA_STAGE_EXIT, "to": normalize_stage_code(to_stage)})
 
 
+def written_by_current_stage_move(payload: Any, stage_now: Any) -> bool:
+    """이 이벤트가 **주문의 지금 단계를 만든 단계 쓰기**가 같이 남긴 줄인가 — 적어 둔 표지(``via`` · ``to``)로 읽는다(시각 아님).
+
+    단계 쓰기는 단계 시각을 먼저 읽고, 같이 남기는 이 줄은 그 뒤(flush 때) 찍힌다. 시계 눈금이 그 사이보다 굵으면 두 시각이 같아져
+    "창 시작 뒤인가"를 시각으로는 못 가린다(2026-11-28 — '바뀐 것'에서 "도면 수정 취소" 줄이 가끔 빠짐). 표지가 있으면 같은 때여도 '뒤'다.
+    """
+    stage = normalize_stage_code(stage_now)
+    return isinstance(payload, dict) and payload.get("via") == VIA_STAGE_EXIT and bool(stage) and payload.get("to") == stage
+
+
 def release_on_stage_exit(session: Any, order_id: int, sd: Any, *, from_stage: Any, to_stage: Any, user_id: Any,
                           at: Optional[str] = None, by_name: Optional[str] = None) -> list[dict[str, Any]]:
     """단계를 바꾸는 쓰기 자리마다 부르는 한 함수 — 생산 밖으로 나가면 [수정 시작] 표시를 같은 사본에서 지우고(제자리)
@@ -268,4 +278,5 @@ __all__ = [
     "FIX_FORBIDDEN", "FIX_NOT_CURRENT", "FIX_STAGE", "FIX_STARTED_EVENT", "FIX_STOPPED_EVENT", "FixRefusal", "LOG_START", "LOG_STOP",
     "MESSAGES", "VIA_STAGE_EXIT", "clear_fixing_on_stage_exit", "confirm_text", "fixing_rows", "numbers_note", "refusal_for",
     "release_on_stage_exit", "resolve_targets", "stage_exit_event", "start_fixing", "stop_fixing",
+    "written_by_current_stage_move",
 ]
