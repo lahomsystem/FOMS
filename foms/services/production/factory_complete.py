@@ -110,7 +110,7 @@ def _factory_gate(db: Any, order: Optional[Order], user: Any, factory: int, done
                      factory=factory)
     if not done and not can_revert_completed(user):  # 공장 완료 취소 = 반장 · 관리자만(사장님 2026-11-28, [완료 취소]와 같은 함수)
         return _fail(403, LEAD_ONLY_STEPS_CODE, factory_uncomplete_lead_only_message(factory), factory=factory)
-    sd =_ensure_dict(order.structured_data)
+    sd = _ensure_dict(order.structured_data)
     if factory not in present_factories(sd):
         return _fail(409, "NO_FACTORY_SHEETS", f"이 주문에는 {factory_label(factory)} 도면이 없어요.", factory=factory)
     stage = read_main_stage(order)
