@@ -20,36 +20,33 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
-from foms.services.datetime_kst import get_today_kst, now_utc_naive
-from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.orders.drawing_factory import sheet_factory
-from foms.services.orders.drawing_fix import blocked, file_successor
-from foms.services.orders.drawing_fix_requests import board_request_options, can_request_people
+from foms.services.orders.drawing_fix import file_successor
+from foms.services.orders.drawing_fix_requests import can_request_people
 from foms.services.production.part_access import (
     VIEW_ADMIN,
     VIEW_NONE,
     VIEW_PART,
-    own_parts,
     part_account_parts,
     part_view_mode,
-    writable_parts,
 )
 from foms.services.production.part_constants import (
     BASIC_ALLOWED_PARTS, MARK_STATE_NONE, PART_CUT, PART_INSPECT, PRODUCTION_PART_KEYS, PRODUCTION_PART_LABELS, basic_view, basic_word,
 )
 from foms.services.production import mark_crew as mc
-from foms.services.production.factory_scope import board_factory, elsewhere_head, elsewhere_info, other_factories, scene_on
+from foms.services.production.factory_scope import elsewhere_head, elsewhere_info, other_factories
+from foms.services.production.part_board_ctx import MarkIndex, SheetIndex, board_ctx
+from foms.services.production.part_board_ctx import fetch_part_marks, index_marks  # noqa: F401 — 옛 import 자리(시험 · 다른 모듈)
 from foms.services.production.part_card_crew import card_crew
-from foms.services.production.drawing_notes_read import board_notes, card_note
-from foms.services.production.part_card_state import claim_notes, hand_cell, inspect_block, order_block, sort_rank
-from foms.services.production.part_mark_notes import actor_name
+from foms.services.production.drawing_notes_read import card_note
+from foms.services.production.part_card_state import claim_notes, inspect_block, order_block, sort_rank
 from foms.services.production.part_mark_rules import MarkSnapshot, mark_payload
 from foms.services.production.change_tag import change_tag
 from foms.services.production_dashboard_display import _production_spec_display
-from models import ProductionPartMark
 
 #: 한 장(날짜 하나)에 그리는 카드 상한 — 넘친 수는 ``hidden`` 으로 알린다(§15.6 안전 캡).
 PART_BOARD_CARD_CAP = 200
@@ -70,10 +67,6 @@ _OTHER_WORDS = {"done": "완료", "need": "작업 중", "none": "미정"}
 #: (multi-holder §8-2 10). 파트 하나인 계정 · 관리자 · 대신에게는 생기지 않는다(다른 파트가 내 파트가 아니다).
 MINE_TONE = "mine"
 MINE_WORD = "내 작업"
-
-MarkIndex = dict[tuple[int, str, str], Any]
-SheetIndex = dict[tuple[int, str], list[Any]]
-
 
 def other_part_word(part: str, state_key: str, mine: bool = False) -> dict[str, str]:
     """다른 파트 한 줄의 낱말 하나.
@@ -140,39 +133,6 @@ def is_part_thumb_image(entry: dict[str, Any]) -> bool:
         if "." in text.rsplit("/", 1)[-1]:
             return text.endswith(PART_THUMB_IMAGE_EXTS)
     return False
-
-
-def fetch_part_marks(db: Any, order_ids: Iterable[int]) -> list[Any]:
-    """그날들 생산 주문의 표시 줄 전부 — 쿼리 한 번(주문이 없으면 0번).
-
-    Args:
-        db: 세션.
-        order_ids: 주문 id 들.
-
-    Returns:
-        ``ProductionPartMark`` 줄 목록(네 파트 모두 — 다른 파트 한 줄에 쓴다).
-    """
-    ids = sorted({int(i) for i in order_ids})
-    if not ids:
-        return []
-    return db.query(ProductionPartMark).filter(ProductionPartMark.order_id.in_(ids)).all()
-
-
-def index_marks(marks: Iterable[Any]) -> tuple[MarkIndex, SheetIndex]:
-    """표시 줄 → (장 · 파트 자리 사전, 시트 신원 사전).
-
-    Returns:
-        ``({(order_id, key, part): 줄}, {(order_id, sheet_id): [줄…]})`` — 둘째는 시트 신원이 있는 줄 + 모든 줄을 ``file:<key>``
-        자리에도(파일 도면 이어받기 짝 — 설계서 2026-11-25 §3-5, 시트 id 에는 ``:`` 가 없어 겹치지 않는다).
-    """
-    by_slot: MarkIndex = {}
-    by_sheet: SheetIndex = {}
-    for row in marks:
-        by_slot[(int(row.order_id), str(row.drawing_key), str(row.part))] = row
-        by_sheet.setdefault((int(row.order_id), f"file:{row.drawing_key}"), []).append(row)
-        if row.sheet_id:
-            by_sheet.setdefault((int(row.order_id), str(row.sheet_id)), []).append(row)
-    return by_slot, by_sheet
 
 
 def card_item_text(sd: dict[str, Any], entry: dict[str, Any], row: dict[str, Any]) -> tuple[str, str]:
@@ -425,13 +385,6 @@ def board_parts(mode: str, user: Any) -> list[dict[str, str]]:
     return [{"key": key, "label": PRODUCTION_PART_LABELS[key]} for key in keys]
 
 
-def _order_marks(marks: Iterable[Any]) -> dict[int, list[Any]]:
-    out: dict[int, list[Any]] = {}
-    for row in marks:
-        out.setdefault(int(row.order_id), []).append(row)
-    return out
-
-
 def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = None, marks: Optional[list[Any]] = None,
                      today: Optional[datetime.date] = None, factory: Any = None) -> Optional[dict[str, Any]]:
     """그날들(날짜 탭 ``panes`` 전부)의 파트 도면 카드 판. 쿼리는 표시 줄 읽기 한 번만 더한다.
@@ -455,29 +408,12 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         return None
     panes = list(days.get("panes") or [])
     rows = [row for pane in panes for row in [*(pane.get("make_rows") or []), *(pane.get("elsewhere_rows") or [])]]
-    files = {int(row["id"]): resolve_final_drawing_files(row.get("structured_data") or {}) for row in rows}
-    if marks is None:
-        marks = fetch_part_marks(db, (oid for oid, entries in files.items() if entries))
-    by_slot, by_sheet = index_marks(marks)
-    order_marks = _order_marks(marks)
-    factory = board_factory(user, factory)
-    scene = scene_on((r.get("structured_data") or {} for r in days.get("all_rows") or rows), factory)
-    writable = board_part in writable_parts(user)
+    # 맥락(확정 도면 · 표시 줄 사전 · 손 체크 · 막힘 · 펜 기록 · 고치기 요청) = part_board_ctx(옮김 — 동작 그대로, 2026-11-28)
+    ctx = board_ctx(db, user, rows, mode=mode, part=board_part, marks=marks, today=today, factory=factory,
+                    scene_rows=days.get("all_rows") or rows)
+    writable, factory, scene = ctx["writable"], ctx["factory"], ctx["scene"]
     parts = board_parts(mode, user)
     pick = mode == VIEW_PART and len(parts) > 1
-    ctx = {
-        "part": board_part, "mine": mode == VIEW_PART, "writable": writable, "user_id": getattr(user, "id", None),
-        "viewer_name": actor_name(user), "factory": factory, "scene": scene,
-        "own_parts": own_parts(user),
-        "files": files, "today": today or get_today_kst(), "order_marks": order_marks,
-        "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in files.items()},
-        "blocks": {int(row["id"]): order_block(row) for row in rows},  # 주문 통째(보류 · 도면 고치는 중)
-        "fix": {int(row["id"]): blocked(row.get("structured_data") or {}) for row in rows},  # 도면별 막힘(2026-11-25 §3-3, 쿼리 0)
-        "notes": board_notes(db, files),  # 펜 기록 머리(스위치 켬만 +1 — 꺼짐 None · 쿼리 0, 2026-11-28 §8 '쿼리')
-        "req": board_request_options(user, rows),  # [도면 수정 요청] 창 고르기(2026-11-25 §2-4 · N3 — 생산 단계 주문, 쿼리 0)
-        "hands": {int(row["id"]): {p: hand_cell(row.get("structured_data") or {}, order_marks.get(int(row["id"]), []), p)
-                                   for p in PRODUCTION_PART_KEYS} for row in rows},
-    }
     return {
         "mode": mode, "part": board_part, "part_label": PRODUCTION_PART_LABELS[board_part],
         # 고를 파트 · 여러 파트 고르기(파트 계정 둘 이상) · 주소에 실을 파트(파트 하나인 계정의 날짜 탭은 지금처럼 안 실음)
@@ -487,5 +423,5 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         "factory": factory, "scene": scene, "factory_pick": scene and mode == VIEW_ADMIN, "req_opts": ctx["req"],
         "can_request": can_request_people(user),  # [도면 수정 요청] 창을 둘 사람(관리자 · 반장 · 파트 계정 — 날 조각 판도 같은 창)
         "url_factory": factory if scene and mode == VIEW_ADMIN else None,
-        "panes": {pane.get("key"): build_pane_board(pane, by_slot, ctx) for pane in panes},
+        "panes": {pane.get("key"): build_pane_board(pane, ctx["slots"], ctx) for pane in panes},
     }
