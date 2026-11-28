@@ -28,7 +28,7 @@ from foms.services.orders.drawing_factory import (
     sheet_factory,
 )
 from foms.services.production.factory_constants import FACTORIES, factory_label
-from foms.services.production.part_access import can_finish_factory
+from foms.services.production.part_access import can_finish_factory, can_revert_completed
 from foms.services.production.part_constants import MARK_STATE_DONE, PART_INSPECT, PRODUCTION_PART_KEYS
 from foms.services.production.part_progress import complete_state, part_done
 from foms.services.production_home_read_model import format_step_at_kst
@@ -191,7 +191,9 @@ def factory_sheet_view(sd: Any, marks: Iterable[Any], user: Any, *, stage_label:
 
     * 줄: "1공장 제작 중 · 2공장 완료(강검수 11/24 16:10)".
     * 제작중: 내가 완료할 수 있는 공장(:func:`can_finish_factory` — 관리자 두 공장 · 그 밖 계정 공장) 중 안 끝난 공장마다
-      [2공장 제작 완료](그 공장 판정 — 안 되면 회색 + 까닭), 살아 있는 공장은 [2공장 완료 취소]. 안 끝난 공장이 내 공장 하나뿐이면
+      [2공장 제작 완료](그 공장 판정 — 안 되면 회색 + 까닭), 살아 있는 공장은 [2공장 완료 취소] — 반장 · 관리자만(사장님 2026-11-28,
+      :func:`can_revert_completed` = 공장 완료 API 403 ``LEAD_REQUIRED`` 와 같은 함수). 파트 계정에게는 단추 없이 공장 줄의
+      "2공장 완료(강검수 11/24 16:10)"로만 보인다. 안 끝난 공장이 내 공장 하나뿐이면
       지금 [제작 완료](마지막 — 남은 공장을 한꺼번에)를 그대로 보인다(``show_complete``).
     * 제작완료: 관리자는 [1공장 완료 취소] · [2공장 완료 취소](지금 [완료 취소] = 둘 다 — §19 여섯째).
     """
@@ -208,10 +210,12 @@ def factory_sheet_view(sd: Any, marks: Iterable[Any], user: Any, *, stage_label:
         return view
     undone = [f for f in present if factory_done_entry(sd, f) is None]
     view["show_complete"] = bool(undone) and len(undone) == 1 and undone[0] in mine
+    revert = can_revert_completed(user)
     for factory in mine:
         if factory not in undone:
-            view["buttons"].append({"factory": factory, "done": False, "label": f"{factory_label(factory)} 완료 취소",
-                                    "ready": True, "why": ""})
+            if revert:
+                view["buttons"].append({"factory": factory, "done": False, "label": f"{factory_label(factory)} 완료 취소",
+                                        "ready": True, "why": ""})
         elif not view["show_complete"]:
             state = complete_state(sd, marks, factory=factory)
             view["buttons"].append({"factory": factory, "done": True, "label": f"{factory_label(factory)} 제작 완료",

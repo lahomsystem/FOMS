@@ -306,7 +306,7 @@ def test_sheet_factory_api_reads_the_same_done_mark(client, people):
     assert body["error"].startswith("2공장은 강검수가 ") and body["error"].endswith("에 제작 완료했어요. 옮기려면 2공장 완료부터 취소해 주세요.")
     into = client.post(url, json={"items": [{"sheet_id": sheets[0], "factory": 2}]})  # 완료한 공장으로 넣기
     assert into.status_code == 409 and into.get_json()["data"]["code"] == "FACTORY_DONE"
-    login(client, people["insp2"])
+    login(client, people["boss2"])  # 공장 완료 취소 = 반장 · 관리자만(사장님 2026-11-28 — 파트 계정 강검수는 403 LEAD_REQUIRED)
     assert _api(client, seed.id, 2, done=False).status_code == 200  # 2공장 완료 취소
     login(client, factory_user("오나래", team="DRAWING"))
     moved = client.post(url, json={"items": [{"sheet_id": sheets[0], "factory": 2}]})
