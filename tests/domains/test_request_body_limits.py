@@ -48,6 +48,7 @@ _CATEGORIES = [
     # AS 고치기 · AS 파일 1개(2026-11-13 — 동영상 한 개 50MB 까지)
     ("legacy", "/api/partner/orders/1/as/edit", 50 * _MIB + 256 * _KIB),
     ("legacy", "/api/partner/orders/1/as/files", 50 * _MIB + 256 * _KIB),
+    ("pen_note", "/api/production/drawing-notes", 11 * _MIB + 256 * _KIB),  # 생산 도면 펜 기록(2026-11-28 — PNG 10 MiB + 기록 글)
 ]
 
 #: 핸들러가 스스로 걸러야 하는 파일 크기 — 플랫폼 캡이 그보다 낮으면 핸들러의 친절한
@@ -61,6 +62,7 @@ _HANDLER_FILE_CEILINGS = [
     ("/api/partner/orders/1/revision", 20 * _MIB),
     ("/api/partner/orders/1/as", 20 * _MIB),
     ("/api/partner/orders/1/as/files", 20 * _MIB),
+    ("/api/production/drawing-notes", 10 * _MIB + 1 * _MIB),  # 펜 기록 PNG 10 MiB + 기록 원본 폼 칸(1 MiB)
 ]
 
 

@@ -1115,6 +1115,16 @@
       "policy_id": "PARTNER_PORTAL",
       "rule": "/api/partner/orders/<int:order_id>/files"
     },
+    "production_drawing_notes.api_drawing_note_delete": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_EDIT",
+      "rule": "/api/production/drawing-notes"
+    },
+    "production_drawing_notes.api_drawing_note_put": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_EDIT",
+      "rule": "/api/production/drawing-notes"
+    },
     "production_part_marks.api_part_mark": {
       "mode": "guard",
       "policy_id": "PRODUCTION_PART_MARK",

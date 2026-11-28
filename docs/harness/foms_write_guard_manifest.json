@@ -902,6 +902,14 @@
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/files"
     },
+    "production_drawing_notes.api_drawing_note_delete": {
+      "mode": "guard",
+      "rule": "/api/production/drawing-notes"
+    },
+    "production_drawing_notes.api_drawing_note_put": {
+      "mode": "guard",
+      "rule": "/api/production/drawing-notes"
+    },
     "production_part_marks.api_part_mark": {
       "mode": "guard",
       "rule": "/api/production/part-marks"

@@ -75,6 +75,8 @@ _ESTIMATE_IMAGE_CAP = 15 * _MIB + 256 * _KIB
 _CS_EDIT_PHOTO_CAP = 5 * _MIB + 256 * _KIB
 #   - notice photo (admin)        : ``notices/images.py`` ``MAX_BYTES`` 15 MiB
 _NOTICE_IMAGE_CAP = 15 * _MIB + 256 * _KIB
+#   - production pen note         : ``drawing_note_write.py`` ``MAX_INK_BYTES`` 10 MiB 펜 기록 PNG + 기록 원본 글(폼 칸 1 MiB)
+_PEN_NOTE_CAP = 11 * _MIB + 256 * _KIB
 
 # Global outermost ceiling (replaces the old 500 MiB). Also the MAX_CONTENT_LENGTH.
 GLOBAL_BODY_CAP = 50 * _MIB + 256 * _KIB
@@ -136,6 +138,9 @@ _MANIFEST: tuple[BodyCap, ...] = (
     BodyCap(r"^/api/cs-agent/turns/\d+/edit-photos$", _CS_EDIT_PHOTO_CAP, 1, "cs_edit_photo"),
     # 공지 사진(설계서 2026-11-02-foms-notices §8 — 관리자가 한 장씩, 핸들러 상한 15MB). 빠지면 1 MiB 기본 캡에 걸려 413 이다.
     BodyCap(r"^/api/admin/notices/images$", _NOTICE_IMAGE_CAP, 1, "notice_image"),
+    # 생산 도면 펜 기록 저장(설계서 2026-11-28 §8 — 펜 기록 투명 PNG 한 장 + 기록 원본 글). 빠지면 1 MiB 기본 캡에 걸려 큰 도면의
+    # 기록이 핸들러의 413 NOTE_TOO_LARGE 대신 본문 잘린 413 이다.
+    BodyCap(r"^/api/production/drawing-notes$", _PEN_NOTE_CAP, 1, "pen_note"),
 )
 
 # Presigned / direct-upload surfaces: the file bytes go browser -> R2/S3, only a

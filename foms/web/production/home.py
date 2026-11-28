@@ -49,6 +49,7 @@ from foms.services.production.part_access import (
     user_factory,
 )
 from foms.services.production.part_board import build_part_board, part_sync_cursor
+from foms.services.production.drawing_notes_read import pen_config
 from foms.services.production.part_constants import PART_CUT, production_parts_label
 from foms.services.production.part_marks_query import marks_by_order
 from foms.services.production.part_screen import morning_chip, read_screen_marks
@@ -146,6 +147,7 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days, *, marks=No
             'today': (today or get_today_kst()).isoformat(),
             # 제작 완료 성공 응답 때 그 주문 카드에 그릴 칸(받아 오기의 '생산 단계 아님' 칸과 같은 값 — 비평 C09)
             'done_block': DONE_BLOCK,
+            **pen_config(user),  # 펜 기록 {on, can_write, first} — 스위치 꺼짐이면 키 없음(설정 그대로, 2026-11-28 약속 2)
         }
         if full and mode == VIEW_PART and tab == 'date':
             chip = morning_chip(db, user, tuple(p['key'] for p in board['parts']), full_rows_of(days),
@@ -459,7 +461,7 @@ def erp_production_sheet_page(order_id: int):
     db = get_db()
     user = _require_home_user()
     order = _home_order_or_404(db, order_id, user)
-    sheet = build_production_sheet_view(db, order, user, full=True)
+    sheet = build_production_sheet_view(db, order, user, full=True, notes=True)  # 도면 장마다 펜 기록(켬만 +1)
     flags = production_screen_flags(user, request)
     # PC 머리 시공일 = 첫 화면 ① 칸과 같은 글(M/D (요일) · D-n · 외 n · 상차/희망일 표, 설계서 §6-3 규칙 1 · 사장님 2026-11-25
     # "출고 일정 = 제작 일정" — 같은 출고 칸 ship_fields). 태블릿 · 폰은 지금 글 그대로.

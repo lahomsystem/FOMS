@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 328,
+    "total": 330,
     "unaudited": 3
   },
   "classification_counts": {
-    "AUDITED": 288,
+    "AUDITED": 290,
     "EXEMPT": 37,
     "UNAUDITED": 3
   },
@@ -1254,7 +1254,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_delete",
-      "lineno": 690,
+      "lineno": 692,
       "methods": [
         "DELETE"
       ],
@@ -1263,7 +1263,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_patch",
-      "lineno": 516,
+      "lineno": 518,
       "methods": [
         "PATCH"
       ],
@@ -1272,7 +1272,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_reorder",
-      "lineno": 615,
+      "lineno": 617,
       "methods": [
         "POST"
       ],
@@ -1281,7 +1281,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_restore",
-      "lineno": 773,
+      "lineno": 775,
       "methods": [
         "POST"
       ],
@@ -1290,7 +1290,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_upload",
-      "lineno": 378,
+      "lineno": 380,
       "methods": [
         "POST"
       ],
@@ -1969,6 +1969,24 @@
       "lineno": 275,
       "methods": [
         "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/production/drawing_notes.py",
+      "endpoint": "api_drawing_note_delete",
+      "lineno": 188,
+      "methods": [
+        "DELETE"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/production/drawing_notes.py",
+      "endpoint": "api_drawing_note_put",
+      "lineno": 174,
+      "methods": [
+        "PUT"
       ],
       "classification": "AUDITED"
     },

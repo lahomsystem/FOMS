@@ -381,6 +381,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(production_alarms_bp)
 
+    # --- Lane: 생산 도면 펜 기록(JSON — GET · PUT · DELETE /api/production/drawing-notes, 설계서 2026-11-28-production-pen-record
+    # §8). 스위치 FOMS_PRODUCTION_PEN_RECORD 가 꺼지면 셋 다 404. 쓰기 둘은 CSRF · 정책 PRODUCTION_EDIT(핸들러가 '펜 기록 쓰기'
+    # 칸을 더 본다). 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.production import production_drawing_notes_bp
+
+    app.register_blueprint(production_drawing_notes_bp)
+
     # --- Lane: 접목판 승인 대기 — ERP 할 일 제안 JSON(/api/erp-actions/*, 설계서 2026-11-14-foms-graft 3.6). 여는 사람은
     # actions 스위치가 켜진 내부 직원(그 밖 404) · 쓰기 셋은 CSRF · 정책 STAFF_MUTATION(할 일의 정책은 처리기 안에서 다시 본다).
     # 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.

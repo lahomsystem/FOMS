@@ -39,6 +39,7 @@ from foms.services.erp_display import _erp_get_stage
 from foms.services.orders.manager_names import manager_label_from_parties
 from foms.services.notifications.drawing_deadline_alert import sheet_alert_line
 from foms.services.production.drawing_arrival import sheet_wait_view
+from foms.services.production.drawing_notes_read import attach_sheet_notes
 from foms.services.production.ship_dates import due_day, order_ship_dates
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
 from foms.services.production_home_read_model import (
@@ -202,6 +203,7 @@ def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
             continue
         name = f.get('filename') or '도면'
         item = {
+            'key': f['key'],  # 펜 기록을 장에 잇는 열쇠(2026-11-28 — 템플릿은 안 그린다)
             'kind': 'image' if name.lower().endswith(_PROD_SHEET_IMG_EXT) else 'file',
             'view': view,  # 큰 그림 · 눌러 크게 보기 = 원본
             'thumb': _small_drawing_url(f, view),  # 작은 줄만
@@ -311,7 +313,7 @@ def _drawing_wait(db: Any, order: Order, sd: dict[str, Any], today: datetime.dat
 
 
 def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool = False,
-                                today: datetime.date | None = None) -> dict[str, Any]:
+                                today: datetime.date | None = None, notes: bool = False) -> dict[str, Any]:
     """작업 시트 뷰 모델. 쿼리: current run 1 + 도면 게이트 + 변경 알림(OrderEvent IN) — 옆 시트와 같다.
     ``full`` 이면 그 주문 표시 줄 +1(카드를 쓴 주문의 완료 판정 · 파트 진행, 설계서 2026-11-23 §4-3).
 
@@ -319,6 +321,8 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
         db: 세션. order: 이미 읽은 ``Order``. user: 보는 사람(변경 알림 ack 판정).
         full: 전체 화면 시트 키(전화·주소·도면 전체·공정·최근 불량 · 안 내려온 주문의 도면 칸 글 ``dw_wait``)를 덧붙인다.
         today: KST 오늘(시험 주입용, 없으면 ``get_today_kst()``) — 도면 마감 상태에만 쓴다.
+        notes: ``full`` 일 때 도면 장마다 펜 기록 ``note``(작업 시트 화면만 — 인쇄는 안 실음, 설계서 2026-11-28 §2-2 · 약속 3).
+            스위치가 켜졌을 때만 기록 머리 읽기 +1 이고, '생산 기록 먼저 보기'를 켠 사람은 큰 그림 주소가 합친 그림이다.
     """
     sd = _ensure_dict(order.structured_data)
     items = active_items(sd)  # 취소 품목은 생산 시트에서 뺀다(DRAWING-PARTIAL-CONFIRM)
@@ -363,6 +367,8 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
     if full:
         marks = order_marks(db, order.id)
         sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label, marks, today or get_today_kst()))
+        if notes:
+            attach_sheet_notes(db, order, user, sheet['drawing_files'])
         # 2공장(설계서 2026-11-23 §4-14): 섞인 주문만 공장 줄 · 공장 단추(한 공장 주문은 None — 지금 시트 그대로). 같은 표시 줄(쿼리 0)
         sheet['factory_sheet'] = factory_sheet_view(sd, marks, user, stage_label=stage_label)
         # 파트 계정 · 파트도 반장도 아닌 생산팀 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 · '승인 때 고친 것' 5 — 공정 API 403 과 같은 판정)

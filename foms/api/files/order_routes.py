@@ -40,6 +40,7 @@ from foms.services.drawing_confirm_cleanup import (
     superseded_drawing_keys,
 )
 from foms.services.files.upload_authz import category_upload_allowed
+from foms.services.production.drawing_notes_read import annotate_production_old
 from foms.services.files.drawing_upload_guard import ACK_FIELD as DRAWING_ACK_FIELD, drawing_final_ack_block
 from foms.services.orders.drawing_key_safety import (
     RETAIN_DRAWING_HISTORY,
@@ -359,6 +360,7 @@ def api_order_attachments_list(order_id):
             for attachment in attachments
         ]
         _annotate_drawing_final_rank(attachments, items, order.structured_data)
+        annotate_production_old(db, order, attachments, items)  # '생산 · 바뀌기 전'(펜 기록 §5-3 — 켬 + '생산' 그림만 +1)
         if want_superseded:
             old_keys = superseded_drawing_keys(order.structured_data)
             for attachment, item in zip(attachments, items):

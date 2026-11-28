@@ -111,6 +111,7 @@ _READ_ROUTES = {
     "production_part_marks.api_part_sheet": _DENIED,             # PC 도면 창
     "production_part_marks.api_part_history": _DENIED,           # 바뀐 기록
     "production_alarms.api_production_alarms_pending": _DENIED,  # 생산 현장 알람 다시 받기(2026-11-28 — 받는 사람 문이 프리랜서를 뺀다)
+    "production_drawing_notes.api_drawing_note_get": _DENIED,   # 펜 기록 열기(2026-11-28 — 생산 화면 목록 문과 같다)
 }
 #: 다음 조각이 라우트째 지우는 길 — 지워진 뒤 표에만 남아도 된다(없는 길도 문지기 기본 거부다).
 #: 옛 보드 · 옛 옆 시트 라우트와 공정 읽기 GET(설계서 §6-3)은 2026-11-27 지웠다(표에서도 뺐다). 지금 지우는 중인 길은 없다.
@@ -339,6 +340,8 @@ _WRITE_ROUTES = {
     "erp_orders_drawing_request.api_production_drawing_request": _DENIED,
     "erp_orders_drawing_request.api_production_drawing_request_photo": _DENIED,
     "erp_orders_factory_done.api_production_factory_done": _DENIED,
+    "production_drawing_notes.api_drawing_note_put": _DENIED,     # 펜 기록 저장 · 지우기(2026-11-28 — 쓰기 칸을 켠 생산팀 · 관리자만)
+    "production_drawing_notes.api_drawing_note_delete": _DENIED,
 }
 
 

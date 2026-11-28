@@ -302,3 +302,60 @@ def test_production_home_steps_viewer_reads_marks_once_only_with_per_drawing_blo
         _fix_drawing(order_id)
     resp4, q4, m4 = _count_queries_and_marks(lambda: client.get(url))
     assert resp4.status_code == 200 and (q4, m4) == (q1, 1), f"막힌 줄 4개: {q4} (1개: {q1})"
+
+
+# 생산 도면 펜 기록(설계서 2026-11-28-production-pen-record §8 '쿼리' · §9-1): 스위치 꺼짐 = 지금 그대로(+0 — 기록 표를 안 읽고 판 설정에
+# ``pen`` 이 없다), 켬 = 판 한 번에 기록 머리 읽기 +1(기록이 없어도 · 여러 장이어도 같다 — 카드 수와 무관).
+PEN_SWITCH = "FOMS_PRODUCTION_PEN_RECORD"
+PEN_EXTRA_QUERIES = 1
+
+
+def _count_queries_and_notes(fn):
+    """(결과, 전체 SQL 수, 펜 기록 표 ``production_drawing_notes`` 를 읽은 SQL 수)."""
+    counter = {"n": 0, "notes": 0}
+
+    def _before(conn, cursor, statement, params, context, executemany):
+        counter["n"] += 1
+        counter["notes"] += "production_drawing_notes" in statement
+
+    event.listen(engine, "before_cursor_execute", _before)
+    try:
+        result = fn()
+    finally:
+        event.remove(engine, "before_cursor_execute", _before)
+    return result, counter["n"], counter["notes"]
+
+
+def test_production_home_pen_record_off_adds_nothing_on_adds_one(client, monkeypatch):
+    from models import ProductionDrawingNote  # noqa: PLC0415
+
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    monkeypatch.delenv(PEN_SWITCH, raising=False)
+    user = User(username="prod_home_qc_pen", password=generate_password_hash("x"), role="STAFF", team="PRODUCTION",
+                name="김재단", is_active=True, production_part="cut", production_pen_write=True)
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"], sess["username"], sess["role"] = user.id, user.username, user.role
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
+    ids = [_seed_order(i) for i in range(4)]
+    assert client.get(HOME_URL).status_code == 200
+    resp_off, q_off, notes_off = _count_queries_and_notes(lambda: client.get(HOME_URL))
+    html_off = resp_off.get_data(as_text=True)
+    assert html_off.count("data-pp-card ") == 2 and "data-foms-parts-config" in html_off
+    assert notes_off == 0 and "&#34;pen&#34;" not in html_off  # 꺼짐 = 기록 표 0 · 판 설정 그대로
+
+    monkeypatch.setenv(PEN_SWITCH, "on")
+    resp_on, q_on, notes_on = _count_queries_and_notes(lambda: client.get(HOME_URL))
+    assert resp_on.status_code == 200 and "&#34;pen&#34;" in resp_on.get_data(as_text=True)
+    assert (q_on, notes_on) == (q_off + PEN_EXTRA_QUERIES, 1), f"off={q_off}, on={q_on}"
+
+    for order_id in ids:  # 장마다 기록이 있어도 같은 한 번(N+1 없음)
+        for j in range(2):
+            db_session.add(ProductionDrawingNote(order_id=order_id, drawing_key=f"orders/{order_id - ids[0]}/drawing/a{j}.png",
+                                                 objects=[], base_w=1478, base_h=1040, updated_by_name="김재단"))
+    db_session.commit()
+    resp_many, q_many, notes_many = _count_queries_and_notes(lambda: client.get(HOME_URL))
+    assert resp_many.status_code == 200 and (q_many, notes_many) == (q_on, 1), f"on={q_on}, many={q_many}"
+    assert q_many <= ABS_QUERY_CAP + PART_SCREEN_EXTRA_QUERIES + PEN_EXTRA_QUERIES

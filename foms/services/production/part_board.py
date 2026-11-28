@@ -14,6 +14,7 @@
   내 파트이고 내 몫이 작업 중인 장은 "내 작업". 파트 하나인 계정은 고르기 없이 지금 그대로.
 * 바뀐 도면(D56): 같은 ``sheet_id`` 의 옛 key 줄이 있으면 짝을 짓는다. 시트 신원이 없는 직접 올린 파일은 짝이 없다.
 * 한 장 카드 200장 캡 — 넘친 수를 함께 돌려준다(조용히 자르지 않는다).
+* 펜 기록(2026-11-28, 스위치 켬만): 카드 ``note`` · ``note_old`` — 기록 머리 읽기 +1(:mod:`~foms.services.production.drawing_notes_read`).
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ from foms.services.production.part_constants import (
 from foms.services.production import mark_crew as mc
 from foms.services.production.factory_scope import board_factory, elsewhere_head, elsewhere_info, other_factories, scene_on
 from foms.services.production.part_card_crew import card_crew
+from foms.services.production.drawing_notes_read import board_notes, card_note
 from foms.services.production.part_card_state import claim_notes, hand_cell, inspect_block, order_block, sort_rank
 from foms.services.production.part_mark_notes import actor_name
 from foms.services.production.part_mark_rules import MarkSnapshot, mark_payload
@@ -321,6 +323,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
         "others": _other_words(order_id, key, part, marks, ctx["hands"][order_id], ctx),
         "replaced": replaced_info(order_id, entry, ctx["current_keys"][order_id], ctx["by_sheet"], part,
                                   file_successor(row.get("structured_data")).get(key, "")),
+        **card_note(ctx, order_id, entry, position[1]),  # 펜 기록 note · note_old(2026-11-28 약속 1 — 읽은 사전에서, 쿼리 0)
         **extra,
     }
 
@@ -470,6 +473,7 @@ def build_part_board(db: Any, user: Any, days: dict[str, Any], *, part: Any = No
         "by_sheet": by_sheet, "current_keys": {oid: {e["key"] for e in entries} for oid, entries in files.items()},
         "blocks": {int(row["id"]): order_block(row) for row in rows},  # 주문 통째(보류 · 도면 고치는 중)
         "fix": {int(row["id"]): blocked(row.get("structured_data") or {}) for row in rows},  # 도면별 막힘(2026-11-25 §3-3, 쿼리 0)
+        "notes": board_notes(db, files),  # 펜 기록 머리(스위치 켬만 +1 — 꺼짐 None · 쿼리 0, 2026-11-28 §8 '쿼리')
         "req": board_request_options(user, rows),  # [도면 수정 요청] 창 고르기(2026-11-25 §2-4 · N3 — 생산 단계 주문, 쿼리 0)
         "hands": {int(row["id"]): {p: hand_cell(row.get("structured_data") or {}, order_marks.get(int(row["id"]), []), p)
                                    for p in PRODUCTION_PART_KEYS} for row in rows},

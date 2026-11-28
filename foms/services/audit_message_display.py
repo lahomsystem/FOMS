@@ -198,6 +198,9 @@ ACTION_LABELS: dict[str, str] = {
     "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
     "PRODUCTION_STEP_CHECKED": "생산 공정 체크",
     "PRODUCTION_PART_MARKED": "생산 파트 작업",
+    # 생산 도면 펜 기록(설계서 2026-11-28 §8 — 지움 = 15번 답 "주문 기록 한 줄만")
+    "PRODUCTION_DRAWING_NOTE_SAVED": "생산 기록 저장",
+    "PRODUCTION_DRAWING_NOTE_DELETED": "생산 기록 지움",
     # 도면 장의 공장 지정(설계서 2026-11-23 §6-3 · §11) — 막힌 옮김은 거절 한 줄
     "DRAWING_SHEET_FACTORY_CHANGED": "도면 공장 지정",
     "DRAWING_SHEET_FACTORY_REFUSED": "도면 공장 지정 거절",

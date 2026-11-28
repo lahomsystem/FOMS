@@ -192,6 +192,8 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
         "PRODUCTION_COMPLETE_REVERTED": "제작 완료 취소",
         "PRODUCTION_HOLD_TOGGLED": "생산 보류 변경",
+        "PRODUCTION_DRAWING_NOTE_SAVED": "생산 기록 저장",  # 도면 펜 기록(2026-11-28 §8)
+        "PRODUCTION_DRAWING_NOTE_DELETED": "생산 기록 지움",
         "ORDER_HELD": "주문 보류",
         "ORDER_HOLD_RELEASED": "주문 보류 해제",
         "CONSTRUCTION_EVIDENCE_ADDED": "시공 증빙 등록",
