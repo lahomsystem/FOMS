@@ -2819,6 +2819,23 @@
 - **펜 기록 스테이징 올림**: `ea9bb4188`(리베이스 뒤 세션 머리 = origin/deploy). smoke `22737 passed, 841 skipped` + `171 passed, 27 skipped`(`smoke_push127.log`) · 스캔 다섯 0 · alembic 머리 `prodpen_01_pen_record` · CI 넷(FOMS CI · Harness CI · PostgreSQL Lane · perf-gate) 성공 · 배포 `staging: ea9bb418 SUCCESS`. 스위치 `FOMS_PRODUCTION_PEN_RECORD` 는 꺼진 채(스테이징 변수 안 건드림). 운영은 그사이 다른 창이 올려 `35d809bb`.
 - 설계서 `2026-11-28-production-my-steps-flow_SPEC.md` 에 26~33번 답 반영. 다음 = 승인 → 일꾼 ⓐ(읽기 · 옮기기 먼저) → ⓑ 주문 카드 · ⓒ 화면(띠 막대 포함).
 
+### 흐름 만들기 시작 · '도면 없음' 카드 조사 결과 (11-28 밤 13 — 압축 뒤 이 절부터)
+
+**도는 것**: 일꾼 `build-flow-read`(ⓐ 읽기 — `c:/tmp/foms-w-b1` 가지 `work/flow-a`, 바탕 `e18d294b9`. 커밋 둘 예정: `part_board_ctx` 옮기기 → 탭 `mine` · `crew` · 내 카드 빼기 · 재료 약속 1~6). 끝나면 ⓑ 주문 카드 · ⓒ 화면을 그 위에서 나란히.
+
+**조사 일꾼 `scout-order-card`(읽기 전용, `e18d294b9` — 내가 다시 읽은 것은 아님. 전문은 `scratchpad/flow_build/scout_order_card.md` 에 저장시킴)**
+- 표시 줄을 읽거나 받아 판정하는 곳은 설계서의 23개가 아니라 **`foms/` 파일 47개쯤**(이름이 나오는 35 − 이름만 5 + 이름 없이 받는 12), 전수표 48줄. 마이그레이션 필요 없음(`drawing_key` 에 CHECK 없음).
+- `@order` 줄이 지금 코드에 섞이면 틀어지는 곳(위험 순): ① 공정 칸 맞추기 `part_steps_sync.py:67-69` — 0장이면 아무것도 안 해 끝내도 칸이 안 켜짐, 도면이 오면 칸을 **끔**(27번 답과 정반대) ② 진행 · 제작 완료 판정 `part_progress.py:169-175 · 202 · 238` — 줄 하나로 '카드를 쓴 주문'이 되어 네 공정을 다 요구, 글 "도면이 없어요 — …" ③ 수정 제작 고르기 `rework_sheets.py:192-194 · 247-264` — 칸만 끄고 완료 줄이 남아 곧바로 완료로 읽힘 ④ 한 장 쓰기 `part_mark_write.py:409-411` — 도면이 온 뒤 빌린 카드를 누르면 409 `MARK_CONFLICT` 되풀이 ⑤ 0장 주문을 안 읽는 곳 `part_screen.py:26-28` · `part_board.py:458-460` · `home_step_panel.py:229` — 김재단이 작업 중이어도 날짜 줄 "미정" · 반장 '남은 공정'에 [재단 완료]가 그대로. 그 밖: 아침 칩 · `part_holder` 이름 칸 · 현장 알람 받는 사람 · 2공장 옮기기 · PC 도면별 창 · 작업 시트 · 도면 작업실 진행.
+- `current_keys` · `per_sheet_only` 에 `@order` 를 넣으면 반장 손 체크가 `STEP_PER_SHEET` 로 막힌다 — **건드리지 말 것**.
+- 도면이 바뀔 때 규칙(`by_sheet` · `replaced_info` · `file_successor`)에는 `@order` 가 안 걸린다(시트 신원이 비어 있음).
+- 따로 나온 지금 동작: 반장이 **손으로** 체크한 0장 주문에 도면이 처음 오면 지금 코드가 그 칸을 끈다(`drawing_fix_transfer.py:229` → `expand_hand_parts`). 27번 답이 이 손 체크 길에도 해당되는지는 사장님께 여쭐 것.
+
+**내가 정한 것(만드는 꼴 — 사장님 답 27 · 33번은 그대로 지킴)**
+- 도면이 온 뒤의 처리는 조사 일꾼의 **안 B = 도면이 처음 올 때 한 번 베끼기**: 미정이 아닌 `@order` 줄(완료 · 작업 중 + 담당)을 새 도면 key 줄로 그 tx 에서 넣는다(`erp_orders_drawing.py:389-396` 바로 반영 길, `sync_steps_in_drawing_write` 앞, 이벤트 `via: order_card`). 까닭: 읽는 곳 40여 곳을 안 고쳐도 되고, 나중에 그 도면이 **다시** 바뀌면 지금 규칙(바뀐 도면은 다시 미정)이 그대로 돈다(읽을 때 덮기 = 안 A 는 완료가 끝없이 번지는 구멍이 있다). 값: 반장의 완료 취소가 장마다 따로. 설계서 §3-5 의 "줄을 베끼지 않는다"는 이 결정으로 바뀜.
+- 0장일 때는 새 `order_card.sheet_keys(sd, marks)`(확정 key 가 비었고 `@order` 줄이 있으면 `['@order']`)를 다섯 곳(`part_progress.part_progress` · `part_steps_sync.part_steps_after` · `_last_finisher` · `part_holders.part_holder` · `floor_alarm_rules`)에 쓴다.
+- `@order` 카드는 일괄 [남은 N장 모두 기본] 숫자에 안 넣는다 · [도면 수정 요청] · 펜 기록 · 크게 보기 없음 · 공장은 1공장으로 본다(2공장 파트 계정은 못 담음 — 알릴 것).
+- ⓑ 는 넓다(고칠 곳 15군데쯤) — 만든 뒤 따로 검토 일꾼을 붙이고, 수정 제작 · 제작 완료 · 공정 칸을 로컬에서 걸어 본다.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
