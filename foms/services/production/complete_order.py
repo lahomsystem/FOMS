@@ -66,6 +66,7 @@ from foms.services.production.order_write_helpers import (
     _steps_incomplete_block,
     _transition_error_response,
 )
+from foms.services.production import floor_alarm
 from foms.services.production.part_access import account_production_factory, is_part_admin
 from foms.services.production.part_mark_gates import DRAWING_REVISING
 from foms.services.production.part_marks_query import order_marks
@@ -105,6 +106,7 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     if release_hold and hold_was_active:
         _release_hold_in_sd(sd, db, order.id, user_id, "release_on_complete",
                             user.name if user else None)
+        floor_alarm.note(db, "hold_released", order.id, user)  # 알람(설계서 2026-11-28 §2-11) — 커밋 전 적기만
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
@@ -234,6 +236,7 @@ def complete_production(db: Any, order_id: int, user: Any, user_id: Any, body: d
             record_admin_override_event(db, order, override=override, gates=punched, route=route, axis="MAIN",
                                         from_value=from_stage, to_value="CONSTRUCTION")
         db.commit()
+        floor_alarm.flush(db)  # 커밋 바로 뒤 — 실패해도 완료를 되감지 않는다
         return jsonify({"success": True, "message": "제작이 완료됐어요. (시공 대기로 바뀜)", "new_status": "CONSTRUCTION"})
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
         db.rollback()
