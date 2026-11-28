@@ -2521,6 +2521,14 @@
 - 도는 일꾼 다섯(모두 세션 HEAD `fbc2fad16` 에서 — b1 만 `de0820758`): fix-alert-flake(b1 · fable high — `test_drawing_fix_stage_exit` 가끔 실패 원인) · build-flow-ab(b2 · fable high — 담당 고르기 → 조립 없음 + 마이그레이션 `prodpart_03_basic_parts`) · build-flow-c(b3 · fable high — 수정 제작 도면 · 칸 고르기 + `orders.py` 알람 거는 줄) · build-alarm-srv(b4 · fable high — 알람 서버 전부) · build-alarm-ui(b5 · opus high — 소리 · 전체 화면 · 띠 · 소리 단추).
 - 합칠 때 볼 것: 약속 열 개(§4-3)가 넷 사이에 맞는지 · `sheet-parts.js` 기록 낱말 표(ⓑ · ⓒ 둘 다 한 줄 더할 수 있음) · 핀 겹침(parts · parts-modal · tablet-domain-sheets · shipment-entry) · 인벤토리 줄 번호 · 실화면(박반장 · 김재단 · 오재단 세 화면, 1280×720) · 소리. 알람은 스위치 꺼진 채 올림.
 
+### 알림 시험 원인 풂 · 운영에만 있던 사이렌 커밋 맞춤 · 알람 화면 받음 (11-28 오후)
+
+- **'바뀐 것'에서 "도면 수정 취소" 줄이 가끔 빠짐(풂)**: fix-alert-flake `517b93eda` cherry-pick(`9b4cf7e22`). 원인 = `production_change_alerts._classify` 의 `ts <= entry_window`(같은 때면 '들어오기 전'으로 버림) + 단계 이동 이벤트 기록이 없는 주문은 창 시작이 그 쓰기 자신의 `erp_stage_updated_at` + 단계 시각과 이벤트 시각을 시계에서 따로 읽음 → Windows 눈금에서 같은 시각(일꾼 재기 40번 중 24번). 고침 = 이벤트에 이미 적힌 표지(`via: stage_exit` + `to` = 지금 단계)로 "지금 단계를 만든 쓰기가 남긴 줄"을 읽음(`drawing_fix_marks.written_by_current_stage_move`). DB 바뀜 없음. diff 내가 읽음 · 두 시험 파일 네 번 모두 26 통과(내가 돌림). 운영(리눅스)에서는 사실상 안 생긴다는 것은 일꾼 추정.
+- **같은 꼴 — 안 고친 것(살필 것, 사장님께 알림)**: ① `_parse_drawing_entry_time` — 도면 이력 시각이 초까지만 적혀 창 시작과 **같은 초** 안의 재전달 · 바로 반영 · 수정요청이 '바뀐 것'에서 빠짐(리눅스에서도 생김 — 실제 영향 가장 큼) ② 기록 없는 주문은 제작 완료 같은 안쪽 이동에도 창 시작이 옮겨져 그 전 '바뀐 것' 이력이 통째로 사라짐(`_window_before_floor` — 제대로 고치려면 들어온 때를 따로 적어야 함) ③ 확인과 같은 때 생긴 바뀜은 확인한 것으로 침(생산 · 출고 `shipment_change_alerts.py:240`) ④ 표지 없는 옛 표시 칸의 시각 판정(`mark_crew.py:231` — 일부러 남김).
+- **운영에만 있던 사이렌 커밋**: `3e7761fbf`(10-19 다른 창 — "미국 경찰 스타일 LED 경광등과 사이렌", 핀 `20261019a`)가 운영에는 있고 스테이징(deploy)에는 없었음(`git branch -r --contains` = production · promote 가지들뿐). 알람 화면이 같은 파일(`urgent-sound.js` · `foms-urgent-alert.css`)을 고치므로 세션 가지에 먼저 cherry-pick(`f0541a723`) — `layout_head.html` 핀 세 줄 겹침은 손으로(운영 쪽 핀 `20261019a` + 스테이징에만 있는 `erp-sub-nav-sticky.js` 줄 유지). 넣은 뒤 두 파일이 운영과 글자까지 같음(내가 `git diff origin/production` 로 확인) · 긴급 창 시험 23 통과. **스테이징에 올리면 스테이징 사이렌이 운영 것과 같아짐**(운영은 안 바뀜 — 알릴 것).
+- **알람 화면 받음**(build-alarm-ui `3b7414067`, 옛 바탕): `urgent-sound.js` 소리 표 + 되풀이(0 ~ 20초, 60 · 120 · 180 · 240초에 6초씩, 300초부터 소리 없음) · `foms-urgent-alert.js` +3 · 새 `foms-floor-alarm.js` 249 · `floor-alarm.css` · 조각 `floor_alarm.html` · 종 조각 한 줄. 종류 → 색 · 소리: `NEW_GIVEN` · `STOP_TAKEN` 파랑 `#1546b0` + 새 일 / `_STOP_*` 다섯 빨강 `#b81f1f` + 멈춤 / `_NOTICE_*` 주황 띠 + 낮은 음. 핀 `20261128a`(layout_head · wizard · map_view · brain ds). 일꾼이 정한 것(알릴 것): 소리 끔은 사이렌도 같이 끔 · [확인]은 여러 건이면 마지막 알람의 주문으로 감 · 소리 단추는 터치 기기에서만 · 띠는 머리 줄 안 맨 끝 · 어두운 화면용 색은 따로 없음 · 생산 알람 창에서는 경광등 그림 숨김. 새 바탕(`f0541a723`) 위로 옮기라고 다시 맡김.
+- 도는 일꾼: build-flow-ab(b2) · build-flow-c(b3) · build-alarm-srv(b4) · build-alarm-ui(b5 — 옮기는 중).
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
