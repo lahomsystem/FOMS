@@ -2503,6 +2503,17 @@
 
 - **[N공장 완료 취소]도 반장 · 관리자만 합침**(build-gate2 `520e3f987` cherry-pick, diff 내가 읽음 + 띄어쓰기 한 곳 내가 바로잡음): `factory_complete._factory_gate` 에서 `done:false` 이고 `can_revert_completed` 아니면 403 `LEAD_REQUIRED` "[2공장 완료 취소]는 반장이나 관리자만 할 수 있어요."(공장 문 뒤 — 반장 자기 공장 범위 그대로), `factory_home.factory_sheet_view` 가 파트 계정에게 취소 단추를 목록에 안 넣음(끝난 공장은 공장 줄 글로만). 시험 세 파일 59 통과(내가 돌림). 일꾼이 본 가끔 실패 둘 더: `test_inspect_started_without_any_done_allows_earlier_part_undo`(같은 NEED/NONE 꼴) · `test_drawing_fix_stage_exit::test_admin_punched_production_complete_releases_in_the_same_write`(알림 목록 빔 — 따로 돌리면 통과, 원인 모름 · 살필 것).
 
+### 가끔 실패 원인 하나 풂 · 쪼개기 · 설계 2판 합침 (11-28 낮 — 압축 뒤 여기부터)
+
+- **완료 취소 가끔 '미정'(풂)**: fix-undo-flake `476d45a81` cherry-pick. 원인 = `mark_crew.done_in_one_press` 가 "시작한 때 == 완료한 때"로만 '바로 완료'를 가름 — Windows 시계 눈금(0.3 ~ 16ms) 안에 시작 · 완료 두 요청이 들면 같은 시각(일꾼 재기: 200번 중 132번). 고침 = 완료를 적을 때 목록 칸에 표지 `once`(한 요청에서 시작 + 완료)를 적고 그것만 읽음, 표지 없는 옛 칸만 시각 판정. DB 바뀜 없음(`holders` JSON 글쇠). 운영(리눅스)에서는 사실상 안 생긴다는 것은 일꾼 추측. diff 내가 읽음. 새 시험 `test_production_undo_same_tick_1128.py` 9개.
+- **쪼개기**(`84440a0c1`): `part_mark_write.py` 499 → 427(일괄 기본 → 새 `part_mark_bulk.py` 103줄) · `foms-production-parts.js` 299 → 278(`listItem` → `parts-modal.js` 285). 핀 parts · parts-modal `20261128e`.
+- **합친 뒤 넓은 시험 두 번(내가 돌림)**: 둘 다 `2 failed, 6455 passed` — ① `test_packing::test_packing_js_version_bumped_in_dashboards`(옛 핀 `20261128a` 를 못 박음 — 내가 `20261128b` 로 고쳐 27 통과, `de0820758`) ② `test_drawing_fix_stage_exit::test_admin_punched_production_complete_releases_in_the_same_write`(**미해결** — 따로 돌려도 네 번에 세 번 실패, 오늘 변경 전 코드(`cef1e267d`)에서도 같음: `collect_production_change_alerts` 에 "도면 수정 취소" 줄이 빔. 일꾼 fix-alert-flake(b1)가 원인 찾는 중). harness 687 · APP_OK · 인벤토리 최신 · node --check 통과.
+- **설계 2판**(spec-revise `c8d28c0aa` cherry-pick): 두 설계서 맨 위에 사장님 답 일곱, 담당 변경 알람 = 받은 사람 파랑 + 올라가는 두 음 / 원래 담당 빨강 + 빠른 네 번(안), 단계 나눔 없이 스위치 `FOMS_PRODUCTION_FLOOR_ALARM`(기본 꺼짐), 다시 받기 72시간, 알림 종류 이름 `PRODUCTION_FLOOR_<등급>_<사건>`, 약속 열 개(§4-3 — `gave{by, from, to, self}` · `holders_before` · `floor_alarm.note_mark / note / flush / enabled` · 다시 받기 API · `flag_floor_alarm`), 일꾼 나눔 ⓐ(끝) → 0-둘 이음매 → ⓑ 가 → 다 · ⓒ 나 · ⓓ 알람 서버 · ⓔ 알람 화면(넷 같이).
+  - 일꾼이 지시에 없이 정한 것(알릴 것): 다시 띄우는 기간 72시간 · 공정 칸을 한 번도 안 쓴 완료 주문은 안 고른 칸을 완료로 채우고 고른 칸만 끔 · 도면 칸 작은 글 "수정 제작"은 뺌 · 조립 없음 DB 제약 "재단 · 조립만" · [N공장 완료 취소] 거절 글.
+  - "표 전부"에서 조건 붙는 것: 오늘 상차 미완 띠는 WORKER 1분 루프에 얹음(루프 꺼진 환경에서는 조용) · 시공일 당겨짐은 글을 풀어 판정 · 품목 취소는 그 주문 작업 중인 사람 모두에게 · "5분 안 누르면 준 사람에게 띠"는 안 만듦 · 띠 · 소리 단추 · 다시 울림 · 화면 안 꺼지게는 생산 화면에서만.
+  - 남은 여쭐 것 넷: ① 원래 담당 글 ② 스스로 가져간 때도 원래 담당에게 전체 화면인지 ③ 색 · 소리를 둘이 다르게 ④ "오늘 나가는 주문이 아직 안 끝났어요" 띠 시각(안 오전 10시).
+- 지금 도는 일꾼: fix-alert-flake(b1 · fable high) · build-seam(b2 · fable medium — 0-둘 이음매). 다음: 이음매 합친 뒤 ⓑ ⓒ ⓓ ⓔ 같이. 스테이징에는 아직 아무것도 안 올림(세션 가지가 origin/deploy 보다 앞섬). 다음 올리기 로그 `smoke_push125`.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
