@@ -2,9 +2,13 @@
 (설계서 §15.4 · 2026-11-23 §7 · 2026-11-25 multi-holder §7-1).
 
 * ``POST /api/production/part-marks`` — 한 장. 몸 ``{order_id, drawing_key, part, action, seen[, seen_by][, seen_me]
-  [, target_user_id]}``. ``action`` = take · basic · done · undo · release · takeover · join · remove · check.
+  [, target_user_id][, to_user_id]}``. ``action`` = take · basic · done · undo · release · takeover · join · remove · check.
   ``seen_by`` = 옛 화면이 본 담당 id(null = 담당 없음, 한 명일 때만 뜻) — 담당 바꾸기는 이것이나 ``target_user_id`` 를 꼭 보낸다.
-  ``seen_me`` = 새 화면이 본 내 몫(none · held · done — 안 보내면 견주지 않음), ``target_user_id`` = 바꾸기 · 시작 취소 대상.
+  ``seen_me`` = 새 화면이 본 내 몫(none · held · done — 안 보내면 견주지 않음), ``target_user_id`` = 바꾸기 · 시작 취소 대상(자리를 내주는 사람).
+  ``to_user_id``(담당 바꾸기만 · 2026-11-28 흐름 셋 §1-3) = 받는 사람 — 안 보내면 누른 사람(지금 동작). 남에게 주기는 반장 · 관리자만
+  (403 ``GIVE_FORBIDDEN``). 담당이 바뀐 응답에는 ``gave``(누가 · 누구 자리를 · 누구에게 · ``self``), 바뀐 응답마다 ``holders_before``.
+* ``GET /api/production/part-marks/receivers`` — 반장 · 관리자의 [담당 바꾸기 ›] 창 "누구에게 줄까요?"를 열 때 한 번. 질의 ``order_id`` ·
+  ``drawing_key`` · ``part``[· ``target_user_id`` = 자리를 내줄 사람]. 답 ``{people: [{user_id, name, me, line}]}`` — 맨 앞 '나', 읽기 전용.
   ``check`` = PC [완료 처리](시작 + 완료를 한 요청 — 반장 · 관리자만, 판결 2).
   ``seen_cancel``(안 보내도 됨 · true/false) = 취소 창이 그 단추에 대해 보여 준 것 — "제작 시작도 같이 취소돼요" 줄이 보였으면 true.
   실은 누름만 견준다: 실제 되돌림 판정과 다르면 409 ``CANCEL_NOTICE_STALE``(아무것도 안 바뀜 — 사장님 2026-11-27 "창에 보인 대로만 된다").
@@ -13,6 +17,9 @@
 * ``GET /api/production/part-marks/cancel-preview`` — [<파트> 시작 취소] · [<파트> 완료 취소] · [기본 취소] 창을 열 때(사장님 2026-11-27
   "창에도 미리 알리기" · "여기도 미리 알리기"). 질의 = 한 장 쓰기 몸과 같은 칸(``action`` 은 release · remove · undo 만). 답
   ``{run_cancelled}`` = 지금 그 취소를 누르면 제작 시작도 같이 취소되는지. 읽기 전용이고, 문(로그인 · 파트 문)과 판정은 쓰기와 같은 함수다(``mark_one(dry=True)`` — 쓰기 직전까지 같은 길).
+
+알람 거는 줄 둘(흐름 셋 §1-7 · 약속 3): 한 장 쓰기 결과를 받은 바로 뒤 ``floor_alarm.note_mark``(커밋 전 — 적기만), 공용 ``_run`` 의
+커밋 바로 뒤 ``floor_alarm.flush``(되감은 길에는 닿지 않는다). 함수 몸은 :mod:`foms.services.production.floor_alarm` 것이다.
 
 이 모듈은 로그인 · 파트 문(:mod:`foms.services.production.part_access`) · 몸 읽기 · tx 만 맡는다. 잠금 · 전이 표 · 막는 까닭 ·
 쓰기 · 공정 칸 동기화 · 첫 카드 제작 시작 · 감사는 :mod:`foms.services.production.part_mark_write` 다. CSRF · 정책 가드는
@@ -28,7 +35,10 @@ from flask import Blueprint, g, jsonify, request
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from db import get_db
+from foms.services.orders.drawing_factory import sheet_factory
 from foms.services.orders.revision import RevisionError
+from foms.services.production import floor_alarm
+from foms.services.production.factory_scope import factory_gate
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_SUB, part_account_parts, part_view_mode
 from foms.services.production.part_constants import BASIC_ALLOWED_PART, PRODUCTION_PART_KEYS
 from foms.services.production.mark_crew import SHARE_VALUES
@@ -40,13 +50,16 @@ from foms.services.production.part_mark_rules import (
     ACTION_REMOVE,
     ACTION_TAKEOVER,
     ACTION_UNDO,
+    GIVE_FORBIDDEN,
+    GIVE_FORBIDDEN_MESSAGE,
     MARK_ACTIONS,
     SEEN_BY_UNSET,
     SEEN_VALUES,
     STALE_MESSAGE,
 )
 from foms.services.production.part_mark_bulk import bulk_basic
-from foms.services.production.part_mark_write import MarkRefusal, MarkRequest, mark_one
+from foms.services.production.part_mark_write import MarkRefusal, MarkRequest, check_order, current_entry, mark_one
+from foms.services.production.part_receivers import list_people, order_and_mark
 
 production_part_marks_bp = Blueprint("production_part_marks", __name__, url_prefix="/api/production")
 
@@ -59,6 +72,7 @@ CHECK_FORBIDDEN_MESSAGE = "[완료 처리]는 반장이나 관리자만 할 수 
 PREVIEW_ACTIONS: tuple[str, ...] = (ACTION_RELEASE, ACTION_REMOVE, ACTION_UNDO)
 _PREVIEW_TEXT_ARGS = ("drawing_key", "part", "action", "seen", "seen_me")
 _PREVIEW_ID_ARGS = ("order_id", "seen_by", "target_user_id")
+_READ_FAILED = "확인하지 못했어요. 잠시 뒤 다시 해 주세요."
 
 
 def _ok(data: dict[str, Any]):
@@ -136,6 +150,16 @@ def _target_uid(body: dict[str, Any]) -> Any:
     return value
 
 
+def _to_uid(body: dict[str, Any]) -> Any:
+    """``to_user_id`` — 안 보냄(None — 누른 사람이 받는다) · 양의 정수(담당 바꾸기에서 받는 사람)."""
+    value = body.get("to_user_id")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise MarkRefusal(400, "BAD_REQUEST", "받는 사람 값이 올바르지 않아요.")
+    return value
+
+
 def _seen_cancel(body: dict[str, Any]) -> Any:
     """``seen_cancel`` — 안 보냄(None — 옛 화면 · 다른 화면, 견주지 않음) · true(줄이 보였다) · false(안 보였다). 그 밖은 400."""
     value = body.get("seen_cancel")
@@ -171,17 +195,18 @@ def _gate_part(user: Any, part: str) -> bool:
 
 
 def _parse_one(body: dict[str, Any]) -> MarkRequest:
-    """한 장 몸 → :class:`MarkRequest`(검사 순서: 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당 · 본 내 몫 · 대상)."""
+    """한 장 몸 → :class:`MarkRequest`(검사 순서: 주문 · 장 · 파트 · 누름 · 본 상태 · 본 담당 · 본 내 몫 · 대상 · 받는 사람)."""
     order_id, key = _int_id(body.get("order_id")), _drawing_key(body.get("drawing_key"))
     part = _choice(body.get("part"), PRODUCTION_PART_KEYS, "파트")
     action = _choice(body.get("action"), MARK_ACTIONS, "누름")
     seen = _choice(body.get("seen"), SEEN_VALUES, "본 상태")
     return MarkRequest(order_id=order_id, key=key, part=part, action=action, seen=seen, seen_by=_seen_by(body, action),
-                       seen_me=_seen_me(body), target_uid=_target_uid(body))
+                       seen_me=_seen_me(body), target_uid=_target_uid(body), to_uid=_to_uid(body))
 
 
 def _run(handler: Any) -> Any:
-    """핸들러 하나를 한 tx 로 돌리고 응답으로 바꾼다(거절 · 동시 첫 표시 · DB 오류는 되감고 해요체 한 문장)."""
+    """핸들러 하나를 한 tx 로 돌리고 응답으로 바꾼다(거절 · 동시 첫 표시 · DB 오류는 되감고 해요체 한 문장). 커밋 바로 뒤에 적어 둔
+    알람을 보낸다(``floor_alarm.flush`` — 되감은 길은 그 앞에서 돌아가 닿지 않는다)."""
     db = get_db()
     try:
         data = handler(db)
@@ -198,6 +223,7 @@ def _run(handler: Any) -> Any:
     except SQLAlchemyError:
         db.rollback()
         return _fail(MarkRefusal(500, "SAVE_FAILED", _SAVE_FAILED))
+    floor_alarm.flush(db)
     return _ok(data)
 
 
@@ -215,7 +241,11 @@ def api_part_mark():
             raise MarkRefusal(400, "BASIC_CUT_ONLY", "'기본'은 재단에만 있어요.")
         if req.action == ACTION_CHECK and not override:
             raise MarkRefusal(403, "PART_FORBIDDEN", CHECK_FORBIDDEN_MESSAGE)
-        return _with_crew(mark_one(db, user, override, req, seen_cancel=shown), user)
+        if req.action == ACTION_TAKEOVER and req.to_uid not in (None, user.id) and not override:
+            raise MarkRefusal(403, GIVE_FORBIDDEN, GIVE_FORBIDDEN_MESSAGE)  # 남에게 주기는 반장 · 관리자만(사장님 2026-11-28)
+        data = mark_one(db, user, override, req, seen_cancel=shown)
+        floor_alarm.note_mark(db, user, req, data)  # 커밋 전 — 세션 주머니에 적기만(약속 3)
+        return _with_crew(data, user)
 
     return _run(_handle)
 
@@ -290,6 +320,37 @@ def api_part_mark_cancel_preview():
         return _fail(MarkRefusal(refusal.status, refusal.code, refusal.message))
     except SQLAlchemyError:
         db.rollback()
-        return _fail(MarkRefusal(500, "READ_FAILED", "확인하지 못했어요. 잠시 뒤 다시 해 주세요."))
+        return _fail(MarkRefusal(500, "READ_FAILED", _READ_FAILED))
     db.rollback()  # 읽기만 했다 — 세션에 남은 것이 있어도 버린다
     return _ok({"run_cancelled": cancelled})
+
+
+@production_part_marks_bp.route("/part-marks/receivers", methods=["GET"])
+def api_part_mark_receivers():
+    """반장 · 관리자의 [담당 바꾸기 ›] 창 "누구에게 줄까요?" — 그 도면을 넘겨받을 수 있는 사람들(맨 앞 '나'). 읽기 전용 · 쿼리 2.
+
+    문은 쓰기와 같다(로그인 · 파트 문 · 반장/관리자 — 파트 계정 403 ``GIVE_FORBIDDEN`` · 남의 공장 도면 403 ``OTHER_FACTORY``). 판정은
+    쓰기와 같은 함수(:func:`~foms.services.production.part_receivers.can_receive`)라 목록에 있는 사람은 쓰기도 받는다(그사이 바뀌면 쓰기가 409).
+    """
+    db = get_db()
+    try:
+        user = _actor()
+        body = _preview_body(request.args)
+        order_id, key = _int_id(body.get("order_id")), _drawing_key(body.get("drawing_key"))
+        part, seat = _choice(body.get("part"), PRODUCTION_PART_KEYS, "파트"), _target_uid(body)
+        if not _gate_part(user, part):
+            raise MarkRefusal(403, GIVE_FORBIDDEN, GIVE_FORBIDDEN_MESSAGE)
+        order, row = order_and_mark(db, order_id, key, part)
+        entry = current_entry(check_order(order), key)
+        gate = factory_gate(user, order.structured_data, entry, action=ACTION_TAKEOVER, row=row)
+        if gate is not None:
+            raise MarkRefusal.from_gate(gate)
+        people = list_people(db, user, part, sheet_factory(order.structured_data, entry), row, seat)
+    except MarkRefusal as refusal:
+        db.rollback()
+        return _fail(MarkRefusal(refusal.status, refusal.code, refusal.message))
+    except SQLAlchemyError:
+        db.rollback()
+        return _fail(MarkRefusal(500, "READ_FAILED", _READ_FAILED))
+    db.rollback()  # 읽기만 했다
+    return _ok({"people": people})

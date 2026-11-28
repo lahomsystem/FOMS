@@ -6,9 +6,11 @@
 * 감사 상태 낱말: 안 봄(재단) · 안 고름 · 작업 필요 · 기본 · "재단 1/2 완료"(같이 작업 중 일부 완료) · "재단 완료".
 * 감사 글: 같이 작업 "재단 같이 작업 (이시영 → 이시영 · 김재단)" · 넘김 "재단 같이 작업 (먼저 시작: 이시영)" · 시작 취소
   "재단 시작 취소 (이시영)" · 반장이 남의 시작 취소 "재단 시작 취소 (김재단, 박반장)" · 담당 바꾸기 "재단 담당 바꿈 (박엣지 → 김민준)"
-  (K1 그대로). 덮어쓰기 꼬리는 관리자 "(관리자 덮어쓰기)", 반장 "(대신 처리)".
+  (K1 그대로) · 반장 · 관리자가 남에게 준 담당 바꾸기 "재단 담당 바꿈 (김재단 → 오재단, 박반장)"(2026-11-28 흐름 셋 §1-5).
+  덮어쓰기 꼬리는 관리자 "(관리자 덮어쓰기)", 반장 "(대신 처리)".
 * 이벤트 payload: 지금 칸(key · part · from · to · action · override · sheet_id · by_name …) + 목록 전후(``holders_before`` ·
-  ``holders_after``) · 대상(``target_name``) · 넘김 표지(``joined_late``).
+  ``holders_after``) · 대상(``target_name``) · 넘김 표지(``joined_late``) · 담당 바꾸기에서 받은 사람(``to_user_id`` · ``to_name``).
+* 쓰기 응답 재료(알람 · 화면이 읽는다 — 흐름 셋 §4-3 약속 1 · 2): :func:`gave_body` · :func:`holders_before`.
 """
 
 from __future__ import annotations
@@ -107,7 +109,7 @@ def event_payload(entry: dict[str, Any], before: MarkSnapshot, *, part: str, tar
     if action == ACTION_TAKEOVER:
         uid = decision.target_uid if decision is not None and decision.target_uid is not None else before.picked_by_user_id
         name = decision.target_name if decision is not None and decision.target_name else before.picked_by_name
-        payload.update(from_user_id=uid, from_name=name)
+        payload.update(from_user_id=uid, from_name=name, **_receiver(decision, user))
     if override:  # 반장 · 관리자가 남의 몫을 완료 · 시작 취소 · 되돌리기 — 그 전 담당(되돌리기는 완료한 사람)
         payload["holder_name"] = _holder_name(before, decision, after, getattr(user, "id", None))
     if before.crew or after:
@@ -117,6 +119,31 @@ def event_payload(entry: dict[str, Any], before: MarkSnapshot, *, part: str, tar
     if decision is not None and decision.joined_late:
         payload["joined_late"] = True
     return payload
+
+
+def _receiver(decision: Optional[MarkDecision], user: Any) -> dict[str, Any]:
+    """담당 바꾸기에서 받은 사람 ``{to_user_id, to_name}`` — 결정이 없거나 받는 사람이 비면 누른 사람(옛 길)."""
+    if decision is not None and decision.to_uid is not None:
+        return {"to_user_id": decision.to_uid, "to_name": decision.to_name or None}
+    return {"to_user_id": getattr(user, "id", None), "to_name": actor_name(user)}
+
+
+def holders_before(before: MarkSnapshot) -> list[dict[str, Any]]:
+    """누르기 전 그 도면 · 파트의 사람 목록 ``[{user_id, name, done}]``(약속 2 — 남의 시작 취소 · 완료 취소 알람이 "누가 빠졌나"를 읽는다)."""
+    return [{"user_id": m.get("uid"), "name": m.get("name"), "done": mc.is_done(m)} for m in before.crew]
+
+
+def gave_body(order_id: int, key: str, part: str, user: Any, decision: MarkDecision) -> dict[str, Any]:
+    """담당 바꾸기 쓰기 응답의 ``gave``(약속 1) — ``by`` 누른 사람 · ``from`` 자리를 내준 사람(사람 없는 옛 줄이면 None) · ``to`` 받은
+    사람 · ``self`` 누른 사람이 받음. 화면은 ``self`` 가 거짓이면 "오재단에게 줬어요", 알람은 ``to`` · ``from`` 에게 건다."""
+    to = _receiver(decision, user)
+    source = None
+    if decision.target_uid is not None or decision.target_name:
+        source = {"user_id": decision.target_uid, "name": decision.target_name or None}
+    return {"order_id": order_id, "drawing_key": key, "part": part,
+            "by": {"user_id": getattr(user, "id", None), "name": actor_name(user)}, "from": source,
+            "to": {"user_id": to["to_user_id"], "name": to["to_name"]},
+            "self": to["to_user_id"] == getattr(user, "id", None)}
 
 
 def _who(names: Iterable[str]) -> str:
@@ -143,7 +170,9 @@ def mark_note(part: str, action: str, before: MarkSnapshot, target: str, crew_af
     after = list(crew_after)
     if action == ACTION_TAKEOVER:
         before_name = (decision.target_name if decision is not None and decision.target_name else before.picked_by_name)
-        return f"{label} 담당 바꿈 ({before_name or NO_HOLDER} → {actor_name(user)})"
+        to = _receiver(decision, user)
+        tail = f", {actor_name(user)}" if to["to_user_id"] != getattr(user, "id", None) else ""  # 남에게 줌 — 준 사람을 뒤에
+        return f"{label} 담당 바꿈 ({before_name or NO_HOLDER} → {to['to_name'] or NO_HOLDER}{tail})"
     if action == ACTION_REMOVE:
         who = decision.target_name if decision is not None and decision.target_name else NO_HOLDER
         return f"{label} 시작 취소 ({who}, {actor_name(user)})"
@@ -161,4 +190,4 @@ def mark_note(part: str, action: str, before: MarkSnapshot, target: str, crew_af
     return note + (" (관리자 덮어쓰기)" if admin_tail else " (대신 처리)")
 
 
-__all__ = ["NO_HOLDER", "actor_name", "event_payload", "mark_note", "state_words"]
+__all__ = ["NO_HOLDER", "actor_name", "event_payload", "gave_body", "holders_before", "mark_note", "state_words"]

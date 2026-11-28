@@ -249,4 +249,4 @@ def test_source_contract_written_event_and_script_order():
     assert "window.FOMS_ERP_SHELL.invalidateFragmentCache = invalidateFragmentCache;" in shell  # 쓰는 셸 문은 이미 있는 것
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert tpl.index("foms-production-parts-sync.js") < tpl.index("foms-production-parts-fresh.js') }}?v=20261127t")
-    assert "foms-production-parts.js') }}?v=20261128e" in tpl  # 11-27 [<파트> 같이 작업] 알림 · 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"로 한 번씩 더
+    assert "foms-production-parts.js') }}?v=20261128g" in tpl  # 11-27 [<파트> 같이 작업] 알림 · 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"로 한 번씩 더

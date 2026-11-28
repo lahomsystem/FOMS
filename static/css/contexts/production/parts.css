@@ -298,6 +298,8 @@ body:has(.pp-modal:not([hidden])) { overflow: hidden; }
 .pp-actbox > span.fph-wi.pp-act { white-space: normal; word-break: keep-all; text-align: center; line-height: 1.25; }
 .pp-actbox .pp-undo-row > span { white-space: normal; word-break: keep-all; line-height: 1.25; }
 .foms-prod-home .pp-modal .pp-mchoices.pp-mchoices--who { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* "누구에게 줄까요?" 사람 칸(2026-11-28) — 두 줄 칸 그대로, 여섯 명(세 줄)을 넘으면 그 칸 안에서만 굴린다(넷째 줄이 살짝 보이게) */
+.foms-prod-home .pp-modal .pp-mchoices.pp-mchoices--give { max-height: 236px; overflow-y: auto; overscroll-behavior: contain; }
 .foms-prod-home .pp-modal .pp-mwho { border: 2px solid var(--fph-taken-300); background: var(--fph-surface); color: var(--fph-taken-700); font-size: calc(17px * var(--foms-fs, 1)); }
 .foms-prod-home .pp-modal .pp-mwho.is-on { border: 3px solid var(--fph-taken-700); background: var(--fph-taken-50); color: var(--fph-taken-700); }
 .foms-prod-home .pp-modal .pp-mwho:focus-visible { outline: 3px solid var(--fph-taken-700); outline-offset: 2px; }

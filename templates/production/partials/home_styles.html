@@ -2,7 +2,7 @@
    parts.css = 도면 카드 판(.pp-modal 확인 창 꼴 포함). '내 공정' 판은 확인 창을 뺐다(2026-11-22 — 두 번 누름 + 되돌리기) — 2026-11-25 부터
    도면 있는 주문만 작업 시트와 같은 확인 창(sheet_step_confirm.html · 겉틀 foms-reason-sheet.css, 판 화면은 몸통이 싣는다 · 본문 한 줄은 home.css). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261127g">
-{% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261127w">
+{% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261128g">
 {% endif %}{% if pc_view %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261127h">
 {% if tab in ('date', 'all') %}{# PC 도면 목록 창 겉틀 = 공용 사유 시트(2026-11-24) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">
 {% endif %}{% endif %}{% if tab == 'steps' and can_check_steps and not step_panel %}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% endif %}{% if factory_scene or (part_board and part_board.scene) %}{# 공장 칩(2공장 그림이 켜진 화면만 — 1공장뿐이면 바이트 그대로) #}<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-factory-chip.css') }}?v=20261124b">{% endif %}

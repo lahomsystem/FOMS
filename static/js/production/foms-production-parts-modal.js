@@ -81,7 +81,7 @@
         note: heldSince(card) + (attr(card, 'data-picked-name') ? ' 바꾸기 전에 ' + holder + '에게 말해 주세요.' : '') };
     }
     return { title: heldTitle(card, holder), line: '', run: '', tone: 'taken',
-      choices: [['release', '시작 취소', 'release'], ['takeover', '담당 바꾸기', 'taken'], ['done', '대신 완료', 'done']] }; // 되돌리는 쪽 왼쪽 · 끝내는 쪽 오른쪽(C59)
+      choices: [['release', '시작 취소', 'release'], ['give', '담당 바꾸기 ›', 'taken', null, true], ['done', '대신 완료', 'done']] }; // 되돌리는 쪽 왼쪽 · 끝내는 쪽 오른쪽(C59) · [담당 바꾸기 ›] = "누구에게 줄까요?"(11-28)
   }
   // 관리자 · 대신(파트 없는 생산팀, 2026-11-23 §4-12)이 남이 작업 중이거나 완료한 장을 누를 때 한 줄 더(D55, §8-2 14 · 34)
   function ownerNote(card) {

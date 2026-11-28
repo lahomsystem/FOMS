@@ -181,4 +181,4 @@ def test_source_contract_viewer_copies_card_text_only():
     assert len(viewer.splitlines()) <= 300
     scripts = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")
     assert "foms-production-parts-viewer.js') }}?v=20261127y" in scripts
-    assert "foms-production-parts-crew.js') }}?v=20261127z" in scripts
+    assert "foms-production-parts-crew.js') }}?v=20261128g" in scripts
