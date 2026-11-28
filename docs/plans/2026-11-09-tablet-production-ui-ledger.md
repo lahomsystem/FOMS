@@ -2893,6 +2893,19 @@
 
 **다음**: ⓑ 검토 일꾼(따로, 읽기만) → ⓒ1 받으면 diff · 시험 확인 → cherry-pick(겹침 손으로) → 넓은 시험 → 로컬 여섯 사람 걷기 → 스테이징(`smoke_push128`).
 
+### 흐름 ⓒ1 얹음 — 세 덩이 다 합침 · 넓은 시험 통과 (11-28 밤 18 — 압축 뒤 이 절부터)
+
+**세션 머리 `a76fac755`(+ 이 기록 커밋) — ⓐ · ⓑ · ⓒ2 · ⓒ1 다 얹힘. 아직 스테이징에 안 올림**(스테이징 `ea9bb4188`). 남은 것: ⓑ 검토 일꾼 결과 · 합친 화면 로컬 걷기 결과 → 고칠 것 고침 → 스테이징(`smoke_push128`).
+
+**ⓒ1 탭 · 내 공정 · 작업 중 화면**(일꾼 `build-flow-screen`, `3f85a254b` → 세션 `a76fac755`, 파일 29 · +1221 −194)
+- 합칠 때 겹친 일곱 파일을 손으로 풂(`scratchpad/flow_build/resolve_c1.py` + `home_parts.html` 은 따로): 핀 줄 여섯(parts · sync = `20261128n`, modal · crew · home.css · parts.css = `20261128x`) · `home_parts.html` 은 ⓒ1 의 `pp_card` 매크로를 받고 ⓒ2 의 주문 카드 줄 넷(`data-order-card` · 그림 칸 "도면 없음" · 번호 칸 `sheet_no` · [도면 수정 요청] 조건)을 매크로 안으로 옮김 · `pp-finrow` 없는 판 겉틀.
+- 내가 직접 본 것: `foms-production-flow.js` 233줄 전부 · parts.js / parts-sync.js 고침 · `home_mine.html` · `home_crew.html` · `home_flow.py` 고침(작업 중 탭 공장 고르기 주소) · 사진 둘(`sim/j/shots/j2_mine_all.png` 왼쪽 띠 "전체 · 모든 날 4장" + "내일 11/29 (일) 시공 · 3장" → "정하늘 #1 · 2장" · `j4_crew_all.png` 탭 다섯 + 파트 칩 + "김재단 · 재단 3장").
+- 합친 뒤 내가 돌린 것: `tests/domains -k "production or rework or drawing or alarm or part_mark"` → `4898 passed` · 넓은 시험 `tests/domains tests/security tests/contracts` → `20150 passed, 6 skipped, 450 warnings in 254.69s` · `tests/harness` → `687 passed in 62.44s` · `APP_OK` · `refresh_inventories` "인벤토리 최신" · 스캔 다섯 종료 코드 0 · `node --check` 여섯 통과 · 줄 수 parts.js 296 · flow.js 233 · parts-sync.js 183 · `test_production_parts_screen.py` 499.
+- 일꾼이 찾아 고친 결함: 요청 몸의 `part` 가 판 파트(`cfg.part`) 고정이라 '작업 중' 전체에서 엣지 카드 [엣지 완료]가 재단으로 나갔을 것 → 카드 `data-part` 로. 30초 받아 오기도 장 key + 파트로 맞춤.
+- 일꾼이 스스로 정한 것(**사장님께 보일 것 포함**): 파트 직원 날짜 판이 내 카드만 빠져 비면 빈 글은 지금 글 그대로("이 날은 만들 도면이 없어요.") · '작업 중' 아래 "주문 줄로 보기" 링크 안 만듦 · [담당 바꾸기]로 내 것이 된 카드도 판에서 빼고 알림에 " · 내 공정에 담았어요" · '작업 중' · '내 공정'은 내 쓰기 뒤 화면을 다시 받아 바꿔 끼움 · 섞인 화면의 창 글 파트 이름은 `flow.js` 가 덧대어 고침(modal · crew JS 가 파트 이름을 상수로 쥐고 있어서 — 나중에 걷어낼 것).
+- 내가 본 것(사장님께 여쭐 것): '내 공정' 카드에도 "내 작업" 글 딱지가 그대로 붙는다 — 그 탭은 전부 내 것이라 같은 말이 겹친다.
+- 확인 못 한 것: 여러 파트 계정의 '내 공정' 실화면 · 실기기 · 셸 조각 교체로 탭을 오갈 때 `flow.js` 다시 묶임 → 로컬 걷기 일꾼(`walk-flow-merged`, `sim/n` 포트 5688)에게 시킴.
+
 ### 지금 상태(옛 기록 — 11-27 낮, CTX-GATE 55%. 최신은 바로 위 절들)
 
 - 운영 = #923(`5a541eadc`). 그 뒤 것은 모두 스테이징에만 — 다음 운영 올림은 `99700357a` 뒤 이 세션 커밋 전부(사장님이 말씀하실 때만).
