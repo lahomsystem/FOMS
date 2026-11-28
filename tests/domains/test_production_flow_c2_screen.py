@@ -24,7 +24,7 @@ from tests.domains.test_production_part_board import _files, _order
 from foms.services.common.html_whitespace import trim_html_indentation
 from tests.support.color_contrast import hex_rgb, pair_distances
 from tests.support.production_factory_seed import HOME_NONE
-from tests.support.production_part_claim_seed import finish, login, make_order, make_user, mark
+from tests.support.production_part_claim_seed import Seed, finish, login, make_order, make_user, mark
 
 ROOT = Path(__file__).resolve().parents[2]
 HOME = "/erp/production/home"
@@ -152,6 +152,26 @@ def test_direct_link_on_last_inspect_drawing_asks_to_complete(client, cohort, tm
     w = out[1]["modal"]
     assert w["hidden"] is False and w["title"] == "제작 완료할까요?" and w["close"] == "나중에" and w["run"]["text"] == "제작 완료"
     assert out[1]["status"] == "검수 완료했어요" and out[2]["direct"]["hidden"] is True
+    assert w["body"] == f"가짜고객 #{order.id} · 도면 1장이 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요."  # 도면 카드는 장수 그대로
+
+
+def test_order_card_last_inspect_asks_to_complete_without_sheet_count(client, cohort, tmp_path):
+    """'도면 없음' 카드(@order) 검수 마지막 — 이어 뜨는 창 몸 글에 "도면 0장" 같은 장수가 없다(11-28 걷기 어긋남 1)."""
+    plain = Seed(make_order(0).id, ("@order",))
+    login(client, make_user("관리", team="CS", role="ADMIN"))
+    for part in ("cut", "edge", "assemble"):
+        assert finish(client, plain, 0, part).status_code == 200
+    lead = make_user("박반장", lead=True)
+    page = tmp_path / "inspect_order.html"
+    page.write_text(_page(client, lead, _board("inspect")), encoding="utf-8")
+    reply = _post(client, lead, {"order_id": plain.id, "drawing_key": "@order", "part": "inspect", "action": "check",
+                                 "seen": "none", "seen_me": "none"})
+    assert reply["data"]["order_ready"] == {"order_id": plain.id}
+    res = _node(page, {"posts": [reply], "steps": [
+        {"do": "click", "key": "@order", "act": "take"}, {"do": "press", "sel": "[data-pp-direct]"}]})
+    w = res["out"][1]["modal"]
+    assert [c["body"]["action"] for c in res["calls"]] == ["check"] and w["title"] == "제작 완료할까요?"
+    assert w["body"] == f"가짜고객 #{plain.id} · 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요."
 
 
 # --------------------------------------------------------------------------- #

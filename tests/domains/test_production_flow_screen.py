@@ -207,6 +207,26 @@ def test_my_steps_cap_line_uses_the_board_cap_words(client, cohort, monkeypatch)
     assert scr.count("data-pp-card ") == 2 and '<p class="pp-cap">1장이 더 있어요. [찾기]에서 손님 이름으로 찾아 주세요.</p>' in scr
 
 
+def test_my_steps_order_groups_sit_in_three_columns_like_crew(client, cohort):
+    """한 날짜 묶음의 주문 묶음 = '작업 중'과 같은 세 칸 — 한 장 묶음은 한 칸, 둘 이상은 한 줄 전체(11-28 걷기 관찰 5)."""
+    kim = make_user("김재단", part="cut")
+    a, b, c = _order("정하늘", 2, day=1), _order("윤봄", 1, day=1), _order("서가을", 1, day=1)
+    for o, j in ((a, 0), (a, 1), (b, 0), (c, 0)):
+        _take(client, kim, o, j)
+    scr = _screen(_page(client, kim, HOME_MINE))
+    day = scr[scr.index('<section class="fpf-day"'):scr.index('<p class="pp-empty"')]
+    assert day.count('<div class="fpf-day__orders">') == 1  # 한 날 = 한 격자
+    groups = re.findall(r'<section class="fpf-order( is-full)?" data-flow-group="order">\s*<h4 class="fpf-o">(\S+) #', day)
+    assert sorted(groups, key=lambda g: g[1]) == sorted([(" is-full", "정하늘"), ("", "윤봄"), ("", "서가을")], key=lambda g: g[1])
+    css = (ROOT / "static/css/contexts/production/my-steps.css").read_text(encoding="utf-8")
+    for piece in (".fpf-day__orders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }",
+                  ".fpf-day__orders > .is-full { grid-column: 1 / -1; }",
+                  ".fpf-day__orders > .fpf-order { display: grid; grid-template-rows: auto 1fr; }",  # 같은 줄 묶음 = 같은 키
+                  ".fpf-crew__groups, .fpf-day__orders { grid-template-columns: repeat(2, minmax(0, 1fr)); }"):  # 글자 키운 판 = 두 칸
+        assert piece in css, piece
+    assert "my-steps.css') }}?v=20261128o" in (TPL / "home_styles.html").read_text(encoding="utf-8")
+
+
 # --------------------------------------------------------------------------- #
 # '작업 중' 탭
 # --------------------------------------------------------------------------- #

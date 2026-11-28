@@ -359,7 +359,7 @@ def test_source_contract_one_drawing_at_a_time():
         assert len((JS / f).read_text(encoding="utf-8").splitlines()) <= 300, f
 
 
-@pytest.mark.parametrize("name,pin", [("parts", "20261128n"), ("parts-claim", "20261127w"), ("parts-modal", "20261128x"),
+@pytest.mark.parametrize("name,pin", [("parts", "20261128n"), ("parts-claim", "20261127w"), ("parts-modal", "20261128y"),
                                       ("parts-crew", "20261128x")])  # modal · crew = 11-28 흐름 x: 반장 미정 칸 시작만 · 창 안 바로 완료
 def test_pins_bumped(name, pin):
     tpl = (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8")

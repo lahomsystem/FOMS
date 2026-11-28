@@ -20,6 +20,12 @@
 .fpf-o { margin: 0; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-text2); }
 .fpf-o small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fpf-done { margin-top: 10px; padding-top: 4px; border-top: 1px solid var(--fph-line); }
+/* '내 공정' 한 날짜 묶음 안 주문 묶음 = '작업 중'과 같은 세 칸 — 카드 한 장 묶음은 한 칸, 둘 이상은 한 줄 전체(11-28 걷기 관찰 5).
+   같은 줄 묶음은 같은 키: 묶음(줄 키로 늘어남) → 머리 아래 격자(1fr 줄) → 카드 — '도면 없음' 카드도 옆 도면 카드 키([도면 수정 요청] 몫만큼) */
+.fpf-day__orders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
+.fpf-day__orders > .is-full { grid-column: 1 / -1; }
+.fpf-day__orders > .fpf-order { display: grid; grid-template-rows: auto 1fr; }
+.fpf-order:not(.is-full) .pp-grid { grid-template-columns: minmax(0, 1fr); }
 /* 띠 거르기(화면만 — 요청 없음): 고른 날 밖 카드. 칸 단추 거르기(hidden)와 따로라 서로 덮지 않는다 */
 .fph-parts .pp-card.fpf-off { display: none; }
 
@@ -40,7 +46,7 @@
 @media (min-width: 992px) {
   .fpf-crew { container: fph-pane / inline-size; }
   @container fph-pane (max-width: calc(38rem - 0.02px)) {
-    .fpf-crew__groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fpf-crew__groups, .fpf-day__orders { grid-template-columns: repeat(2, minmax(0, 1fr)); } /* 내 공정 = 날짜 장 칸(.fph-panes) 안 */
   }
 }
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {

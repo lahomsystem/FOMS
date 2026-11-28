@@ -4,6 +4,7 @@
    줄 숫자 "2장" = 그 줄 카드 가운데 내가 담아 놓고 안 끝낸 장, 0 인 줄은 흐리게(is-zero). 막대 · 도면 글 · 아래 단추 둘은 없다.
    줄은 단추(요청 없음) — 누르면 카드 data-day 로 오른쪽 묶음 · 카드 · '오늘 끝낸 것'을 거른다(foms-production-flow.js, 고른 줄 aria-pressed).
    오른쪽 = 시공일 날짜 묶음 "12/1 (화) 시공 · 2장"(출고일 없음 묶음은 "출고일 없음 · 2장") → 주문 묶음 "정하늘 #2101 · 2장" → 카드,
+   한 날짜 묶음의 주문 묶음들은 '작업 중'처럼 세 칸(fpf-day__orders) — 카드 한 장 묶음은 한 칸, 둘 이상은 한 줄 전체(is-full, 11-28 걷기 관찰 5),
    맨 아래 "오늘 끝낸 것 N"(늘 펼침 — 끝낸 카드는 쓰기 없이: 파트 직원에게 [완료 취소] 없음).
    서버 재료(foms/services/production/my_steps.py · home_flow.py): my_steps.strip · days · done · hidden · done_hidden — 카드 = build_card dict + part ·
    part_label · day_key. data-pp-orders = 화면 생산 주문 전부(30초 받아 오기가 같이 물어 반장이 담당을 나에게 준 장을 본다).
@@ -28,14 +29,16 @@
     {% for day in (ms.days if ms else []) %}
     <section class="fpf-day" data-flow-group="day">
       <h3 class="fpf-g">{{ day.title }}{% if day.key != 'none' %} 시공{% endif %} <small>· {{ day.count }}장</small></h3>
+      <div class="fpf-day__orders">
       {% for o in day.orders %}
-      <section class="fpf-order" data-flow-group="order">
+      <section class="fpf-order{% if o.cards | length > 1 %} is-full{% endif %}" data-flow-group="order">
         <h4 class="fpf-o">{{ o.name }} #{{ o.id }} <small>· {{ o.count }}장</small></h4>
         <div class="pp-grid" data-pp-grid>
           {% for c in o.cards %}{{ pp_flow_card(c, ns) }}{% endfor %}
         </div>
       </section>
       {% endfor %}
+      </div>
     </section>
     {% endfor %}
     <p class="pp-empty" data-flow-empty{% if ms and ms.days %} hidden{% endif %}>담은 도면이 없어요. 날짜 탭에서 [{{ pb.part_label if pb else '' }} 시작]을 누르면 여기에 모여요.</p>

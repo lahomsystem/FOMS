@@ -272,7 +272,7 @@
     var who = ((card.querySelector('.fph-dr__nm b') || {}).textContent || '') + ' #' + attr(card, 'data-order-id');
     var fac = sheets && typeof sheets === 'object' ? sheets : null;
     fill({ title: (fac ? fac.label + ' ' : '') + '제작 완료할까요?', run: pending.run, tone: 'done', closeText: '나중에' }, [],
-      who + ' · ' + (fac ? fac.message : '도면 ' + sheets + '장이 모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요.'));
+      who + ' · ' + (fac ? fac.message : (attr(card, 'data-order-card') === '1' ? '' : '도면 ' + sheets + '장이 ') + '모두 완료됐어요. 제작 완료하면 시공 대기로 넘어가요.')); // '도면 없음' 카드는 장수 없이(11-28)
     var run = runBtn();
     run.setAttribute('aria-disabled', 'true');
     pending.locked = true;

@@ -148,7 +148,7 @@ def test_css_fits_longer_words_without_new_font_sizes_and_pins():
     rule = ".pp-two.is-mine > .pp-release, .pp-two--join > .foms-prod-home__btn { padding: 0 4px; white-space: normal; word-break: keep-all;"
     assert rule in css and "font-size" not in css[css.index(rule):css.index("\n", css.index(rule))]  # 글자 크기는 그대로
     scripts = (TPL / "home_scripts.html").read_text(encoding="utf-8")
-    for name, pin in (("parts", "20261128n"), ("parts-claim", PIN), ("parts-modal", "20261128x")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
+    for name, pin in (("parts", "20261128n"), ("parts-claim", PIN), ("parts-modal", "20261128y")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
         assert f"foms-production-{name}.js') }}}}?v={pin}" in scripts, name
     assert "foms-production-parts-crew.js') }}?v=20261128x" in scripts  # 11-27 [<파트> 시작] 진하게 · 11-28 [담당 바꾸기 ›] 다음 창 · x 반장 미정 칸 시작만
     assert "parts.css') }}?v=20261128x" in (TPL / "home_styles.html").read_text(encoding="utf-8")  # 11-28 "누구에게 줄까요?" 사람 칸 굴림 · x 바로 완료 글
