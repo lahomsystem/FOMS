@@ -1,6 +1,6 @@
 /**
  * '승인 대기' ① 이름 표 · ④ 표시 표 · ⑤ 계산기 제품 · 옵션 표(HAUD master brain 설계서 7.9 단계 2 · D151 · 온톨로지 4.1
- * D191 · ⑥ 4.2 D194) — 그 묶음 카드를 표 한 장으로 그린다. ⑤ 는 지식 이름 · 종류 · 브랜드, ⑥ 은 규칙 · 걸리는 제품 · 옵션
+ * D191 · ⑥ 4.2 D194) — 그 묶음 카드를 표 한 장으로 그린다. ⑤ 는 지식 이름 · 종류 · 브랜드, ⑥ 은 규칙 · 관련 제품 · 옵션
  * (차례는 brain-inbox-bins.js).
  * ① 은 줄마다 체크 · 지금 이름 · 새 한글 이름(눌러 고침) · 비슷한 말, ④ 는 지식 · 같은 값이 적힌 곳. 글은 textContent 만 · 인라인
  * 스타일 없음. 누름(체크한 것 승인)은 brain-inbox.js 가 받고, 이 파일은 그리기와 고른 줄 모으기만 한다.
@@ -101,7 +101,7 @@
       el('td', { text: BRANDS[card.brand] || card.brand || '' })] });
   }
 
-  /** ⑥ 줄 — 규칙 이름 · 걸리는 제품 · 옵션. */
+  /** ⑥ 줄 — 규칙 이름 · 관련 제품 · 옵션. */
   function rulesRow(card) {
     var view = card.main;
     var link = view.link || {};
@@ -130,7 +130,7 @@
     table.appendChild(el('caption', { cls: 'visually-hidden', text: names ? '한글 이름 붙이기'
       : calc ? '계산기 제품 · 옵션' : rules ? '규칙 잇기' : '같은 값이 적힌 곳 표시' }));
     table.appendChild(head(names ? ['지금 이름', '새 한글 이름', '비슷한 말'] : calc ? ['지식', '종류', '브랜드']
-      : rules ? ['규칙', '걸리는 제품 · 옵션 · 공정 단계'] : ['지식', '같은 값이 적힌 곳'], ready));
+      : rules ? ['규칙', '관련 제품 · 옵션 · 공정 단계'] : ['지식', '같은 값이 적힌 곳'], ready));
     var body = el('tbody');
     var row = names ? nameRow : calc ? calcRow : rules ? rulesRow : markRow;
     cards.forEach(function (card) { body.appendChild(row(card)); });
@@ -140,7 +140,7 @@
     li.appendChild(el('p', { cls: 'brain-icard__summary', text: names
       ? '이름 칸을 눌러 고칠 수 있어요. 비슷한 말로 물어도 이 지식을 찾아요. 체크한 줄만 승인해요.'
       : calc ? '목록을 훑어보고 맞으면 모두 고르기 → 체크한 줄 승인. 금액은 계산기에 그대로 있어요.'
-        : rules ? '규칙마다 걸리는 제품 · 옵션이 맞는지 보고 맞는 줄만 체크해 승인해요. 글 · 금액은 그대로예요.'
+        : rules ? '규칙마다 관련 제품 · 옵션이 맞는지 보고 맞는 줄만 체크해 승인해요. 글 · 금액은 그대로예요.'
         : '값을 바꿀 때 같이 고칠 곳을 알려 줘요. 체크한 줄만 승인해요.' }));
     var apply = el('button', { cls: 'brain-btn brain-btn--primary', attrs: { type: 'button', 'data-brain-table-apply': bin },
                                text: '체크한 줄 승인' });
