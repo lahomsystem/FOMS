@@ -4194,7 +4194,7 @@ function erpBuildAttachmentTile(a, options = {}) {
 <button type="button" class="erp-attachment-tile${superseded}" data-erp-attachment-id="${escapeHtml(String(a.id))}"
     title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')">
     ${erpBuildAttachmentMediaTile(a)}
-    <span class="erp-attachment-tile__name">${name}</span>
+    <span class="erp-attachment-tile__name">${erpProductionOldName(a, name)}</span>
     ${badge}
     ${erpSupersededBadgeHtml(a)}
     ${erpDrawingFinalBadgeHtml(a)}
@@ -4206,6 +4206,11 @@ function erpSupersededBadgeHtml(a) {
     return a && a.is_superseded
         ? '<span class="erp-attachment-superseded-badge" title="새 도면으로 교체된 옛 도면입니다">교체됨</span>'
         : '';
+}
+
+// 펜 기록 §5-3: 도면이 바뀌어 따로 남은 '생산' 그림은 이름 칸 글 앞에 서버 글(production_label)을 붙인다. 없으면 이름 그대로.
+function erpProductionOldName(a, name) {
+    return a && a.production_old && a.production_label ? `${escapeHtml(String(a.production_label))} · ${name}` : name;
 }
 
 // 도면팀 최종본이 있는 주문의 '도면' 행 표시 — 최종본은 "최종 N", 나머지는 "직접 업로드"(2026-10-04).
@@ -4590,7 +4595,7 @@ style="height: 220px;">
         </div>
         ` : ''}
         <div class="d-flex justify-content-between align-items-center mt-2">
-            <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
+            <div class="small text-truncate" title="${name}" style="max-width: 70%;">${erpProductionOldName(a, name)}</div>
             <div class="btn-group btn-group-sm">
                 <button class="btn btn-outline-secondary" type="button" title="미리보기"
                     onclick="erpOpenAttachmentPreview('${a.id}')">
