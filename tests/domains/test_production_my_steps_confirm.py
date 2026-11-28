@@ -41,7 +41,7 @@ NODE_CHECK = ROOT / "tests/support/production_my_steps_confirm_node_checks.js"
 PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow"}
 PC = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 CONFIRM_ATTR = re.compile(r'data-foms-sheet-parts="([^"]+)"')
-PARTS_PIN = "foms-production-sheet-parts.js?v=20261128d"  # 11-28 d: 바뀐 기록 머리 '도면 없음'
+PARTS_PIN = "foms-production-sheet-parts.js?v=20261128e"  # 11-28 e: '도면 없음' 카드 주문 [제작 완료] 누름 글 = 서버 글
 REASON_CSS = "css/components/foms-reason-sheet.css?v=20261122t"
 
 
@@ -218,8 +218,7 @@ def test_steps_tab_order_card_in_work_shows_left_instead_of_finish(client, cohor
     row = _row(page, working)
     assert CARDS in row and f'data-foms-home-step-done data-order-id="{working}"' not in row
     assert "도면 없음 1장이 미완료예요. 그 장을 완료하면 자동으로 작업 완료 처리돼요." in row  # 까닭 = 공정 API 거절 글 그대로
-    # 마지막 줄 뒤 판 칸은 뺀다 — 판은 처음에 목록 첫 줄(막힘 칸 줄도, UI 평가 B3 2026-11-28)을 보여 그 칸 글이 판에 있다
-    plain_row = _row(page, plain).split("data-foms-step-panes", 1)[0]
+    plain_row = _row(page, plain)
     assert f'data-foms-home-step-done data-order-id="{plain}"' in plain_row and CARDS not in plain_row
 
 

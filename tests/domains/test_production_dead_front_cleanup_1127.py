@@ -26,7 +26,7 @@ PC_WRITE = "static/js/production/foms-production-pc-sheet-write.js"
 CSS = "static/css/contexts/production/sheet.css"
 PIN = "20261127x"
 WORDS_PIN = "20261127z"
-PARTS_PIN = "20261128d"  # 11-28 d: 바뀐 기록 머리 '도면 없음'(test_production_order_card_arrival) · 11-28 c: 담당 고르기 · 조립 없음 낱말 · 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글(test_production_wording_1127_z1)
+PARTS_PIN = "20261128e"  # 11-28 e: '도면 없음' 카드 주문 [제작 완료] 누름 글 = 서버 글 · 11-28 d: 바뀐 기록 머리 '도면 없음'(test_production_order_card_arrival) · 11-28 c: 담당 고르기 · 조립 없음 낱말 · 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글(test_production_wording_1127_z1)
 
 
 def _read(rel: str) -> str:

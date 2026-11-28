@@ -4,8 +4,7 @@
 DB 를 읽지 않는다(쿼리 0개 더함). 금액은 싣지 않는다(D7). 엣지 사양 같은 ERP 에 없는 값은 안 그린다(D11).
 
 - :func:`production_home_step_panel` — 줄 하나의 판(이름 · 품목 · 그림 · 색 · 앞 공정 · 다음 공정 · [끝] · 보류 · 다음 손님).
-- :func:`attach_step_panels` — 공정 줄마다 고른 줄(주소 ``order=`` · 멈추지 않은 첫 줄 · 모두 멈추면 첫 줄 — 멈춤 = 보류 · 도면 고치는 중,
-  [끝] 자리 막힘 줄은 고른다 — UI 평가 B3 2026-11-28)과 **그 줄의 판 하나**를
+- :func:`attach_step_panels` — 공정 줄마다 고른 줄(주소 ``order=`` · 막히지 않은 첫 줄 · 모두 막히면 첫 줄 — 막힘 = 보류 · 도면 고치는 중)과 **그 줄의 판 하나**를
   붙이고, ``order=`` 가 선 공정 탭 열쇠를 돌려준다(그 탭이 첫 화면 탭 — 마지막 탭 기억보다 앞).
 - :func:`step_panel_for` — 다른 줄을 누를 때 받는 판 하나 조각(``view=panel&step=&order=``)의 자료. 같은 공정 줄에서 만들어
   '끝내면 다음은' 이 한 화면에 다 그릴 때와 같다.
@@ -181,17 +180,10 @@ def _panel_at(q: dict[str, Any], index: int) -> dict[str, Any]:
     return production_home_step_panel(rows[index], q['key'], next_row)
 
 
-def _stopped(row: dict[str, Any]) -> bool:
-    """멈춘 줄 — 보류 · 도면 고치는 중. 판이 처음 고르는 줄에서만 건너뛴다(:func:`attach_step_panels`)."""
-    return bool(row.get('hold_active') or row.get('revise_block'))
-
-
 def attach_step_panels(queues: dict[str, Any], order_id: int | None) -> str | None:
     """공정 줄마다 ``selected_id`` 와 그 줄의 판 하나(``panels`` = 0 · 1개)를 붙인다. ``order_id`` 가 선 공정 열쇠를 돌려준다.
 
-    고른 줄 = 그 공정 줄에 ``order_id`` 가 있으면 그 줄, 없으면 멈추지 않은(보류 · 도면 고치는 중 아닌) 첫 줄, 모두 멈추면 첫 줄(줄이 없으면 None).
-    [끝] 자리 막힘(``step_block`` — 도면 칸 "재단 0/3 · 3장 미완료" · 남의 공장)이 있는 줄도 고른다(UI 평가 B3, 2026-11-28): 예전에는 그 줄을
-    건너뛰어 판이 목록 첫 화면 밖 '도면 없음' 주문(7번째 줄)의 큰 [재단 완료]를 보였다 — 판이 목록 맨 위 줄을 보이면 그 칸이 [끝] 대신 선다.
+    고른 줄 = 그 공정 줄에 ``order_id`` 가 있으면 그 줄, 없으면 막히지 않은(보류 · 도면 고치는 중 아닌) 첫 줄, 모두 막히면 첫 줄(줄이 없으면 None).
     다른 줄의 판은 그 줄을 누를 때 :func:`step_panel_for` 조각으로 받는다(숨은 판을 다 그리지 않는다, 2026-11-22).
     """
     pinned = None
@@ -202,7 +194,7 @@ def attach_step_panels(queues: dict[str, Any], order_id: int | None) -> str | No
             q['selected_id'] = order_id
             pinned = q['key']
         else:
-            free = next((r['id'] for r in rows if not _stopped(r)), None)
+            free = next((r['id'] for r in rows if not _blocked(r)), None)
             q['selected_id'] = free if free is not None else (ids[0] if ids else None)
         q['panels'] = [_panel_at(q, ids.index(q['selected_id']))] if q['selected_id'] is not None else []
     return pinned

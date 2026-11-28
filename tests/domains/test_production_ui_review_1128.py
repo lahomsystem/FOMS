@@ -4,13 +4,13 @@
   같은 날 · 글자까지 같음, 쿼리 0). 멀리 있는 주문은 글이 없다(음성 대조).
 * B2 "담당 없으면 '조립 미정'": 지금 공정에 담당이 아무도 없으면 큰 글 "조립 미정"(칸 아래 이름과 같은 판정), 담당이 있으면
   "조립 작업 중" 그대로(음성 대조). 태블릿 · 폰 날짜 줄과 PC 상태 칸이 같은 값.
-* B3 "남은 공정: 고른 줄로 굴리기": 판이 처음 고르는 줄은 [끝] 자리 막힘(도면 칸 "재단 0/3 · 3장 미완료") 줄도 고른다 — 보류 ·
-  도면 고치는 중만 건너뛴다. 공정 탭을 보일 때 판의 고른 줄이 목록 밖이면 그 줄로 굴린다(steppane.js reveal — Node 로 잰다).
+* B3 "남은 공정: 고른 줄로 굴리기": 공정 탭을 보일 때 판의 고른 줄이 목록 밖이면 그 줄로 굴린다(steppane.js reveal — Node 로 잰다).
+  판이 처음 고르는 줄은 그대로(막히지 않은 첫 줄 — 평가자 둘째 안 '막힌 첫 줄도 고름'은 사장님 답 밖이라 안 함).
 * G1 "줄 순서": 하루 장 만들 것 줄 = 바뀐 것 먼저, 그다음 덜 간 것부터(제작 대기 → 끝난 공정 적은 것 → 검수 완료).
 * G3 "카드 품목 줄": 도면 카드 품목 줄 = "치수 · 색 · 품목 이름"(한 줄 말줄임이 이름 쪽을 자른다), 색 = 판 색.
 
-되돌리면 실패: 태블릿 줄에 늦음 글이 없음 · PC 와 다른 글 · 담당 없는 공정에 "작업 중" · 담당 있는 공정에 "미정" · 판이 도면 칸
-줄을 건너뜀 · 고른 줄로 안 굴림 · 많이 간 것부터 · 품목 이름이 앞 · 색 없음. 이름은 모두 지어낸 값이다.
+되돌리면 실패: 태블릿 줄에 늦음 글이 없음 · PC 와 다른 글 · 담당 없는 공정에 "작업 중" · 담당 있는 공정에 "미정" · 고른 줄로
+안 굴림 · 많이 간 것부터 · 품목 이름이 앞 · 색 없음. 이름은 모두 지어낸 값이다.
 """
 from __future__ import annotations
 
@@ -147,7 +147,9 @@ def test_b2_tablet_phone_and_pc_say_assemble_undecided_only_when_nobody_holds(cl
 # --------------------------------------------------------------------------- #
 # B3 — 판이 고르는 줄 · 고른 줄로 굴리기
 # --------------------------------------------------------------------------- #
-def test_b3_panel_picks_first_row_even_with_cards_block_and_skips_only_stopped_rows() -> None:
+def test_b3_panel_still_picks_the_first_unblocked_row() -> None:
+    # 사장님 답은 "고른 줄로 굴리기" 하나 — 판이 고르는 줄은 그대로(평가자 둘째 안 '막힌 첫 줄도 고름'은 안 함, 11-28 밤 23).
+    # 판이 목록 밖 줄을 고르면 아래 reveal 이 그 줄로 굴린다.
     cards = {"kind": "cards", "text": "재단 0/3 · 3장 미완료", "why": "도면이 있는 주문은 도면 화면에서 완료해 주세요.", "code": "STEP_PER_SHEET"}
     first = dict(step_row(1), step_block=cards)
     revise = dict(step_row(5), revise_block={"kind": "revise", "text": "도면 고치는 중", "why": "", "code": "DRAWING_REVISING"})
@@ -156,9 +158,8 @@ def test_b3_panel_picks_first_row_even_with_cards_block_and_skips_only_stopped_r
                          {"key": "assemble", "label": "조립", "rows": [step_row(7, hold=True), dict(step_row(8), revise_block=revise["revise_block"])]}]}
     attach_step_panels(queues, None)
     cut, edge, asm = queues["queues"]
-    assert cut["selected_id"] == 1 and cut["panels"][0]["step_block"]["text"] == "재단 0/3 · 3장 미완료"  # 예전: 3(목록 밖 큰 [재단 완료])
-    assert cut["panels"][0]["next_id"] == 3  # '끝내면 다음은' 은 그대로 막힌 줄을 건너뛴다
-    assert edge["selected_id"] == 6  # 대조: 보류 · 도면 고치는 중은 그대로 건너뛴다
+    assert cut["selected_id"] == 3 and cut["panels"][0]["step_block"] is None  # [끝] 자리 막힘 줄 · 보류 줄은 건너뛴다(그대로)
+    assert edge["selected_id"] == 6  # 보류 · 도면 고치는 중도 그대로 건너뛴다
     assert asm["selected_id"] == 7  # 모두 멈추면 첫 줄(그대로)
     assert attach_step_panels(queues, 3) == "cut" and cut["selected_id"] == 3  # order= 가 먼저(그대로)
 

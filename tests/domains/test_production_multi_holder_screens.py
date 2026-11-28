@@ -253,8 +253,7 @@ def test_moving_words_stay_and_my_steps_status_says_done_rendered(client, cohort
     add_order("가짜빈집둘", 5, pngs=0)  # 판 아래 '끝내면 다음은' 손님(막히지 않은 다음 줄)
     steps_login(client)
     set_cookies(client, TABLET)
-    # 판은 처음에 목록 첫 줄(도면 있는 줄도 — UI 평가 B3)을 보인다 — [재단 완료]가 있는 0장 줄을 order= 로 고른다
-    page = get_html(client, HOME + f"?tab=steps&view=fragment&order={bare.id}", SHELL)
+    page = get_html(client, HOME + "?tab=steps&view=fragment", SHELL)
     assert "끝내면 다음은 <b>가짜빈집둘</b>" in pane_html(page, bare.id)  # 판 아래 다음 손님 글 그대로
     steps_node(tmp_path, page, {"mode": "panel", "first": bare.id, "sheets": 0, **WORDS,
                                 "done_status": f"{bare.customer_name} 재단 완료"})

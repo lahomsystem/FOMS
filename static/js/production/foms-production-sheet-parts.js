@@ -125,7 +125,8 @@
     var info = data(page);
     var cards = !!(info && info.parts) && ORDER.some(function (k) { return info.parts[k] && info.parts[k].uses_cards; });
     if (!cards && !(info && info.parts && info.per_sheet)) { return null; } // 도면 0장 · 자료 없음 = 시트 JS 지금 글(칸 이름)
-    if (cards && !info.sheets) { return '도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요.'; }
+    var anySheet = info.sheets || ORDER.some(function (k) { return info.parts[k] && info.parts[k].total_n; }); // '도면 없음' 카드 주문 = 장 @order 한 장(서버 글과 같게, 11-28)
+    if (cards && !anySheet) { return '도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요.'; }
     var notDone = ORDER.filter(function (k) { return info.parts[k] && !info.parts[k].done; });
     if (!cards) { // 도면 있는 주문의 보기 줄 — 칸 이름이 없으니 서버 막힘 글(production_complete_block_body)과 같은 글을 서버 자료로
       return notDone.length ? '검수까지 끝나야 제작 완료할 수 있어요. (남은 공정: ' + notDone.map(function (k) { return LABELS[k]; }).join(' · ') + ')' : null;
