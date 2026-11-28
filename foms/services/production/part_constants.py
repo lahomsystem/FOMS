@@ -49,6 +49,9 @@ PART_MARK_STATES: tuple[str, ...] = (MARK_STATE_NONE, MARK_STATE_NEED, MARK_STAT
 
 #: '기본'(이미 잘라 둔 판)은 재단에만 있다(D49 · D57).
 BASIC_ALLOWED_PART = PART_CUT
+#: '기본'으로 장을 끝낼 수 있는 파트들 — 지금은 재단 하나(위와 같은 값). ``part_progress.mark_finished`` 가 이것을 읽는다.
+#: 넓히는 자리는 여기 하나다. 위 ``BASIC_ALLOWED_PART`` 는 '재단' 낱말 갈래(감사 글 · 일괄 기본)가 쓰니 그대로 둔다.
+BASIC_ALLOWED_PARTS: tuple[str, ...] = (BASIC_ALLOWED_PART,)
 
 #: 파트를 가질 수 있는 팀(능력 이름 — 별칭 팀도 ``team_has_capability`` 가 같이 판정한다).
 PRODUCTION_PART_TEAMS: tuple[str, ...] = ("PRODUCTION",)
