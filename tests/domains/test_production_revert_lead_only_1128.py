@@ -162,7 +162,8 @@ def test_반장과_관리자는_지금처럼_완료_취소와_수정_제작을_�
     assert [cur for _i, _s, cur in after["runs"]].count(True) == 1
 
     second = _done_order(f"가람{name}수정집")
-    resp = client.post(f"/api/orders/{second}/production/rework", json={"reason": "문짝 치수"})
+    keys = [db_session.get(Order, second).structured_data["drawing_current_files"][0]["key"]]  # 다시 만들 도면 한 장(11-28)
+    resp = client.post(f"/api/orders/{second}/production/rework", json={"reason": "문짝 치수", "keys": keys})
     assert resp.status_code == 200 and resp.get_json()["new_status"] == "PRODUCTION", (name, resp.get_json())
     after = _snapshot(second)
     assert after["stage"] == ("PRODUCTION", "PRODUCTION")

@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import pytest
 
-from tests.support.confirm_seed import confirmed_drawing_sd, login_as, reload_order, seed_erp_order, seed_user
+from tests.support.confirm_seed import DEFAULT_DRAWING_KEY, confirmed_drawing_sd, login_as, reload_order, seed_erp_order, seed_user
 
-_OVERRIDE = {"admin_override": True, "override_reason": "현장 긴급 재제작 — 관리자 확인"}
+#: 다시 만들 도면 — 고르지 않은 수정 제작은 문들을 지난 뒤 400 이다(사장님 2026-11-28, test_production_rework_pick_1128)
+_PICK = {"keys": [DEFAULT_DRAWING_KEY]}
+_OVERRIDE = {"admin_override": True, "override_reason": "현장 긴급 재제작 — 관리자 확인", **_PICK}
 
 
 def _finished_order(tag: str, drawing_status: str) -> int:
@@ -41,7 +43,7 @@ def test_rework_allowed_when_drawing_confirmed(client):
     oid = _finished_order("ok", "CONFIRMED")
     login_as(client, seed_user("rw_admin_ok", role="ADMIN", team=None))
 
-    res = client.post(f"/api/orders/{oid}/production/rework", json={})
+    res = client.post(f"/api/orders/{oid}/production/rework", json=dict(_PICK))
 
     assert res.status_code == 200, res.get_json()
     assert reload_order(oid).erp_stage_code == "PRODUCTION"

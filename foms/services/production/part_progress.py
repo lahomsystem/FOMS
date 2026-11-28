@@ -37,9 +37,11 @@ from foms.services.production.part_constants import (
 )
 from foms.services.production.steps import (
     PRODUCTION_STEP_DEFS,
+    REWORK_KEYS,
     STEPS_INCOMPLETE_CODE,
     production_complete_block_body,
     production_steps_missing,
+    rework_pick,
     step_done_map,
 )
 
@@ -90,7 +92,8 @@ def cards_used(marks: Iterable[Any]) -> set[str]:
 def parts_in_use(sd: Any, marks: Iterable[Any]) -> set[str]:
     """이 주문에서 카드로 보는 파트들 — 진행 · 제작 완료 · 검수 순서 · 손 체크 문 · 공정 칸 동기화가 같이 읽는 한 자리.
 
-    지금 값은 :func:`cards_used` 그대로다(``sd`` 는 아직 안 읽는다 — 주문 규칙을 얹을 자리).
+    :func:`cards_used` + 수정 제작 규칙(설계서 2026-11-28 흐름 셋 §2-3): 다시 만들 도면을 골라 수정 제작 중인 주문은 **네 파트 모두**
+    도면을 쓰는 파트다 — 고른 도면의 표시가 전부 미정이어도 공정 칸 규칙으로 떨어지지 않는다(고른 도면이 끝나야 제작 완료).
 
     Args:
         sd: 주문 ``structured_data``(읽기만).
@@ -99,6 +102,8 @@ def parts_in_use(sd: Any, marks: Iterable[Any]) -> set[str]:
     Returns:
         파트 key 집합.
     """
+    if rework_pick(sd, REWORK_KEYS):
+        return set(PRODUCTION_PART_KEYS)
     return cards_used(marks)
 
 

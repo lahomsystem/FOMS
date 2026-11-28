@@ -32,7 +32,7 @@ PARTS_PIN = "20261127w"
 PC_PIN = "20261127h"
 #: 작업 시트 sheet.css(sheet.html — 칸반 본문은 2026-11-27 지움) — 2026-11-24 아래 단추 줄 정렬이 한 번 더 올렸다.
 #: 2026-11-27 m: 도면 밀어 넘기기(touch-action) · u: 도면 있는 주문 공정 보기 줄(사장님 "도면이 주, 작업 시트는 보기" — test_production_steps_view_only_1127).
-SHEET_PIN = "20261127x"
+SHEET_PIN = "20261128a"
 
 
 def _css(name: str) -> str:

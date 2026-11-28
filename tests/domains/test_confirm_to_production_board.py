@@ -176,7 +176,7 @@ def test_rework_mints_a_new_run_round(client):
     order_id = _make_order("CONSTRUCTION").id
     first_id = _mint_run(order_id, status="COMPLETED", is_current=False).id
 
-    resp = client.post(f"/api/orders/{order_id}/production/rework", json={"reason": "치수"})
+    resp = client.post(f"/api/orders/{order_id}/production/rework", json={"reason": "치수", "steps": ["inspect"]})
     assert resp.status_code == 200, resp.get_json()
 
     db_session.expire_all()

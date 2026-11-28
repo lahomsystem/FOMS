@@ -1,0 +1,28 @@
+{# [수정 제작] 고르기 창(설계서 2026-11-28 흐름 셋 §2-2, 사장님 답 6 "다시 할 칸 고르기") — 단추를 누르면 먼저 이 창, [다음]을 누르면 지금 사유 창.
+   도면이 있는 주문 = 지금 도면 줄(작은 그림 · "도면 1/3" · 품목 · 섞인 주문이면 공장 칩), 도면이 없는 주문 = 공정 넷. 누르면 골라지고(테두리 + 체크)
+   다시 누르면 풀린다. 한 장도(한 칸도) 안 골랐으면 [다음]이 잠기고 아래 한 줄. 반장에게 남의 공장 도면은 흐리고 안 골라진다(누르면 지금 글).
+   재료 = order.rework_pick(production_sheet_view — 서버 문 rework_sheets.read_pick 과 같은 판정). 겉틀 = 공용 사유 시트 · 확인 창 꼴(.fpp-confirm),
+   누름 · 셈 · 사유 창 한 줄은 foms-production-sheet-rework.js(요청은 안 보낸다). 인라인 style · script 없음. #}
+{% set _p = order.rework_pick %}{% set _dw = _p.kind == 'drawings' %}
+<div class="foms-reason-sheet fpp-confirm fpp-rwk" data-foms-rework-pick="{{ _p.kind }}" hidden aria-hidden="true">
+  <div class="foms-reason-sheet__backdrop" data-foms-rework-close></div>
+  <div class="foms-reason-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="foms-rework-pick-title">
+    <div class="foms-reason-sheet__head"><h2 class="foms-reason-sheet__title" id="foms-rework-pick-title">{{ '다시 만들 도면을 골라 주세요' if _dw else '다시 할 공정을 골라 주세요' }}</h2></div>
+    <div class="fpp-rwk__list{% if not _dw %} fpp-rwk__list--steps{% endif %}" role="group" aria-labelledby="foms-rework-pick-title">
+      {% for r in _p.rows %}
+      <button type="button" class="fpp-rwk__row{% if r.locked %} is-locked{% endif %}" data-foms-rework-item="{{ r.key }}" data-foms-rework-word="{{ r.no if _dw else r.label }}" aria-pressed="false"{% if r.locked %} aria-disabled="true" data-foms-rework-why="{{ r.locked }}"{% endif %}>
+        {% if _dw %}{% if r.thumb %}<img src="{{ r.thumb }}" alt="" loading="lazy" decoding="async">{% else %}<small class="fpp-rwk__file">{{ r.label }}</small>{% endif %}
+        <span class="fpp-rwk__name"><b>도면 {{ r.no }}/{{ _p.total }}</b>{% if r.title %} · {{ r.title }}{% endif %}</span>{% if r.fac %}{{ r.fac | factory_chips }}{% endif %}
+        {% else %}<span class="fpp-rwk__name"><b>{{ r.label }}</b></span>{% endif %}
+        <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
+      </button>
+      {% endfor %}
+    </div>
+    <p class="fpp-stepmsg" data-foms-rework-msg role="status" hidden></p>
+    <div class="foms-reason-sheet__actions">
+      <button type="button" class="foms-btn foms-btn--secondary foms-reason-sheet__cancel" data-foms-rework-close>닫기</button>
+      <button type="button" class="foms-btn foms-btn--primary foms-reason-sheet__submit" data-foms-rework-next disabled>다음</button>
+    </div>
+    <p class="fpp-rwk__hint" data-foms-rework-hint>{{ '다시 만들 도면이 없으면 [완료 취소]를 눌러 주세요.' if _dw else '다시 할 공정이 없으면 [완료 취소]를 눌러 주세요.' }}</p>
+  </div>
+</div>

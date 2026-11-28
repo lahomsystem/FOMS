@@ -188,7 +188,10 @@ def test_rework_and_cancel_clear_marks_and_factory_undo(client, people):
     _all_done(seed, range(3), people["insp1"])
     login(client, people["admin"])
     assert client.post(f"/api/orders/{seed.id}/production/complete", json={}).status_code == 200
-    assert client.post(f"/api/orders/{seed.id}/production/rework", json={"reason": "문짝"}).status_code == 200
+    # 수정 제작은 고른 도면이 있는 공장 표지만 지운다(설계서 2026-11-28 흐름 셋 §2-3) — 두 공장 도면을 다 고르면 모두 지워진다
+    # (한 공장만 고른 때는 test_production_rework_pick_1128)
+    body = {"reason": "문짝", "keys": [seed.keys[0], seed.keys[2]]}
+    assert client.post(f"/api/orders/{seed.id}/production/rework", json=body).status_code == 200
     assert _state(seed.id)[2] is None
     other = mixed_order(3, f2=(2,))
     set_factory_done(other.id, 2, [other.keys[2]])

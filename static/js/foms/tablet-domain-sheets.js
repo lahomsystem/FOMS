@@ -137,6 +137,7 @@
           return;
         }
         if (data.success) {
+          if (path === "/production/rework" && window.FomsSheetRework) window.FomsSheetRework.done(orderId, data.message); // 다시 받은 화면 상태 줄에 알림
           closeSheet();
           window.location.reload();
           return;
@@ -159,6 +160,7 @@
           })
           .then(function (again) {
             if (again && again.ok) {
+              if (path === "/production/rework" && window.FomsSheetRework) window.FomsSheetRework.done(orderId, (again.data || {}).message);
               closeSheet();
               window.location.reload();
               return;
@@ -203,7 +205,7 @@
 
   // 사유 입력 공용 바텀시트(static/js/foms/foms-reason-sheet.js)로 사유를 받아 전이한다.
   // window.prompt 는 쓰지 않는다 — 모바일·태블릿·v3 세 화면이 같은 시트를 쓴다.
-  function openReasonSheetAndSubmit(orderId, path, opts, btn) {
+  function openReasonSheetAndSubmit(orderId, path, opts, btn, extra) {
     if (!orderId) return;
     if (!window.FomsReasonSheet) {
       window.alert("사유 입력 창을 불러오지 못했어요. 새로고침한 뒤 다시 시도해 주세요.");
@@ -215,7 +217,9 @@
       reasons: null,
       detailLabel: opts.detailLabel,
       onSubmit: function (reason, detail) {
-        submitTransition(orderId, path, { reason: detail }, btn);
+        var body = { reason: detail };
+        for (var k in extra || {}) if (extra.hasOwnProperty(k)) body[k] = extra[k]; // 수정 제작이 고른 keys · steps
+        submitTransition(orderId, path, body, btn);
       },
     });
     setReasonCloseText(opts.cancelLabel);
@@ -228,14 +232,19 @@
     if (btn) btn.textContent = text || "취소";
   }
 
-  // 수정 제작 — 제작완료 → 제작중 되돌림. 사유는 공용 시트에서 받는다(빈 값 허용).
-  // HOLD_ACTIVE 재시도는 submitTransition 이 body(reason)를 유지한 채 처리한다.
+  // 수정 제작 — 제작완료 → 제작중 되돌림. 먼저 고르기 창(다시 만들 도면 · 다시 할 공정 — foms-production-sheet-rework.js), 그다음
+  // 사유를 공용 시트에서 받는다(빈 값 허용). HOLD_ACTIVE 재시도는 submitTransition 이 body(reason · 고른 것)를 유지한 채 처리한다.
   function productionRework(orderId, btn) {
-    openReasonSheetAndSubmit(orderId, "/production/rework", {
-      title: "수정 제작으로 되돌릴까요?",
-      actionLabel: "수정 제작",
-      detailLabel: "수정 제작 사유(안 적어도 돼요)",
-    }, btn);
+    var pick = window.FomsSheetRework;
+    var reason = function (extra, note) {
+      openReasonSheetAndSubmit(orderId, "/production/rework", {
+        title: "수정 제작으로 되돌릴까요?",
+        actionLabel: "수정 제작",
+        detailLabel: "수정 제작 사유(안 적어도 돼요)",
+      }, btn, extra);
+      if (pick) pick.note(note);
+    };
+    if (!pick || !pick.ask(btn, reason)) reason(); // 고르기 창이 없는 화면 = 지금 길(서버가 고르라고 답한다)
   }
 
   // 제작 취소 — 제작중 → 제작대기 되돌림(시트 전용, 의도적 마찰). 사유는 공용 시트에서 받는다.

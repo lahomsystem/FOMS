@@ -96,7 +96,7 @@ def test_수정_제작의_단계_전제를_관리자가_뚫는다(client):
     _login(client, _make_user("rw_punch"))
     oid = _make_order("CS").id
 
-    resp = client.post(f"/api/orders/{oid}/production/rework", json=_punch())
+    resp = client.post(f"/api/orders/{oid}/production/rework", json={**_punch(), "steps": ["inspect"]})  # 다시 할 공정을 골라야 받는다(11-28)
 
     assert resp.status_code == 200, resp.get_data(as_text=True)
     assert _saved(oid).status == "PRODUCTION"
