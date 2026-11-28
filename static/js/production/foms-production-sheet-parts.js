@@ -179,7 +179,8 @@
     order.forEach(function (g) {
       var parts = g.split('|');
       var no = keys.indexOf(parts[1]);
-      var head = (LABELS[parts[0]] || parts[0]) + (parts[1] ? (no >= 0 ? ' 도면 ' + (no + 1) + '/' + keys.length : ' 옛 도면') : ' 칸');
+      var head = (LABELS[parts[0]] || parts[0]) + (parts[1] === '@order' ? ' 도면 없음' // '도면 없음' 카드(key @order — 카드 글 그대로)
+        : parts[1] ? (no >= 0 ? ' 도면 ' + (no + 1) + '/' + keys.length : ' 옛 도면') : ' 칸');
       var prev = null;
       var text = groups[g].map(function (it) { var s = line(it, prev); prev = kst(it.at) || prev; return s; }).join(' → ');
       var li = document.createElement('li');

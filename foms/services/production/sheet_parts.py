@@ -10,7 +10,7 @@ from typing import Any
 
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production.part_constants import PRODUCTION_PART_KEYS
-from foms.services.production.part_progress import complete_block_body, marks_by_part, part_progress
+from foms.services.production.part_progress import complete_block_body, marks_by_part, part_progress, sheet_keys
 from foms.services.production_home_read_model import format_step_at_kst
 
 
@@ -50,7 +50,7 @@ def sheet_part_extras(sd: Any, marks: list[Any]) -> dict[str, Any]:
     Returns:
         ``{step_notes: {part: {text, cls}}, complete_why, uses_cards, current_keys}`` — ``complete_why`` 는 카드를 쓴 주문의
         [제작 완료] 막힘 글(서버 거절 글 그대로, 카드를 안 쓴 주문은 빈 글 — 지금 화면 글을 JS 가 그대로 쓴다),
-        ``current_keys`` 는 바뀐 기록 목록의 "도면 n/m" 번호용.
+        ``current_keys`` 는 바뀐 기록 목록의 "도면 n/m" 번호용(0장 + ``@order`` 줄이면 ``['@order']`` — 머리 "재단 도면 없음").
     """
     marks = list(marks)
     notes = {part: note for part in PRODUCTION_PART_KEYS if (note := step_note(sd, marks, part))}
@@ -60,7 +60,8 @@ def sheet_part_extras(sd: Any, marks: list[Any]) -> dict[str, Any]:
         "step_notes": notes,
         "complete_why": (block or {}).get("message", "") if uses else "",
         "uses_cards": uses,
-        "current_keys": [e["key"] for e in resolve_final_drawing_files(sd if isinstance(sd, dict) else {})],
+        # 0장 + @order 줄 = ['@order'](part_progress.sheet_keys 와 같은 꼴 — 지금 '도면 없음' 카드 기록이 "옛 도면" 머리로 안 묶이게, ⓑ 검토 6)
+        "current_keys": sheet_keys(sd, marks),
     }
 
 

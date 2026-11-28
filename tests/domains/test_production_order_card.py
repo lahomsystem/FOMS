@@ -3,7 +3,8 @@
 
 확정 도면이 0장인 생산 단계 주문은 표시 줄 key ``@order`` 한 장으로 담고 끝낸다. 되돌리면 실패: 0장 주문 ``@order`` 가 409 · 1장 이상 주문이
 ``@order`` 를 받음 · 끝내도 공정 칸이 안 켜짐(이름 없음) · 완료 취소 뒤 칸이 켜진 채 남아 ``STEP_SET_BY_HAND`` 로 잠김 · ``@order`` 줄 하나 때문에
-네 공정을 모두 카드로 요구 · 막힘 글 "도면이 없어요" · 일괄 기본에 ``@order`` 가 듦 · 수정 제작 뒤 ``@order`` 완료 줄이 남아 곧바로 완료.
+네 공정을 모두 카드로 요구 · 막힘 글 "도면이 없어요" · 일괄 기본에 ``@order`` 가 듦 · 수정 제작 뒤 ``@order`` 완료 줄이 남아 곧바로 완료 ·
+생산 밖에서 도면을 받고 다시 생산에 들어와도 카드 일이 새 도면에 안 옮겨짐(ⓑ 검토 2 — 사장님 "고침").
 이름은 모두 지어낸 값이다(김재단 · 오재단 · 박엣지 · 최조립 · 한검수 · 박반장).
 """
 from __future__ import annotations
@@ -14,7 +15,9 @@ from db import db_session
 from foms.services.production.part_mark_gates import ORDER_CARD_DONE_MESSAGE, ORDER_CARD_LEFT_MESSAGE
 from foms.services.production.part_progress import complete_block_body, complete_state, part_progress
 from foms.services.production.part_marks_query import order_marks
-from models import Order
+from models import Order, User
+from tests.domains.test_production_flow_read import _cards, my_steps_of
+from tests.support.drawing_fix_transfer_seed import key as dfx_key, login as dfx_login, make_order as dfx_order, quiet, send, team  # noqa: F401
 from tests.support.production_factory_seed import factory_user
 from tests.support.production_part_claim_seed import (
     BULK,
@@ -285,14 +288,62 @@ def test_rework_pick_resets_the_picked_order_card_row(client, people):
     assert _press(client, people["kim"], card, "cut", "take", "none").status_code == 200  # 다시 담는다
 
 
-def test_order_rows_never_leak_into_an_order_that_has_drawings(client, people):
-    """도면이 있는 주문에 남은 @order 줄(옛 줄)은 장 목록에 안 든다 — 진행은 진짜 도면만."""
-    seed = make_order(2)
-    order = db_session.get(Order, seed.id)
-    from models import ProductionPartMark  # noqa: PLC0415
+def _override(client, admin, oid: int, to_stage: str):
+    login(client, admin)
+    resp = client.post(f"/api/orders/{oid}/workflow/stage-override", json={"to_stage": to_stage, "reason": "시험 되돌림", "confirm": True})
+    assert resp.status_code == 200, resp.get_json()
 
-    db_session.add(ProductionPartMark(order_id=order.id, drawing_key=KEY, part="cut", state="DONE", done_by_name="김재단"))
-    db_session.commit()
-    sd, marks = _state(seed.id)
+
+def test_order_card_work_moves_to_drawings_that_came_while_outside_production(client, people, quiet, team):
+    """사장님 답 2026-11-28 "고침"(ⓑ 검토 2) — 생산 → 앞 단계로 강제 되돌림 → 도면 받음(바로 반영 단계가 아니라 전달은 안 옮김) → 다시
+    생산: 생산으로 들어가는 쓰기(강제 단계 변경)에서 한 번 옮긴다. 재단 칸 켜진 채 · 진행 완료 · 박엣지 작업 중이 새 도면 '내 공정'에.
+
+    되돌리면 실패(옛 꼴): 재단 진행 0/2 · 새 도면 미정 · 박엣지 작업 중은 @order 줄에만 남음.
+    """
+    oid = dfx_order(0, assignees=(team.drawer.id,))
+    card = Seed(oid, (KEY,))
+    _finish(client, people["kim"], card, "cut")
+    _ok(_press(client, people["edge"], card, "edge", "take", "none"))
+    admin = make_user("관리", team="CS", role="ADMIN")
+    _override(client, admin, oid, "DRAWING")
+    dfx_login(client, team.drawer)
+    assert send(client, "drawing", oid, "s0", "s1").status_code == 200
+    new = [dfx_key(oid, "s0-v2"), dfx_key(oid, "s1-v2")]
+    assert row(oid, KEY, "cut").state == "DONE" and row(oid, new[0], "cut") is None  # 생산 밖 전달은 안 옮긴다
+    _override(client, admin, oid, "PRODUCTION")
+    sd, marks = _state(oid)
     cut = part_progress(sd, marks, "cut")
-    assert cut["total_n"] == 2 and cut["left_keys"] == list(seed.keys)
+    assert (cut["done"], cut["done_n"], cut["total_n"]) == (True, 2, 2) and step(oid, "cut")["done"] is True
+    assert [row(oid, k, "edge").state for k in new] == ["NEED", "NEED"] and row(oid, KEY, "edge").state == "NONE"
+    mine = _cards(my_steps_of(db_session.get(User, people["edge"].id)))
+    assert sorted((c["key"], c["order_card"]) for c in mine) == sorted((k, False) for k in new)
+    carried = [e.payload for e in events(oid, "PRODUCTION_PART_MARKED") if e.payload.get("via") == "order_card"]
+    assert sorted((p["key"], p["part"], p["action"]) for p in carried if p["action"] != "order_card") == sorted(
+        [(new[0], "cut", "done"), (new[1], "cut", "done"), (new[0], "edge", "take"), (new[1], "edge", "take")])
+    _override(client, admin, oid, "DRAWING")  # 한 번만 — 다시 들어와도 더 안 옮긴다(@order 줄이 미정)
+    _override(client, admin, oid, "PRODUCTION")
+    assert len([e for e in events(oid, "PRODUCTION_PART_MARKED") if e.payload.get("via") == "order_card"]) == len(carried)
+
+
+def test_status_write_into_production_also_carries_the_order_card(client, people, quiet, team):
+    """생산 진입의 다른 길(``update_order_status`` — 단계 쓰기 자리마다 부르는 ``release_on_stage_exit``)도 같은 옮기기를 탄다."""
+    oid = dfx_order(0, assignees=(team.drawer.id,))
+    _finish(client, people["kim"], Seed(oid, (KEY,)), "cut")
+    admin = make_user("관리", team="CS", role="ADMIN")
+    _override(client, admin, oid, "DRAWING")
+    dfx_login(client, team.drawer)
+    assert send(client, "drawing", oid, "s0").status_code == 200
+    login(client, admin)
+    resp = client.post("/api/update_order_status", json={"order_id": oid, "status": "PRODUCTION", "admin_override": True,
+                                                         "override_reason": "시험 — 다시 생산으로"})
+    assert resp.status_code == 200, resp.get_json()
+    assert row(oid, dfx_key(oid, "s0-v2"), "cut").state == "DONE" and row(oid, KEY, "cut").state == "NONE"
+    assert step(oid, "cut")["done"] is True
+
+
+def test_the_production_entry_carry_is_wired_into_every_stage_write():
+    """단계 쓰기 자리마다 부르는 한 곳(``release_on_stage_exit``)에 옮기기가 걸려 있다 — 앱을 만들면 늘(그 모듈이 import 될 때 스스로 건다)."""
+    from foms.services.orders.drawing_fix_marks import STAGE_WRITE_HOOKS  # noqa: PLC0415
+    from foms.services.production.order_card_carry import carry_on_production_entry  # noqa: PLC0415
+
+    assert STAGE_WRITE_HOOKS.count(carry_on_production_entry) == 1

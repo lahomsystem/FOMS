@@ -14,8 +14,9 @@
 
 **'도면 없음' 주문 카드**(설계서 2026-11-28-production-my-steps-flow §3-5 · 답 11): 확정 도면이 0장인 주문에 key
 :data:`~foms.services.production.part_constants.ORDER_CARD_KEY` 줄이 하나라도 있으면(상태 무관 — 완료 취소로 미정이 된 줄도) 그 주문의
-장 목록은 ``['@order']`` 한 장이다(:func:`sheet_keys`). 그때 '카드를 쓴 파트'는 미정이 아닌 ``@order`` 줄이 있는 파트뿐이다
-(:func:`parts_in_use` — ``@order`` 를 안 쓴 파트는 지금처럼 공정 칸이 기준, 옛 판 key 줄은 세지 않는다). :func:`current_keys` ·
+장 목록은 ``['@order']`` 한 장이다(:func:`sheet_keys`). 확정 도면이 0장이면 ``@order`` 줄이 있든 없든 '카드를 쓴 파트'는 미정이 아닌
+``@order`` 줄이 있는 파트뿐이다(:func:`parts_in_use` — ``@order`` 를 안 쓴 파트는 지금처럼 공정 칸이 기준, 도면이 n → 0장이 된 주문의
+옛 판 key 줄은 세지 않는다). :func:`current_keys` ·
 :func:`per_sheet_only` 는 그대로 진짜 확정 도면만 본다(``@order`` 를 넣으면 반장 손 체크가 ``STEP_PER_SHEET`` 로 막힌다).
 
 ``factory``(3단계 2공장, §4-14): 공장을 주면 **그 공장 장만** 센다 — 장의 공장은
@@ -57,7 +58,8 @@ from foms.services.production.steps import (
 INSPECT_PREREQ_PARTS: tuple[str, ...] = (PART_CUT, PART_EDGE, PART_ASSEMBLE)
 #: 카드를 쓴 주문의 막힘 글 머리(새 글, §4-3) — 뒤에 "재단 1장 · 검수 3장".
 CARDS_LEFT_MESSAGE = "미완료가 있어요"
-#: 카드를 쓴 주문인데 지금 확정 도면이 0장(새 글, §4-3 끝) — 칸이 기준이다.
+#: 카드를 쓴 주문인데 지금 확정 도면이 0장(새 글, §4-3 끝) — 칸이 기준이다. 0장 주문은 옛 판 줄을 세지 않으므로(:func:`parts_in_use`)
+#: 지금은 도면을 골라 수정 제작 중인 주문이 0장이 됐을 때만 나온다(n → 0장 주문은 카드를 안 쓴 주문 글 — 2026-11-28 ⓑ 검토 3).
 NO_DRAWINGS_MESSAGE = "도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요."
 #: 공정 칸을 손으로 켜(그 파트를 통째로 완료) 되는 확정 도면 장 수 상한 — 넘으면 도면 화면에서(사장님 2026-11-27 "도면 두 장 이상이면
 #: 막기" → 같은 날 "도면이 주, 작업 시트는 보기": "도면이 한 장뿐인 주문도 박반장이 도면 화면에서 [재단 완료]를 누릅니다. 도면이 아예 없는
@@ -97,11 +99,20 @@ def cards_used(marks: Iterable[Any]) -> set[str]:
             and str(getattr(m, "state", None) or MARK_STATE_NONE) != MARK_STATE_NONE}
 
 
+def order_card_parts(marks: Iterable[Any]) -> set[str]:
+    """'도면 없음' 카드를 쓴 파트들 — 미정이 아닌 ``@order`` 줄이 있는 파트(:func:`cards_used` 를 ``@order`` 줄에만)."""
+    return cards_used(m for m in marks if getattr(m, "drawing_key", None) == ORDER_CARD_KEY)
+
+
 def parts_in_use(sd: Any, marks: Iterable[Any]) -> set[str]:
     """이 주문에서 카드로 보는 파트들 — 진행 · 제작 완료 · 검수 순서 · 손 체크 문 · 공정 칸 동기화가 같이 읽는 한 자리.
 
     :func:`cards_used` + 수정 제작 규칙(설계서 2026-11-28 흐름 셋 §2-3): 다시 만들 도면을 골라 수정 제작 중인 주문은 **네 파트 모두**
     도면을 쓰는 파트다 — 고른 도면의 표시가 전부 미정이어도 공정 칸 규칙으로 떨어지지 않는다(고른 도면이 끝나야 제작 완료).
+
+    확정 도면이 0장이면 늘 :func:`order_card_parts`(미정이 아닌 ``@order`` 줄의 파트 — ``@order`` 줄이 없으면 빈 집합)다. 도면이
+    n → 0장이 된 주문의 옛 판 key 줄은 세지 않는다 — 세면 공정 칸이 켜진 파트가 손 체크로 안 보여 '도면 없음' 카드를 담을 수 있고,
+    담는 순간 칸 맞추기가 켜진 칸을 끈다(2026-11-28 ⓑ 검토 3).
 
     Args:
         sd: 주문 ``structured_data``(읽기만).
@@ -113,10 +124,8 @@ def parts_in_use(sd: Any, marks: Iterable[Any]) -> set[str]:
     if rework_pick(sd, REWORK_KEYS):
         return set(PRODUCTION_PART_KEYS)
     marks = list(marks)
-    if order_card_mode(sd, marks):  # 주문 카드 주문 — 미정이 아닌 @order 줄이 있는 파트만(그 밖 파트는 공정 칸이 기준)
-        return {str(m.part) for m in marks if getattr(m, "drawing_key", None) == ORDER_CARD_KEY
-                and getattr(m, "part", None) in PRODUCTION_PART_KEYS
-                and str(getattr(m, "state", None) or MARK_STATE_NONE) != MARK_STATE_NONE}
+    if not resolve_final_drawing_files(sd if isinstance(sd, dict) else {}):  # 0장 — @order 를 안 쓴 파트는 공정 칸이 기준
+        return order_card_parts(marks)
     return cards_used(marks)
 
 
@@ -223,6 +232,8 @@ def complete_state(sd: Any, marks: Iterable[Any], *, factory: Optional[int] = No
     * 카드를 안 쓴 주문은 지금 규칙 그대로(:func:`production_steps_missing` — 칸을 하나도 안 켰으면 막지 않고,
       하나라도 켰으면 4칸 모두).
     * 카드를 쓴 주문은 네 파트가 모두 '실제 완료'여야 한다(카드 · 손 체크 섞여도 된다). 칸을 안 켜도 막는다.
+    * '카드를 쓴'은 :func:`parts_in_use` 하나 — 확정 도면이 0장인 주문은 ``@order`` 줄만 센다(도면이 n → 0장이 된 주문의 옛 판 줄만
+      있으면 카드를 안 쓴 주문 = 위 칸 규칙, 2026-11-28 ⓑ 검토 3).
 
     Args:
         sd: 주문 ``structured_data``(읽기만).
@@ -258,7 +269,7 @@ def complete_block_body(sd: Any, marks: Iterable[Any]) -> Optional[dict[str, Any
     카드를 안 쓴 주문은 지금 글 · 꼴 그대로(:func:`~foms.services.production.steps.production_complete_block_body` 를
     부른다 — "검수까지 끝나야 … (남은 공정: …)"). 카드를 쓴 주문은 같은 꼴 ``{success, code, message, missing_steps}`` 에
     ``left`` 를 더하고 글은 "미완료가 있어요 — 재단 1장 · 검수 3장", 확정 도면이 0장이면 "도면이 없어요 — …"(주문 카드 주문은 장이
-    ``@order`` 한 장이라 앞 꼴 "미완료가 있어요 — 엣지 1장").
+    ``@order`` 한 장이라 앞 꼴 "미완료가 있어요 — 엣지 1장". 옛 판 줄만 남은 0장 주문은 카드를 안 쓴 주문 글).
 
     Args:
         sd: 주문 ``structured_data``(읽기만).

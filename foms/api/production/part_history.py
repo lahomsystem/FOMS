@@ -7,7 +7,8 @@
   이벤트(``PRODUCTION_STEP_CHECKED`` — 손 체크 · 카드 동기화)를 시각 순으로 돌려준다. 카드 담당 칸 · 작업 시트
   [바뀐 기록 보기]가 연다(요약 "박엣지에서 바뀜 14:20" 은 표시 줄 칸이 이미 들고 있다 — 이 API 는 전체 목록).
 * 거르기: ``part`` = 그 파트(카드 이벤트의 ``part`` · 공정 칸 이벤트의 ``key``), ``key`` · ``sheet_id`` = 그 장의 카드
-  이벤트만(둘 다 주면 어느 하나라도 맞는 것 — 판이 바뀌어도 같은 시트를 잇는다). 장을 거르면 공정 칸 이벤트는 뺀다.
+  이벤트만(둘 다 주면 어느 하나라도 맞는 것 — 판이 바뀌어도 같은 시트를 잇는다). 장을 거르면 공정 칸 이벤트는 뺀다. 도면이 처음 와
+  '도면 없음' 카드를 옮긴 뒤 ``@order`` 줄을 미정으로 돌린 기록(``action`` · ``via`` = ``order_card``)은 늘 뺀다.
 * 쿼리 ≤ 2(로그인 사용자 읽기 빼고): 이벤트 ⋈ 주문(살아 있는 ERP 주문만) 1 + 이름 스냅샷(``by_name``)이 없는 옛
   이벤트의 사용자 이름 ``id IN`` 1(새 이벤트만이면 0). 날짜 탭 · PC 쿼리 상한과 무관하다(누를 때만, N+1 없음).
 * 문: 생산 첫 화면을 볼 수 있는 직원(:func:`can_view_production_home`) + 주문 읽기 범위(:func:`user_can_read_order`) —
@@ -27,6 +28,7 @@ from foms.api.production.part_marks import production_part_marks_bp
 from foms.services.datetime_kst import parse_datetime_utc
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.production.home_access import can_view_production_home
+from foms.services.production.order_card_carry import ACTION_ORDER_CARD, VIA_ORDER_CARD
 from foms.services.production.part_constants import BASIC_ALLOWED_PART, BASIC_ALLOWED_PARTS, PRODUCTION_PART_KEYS, basic_word
 from foms.services.production.step_expand import UNKNOWN_FINISHER
 from models import Order, OrderEvent, User
@@ -91,6 +93,10 @@ def fetch_history_events(db: Any, order_id: int) -> tuple[list[OrderEvent], bool
 def _matches(event: OrderEvent, filters: dict[str, Any]) -> bool:
     payload = event.payload if isinstance(event.payload, dict) else {}
     is_mark = event.event_type == MARK_EVENT
+    if is_mark and payload.get("action") == ACTION_ORDER_CARD and payload.get("via") == VIA_ORDER_CARD:
+        # 도면이 처음 와 '도면 없음' 카드를 새 도면 줄로 옮긴 뒤 @order 줄을 미정으로 돌린 기록 — 보이는 목록에서 뺀다(낱말이 없어
+        # "김도면 order_card" 로 나왔다, 2026-11-28 ⓑ 검토 6). 새 도면 줄로 옮긴 기록(시작 · 완료 · 기본)은 그대로 보인다
+        return False
     part = payload.get("part") if is_mark else payload.get("key")
     if filters["part"] and part != filters["part"]:
         return False

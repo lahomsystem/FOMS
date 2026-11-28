@@ -163,7 +163,9 @@ ROWS = {
     "no_cards_four_steps": (2, _ALL, {}, True),
     "cards_four_done_mixed": (2, ("edge",), {"cut": 2, "assemble": 2, "inspect": 2}, True),
     "cards_one_short": (2, _ALL, {"cut": 2, "edge": 2, "assemble": 2, "inspect": 1}, False),
-    "cards_zero_drawings": (0, (), {"cut": 1}, False),
+    # 도면이 n → 0장이 된 주문의 옛 판 줄은 '카드를 쓴'에 안 든다(part_progress.parts_in_use — 2026-11-28 ⓑ 검토 3) = 카드를 안 쓴 주문 규칙
+    "old_rows_zero_drawings": (0, (), {"cut": 1}, True),
+    "old_rows_zero_drawings_some_steps": (0, ("cut",), {"cut": 1}, False),
 }
 
 
@@ -208,10 +210,11 @@ def test_every_caller_gives_the_same_completion_answer(client, name):
     assert (bulk.get("blocked_steps_incomplete") or []) == ([] if ready else [oid])
 
 
-def test_zero_drawings_card_order_message(client):
+def test_zero_drawings_old_rows_only_order_message_is_the_step_rule(client):
+    """옛 판 줄만 남은 0장 주문 = 카드를 안 쓴 주문 글(지금 글 그대로 — 옛 글 "도면이 없어요 — …" 대신, ⓑ 검토 3)."""
     login(client, make_user("가짜생산"))
-    resp = client.post(f"/api/orders/{_row_order('cards_zero_drawings')}/production/complete", json={})
-    assert resp.get_json()["message"] == "도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요."
+    resp = client.post(f"/api/orders/{_row_order('old_rows_zero_drawings_some_steps')}/production/complete", json={})
+    assert resp.get_json()["message"] == "검수까지 끝나야 제작 완료할 수 있어요. (남은 공정: 엣지 · 조립 · 검수)"
 
 
 # --------------------------------------------------------------------------- #

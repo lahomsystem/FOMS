@@ -16,7 +16,7 @@ from foms.services.production.part_progress import NO_DRAWINGS_MESSAGE
 ROOT = Path(__file__).resolve().parents[2]
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 SHEET_PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
-PIN = "20261128c"
+PIN = "20261128d"  # foms-production-sheet-parts.js — 11-28 d: 바뀐 기록 머리 '도면 없음'
 SHEETS_PIN = "20261128c"  # tablet-domain-sheets.js · shipment-entry.js — 11-28 c: 수정 제작 고르기 창
 
 

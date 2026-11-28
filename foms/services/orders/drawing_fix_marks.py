@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
@@ -48,6 +48,11 @@ MESSAGES = {
 STAGE_PRODUCTION = "PRODUCTION"
 #: 한 번에 고르는 도면 수 상한(몸이 커지지 않게).
 MAX_TARGETS = 100
+#: 단계 쓰기 자리마다(:func:`release_on_stage_exit`) 먼저 부를 함수 — ``f(session, order_id, sd, *, from_stage, to_stage, user_id, by_name)``.
+#: ``order_card_carry`` 가 import 될 때 스스로 건다(앱을 만들면 늘 걸린다 — 시험이 박는다). 여기서 그 모듈을 import 하면 그 모듈의 import
+#: 줄기(part_mark_write → … → 화면 모듈 → order_transition_service)가 이 모듈로 돌아와 앱 시작 때 돌고 돈다(모듈 끝 import 로도 앱 시작
+#: 순서에서 깨진다) · 함수 안 지연 import 는 레이어 래칫이 막는다.
+STAGE_WRITE_HOOKS: list[Callable[..., Any]] = []
 
 
 class FixRefusal(Exception):
@@ -237,9 +242,16 @@ def release_on_stage_exit(session: Any, order_id: int, sd: Any, *, from_stage: A
     지울 것이 없으면(생산 → 생산 · 그 밖 → 생산 · 고치는 중 · 열린 요청 없음 · 사본이 dict 아님) 아무것도 안 하고 쿼리 0.
     이름(``by_name``)을 안 주면 지울 것이 있을 때만 그 사람 행을 읽는다(보통 같은 세션에 이미 있어 쿼리 0). ``at`` 을 안 주면 지금(UTC).
 
+    먼저 :data:`STAGE_WRITE_HOOKS` 를 차례로 부른다 — 지금은 생산으로 **들어가는** 쓰기에서 남은 '도면 없음' 카드 줄을 지금 도면 줄로 한 번
+    옮기기(``order_card_carry.carry_on_production_entry`` — 2026-11-28 ⓑ 검토 2, 사장님 "고침". 생산 진입이 아니거나 확정 도면 0장이면
+    쿼리 0, 아니면 표시 줄 읽기 1). 이 함수가 단계 쓰기 자리마다 불리는 한 곳이라 여기서 부른다 — 부르는 쪽의 감사 · 이벤트 · 단계 축 쓰기
+    순서는 그대로다.
+
     Returns:
         풀린 [수정 시작] 장 ``[{no, ident}]``(없으면 빈 목록).
     """
+    for hook in STAGE_WRITE_HOOKS:
+        hook(session, order_id, sd, from_stage=from_stage, to_stage=to_stage, user_id=user_id, by_name=by_name)
     if normalize_stage_code(from_stage) != STAGE_PRODUCTION or normalize_stage_code(to_stage) == STAGE_PRODUCTION:
         return []
     if not isinstance(sd, dict) or not (fixing_rows(sd) or open_requests(sd)):
@@ -276,7 +288,7 @@ def confirm_text(numbers: list[int], *, starting: bool) -> str:
 
 __all__ = [
     "FIX_FORBIDDEN", "FIX_NOT_CURRENT", "FIX_STAGE", "FIX_STARTED_EVENT", "FIX_STOPPED_EVENT", "FixRefusal", "LOG_START", "LOG_STOP",
-    "MESSAGES", "VIA_STAGE_EXIT", "clear_fixing_on_stage_exit", "confirm_text", "fixing_rows", "numbers_note", "refusal_for",
+    "MESSAGES", "STAGE_WRITE_HOOKS", "VIA_STAGE_EXIT", "clear_fixing_on_stage_exit", "confirm_text", "fixing_rows", "numbers_note", "refusal_for",
     "release_on_stage_exit", "resolve_targets", "stage_exit_event", "start_fixing", "stop_fixing",
     "written_by_current_stage_move",
 ]

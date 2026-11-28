@@ -28,7 +28,7 @@ SHEETS_JS = ROOT / "static/js/foms/tablet-domain-sheets.js"
 SHEET_PARTS = PROD_JS / "foms-production-sheet-parts.js"
 SHEET_PAGE = PROD_JS / "foms-production-sheet-page.js"
 PIN = "20261127z"
-PARTS_PIN = "20261128c"  # 11-28 c: 담당 고르기 · 조립 없음 낱말 · 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글 '완료로 처리'(test_production_wording_1127_z1)
+PARTS_PIN = "20261128d"  # 11-28 d: 바뀐 기록 머리 '도면 없음'(test_production_order_card_arrival) · 11-28 c: 담당 고르기 · 조립 없음 낱말 · 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글 '완료로 처리'(test_production_wording_1127_z1)
 
 # 남긴 '…습니다' 글 — (파일, 글, 그 글이 있는 함수, 까닭)
 ALLOWED = [

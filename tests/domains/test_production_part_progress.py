@@ -121,10 +121,13 @@ def test_no_cards_body_is_exactly_the_old_step_rule():
     assert complete_block_body(sd, [_m("k1", "cut", "NONE")]) == steps_mod.production_complete_block_body(sd)
 
 
-def test_cards_order_with_zero_drawings_needs_all_four_steps():
+def test_zero_drawings_with_only_old_rows_follows_the_no_cards_step_rule():
+    """도면이 n → 0장이 된 주문의 옛 판 줄은 '카드를 쓴'에 안 든다(``parts_in_use`` — 2026-11-28 ⓑ 검토 3) = 카드를 안 쓴 주문 규칙 · 글."""
     marks = [_m("gone", "cut", "DONE")]
-    body = complete_block_body(_sd(0), marks)
-    assert body["message"] == "도면이 없어요 — 공정 칸을 완료로 처리하거나 관리자에게 말해 주세요."
+    assert complete_block_body(_sd(0), marks) is None  # 칸을 하나도 안 켰으면 막지 않는다(옛 판은 "도면이 없어요 — …"로 막았다)
+    on = _sd(0, on=("cut",))
+    assert complete_block_body(on, marks) == steps_mod.production_complete_block_body(on)
+    assert complete_block_body(on, marks)["message"] == "검수까지 끝나야 제작 완료할 수 있어요. (남은 공정: 엣지 · 조립 · 검수)"
     assert complete_ready(_sd(0, on=("cut", "edge", "assemble", "inspect")), marks) is True
 
 

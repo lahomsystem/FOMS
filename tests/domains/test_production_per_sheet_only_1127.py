@@ -209,9 +209,9 @@ def test_work_sheet_js_contract():
     assert "code !== 'STEP_PER_SHEET'" in parts  # 낡은 화면에서 보낸 켜기의 409 도 칸 아래 글로
     assert MSG not in parts  # 글은 서버 한 곳
     for rel in ("templates/production/sheet.html",):  # 칸반 본문(옆 시트 셋)은 2026-11-27 옛 보드와 함께 지움
-        assert "foms-production-sheet-parts.js') }}?v=20261128c" in (ROOT / rel).read_text(encoding="utf-8"), rel
+        assert "foms-production-sheet-parts.js') }}?v=20261128d" in (ROOT / rel).read_text(encoding="utf-8"), rel
     assert (ROOT / "templates/production/partials/home_scripts.html").read_text(encoding="utf-8").count(
-        "foms-production-sheet-parts.js') }}?v=20261128c") == 2
+        "foms-production-sheet-parts.js') }}?v=20261128d") == 2
     assert len(parts.splitlines()) <= 300
 
 

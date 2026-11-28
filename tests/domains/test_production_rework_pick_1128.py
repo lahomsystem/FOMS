@@ -407,7 +407,9 @@ def test_칸을_안_고르거나_모르는_칸이면_400이고_아무것도_안_
 def test_옛_수정_제작_기록은_지금_판정_그대로다() -> None:
     def sd(rework=None, on=()):
         steps = [{"key": p, "done": p in on} for p in PARTS]
-        return {"production": {"steps": steps, **({"rework": rework} if rework is not None else {})}}
+        # 도면 1장(k1) 주문 — 0장이면 옛 판 줄은 안 세고 @order 줄만 본다(part_progress.parts_in_use, 2026-11-28 ⓑ 검토 3)
+        return {"drawing_current_files": [{"key": "k1"}],
+                "production": {"steps": steps, **({"rework": rework} if rework is not None else {})}}
 
     used = [SimpleNamespace(drawing_key="k1", part="cut", state="DONE")]
     for rework in (None, {"active": True, "count": 1}, {"active": True, "keys": []}, {"active": True, "keys": "k1"},

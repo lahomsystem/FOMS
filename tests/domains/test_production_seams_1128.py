@@ -1,7 +1,7 @@
 """0-둘 이음매 셋 — 동작 그대로(설계서 2026-11-28 흐름 셋 §4-1 "0-둘" · §4-3 약속 3 · 10).
 
 되돌리면 실패: 알람 빈 틀이 쿼리를 내거나 예외를 던지기 · 약속한 함수 이름 · 인자를 바꾸기 · ``parts_in_use`` 가 지금
-``cards_used`` 와 다른 값을 내기 · ``BASIC_ALLOWED_PARTS`` 값이 재단 · 조립 둘이 아니게 되기(2026-11-28 조립 없음이 조립을 더했다).
+``cards_used`` 와 다른 값을 내기(도면 있는 주문 — 0장 주문은 ``@order`` 줄만, ⓑ 검토 3) · ``BASIC_ALLOWED_PARTS`` 값이 재단 · 조립 둘이 아니게 되기(2026-11-28 조립 없음이 조립을 더했다).
 대조군: 옛 ``BASIC_ALLOWED_PART`` 는 재단 그대로 · 재단 · 조립 BASIC 은 완료, 엣지 · 검수 BASIC 은 미완료.
 """
 from __future__ import annotations
@@ -53,10 +53,16 @@ def test_parts_in_use_equals_cards_used_today():
         [_m("k1", "paint", "DONE")],
         [_m("k1", "assemble", "DONE"), _m("k2", "inspect", "NEED"), _m("k3", "cut", "NONE")],
     )
+    drawn = [{"key": k} for k in ("k1", "k2", "k3")]  # 도면 있는 주문(0장 주문은 아래 — 옛 판 줄을 안 센다)
     for marks in cases:
-        for sd in (None, {}, {"production": {"steps": [{"key": "cut", "done": True}]}}):
+        for sd in ({"drawing_current_files": drawn},
+                   {"drawing_current_files": drawn, "production": {"steps": [{"key": "cut", "done": True}]}}):
             assert parts_in_use(sd, marks) == cards_used(marks)
-    assert parts_in_use({}, cases[2]) == {"edge", "cut"}  # 대조군 — 빈 값끼리 같은 것이 아니다
+    assert parts_in_use({"drawing_current_files": drawn}, cases[2]) == {"edge", "cut"}  # 대조군 — 빈 값끼리 같은 것이 아니다
+    # 확정 도면 0장이면 미정 아닌 @order 줄의 파트만(2026-11-28 ⓑ 검토 3 — 도면이 n → 0장이 된 주문의 옛 판 줄은 안 센다)
+    for sd in (None, {}, {"production": {"steps": [{"key": "cut", "done": True}]}}):
+        assert parts_in_use(sd, cases[2]) == set()
+        assert parts_in_use(sd, cases[2] + [_m("@order", "edge", "DONE"), _m("@order", "cut", "NONE")]) == {"edge"}
 
 
 def test_basic_allowed_parts_is_cut_and_assemble_and_mark_finished_reads_it():
