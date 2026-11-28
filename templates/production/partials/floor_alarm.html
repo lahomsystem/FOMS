@@ -1,0 +1,8 @@
+{#- 생산 현장 알람 조각 — 소리 단추(종 옆) + 띠 · 알람 화면 스크립트(설계서 docs/specs/2026-11-28-production-floor-alarm_SPEC.md §6-4).
+    notif_bell.html 이 종 바로 뒤에 싣는다(첫 화면 · 전체 화면 시트 둘 다). flag_floor_alarm(스위치 FOMS_PRODUCTION_FLOOR_ALARM)이
+    거짓이거나 없으면 글자 하나 안 그린다 — 단추 0 · 스크립트 0 · 다시 받기 요청 0.
+    단추 누름은 urgent-sound.js 가 받는다(data-foms-urgent-sound-toggle — 켜기 + 시험 소리 / 끄기), 글 · 색은 foms-floor-alarm.js 가 맞춘다.
+    스크립트는 문서당 한 번(data-foms-run-once — 셸 조각 교체 때 다시 안 돈다). 쓰는 값: foms_prod_bell_ns(그 화면 단추 꼴). -#}
+{%- if flag_floor_alarm -%}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/floor-alarm.css') }}?v=20261128a"><button type="button" class="{{ foms_prod_bell_ns }}__btn foms-floor-sound is-locked" data-foms-floor-sound data-foms-urgent-sound-toggle aria-pressed="false"><i class="fas fa-volume-up" aria-hidden="true"></i><span data-foms-floor-sound-label>소리 켜기</span></button><script src="{{ url_for('static', filename='js/foms/foms-floor-alarm.js') }}?v=20261128a" defer data-foms-run-once="floor-alarm"></script>
+{%- endif -%}

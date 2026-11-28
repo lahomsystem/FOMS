@@ -91,7 +91,8 @@ def test_police_beacon_and_sound_preserve_keyboard_access() -> None:
     assert '.foms-urgent-alert__beacon::before,\n  .foms-urgent-alert__beacon::after { animation: none; }' in css
     assert 'color: #ff2444' in css and 'color: #2785ff' in css
     assert 'animation-delay: -.8s' in css
-    assert 'FOMSUrgentSound.start()' in js and 'FOMSUrgentSound.stop()' in js
+    # 생산 알람(2026-11-28): 알림 종류 이름을 넘기면 소리 모듈이 앞머리로 고른다 — 빈 값 · 그 밖 = 사이렌 그대로
+    assert 'FOMSUrgentSound.start(item.notification_type)' in js and 'FOMSUrgentSound.stop()' in js
     assert "event.key === 'Tab'" in js
     assert "event.target === sound" in js
 

@@ -209,3 +209,40 @@
   .foms-urgent-alert__beacon::after { animation: none; }
   .foms-urgent-alert__btn { transition: none; }
 }
+
+/* ── 생산 현장 알람(설계서 docs/specs/2026-11-28-production-floor-alarm_SPEC.md §2-2 · 사장님 답 2차 3) ──
+ * 창의 data-ntype = 알림 종류 이름(foms-urgent-alert.js 가 붙인다). 멈춤 = 빨강, 새 일 · 담당 변경(받은 사람 ·
+ * 원래 담당 둘 다 — PRODUCTION_FLOOR_STOP_TAKEN 도) = 진한 파랑. 경광등 그림 · 작은 사이렌 단추는 숨긴다(창 아무 데나
+ * 누르면 소리가 켜진다 — urgent-sound.js). [확인]은 장갑 낀 손 크기(높이 96 · 너비 320 · 글 28 이상).
+ * data-ntype 이 생산 알람이 아닌 긴급 알림(긴급 호출 등)은 위 모습 그대로다. */
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_"] {
+  background-color: #b81f1f;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_NEW"],
+.foms-urgent-alert[data-ntype="PRODUCTION_FLOOR_STOP_TAKEN"] {
+  background-color: #1546b0;
+}
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_"] .foms-urgent-alert__icon,
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_"] .foms-urgent-alert__sound,
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_"] .foms-urgent-alert__sound-status {
+  display: none;
+}
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_"] .foms-urgent-alert__btn {
+  min-width: 320px;
+  max-width: 100%;
+  min-height: 96px;
+  padding: 16px 56px;
+  border: 3px solid #fff;
+  border-radius: 16px;
+  background: #fff;
+  color: #18212f;
+  font-size: calc(28px * var(--foms-fs, 1));
+  font-weight: 800;
+}
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_"] .foms-urgent-alert__btn:hover,
+.foms-urgent-alert[data-ntype^="PRODUCTION_FLOOR_"] .foms-urgent-alert__btn:focus-visible {
+  background: #fff4d6;
+  color: #18212f;
+}

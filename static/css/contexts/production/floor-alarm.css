@@ -1,0 +1,77 @@
+/* 생산 현장 알람 — 띠(보통 등급) · 소리 단추(종 옆). 설계서 docs/specs/2026-11-28-production-floor-alarm_SPEC.md §2-4 · §3-3.
+ * 짝: static/js/foms/foms-floor-alarm.js · templates/production/partials/floor_alarm.html(flag_floor_alarm 이 참일 때만 실림).
+ * 색은 바탕 · 글을 늘 함께 정한다 — 기기 어두운 설정에서도 같은 짝으로 읽힌다(생산 머리 줄도 밝은 바탕 그대로).
+ * 상태 표시에 무채색 없음: 켬 = 초록, 켜기 · 꺼짐 = 주황, 띠 = 주황. 새 글자 크기는 전역 배율(--foms-fs)을 따른다. */
+
+/* 소리 단추 — 생산 화면 단추 꼴(__btn)에 색만 얹는다. 터치 기기(공장 태블릿)에서만 보인다. */
+.foms-floor-sound { display: none; gap: 8px; }
+.foms-floor-sound i { font-size: calc(18px * var(--foms-fs, 1)); }
+.foms-floor-sound.is-on,
+.foms-floor-sound.is-on:hover,
+.foms-floor-sound.is-on:focus-visible { background: #dff3e8; border-color: #17734a; color: #0f5535; }
+.foms-floor-sound.is-locked,
+.foms-floor-sound.is-locked:hover,
+.foms-floor-sound.is-locked:focus-visible,
+.foms-floor-sound.is-off,
+.foms-floor-sound.is-off:hover,
+.foms-floor-sound.is-off:focus-visible { background: #ffeed6; border-color: #b45a00; color: #7a3d00; }
+.foms-floor-sound:focus-visible { outline: 3px solid #b45a00; outline-offset: 2px; }
+@media (pointer: coarse) {
+  .foms-floor-sound { display: inline-flex; }
+}
+
+/* 띠 — 머리 줄 안 맨 끝에서 한 줄 전체(머리 줄과 같이 위에 붙어 있다). 높이 64 · 글 20 이상, 넘치면 본문부터 줄임. */
+.foms-floor-band {
+  flex: 1 0 100%;
+  order: 99;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 6px 8px 6px 16px;
+  border: 2px solid #d97706;
+  border-radius: 12px;
+  background: #ffe7c2;
+  color: #6b3500;
+}
+.foms-floor-band[hidden],
+.foms-floor-band__count[hidden] { display: none; }
+.foms-floor-band__go {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #6b3500;
+  font: inherit;
+  font-size: calc(20px * var(--foms-fs, 1));
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.foms-floor-band__count {
+  flex: 0 0 auto;
+  font-size: calc(18px * var(--foms-fs, 1));
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.foms-floor-band__ok {
+  flex: 0 0 auto;
+  min-width: 96px;
+  min-height: 52px;
+  padding: 0 20px;
+  border: 2px solid #b45a00;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #6b3500;
+  font: inherit;
+  font-size: calc(20px * var(--foms-fs, 1));
+  font-weight: 800;
+  cursor: pointer;
+}
+.foms-floor-band__go:focus-visible,
+.foms-floor-band__ok:focus-visible { outline: 3px solid #6b3500; outline-offset: 2px; }

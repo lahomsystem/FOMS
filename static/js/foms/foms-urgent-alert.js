@@ -128,6 +128,7 @@
     refs.count.hidden = queue.length <= 1;
     if (shownItem === item) return; // 대기 건수만 바뀜 — 진행 중인 확인 처리는 건드리지 않는다.
     shownItem = item;
+    overlay.setAttribute('data-ntype', item.notification_type ? String(item.notification_type) : ''); // 생산 알람 색(CSS)
     refs.title.textContent = item.title ? String(item.title) : '긴급 알림';
     refs.message.textContent = item.message ? String(item.message) : '상세 내용은 알림 패널을 확인하세요.';
     refs.sender.textContent = item.created_by_name ? ('보낸 사람: ' + String(item.created_by_name)) : '';
@@ -137,7 +138,8 @@
     refs.btn.disabled = false;
     busy = false;
     refs.btn.focus();
-    if (window.FOMSUrgentSound) window.FOMSUrgentSound.start();
+    if (window.FOMSUrgentSound) window.FOMSUrgentSound.start(item.notification_type);
+    document.dispatchEvent(new CustomEvent('foms:urgent-shown', { detail: item })); // foms-floor-alarm.js 가 듣는다
   }
 
   function removeId(id) {
@@ -181,6 +183,7 @@
           return;
         }
         acked[id] = true;
+        document.dispatchEvent(new CustomEvent('foms:urgent-acked', { detail: queue[indexOfId(id)] || { notification_id: id } }));
         removeId(id);
         if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
           window.FOMSNotificationBadge.refresh({ force: true });
