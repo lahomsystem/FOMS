@@ -238,7 +238,7 @@
        태블릿은 이 조각이 없다(지금 그대로). 손 체크 확인 창은 아래 시트 것 하나를 같이 쓴다(pc_sheet_confirm=false). #}{% with pc_sheet_confirm = false %}{% include 'production/partials/home_pc_sheet.html' %}{% endwith %}{% endif %}
   </section>
   {# 단추 배선 세트(도메인 시트 JS · 사유 시트 · 관리자 재시도 — 하나라도 빠지면 재시도가 무음으로 실패). 핀은 첫 화면 · 출고 CHAIN 과 같은 값. #}
-  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261128a" defer></script>{% endif %}
+  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261128b" defer></script>{% endif %}
   {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}{% include 'production/partials/sheet_step_confirm.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261125a" defer></script>{% endif %}{% if write_omitted %}{# 쿠키 없는 첫 요청이라 단추 줄을 뺐다 — 터치 기기면 다시 받는다 #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
@@ -246,7 +246,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261128a" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-parts.js') }}?v=20261128b" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261127z" defer></script>
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-swipe.js') }}?v=20261127m" defer></script>{% if can_act and order.factory_sheet %}
 <script src="{{ url_for('static', filename='js/production/foms-production-sheet-factory.js') }}?v=20261127a" defer></script>{% endif %}{% if pc_view and order.final_sheet_count %}

@@ -188,7 +188,7 @@ def test_lead_half_done_card_has_own_undo_row_and_js_sends_check_and_self_target
         {"do": "click", "key": order.keys[0], "act": "check"}, {"do": "close"},
         {"do": "click", "key": order.keys[0], "act": "held"}, {"do": "choice", "text": "대신 완료"}, {"do": "card", "key": order.keys[0]}]})
     w = two["out"][0]["modal"]  # 반장 칸 [재단 완료] = 같은 확인 창 글(지금 글)
-    assert (w["title"], w["line"], w["run"]["text"]) == ("재단 완료로 바꿀까요?", "작업 중 → 재단 완료 · 박반장", "재단 완료")
+    assert (w["title"], w["line"], w["run"]["text"]) == ("재단 완료할까요?", "작업 중 → 재단 완료 · 박반장", "재단 완료")
     assert [c["body"] for c in two["calls"]] == [check]  # [대신 완료] = check 한 요청
     assert two["out"][3]["status"] == "대신 완료했어요" and two["out"][4]["card"]["state"] == "done"
 

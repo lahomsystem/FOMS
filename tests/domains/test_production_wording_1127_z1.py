@@ -16,7 +16,7 @@ from foms.services.production.part_progress import NO_DRAWINGS_MESSAGE
 ROOT = Path(__file__).resolve().parents[2]
 SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 SHEET_PARTS_JS = "static/js/production/foms-production-sheet-parts.js"
-PIN = "20261128a"
+PIN = "20261128b"
 
 
 def _read(rel: str) -> str:

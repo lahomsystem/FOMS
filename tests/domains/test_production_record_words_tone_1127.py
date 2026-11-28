@@ -28,7 +28,7 @@ SHEETS_JS = ROOT / "static/js/foms/tablet-domain-sheets.js"
 SHEET_PARTS = PROD_JS / "foms-production-sheet-parts.js"
 SHEET_PAGE = PROD_JS / "foms-production-sheet-page.js"
 PIN = "20261127z"
-PARTS_PIN = "20261128a"  # 11-28 a: 도면 없는 주문 안내 글 '완료로 처리'(test_production_wording_1127_z1)
+PARTS_PIN = "20261128b"  # 11-28 b: 바뀐 기록 겹친 완료 빼기 · 11-28 a: 도면 없는 주문 안내 글 '완료로 처리'(test_production_wording_1127_z1)
 
 # 남긴 '…습니다' 글 — (파일, 글, 그 글이 있는 함수, 까닭)
 ALLOWED = [
@@ -94,7 +94,7 @@ def test_바뀐_기록_낱말은_단추_말과_같다() -> None:
     assert kind["release"] == "시작 취소" and kind["remove"] == "시작 취소" and kind["check"] == "완료" and kind["basic"] == "기본"
     assert not [v for v in kind.values() if v.startswith("작업 ")]
     src = _read(SHEET_PARTS)
-    assert "'도면 모두 완료 — ' + KIND.step_on + ' 처리'" in src and "'도면 미완료 — ' + KIND.step_off + ' 처리'" in src
+    assert "'도면 모두 완료' + t" in src and "'도면 모두 완료 — '" not in src and "'도면 미완료 — ' + KIND.step_off + ' 처리'" in src
     assert "작업 완료 처리'" not in src and "작업 취소 처리'" not in src
 
 
@@ -151,7 +151,7 @@ def test_바뀐_기록_줄_원문(tmp_path) -> None:
     assert proc.returncode == 0, proc.stderr
     lines = json.loads(proc.stdout)
     assert lines == [  # 같은 공정은 '칸'(도면 없는 기록) 줄이 도면 줄보다 앞(renderLog 정렬 그대로)
-        "재단 칸: 도면 모두 완료 — 완료 처리 11/27 10:30 → 도면 미완료 — 완료 취소 처리 10:31",
+        "재단 칸: 도면 모두 완료 11/27 10:30 → 도면 미완료 — 완료 취소 처리 10:31",  # 11-28 겹친 '완료' 뺌
         "재단 도면 1/3: 김재단 시작 11/27 10:00 → 박엣지 같이 작업 10:05 → 김재단 완료 10:10 → 김재단 완료 취소 10:11"
         " → 박엣지 시작 취소 (박반장) 10:12 → 박반장 (김재단 대신) 시작 10:13",
         "엣지 칸: 박반장 완료 11/27 10:20 → 박반장 완료 취소 10:21",

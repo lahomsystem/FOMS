@@ -103,7 +103,7 @@ def test_lead_windows_say_mijeong_for_every_part_and_picker_keeps_names(client, 
         {"do": "click", "key": k[2], "act": "undo"}, {"do": "close"},
         {"do": "click", "key": k[1], "act": "held"}]})["out"]
     assert out[0]["modal"]["line"] == "미정 → 작업 중 · 박반장"  # 옛 "안 봄 → 작업 중 · 박반장"
-    assert (out[2]["modal"]["title"], out[2]["modal"]["line"]) == ("재단 완료로 바꿀까요?", "미정 → 재단 완료 · 박반장")
+    assert (out[2]["modal"]["title"], out[2]["modal"]["line"]) == ("재단 완료할까요?", "미정 → 재단 완료 · 박반장")
     assert out[4]["modal"]["line"] == "미정 → 기본 · 박반장"
     assert (out[6]["modal"]["title"], out[6]["modal"]["line"], out[6]["modal"]["run"]["text"]) == ("기본을 취소할까요?", "기본 → 미정", "기본 취소")
     picks = [c["text"] for c in out[8]["modal"]["choices"]]
@@ -148,7 +148,7 @@ def test_css_fits_longer_words_without_new_font_sizes_and_pins():
     rule = ".pp-two.is-mine > .pp-release, .pp-two--join > .foms-prod-home__btn { padding: 0 4px; white-space: normal; word-break: keep-all;"
     assert rule in css and "font-size" not in css[css.index(rule):css.index("\n", css.index(rule))]  # 글자 크기는 그대로
     scripts = (TPL / "home_scripts.html").read_text(encoding="utf-8")
-    for name, pin in (("parts", "20261128c"), ("parts-claim", PIN), ("parts-modal", "20261128c")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
+    for name, pin in (("parts", "20261128d"), ("parts-claim", PIN), ("parts-modal", "20261128d")):  # 11-28 [시작 취소] 창 한 줄 · "창에 보인 대로만 된다"가 parts · modal 을 한 번씩 더
         assert f"foms-production-{name}.js') }}}}?v={pin}" in scripts, name
-    assert "foms-production-parts-crew.js') }}?v=20261127y" in scripts  # 11-27 [<파트> 시작] 진하게로 한 번 더
+    assert "foms-production-parts-crew.js') }}?v=20261127z" in scripts  # 11-27 [<파트> 시작] 진하게로 한 번 더
     assert f"parts.css') }}}}?v={PIN}" in (TPL / "home_styles.html").read_text(encoding="utf-8")

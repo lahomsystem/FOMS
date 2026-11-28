@@ -46,10 +46,10 @@
     if (action === 'take') {
       return { title: LABEL + ' 시작할까요?', line: '미정 → 작업 중 · ' + NAME, run: LABEL + ' 시작', tone: 'need' }; // 카드 단추 [재단 시작]과 같은 낱말(11-27)
     }
-    if (action === 'basic') { return { title: '기본으로 할까요?', line: '미정 → 기본 · ' + NAME, run: '기본으로', tone: 'basic' }; }
+    if (action === 'basic') { return { title: '기본으로 처리할까요?', line: '미정 → 기본 · ' + NAME, run: '기본', tone: 'basic' }; }
     if (action === 'done' || action === 'check') { // check = 반장 · 관리자 칸의 [재단 완료](대신 완료 — 남은 사람 몫 모두 · 미정 도면은 바로 완료 11-27)
       var from = card && attr(card, 'data-state') === 'none' ? '미정 ' : '작업 중 '; // 미정 = [<파트> 시작] 창처럼 네 파트 모두 "미정"(사장님 11-27)
-      return { title: LABEL + ' 완료로 바꿀까요?', line: from + '→ ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
+      return { title: LABEL + ' 완료할까요?', line: from + '→ ' + LABEL + ' 완료 · ' + NAME, run: LABEL + ' 완료', tone: 'done' };
     }
     if (action === 'release' || action === 'takeover' || action === 'held') { return newPlan(action, card); }
     if (card && attr(card, 'data-state') === 'basic') { return { title: '기본을 취소할까요?', line: '기본 → 미정', run: '기본 취소', tone: 'unbasic' }; }

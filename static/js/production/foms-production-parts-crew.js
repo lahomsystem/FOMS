@@ -151,7 +151,7 @@
         note: cr.d ? half(cr) + ' — ' + cr.done + ' 완료 · ' + cr.left + ' 작업 중' : '' }; // 한 명만 완료한 도면은 그 줄만 남긴다(다른 정보)
     }
     if (action === 'done' && cr.me === 'held' && cr.others_left) { // 내 [재단 완료] — 남이 아직(재단 1/2 완료로)
-      return { title: LABEL + ' 완료로 바꿀까요?', line: '작업 중 → ' + LABEL + ' ' + (cr.d + 1) + '/' + cr.n + ' 완료 · ' + NAME,
+      return { title: LABEL + ' 완료할까요?', line: '작업 중 → ' + LABEL + ' ' + (cr.d + 1) + '/' + cr.n + ' 완료 · ' + NAME,
         run: LABEL + ' 완료', tone: 'done',
         note: cr.others_left_subj + ' 아직 작업 중이라 ' + cr.others_left_subj + ' 완료해야 도면이 완료돼요.' };
     }
